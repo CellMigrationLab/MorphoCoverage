@@ -89,7 +89,7 @@ from ..online import OnlineSession
 from ..order_check import OrderCheck
 from ..results import Decision, StrategyResult, _target_decisions
 from ..strategies.base import SamplingStrategy
-from ._live_order import _CheckedSession, _order_check
+from ._live_order import _CheckedSession, _order_check, embedding_columns
 from ._live_text import live_summary
 from ._manifest import MANIFEST, OBJECTS_DIR, OBJECTS_FILE, ManifestReader, write_fov
 from .setup import Setup
@@ -118,9 +118,10 @@ def live_session(
         raise TypeError("setup must be a morphocoverage.workflows.Setup")
     if objective is not None and not isinstance(objective, ObjectiveConfig):
         raise TypeError("objective must be a morphocoverage.ObjectiveConfig")
+    columns = embedding_columns(setup, rules, objective) if setup.embedding_only else None
     return _CheckedSession(
         strategies=list(setup.stopping_rules() if rules is None else rules),
-        feature_cols=setup.columns,
+        feature_cols=columns or setup.columns,
         objective=setup.objective() if objective is None else objective,
         fov_col=setup.fov_col,
         group_cols=None if setup.group_cols is None else list(setup.group_cols),

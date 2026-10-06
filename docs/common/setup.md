@@ -75,6 +75,50 @@ Features measured plane by plane are split before the `Setup`:
 ... (objects matched by `label_id`), and those names are the `readout` and
 `features` declared here ([`data_format.md`](data_format.md#features-measured-per-plane)).
 
+## Embedding-only reports (no explainable features)
+
+A dataset may have no feature to read one by one, only an embedding such as DINO (owner,
+2026-10-06). Declare no readout and no features, and give the tables to the workflows:
+
+```python
+setup = Setup(control={"condition": "MOCK"}, observation_unit="image", fov_col="image_file",
+              fingerprint=fingerprint)              # and/or rare=..., rare_label="mitotic"
+result = report(fovs, fovs, setup, feature_tables={"DINO": dino})   # the table of images
+html_report(result, fovs, fovs, "results", feature_tables={"DINO": dino})
+```
+
+`readout=None` (its default) with no `features` makes such a Setup (`Setup.embedding_only`);
+features without a readout, `normalize` or `intensity_features` are refused, since the
+other tables are never divided by a control. The targets are the user's choice among those
+that need no single readout: the **whole distribution**, the fingerprint of each table
+(read on its first principal components,
+[feature tables](../report/feature_tables_and_maps.md#other-feature-tables-embeddings)), a
+**labelled phenotype** (`rare`, `rare_label`) when a column marks one, or both; averages
+are not offered. The mean-precision rules read the readout, so they are not applicable,
+which the declaration says once, and there is no default stopping rule.
+
+`report`, `html_report`, `scan_design` and `guide` accept such a Setup with
+`feature_tables=`. In the report, "Do the conditions differ?" is answered by the
+[whole-table test](../report/conditions.md#the-whole-table-test-other-feature-tables) of
+each table, its only test, which the answer leads with; "Did I image enough?" by the
+declared fingerprint and labelled phenotype; unusual observations are judged on the tables'
+weighted combined space (one table: its columns), and the maps, the populations, the
+separation and the copy checks read the tables as in any report. Each part that needs
+explainable features says "not applicable: no explainable features" once, with the ➖
+marker: the Foundation, question 1, the fields to check, and per feature the discovery, the
+heatmap, the SuperPlots and "Did I image enough?". The guided session, when the
+observation table holds no numeric feature (a 0/1 column marking a phenotype aside) and
+other tables are given, skips the feature and readout questions, asks for the phenotype
+column, and offers the aim among the whole distribution, the labelled phenotype and both.
+
+`optimise` judges the declared targets on held-back fields (the tables' columns already in
+`objects`: `attach_feature_tables(objects, fovs, tables).objects`, with
+`Setup(feature_tables={name: columns})`); there is no stopping rule to replay or effort
+projection (both read the readout), and it refuses a Setup with no target it can judge.
+`live_session` has no default rule without a readout: pass `rules=(...)` on the tables'
+columns (a `FOVBootstrapStrategy`) or the label (a `RareIncidenceStrategy`), and with both
+the fingerprint and the rare phenotype an `objective=`; it refuses otherwise, saying so.
+
 ## Normalising to the control
 
 `normalize="control_mean"` divides every declared column (the readout and
@@ -119,7 +163,8 @@ what". Three targets can be declared, and each becomes an outcome criterion
 that `optimise` and `benchmark` judge on held-back fields (`setup.criteria()`):
 
 - **a population summary**: the mean of `readout` within each of
-  `tolerances` (always declared);
+  `tolerances` (always declared with a readout; none in an
+  [embedding-only Setup](#embedding-only-reports-no-explainable-features));
 - **a phenotypic fingerprint**: `fingerprint=(OutcomeCriterion(...), ...)`,
   distribution criteria on the declared features, for example
 

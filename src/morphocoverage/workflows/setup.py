@@ -69,6 +69,7 @@ from ._declaration import declaration
 from ._feature_space import check_feature_tables, table_columns
 from ._setup_parts import (
     PositiveControl,
+    check_embedding_only,
     check_few_fovs,
     check_presets,
     default_novelty,
@@ -80,7 +81,11 @@ from ._setup_parts import (
 class Setup:
     """The declaration of a dataset shared by the four workflows.
 
-    - ``readout``: the scalar the microscopist reports (one feature column).
+    - ``readout``: the scalar the microscopist reports (one feature column). ``None``
+      with no ``features`` makes an embedding-only Setup (owner, 2026-10-06): the
+      workflows then read the other feature tables alone (``feature_tables=``), and the
+      targets are the fingerprint of each table and the labelled phenotype, never a mean
+      (``docs/common/setup.md``).
     - ``features``: the representation for unusual observations and novelty
       (explicit columns; never inferred). Empty means the readout only.
     - ``control``: the negative-control groups, for example
@@ -190,7 +195,7 @@ class Setup:
     names are the ``readout`` and ``features`` declared here.
     """
 
-    readout: str
+    readout: str | None = None
     features: tuple[str, ...] = ()
     control: Mapping[str, Any] | None = None
     normalize: str | None = None
@@ -221,8 +226,8 @@ class Setup:
     intensity_features: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if not isinstance(self.readout, str) or not self.readout:
-            raise TypeError("readout must be one column name")
+        if self.readout is not None and (not isinstance(self.readout, str) or not self.readout):
+            raise TypeError("readout must be one column name (None: no explainable features)")
         for name in ("features", "tolerances", "effort_strata", "intensity_features"):
             value = getattr(self, name)
             if value is None and name == "effort_strata":
@@ -285,6 +290,7 @@ class Setup:
                 "a positive control is judged with the definition of new: declare novelty "
                 "(and features), or leave the positive control out"
             )
+        check_embedding_only(self)
         check_presets(self)
         check_few_fovs(self)
         warn_novelty_dimension(self)
@@ -294,8 +300,9 @@ class Setup:
         undeclared = set(self.criterion_columns) - {*self.columns, *table_columns(self)}
         if undeclared:
             raise ValueError(
-                f"fingerprint criteria read feature columns {sorted(undeclared)} that are not "
-                "declared: add them to features (or use the readout or another feature table)"
+                f"fingerprint criteria read feature columns {sorted(undeclared)[:3]} (of "
+                f"{len(undeclared)}) that are not declared: add them to features, or declare "
+                "them as another feature table, feature_tables={name: columns}"
             )
         names = [c.name for c in self.criteria()]
         if len(set(names)) != len(names):
@@ -309,7 +316,15 @@ class Setup:
         ``benchmark`` and ``live_session``, so one rule gives one verdict on the
         same data whichever workflow runs it.
         """
+        if self.readout is None:  # embedding-only: no explainable feature
+            return []
         return [self.readout, *(f for f in self.features if f != self.readout)]
+
+    @property
+    def embedding_only(self) -> bool:
+        """Whether no explainable feature is declared (no readout): the other feature tables
+        are then all the report reads (owner, 2026-10-06)."""
+        return self.readout is None
 
     @property
     def criterion_columns(self) -> list[str]:
@@ -326,7 +341,8 @@ class Setup:
     def judged_columns(self) -> list[str]:
         """The readout plus every column a declared criterion reads: what
         ``sampling_reliability`` judges (the rules read ``columns``)."""
-        return [self.readout, *(c for c in self.criterion_columns if c != self.readout)]
+        first = [self.readout] if self.readout is not None else []
+        return [*first, *(c for c in self.criterion_columns if c != self.readout)]
 
     @property
     def resolved_few_fovs(self) -> int | None:
@@ -464,6 +480,11 @@ class Setup:
         decides stays ``unsupported`` in the decision view rather than being
         assumed adequate.
         """
+        if self.readout is None:  # no mean: the fingerprint and the rare phenotype only
+            if self.rare is not None and not self.fingerprint:
+                return ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=self.rare)
+            if self.rare is None:
+                return ObjectiveConfig(SamplingObjective.DISTRIBUTION)
         if self.rare is not None and self.fingerprint:
             return ObjectiveConfig(SamplingObjective.ALL, rare=self.rare)
         if self.rare is not None:
@@ -486,7 +507,7 @@ class Setup:
                 "lower_is_better",
                 f"the mean of {self.readout} within {rate(tolerance)}",
             )
-            for tolerance in self.tolerances
+            for tolerance in (self.tolerances if self.readout is not None else ())
         ]
         criteria += list(self.fingerprint)
         if self.rare is not None and self.rare_label is not None:
@@ -561,6 +582,8 @@ class Setup:
         or tracks of one image are far from independent draws (owner, 2026-10-02)."""
         if self.rules is not None:
             return self.rules
+        if self.readout is None:  # the mean-precision rules read the readout
+            return ()
         target = self.tolerances[0]
         per_fov = ScalarPrecisionStrategy(self.readout, target, "fov", "upper_95")
         if resolve_observation_unit(self.observation_unit)[0] not in OBJECT_LIKE_UNITS:

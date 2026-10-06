@@ -59,6 +59,18 @@ features, field identifier, groups and unit; a guessed control is never used
 without being declared, and a fingerprint or rare goal needs its criterion,
 whose tolerance has no default. Nothing in the scan is estimated or tested.
 
+**An embedding-only report** (owner, 2026-10-06): when the observation table holds no
+numeric feature and other feature tables are given (a table of images and a DINO
+embedding), the scan checks the tables' columns, and `scan.setup(None, goal="fingerprint"
+or "rare", ...)` builds a Setup without a readout
+([the setup](../common/setup.md#embedding-only-reports-no-explainable-features)). The report
+then answers "Do the conditions differ?" with the
+[whole-table test](conditions.md#the-whole-table-test-other-feature-tables) of each table,
+"Did I image enough?" with the fingerprint of each table and the labelled phenotype, and
+says once per section what needs explainable features ("not applicable: no explainable
+features", ➖). In every report with other feature tables, each table is also tested whole
+beside the per-feature tests, and the page saves the tests as `tests_whole_table.csv`.
+
 ### A guided session
 
 `guide()` asks those questions for you, one at a time, and keeps the answers:
@@ -102,8 +114,13 @@ them; an optional column that marks a phenotype you care about (true/false or 0/
 such as mitotic: `Setup.rare_label`, its share taken as the rare target's prevalence, to be
 seen in 3 fields with 95% chance); and, for the whole distribution, its tolerance (the
 covariance of the standardised features within a share you state; 10% is offered, with no
-published meaning). Last, it asks whether to run the report now (the default) or to save
-the answers and stop, as `run_report=False` does. Enter takes each default.
+published meaning). When the observation table holds no numeric feature (a 0/1 column
+marking a phenotype aside) and other feature tables are given, it skips the feature and
+readout questions (owner, 2026-10-06): it asks for the phenotype column, then offers the
+aim among the whole distribution of each table (its fingerprint), the labelled phenotype and
+both; without a phenotype column it says the aim is the whole distribution. Averages are not
+offered: there is no readout. Last, it asks whether to run the report now (the default) or
+to save the answers and stop, as `run_report=False` does. Enter takes each default.
 
 The answers are saved in the folder as `morphocoverage_answers.json`, with a
 checksum of the observation table and one of the FOV table (`None` without
@@ -239,7 +256,7 @@ before it starts. It is approximate, from constructed datasets of 5 to 300
 features and 3 to 151 conditions (2026-10-02 and 2026-10-05), which took 13, 50
 and about 30 min; a busy machine, the novelty question below and many objects
 per field add to it. Other feature tables are never tested feature by feature, but
-each adds its populations, maps and copy checks: the estimate counts 40 s per table and
+each adds its populations, maps, copy checks and whole-table test (a few matrix products): the estimate counts 40 s per table and
 0.06 s per column (owner, 2026-10-06). Measured on 2026-10-06 on 3 processes, at 5,000
 cells in 72 fields with 17 explainable features and 3 conditions, the report and its page
 took 54 s and 16 s without a table (a page of 12.5 MB), 86 s and 49 s with a table of 400

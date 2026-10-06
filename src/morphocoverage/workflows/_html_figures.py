@@ -101,6 +101,8 @@ def feature_figures(
     as markup by feature) and the specs the page's script draws (``_html_plotly``)."""
     legends = legends or {}
     setup = result.setup
+    if setup.embedding_only:  # no feature to plot one at a time (owner, 2026-10-06)
+        return [], []
     drawn = plots(objects, fovs, setup, ranking=result.discovery)
     checked, checked_fovs, _ = check_workflow_inputs(objects, fovs, setup)
     views = _views(setup, checked, checked_fovs)

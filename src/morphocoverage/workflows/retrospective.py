@@ -81,12 +81,14 @@ from ._document import (
     with_reasons,
     with_settings,
 )
+from ._embedding_report import embedding_plan, embedding_report
 from ._enough_features import enough_by_feature
 from ._enough_targets import fingerprint_precision
 from ._feature_space import (
     attached,
     novelty_space,
     separation_in_report,
+    table_columns,
     table_lines,
 )
 from ._fingerprint_space import fingerprint_space
@@ -168,6 +170,8 @@ def report(
         objects, fovs, setup, warn=False, tables_given=given
     )
     objects, setup, tables = attached(objects, fovs, setup, feature_tables)
+    if setup.embedding_only:  # the other tables alone (owner, 2026-10-06)
+        return embedding_report(objects, fovs, setup, data_check, tables, integrity)
     common = setup.common
     readout = setup.readout
     # One observation per field (one cell per image): the questions about fields do not
@@ -355,12 +359,19 @@ def optimise(
     # A wide table's fingerprint on its first components, as the report reads it.
     space = fingerprint_space(prepared, fovs, setup)
     criteria = space.setup.criteria()
+    if not criteria:  # an embedding-only Setup whose targets cannot be judged
+        unread = "; ".join(f"{c}: {r}" for c, r in space.not_assessable.items())
+        raise ValueError(
+            "optimise judges the declared targets on held-back fields, and this Setup has "
+            "none it can judge: without a readout, declare the fingerprint of a table or a "
+            "labelled phenotype (rare, rare_label)" + (f" ({unread})" if unread else "")
+        )
     reasons: dict[str, str] = {}
     results: dict[str, Any] = {}
     results["reliability"] = sampling_reliability(
         prepared,
         fovs,
-        feature_cols=setup.judged_columns,
+        feature_cols=setup.judged_columns or table_columns(setup),
         criteria=criteria,
         fov_counts=fov_counts,
         reservoir_fraction=reservoir_fraction,
@@ -392,6 +403,8 @@ def optimise(
                 strata=strata,
                 random_state=setup.random_state,
             )
+    if not setup.stopping_rules():  # no readout, no rule (owner, 2026-10-06)
+        return embedding_plan(objects, fovs, setup, results, reasons, space)
     replay = replay_rules(
         objects,
         prepared,

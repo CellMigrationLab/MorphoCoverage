@@ -45,6 +45,7 @@ from ._html_next import (
     rule_labels,
 )
 from ._html_render import text_html
+from ._html_tabs import NOTHING_LIVE, choose
 from ._populations import rule_words
 
 PLAN_TITLE = "Plan the next experiment"
@@ -168,24 +169,6 @@ def _panel(sentence: str, code: str = "", extra: str = "") -> str:
     """A choice's panel: what it does, its code, and what goes with it."""
     block = f"<pre><code>{html.escape(code)}</code></pre>" if code else ""
     return f"<p>{html.escape(sentence)}</p>{extra}{block}"
-
-
-def _choose(name: str, label: str, items: Sequence[tuple[str, str]]) -> str:
-    """A ``<select>`` called ``name`` (an id prefix) and one panel per ``(option, markup)``,
-    the first shown."""
-    options = "".join(
-        f'<option value="{i}"{" selected" if i == 0 else ""}>{html.escape(text)}</option>'
-        for i, (text, _) in enumerate(items)
-    )
-    panels = "".join(
-        f'<div class="choice-panel" id="{name}-panel-{i}"{"" if i == 0 else " hidden"}>'
-        f"{markup}</div>"
-        for i, (_, markup) in enumerate(items)
-    )
-    return (
-        f'<div class="choose"><label for="{name}-pick">{html.escape(label)}</label>'
-        f'<select id="{name}-pick">{options}</select>{panels}</div>'
-    )
 
 
 def _tolerances(result: Any) -> str:
@@ -509,7 +492,10 @@ def _declared_goals(
                         None,
                     )
                 )
-    if setup.fingerprint:
+    precision = result.results.get("fingerprint_precision")
+    unread = precision is not None and "not_assessable" in precision
+    # Not assessable in any table: nothing optimise could judge (question 2 says why).
+    if setup.fingerprint and not (unread and precision["not_assessable"].notna().all()):
         sentence = (
             "The fingerprint is declared: optimise judges each of its criteria on fields "
             "held back from each well, in “How many fields next time?”."
@@ -588,9 +574,9 @@ def plan_card(
         "watch for: the code below continues the session that made this report "
         "(objects, fovs and result).</p>"
         "<h3>Want to optimise your imaging?</h3>"
-        + _choose("plan-optimise", "What should the next experiment get right?", optimise)
+        + choose("plan-optimise", "What should the next experiment get right?", optimise)
         + "<h3>Want to focus on a specific phenotype on the microscope?</h3>"
-        + _choose("plan-live", "Stop each well once…", live)
+        + choose("plan-live", "Stop each well once…", live, NOTHING_LIVE)
         + '<p class="note">Live decides when to stop imaging a well, not where to image.</p>'
     )
     return annotate(body)

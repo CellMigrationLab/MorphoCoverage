@@ -516,17 +516,19 @@ def scan_design(
     taken = {*fov_key, *groups}
     features = list(feature_cols) if features_declared else _feature_candidates(objects, taken)
     objects, tables, refused = _with_tables(objects, fovs, feature_tables, found_fov, added_fov)
+    # Without explainable features, the other tables' columns (owner, 2026-10-06).
+    checked = features or [c for cols in (tables.columns if tables else {}).values() for c in cols]
     data_check = _quiet(
         check_tables,
         objects,
         fovs,
-        feature_cols=features,
+        feature_cols=checked,
         fov_col=found_fov,
         observation_unit=observation_unit,
         control=control,
     )
     integrity = None
-    if data_check.ok and features:
+    if data_check.ok and checked:
         # On each feature table apart, the union said (owner, 2026-10-06).
         integrity = _quiet(
             integrity_by_table,
