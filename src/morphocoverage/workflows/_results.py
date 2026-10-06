@@ -8,7 +8,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .._caveats import caveat_lines
-from .._style import check_detail, fitted, headline, wrap
+from .._fitted import fitted
+from .._style import check_detail, headline, wrap
 from ..retrospective.calibration import calibration_short_parts
 from ..retrospective.report import LIMITS_TITLE
 from ..retrospective.report_status import calibration_status

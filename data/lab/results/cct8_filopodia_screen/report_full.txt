@@ -1,14 +1,12 @@
 ✅ What is in the dataset
   1686 cells in 1686 acquired fields; a field is identified by condition, biological_repeat,
-    technical_repeat, position_id.
-  1 feature column: Filopodia number.
-  54 technical repeats (technical_repeat, a well or a dish within a repeat, 1 per condition and
-    repeat).
-  13 conditions (condition: siCTRL, siCCT8#5, siCCT8#8, siCSNK1A1#11, siCSNK1A1#5, siMAP4K4#5,
-    siMAP4K4#6, siMINK1#10, siMINK1#3, siNF2#17, siNF2#7, siSCRIB#6 and 1 more); 18 repeats
-    (biological_repeat: siCCT8_1, siCCT8_2, siCCT8_3, siCSNK1A1_1, siCSNK1A1_2, siCSNK1A1_3,
-    siMAP4K4_1, siMAP4K4_2, siMAP4K4_3, siMINK1_1, siMINK1_2, siMINK1_3 and 6 more).
-  6 sub-experiments, each of 2 conditions and its own siCTRL in its own 3 biological repeats.
+  technical_repeat, position_id. 1 feature column: Filopodia number. 54 technical repeats
+  (technical_repeat, a well or a dish within a repeat, 1 per condition and repeat). 13 conditions
+  (condition: siCTRL, siCCT8#5, siCCT8#8, siCSNK1A1#11, siCSNK1A1#5, siMAP4K4#5, siMAP4K4#6,
+  siMINK1#10, siMINK1#3, siNF2#17, siNF2#7, siSCRIB#6 and 1 more); 18 repeats (biological_repeat:
+  siCCT8_1, siCCT8_2, siCCT8_3, siCSNK1A1_1, siCSNK1A1_2, siCSNK1A1_3, siMAP4K4_1, siMAP4K4_2,
+  siMAP4K4_3, siMINK1_1, siMINK1_2, siMINK1_3 and 6 more). 6 sub-experiments, each of 2 conditions
+  and its own siCTRL in its own 3 biological repeats.
     (54 condition-and-repeat combinations: too many to list; DatasetOverview.layout holds them)
   Values: as given (not normalised).
   ✅ Data checks: no warning.
@@ -21,15 +19,13 @@
     ⚠️ Whole fields compared: 0 of 1686; 1686 fields held fewer than 5 observations.
     Assumptions:
       - Out of reach of these checks: a copy re-rounded to fewer than 6 significant digits, a block
-        of
-        fewer than 10 observations that is not the whole of the smaller field, a copy with feature
-        columns swapped or a feature (or a value) missing in one copy only, and observations pasted
-        into two or more other fields (they read as recurring).
+        of fewer than 10 observations that is not the whole of the smaller field, a copy with
+        feature columns swapped or a feature (or a value) missing in one copy only, and observations
+        pasted into two or more other fields (they read as recurring).
 
     ✅ Acquisition anomalies (quality control): none: no field 5 SDs or more from the other fields
-       of
-       its condition and repeat on the log scale, 1686 fields judged in 54 groups; each field holds
-       one cell, so this reads single cells.
+       of its condition and repeat on the log scale, 1686 fields judged in 54 groups; each field
+       holds one cell, so this reads single cells.
 
 What this acquisition was asked to preserve
   - Population summary: the mean of Filopodia number over all cells, within 5% and 2.5% of its value
@@ -127,8 +123,8 @@ What this acquisition was asked to preserve
 
 ➖ 1. Can these features detect what I care about?
   Not assessed: name a condition known to change the phenotype as the positive control (the guided
-    session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again;
-    it can be added after the acquisition, whenever such a condition was imaged.
+  session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again; it
+  can be added after the acquisition, whenever such a condition was imaged.
 
 ⚠️ 2. Did I image enough?
   Within each repeat, does the difference from the control show? Filopodia number, each condition
@@ -200,13 +196,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 8%); 0 of 34 fields showed a state counted as new.
     Not yet seen: at most 8% of fields (95% confidence, about 3 / 34).
     Seen in few fields: 1 of 34 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.07%-15%): to see it once with 95% probability, about 101 independent representative
-      fields, up to 4024 at the low end of the interval.
+      (95% interval 0.07%-15%): to see it once with 95% probability, about 101 independent
+      representative fields, up to 4024 at the low end of the interval.
     Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none
-        shows
-      anything new (25 at the current rate of new fields).
+      shows anything new (25 at the current rate of new fields).
 
   siCCT8#5 · repeat siCCT8_2 — 49 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -218,8 +212,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 49 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 10 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 44 more fields if none
-        shows
-      anything new (132 at the current rate of new fields).
+      shows anything new (132 at the current rate of new fields).
 
   siCCT8#5 · repeat siCCT8_3 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -229,13 +222,11 @@ What this acquisition was asked to preserve
     One more field: chance 3% (nominal 95% bound 15%); 1 of 30 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 30).
     Seen in few fields: 1 of 30 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.08%-17%): to see it once with 95% probability, about 89 independent representative
-      fields, up to 3550 at the low end of the interval.
+      (95% interval 0.08%-17%): to see it once with 95% probability, about 89 independent
+      representative fields, up to 3550 at the low end of the interval.
     Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 63 more fields if none
-        shows
-      anything new (500 at the current rate of new fields).
+      shows anything new (500 at the current rate of new fields).
 
   siCCT8#8 · repeat siCCT8_1 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -246,13 +237,11 @@ What this acquisition was asked to preserve
     One more field: chance 3% (nominal 95% bound 14%); 1 of 31 fields showed a state counted as new.
     Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
     Seen in few fields: 2 of 31 fields hold a state seen in 2 to 3 fields; together 6% of fields
-      (95%
-      interval 0.8%-21%): to see it once with 95% probability, about 45 independent representative
-      fields, up to 378 at the low end of the interval.
+      (95% interval 0.8%-21%): to see it once with 95% probability, about 45 independent
+      representative fields, up to 378 at the low end of the interval.
     Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 62 more fields if none
-        shows
-      anything new (451 at the current rate of new fields).
+      shows anything new (451 at the current rate of new fields).
 
   siCCT8#8 · repeat siCCT8_2 — 38 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -264,8 +253,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 38 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 21 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 21 more fields if none
-        shows
-      anything new (21 at the current rate of new fields).
+      shows anything new (21 at the current rate of new fields).
 
   siCCT8#8 · repeat siCCT8_3 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -277,8 +265,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none
-        shows
-      anything new (28 at the current rate of new fields).
+      shows anything new (28 at the current rate of new fields).
 
   siCTRL · repeat siCCT8_1 — 33 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -290,8 +277,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 33 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 26 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 26 more fields if none
-        shows
-      anything new (26 at the current rate of new fields).
+      shows anything new (26 at the current rate of new fields).
 
   siCTRL · repeat siCCT8_2 — 39 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -301,13 +287,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 7%); 0 of 39 fields showed a state counted as new.
     Not yet seen: at most 7% of fields (95% confidence, about 3 / 39).
     Seen in few fields: 1 of 39 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.06%-13%): to see it once with 95% probability, about 116 independent representative
-      fields, up to 4615 at the low end of the interval.
+      (95% interval 0.06%-13%): to see it once with 95% probability, about 116 independent
+      representative fields, up to 4615 at the low end of the interval.
     Fields still needed: at least 20 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 20 more fields if none
-        shows
-      anything new (20 at the current rate of new fields).
+      shows anything new (20 at the current rate of new fields).
 
   siCTRL · repeat siCCT8_3 — 32 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -317,13 +301,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 9%); 0 of 32 fields showed a state counted as new.
     Not yet seen: at most 9% of fields (95% confidence, about 3 / 32).
     Seen in few fields: 2 of 32 fields hold a state seen in 2 to 3 fields; together 6% of fields
-      (95%
-      interval 0.8%-21%): to see it once with 95% probability, about 47 independent representative
-      fields, up to 390 at the low end of the interval.
+      (95% interval 0.8%-21%): to see it once with 95% probability, about 47 independent
+      representative fields, up to 390 at the low end of the interval.
     Fields still needed: at least 27 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 27 more fields if none
-        shows
-      anything new (27 at the current rate of new fields).
+      shows anything new (27 at the current rate of new fields).
 
   siCSNK1A1#11 · repeat siCSNK1A1_1 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -333,13 +315,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 8%); 0 of 34 fields showed a state counted as new.
     Not yet seen: at most 8% of fields (95% confidence, about 3 / 34).
     Seen in few fields: 1 of 34 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.07%-15%): to see it once with 95% probability, about 101 independent representative
-      fields, up to 4024 at the low end of the interval.
+      (95% interval 0.07%-15%): to see it once with 95% probability, about 101 independent
+      representative fields, up to 4024 at the low end of the interval.
     Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none
-        shows
-      anything new (25 at the current rate of new fields).
+      shows anything new (25 at the current rate of new fields).
 
   siCSNK1A1#11 · repeat siCSNK1A1_2 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -351,8 +331,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 34 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none
-        shows
-      anything new (25 at the current rate of new fields).
+      shows anything new (25 at the current rate of new fields).
 
   siCSNK1A1#11 · repeat siCSNK1A1_3 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -364,8 +343,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 34 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none
-        shows
-      anything new (25 at the current rate of new fields).
+      shows anything new (25 at the current rate of new fields).
 
   siCSNK1A1#5 · repeat siCSNK1A1_1 — 35 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -376,13 +354,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 8%); 0 of 35 fields showed a state counted as new.
     Not yet seen: at most 8% of fields (95% confidence, about 3 / 35).
     Seen in few fields: 2 of 35 fields hold a state seen in 2 to 3 fields; together 6% of fields
-      (95%
-      interval 0.7%-19%): to see it once with 95% probability, about 51 independent representative
-      fields, up to 427 at the low end of the interval.
+      (95% interval 0.7%-19%): to see it once with 95% probability, about 51 independent
+      representative fields, up to 427 at the low end of the interval.
     Fields still needed: at least 24 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 24 more fields if none
-        shows
-      anything new (24 at the current rate of new fields).
+      shows anything new (24 at the current rate of new fields).
 
   siCSNK1A1#5 · repeat siCSNK1A1_2 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -392,13 +368,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 8%); 0 of 34 fields showed a state counted as new.
     Not yet seen: at most 8% of fields (95% confidence, about 3 / 34).
     Seen in few fields: 1 of 34 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.07%-15%): to see it once with 95% probability, about 101 independent representative
-      fields, up to 4024 at the low end of the interval.
+      (95% interval 0.07%-15%): to see it once with 95% probability, about 101 independent
+      representative fields, up to 4024 at the low end of the interval.
     Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none
-        shows
-      anything new (25 at the current rate of new fields).
+      shows anything new (25 at the current rate of new fields).
 
   siCSNK1A1#5 · repeat siCSNK1A1_3 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -410,8 +384,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 34 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 59 more fields if none
-        shows
-      anything new (327 at the current rate of new fields).
+      shows anything new (327 at the current rate of new fields).
 
   siCTRL · repeat siCSNK1A1_1 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -424,8 +397,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 93 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   siCTRL · repeat siCSNK1A1_2 — 33 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -437,8 +409,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 33 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 26 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 26 more fields if none
-        shows
-      anything new (26 at the current rate of new fields).
+      shows anything new (26 at the current rate of new fields).
 
   siCTRL · repeat siCSNK1A1_3 — 33 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -448,13 +419,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 9%); 0 of 33 fields showed a state counted as new.
     Not yet seen: at most 9% of fields (95% confidence, about 3 / 33).
     Seen in few fields: 2 of 33 fields hold a state seen in 2 to 3 fields; together 6% of fields
-      (95%
-      interval 0.7%-20%): to see it once with 95% probability, about 48 independent representative
-      fields, up to 402 at the low end of the interval.
+      (95% interval 0.7%-20%): to see it once with 95% probability, about 48 independent
+      representative fields, up to 402 at the low end of the interval.
     Fields still needed: at least 26 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 26 more fields if none
-        shows
-      anything new (26 at the current rate of new fields).
+      shows anything new (26 at the current rate of new fields).
 
   siCTRL · repeat siMAP4K4_1 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -466,8 +435,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 30 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 29 more fields if none
-        shows
-      anything new (29 at the current rate of new fields).
+      shows anything new (29 at the current rate of new fields).
 
   siCTRL · repeat siMAP4K4_2 — 32 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -477,13 +445,11 @@ What this acquisition was asked to preserve
     One more field: chance 3% (nominal 95% bound 14%); 1 of 32 fields showed a state counted as new.
     Not yet seen: at most 9% of fields (95% confidence, about 3 / 32).
     Seen in few fields: 2 of 32 fields hold a state seen in 2 to 3 fields; together 6% of fields
-      (95%
-      interval 0.8%-21%): to see it once with 95% probability, about 47 independent representative
-      fields, up to 390 at the low end of the interval.
+      (95% interval 0.8%-21%): to see it once with 95% probability, about 47 independent
+      representative fields, up to 390 at the low end of the interval.
     Fields still needed: at least 27 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 61 more fields if none
-        shows
-      anything new (402 at the current rate of new fields).
+      shows anything new (402 at the current rate of new fields).
 
   siCTRL · repeat siMAP4K4_3 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -494,13 +460,11 @@ What this acquisition was asked to preserve
     One more field: chance 3% (nominal 95% bound 14%); 1 of 31 fields showed a state counted as new.
     Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
     Seen in few fields: 2 of 31 fields hold a state seen in 2 to 3 fields; together 6% of fields
-      (95%
-      interval 0.8%-21%): to see it once with 95% probability, about 45 independent representative
-      fields, up to 378 at the low end of the interval.
+      (95% interval 0.8%-21%): to see it once with 95% probability, about 45 independent
+      representative fields, up to 378 at the low end of the interval.
     Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 62 more fields if none
-        shows
-      anything new (451 at the current rate of new fields).
+      shows anything new (451 at the current rate of new fields).
 
   siMAP4K4#5 · repeat siMAP4K4_1 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -510,13 +474,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 9%); 0 of 31 fields showed a state counted as new.
     Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
     Seen in few fields: 1 of 31 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.08%-17%): to see it once with 95% probability, about 92 independent representative
-      fields, up to 3669 at the low end of the interval.
+      (95% interval 0.08%-17%): to see it once with 95% probability, about 92 independent
+      representative fields, up to 3669 at the low end of the interval.
     Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none
-        shows
-      anything new (28 at the current rate of new fields).
+      shows anything new (28 at the current rate of new fields).
 
   siMAP4K4#5 · repeat siMAP4K4_2 — 13 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -530,8 +492,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 13 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 46 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 80 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   siMAP4K4#5 · repeat siMAP4K4_3 — 32 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -543,8 +504,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 32 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 27 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 27 more fields if none
-        shows
-      anything new (27 at the current rate of new fields).
+      shows anything new (27 at the current rate of new fields).
 
   siMAP4K4#6 · repeat siMAP4K4_1 — 37 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -555,13 +515,11 @@ What this acquisition was asked to preserve
     One more field: chance 3% (nominal 95% bound 12%); 1 of 37 fields showed a state counted as new.
     Not yet seen: at most 8% of fields (95% confidence, about 3 / 37).
     Seen in few fields: 2 of 37 fields hold a state seen in 2 to 3 fields; together 5% of fields
-      (95%
-      interval 0.7%-18%): to see it once with 95% probability, about 54 independent representative
-      fields, up to 452 at the low end of the interval.
+      (95% interval 0.7%-18%): to see it once with 95% probability, about 54 independent
+      representative fields, up to 452 at the low end of the interval.
     Fields still needed: at least 22 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 56 more fields if none
-        shows
-      anything new (249 at the current rate of new fields).
+      shows anything new (249 at the current rate of new fields).
 
   siMAP4K4#6 · repeat siMAP4K4_2 — 29 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -571,13 +529,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 10%); 0 of 29 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 29).
     Seen in few fields: 1 of 29 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.09%-18%): to see it once with 95% probability, about 86 independent representative
-      fields, up to 3432 at the low end of the interval.
+      (95% interval 0.09%-18%): to see it once with 95% probability, about 86 independent
+      representative fields, up to 3432 at the low end of the interval.
     Fields still needed: at least 30 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 30 more fields if none
-        shows
-      anything new (30 at the current rate of new fields).
+      shows anything new (30 at the current rate of new fields).
 
   siMAP4K4#6 · repeat siMAP4K4_3 — 32 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -588,13 +544,11 @@ What this acquisition was asked to preserve
     One more field: chance 3% (nominal 95% bound 14%); 1 of 32 fields showed a state counted as new.
     Not yet seen: at most 9% of fields (95% confidence, about 3 / 32).
     Seen in few fields: 2 of 32 fields hold a state seen in 2 to 3 fields; together 6% of fields
-      (95%
-      interval 0.8%-21%): to see it once with 95% probability, about 47 independent representative
-      fields, up to 390 at the low end of the interval.
+      (95% interval 0.8%-21%): to see it once with 95% probability, about 47 independent
+      representative fields, up to 390 at the low end of the interval.
     Fields still needed: at least 27 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 61 more fields if none
-        shows
-      anything new (402 at the current rate of new fields).
+      shows anything new (402 at the current rate of new fields).
 
   siCTRL · repeat siMINK1_1 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -606,8 +560,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 34 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none
-        shows
-      anything new (25 at the current rate of new fields).
+      shows anything new (25 at the current rate of new fields).
 
   siCTRL · repeat siMINK1_2 — 32 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -617,13 +570,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 9%); 0 of 32 fields showed a state counted as new.
     Not yet seen: at most 9% of fields (95% confidence, about 3 / 32).
     Seen in few fields: 3 of 32 fields hold a state seen in 2 to 3 fields; together 9% of fields
-      (95%
-      interval 2%-25%): to see it once with 95% probability, about 31 independent representative
-      fields, up to 151 at the low end of the interval.
+      (95% interval 2%-25%): to see it once with 95% probability, about 31 independent
+      representative fields, up to 151 at the low end of the interval.
     Fields still needed: at least 27 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 27 more fields if none
-        shows
-      anything new (27 at the current rate of new fields).
+      shows anything new (27 at the current rate of new fields).
 
   siCTRL · repeat siMINK1_3 — 18 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -635,8 +586,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 18 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 41 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 41 more fields if none
-        shows
-      anything new (41 at the current rate of new fields).
+      shows anything new (41 at the current rate of new fields).
 
   siMINK1#10 · repeat siMINK1_1 — 33 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -646,13 +596,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 9%); 0 of 33 fields showed a state counted as new.
     Not yet seen: at most 9% of fields (95% confidence, about 3 / 33).
     Seen in few fields: 2 of 33 fields hold a state seen in 2 to 3 fields; together 6% of fields
-      (95%
-      interval 0.7%-20%): to see it once with 95% probability, about 48 independent representative
-      fields, up to 402 at the low end of the interval.
+      (95% interval 0.7%-20%): to see it once with 95% probability, about 48 independent
+      representative fields, up to 402 at the low end of the interval.
     Fields still needed: at least 26 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 26 more fields if none
-        shows
-      anything new (26 at the current rate of new fields).
+      shows anything new (26 at the current rate of new fields).
 
   siMINK1#10 · repeat siMINK1_2 — 29 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -664,8 +612,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 29 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 30 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 64 more fields if none
-        shows
-      anything new (572 at the current rate of new fields).
+      shows anything new (572 at the current rate of new fields).
 
   siMINK1#10 · repeat siMINK1_3 — 27 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -675,13 +622,11 @@ What this acquisition was asked to preserve
     One more field: chance 4% (nominal 95% bound 16%); 1 of 27 fields showed a state counted as new.
     Not yet seen: at most 11% of fields (95% confidence, about 3 / 27).
     Seen in few fields: 1 of 27 fields hold a state seen in 2 to 3 fields; together 4% of fields
-      (95%
-      interval 0.09%-19%): to see it once with 95% probability, about 80 independent representative
-      fields, up to 3195 at the low end of the interval.
+      (95% interval 0.09%-19%): to see it once with 95% probability, about 80 independent
+      representative fields, up to 3195 at the low end of the interval.
     Fields still needed: at least 32 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 66 more fields if none
-        shows
-      anything new (828 at the current rate of new fields).
+      shows anything new (828 at the current rate of new fields).
 
   siMINK1#3 · repeat siMINK1_1 — 38 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -693,8 +638,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 38 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 21 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 21 more fields if none
-        shows
-      anything new (21 at the current rate of new fields).
+      shows anything new (21 at the current rate of new fields).
 
   siMINK1#3 · repeat siMINK1_2 — 27 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -706,8 +650,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 27 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 32 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 32 more fields if none
-        shows
-      anything new (32 at the current rate of new fields).
+      shows anything new (32 at the current rate of new fields).
 
   siMINK1#3 · repeat siMINK1_3 — 20 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -717,13 +660,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 14%); 0 of 20 fields showed a state counted as new.
     Not yet seen: at most 14% of fields (95% confidence, about 3 / 20).
     Seen in few fields: 1 of 20 fields hold a state seen in 2 to 3 fields; together 5% of fields
-      (95%
-      interval 0.1%-25%): to see it once with 95% probability, about 59 independent representative
-      fields, up to 2367 at the low end of the interval.
+      (95% interval 0.1%-25%): to see it once with 95% probability, about 59 independent
+      representative fields, up to 2367 at the low end of the interval.
     Fields still needed: at least 39 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 39 more fields if none
-        shows
-      anything new (39 at the current rate of new fields).
+      shows anything new (39 at the current rate of new fields).
 
   siCTRL · repeat siNF2_1 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -735,8 +676,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none
-        shows
-      anything new (28 at the current rate of new fields).
+      shows anything new (28 at the current rate of new fields).
 
   siCTRL · repeat siNF2_2 — 29 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -746,13 +686,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 10%); 0 of 29 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 29).
     Seen in few fields: 1 of 29 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.09%-18%): to see it once with 95% probability, about 86 independent representative
-      fields, up to 3432 at the low end of the interval.
+      (95% interval 0.09%-18%): to see it once with 95% probability, about 86 independent
+      representative fields, up to 3432 at the low end of the interval.
     Fields still needed: at least 30 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 30 more fields if none
-        shows
-      anything new (30 at the current rate of new fields).
+      shows anything new (30 at the current rate of new fields).
 
   siCTRL · repeat siNF2_3 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -764,13 +702,11 @@ What this acquisition was asked to preserve
     One more field: chance 6% (nominal 95% bound 19%); 2 of 31 fields showed a state counted as new.
     Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
     Seen in few fields: 1 of 31 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.08%-17%): to see it once with 95% probability, about 92 independent representative
-      fields, up to 3669 at the low end of the interval.
+      (95% interval 0.08%-17%): to see it once with 95% probability, about 92 independent
+      representative fields, up to 3669 at the low end of the interval.
     Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 93 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   siNF2#17 · repeat siNF2_1 — 32 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -780,13 +716,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 9%); 0 of 32 fields showed a state counted as new.
     Not yet seen: at most 9% of fields (95% confidence, about 3 / 32).
     Seen in few fields: 1 of 32 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.08%-16%): to see it once with 95% probability, about 95 independent representative
-      fields, up to 3787 at the low end of the interval.
+      (95% interval 0.08%-16%): to see it once with 95% probability, about 95 independent
+      representative fields, up to 3787 at the low end of the interval.
     Fields still needed: at least 27 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 27 more fields if none
-        shows
-      anything new (27 at the current rate of new fields).
+      shows anything new (27 at the current rate of new fields).
 
   siNF2#17 · repeat siNF2_2 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -798,8 +732,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none
-        shows
-      anything new (28 at the current rate of new fields).
+      shows anything new (28 at the current rate of new fields).
 
   siNF2#17 · repeat siNF2_3 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -811,8 +744,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 30 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 29 more fields if none
-        shows
-      anything new (29 at the current rate of new fields).
+      shows anything new (29 at the current rate of new fields).
 
   siNF2#7 · repeat siNF2_1 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -823,13 +755,11 @@ What this acquisition was asked to preserve
     One more field: chance 3% (nominal 95% bound 15%); 1 of 30 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 30).
     Seen in few fields: 2 of 30 fields hold a state seen in 2 to 3 fields; together 7% of fields
-      (95%
-      interval 0.8%-22%): to see it once with 95% probability, about 44 independent representative
-      fields, up to 365 at the low end of the interval.
+      (95% interval 0.8%-22%): to see it once with 95% probability, about 44 independent
+      representative fields, up to 365 at the low end of the interval.
     Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 63 more fields if none
-        shows
-      anything new (500 at the current rate of new fields).
+      shows anything new (500 at the current rate of new fields).
 
   siNF2#7 · repeat siNF2_2 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -841,8 +771,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none
-        shows
-      anything new (28 at the current rate of new fields).
+      shows anything new (28 at the current rate of new fields).
 
   siNF2#7 · repeat siNF2_3 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -855,8 +784,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 93 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   siCTRL · repeat siSCRIB_1 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -868,13 +796,11 @@ What this acquisition was asked to preserve
     One more field: chance 3% (nominal 95% bound 15%); 1 of 30 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 30).
     Seen in few fields: 2 of 30 fields hold a state seen in 2 to 3 fields; together 7% of fields
-      (95%
-      interval 0.8%-22%): to see it once with 95% probability, about 44 independent representative
-      fields, up to 365 at the low end of the interval.
+      (95% interval 0.8%-22%): to see it once with 95% probability, about 44 independent
+      representative fields, up to 365 at the low end of the interval.
     Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 63 more fields if none
-        shows
-      anything new (500 at the current rate of new fields).
+      shows anything new (500 at the current rate of new fields).
 
   siCTRL · repeat siSCRIB_2 — 26 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -886,8 +812,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 26 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 33 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 33 more fields if none
-        shows
-      anything new (33 at the current rate of new fields).
+      shows anything new (33 at the current rate of new fields).
 
   siCTRL · repeat siSCRIB_3 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -899,8 +824,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 30 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 29 more fields if none
-        shows
-      anything new (29 at the current rate of new fields).
+      shows anything new (29 at the current rate of new fields).
 
   siSCRIB#6 · repeat siSCRIB_1 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -910,13 +834,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 10%); 0 of 30 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 30).
     Seen in few fields: 2 of 30 fields hold a state seen in 2 to 3 fields; together 7% of fields
-      (95%
-      interval 0.8%-22%): to see it once with 95% probability, about 44 independent representative
-      fields, up to 365 at the low end of the interval.
+      (95% interval 0.8%-22%): to see it once with 95% probability, about 44 independent
+      representative fields, up to 365 at the low end of the interval.
     Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 29 more fields if none
-        shows
-      anything new (29 at the current rate of new fields).
+      shows anything new (29 at the current rate of new fields).
 
   siSCRIB#6 · repeat siSCRIB_2 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -927,13 +849,11 @@ What this acquisition was asked to preserve
     One more field: chance 3% (nominal 95% bound 14%); 1 of 31 fields showed a state counted as new.
     Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
     Seen in few fields: 1 of 31 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.08%-17%): to see it once with 95% probability, about 92 independent representative
-      fields, up to 3669 at the low end of the interval.
+      (95% interval 0.08%-17%): to see it once with 95% probability, about 92 independent
+      representative fields, up to 3669 at the low end of the interval.
     Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 62 more fields if none
-        shows
-      anything new (451 at the current rate of new fields).
+      shows anything new (451 at the current rate of new fields).
 
   siSCRIB#6 · repeat siSCRIB_3 — 28 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -945,8 +865,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
-        shows
-      anything new (31 at the current rate of new fields).
+      shows anything new (31 at the current rate of new fields).
 
   siSCRIB#7 · repeat siSCRIB_1 — 33 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -958,8 +877,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 33 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 26 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 60 more fields if none
-        shows
-      anything new (353 at the current rate of new fields).
+      shows anything new (353 at the current rate of new fields).
 
   siSCRIB#7 · repeat siSCRIB_2 — 29 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -969,13 +887,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 10%); 0 of 29 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 29).
     Seen in few fields: 1 of 29 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.09%-18%): to see it once with 95% probability, about 86 independent representative
-      fields, up to 3432 at the low end of the interval.
+      (95% interval 0.09%-18%): to see it once with 95% probability, about 86 independent
+      representative fields, up to 3432 at the low end of the interval.
     Fields still needed: at least 30 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 30 more fields if none
-        shows
-      anything new (30 at the current rate of new fields).
+      shows anything new (30 at the current rate of new fields).
 
   siSCRIB#7 · repeat siSCRIB_3 — 29 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -985,24 +901,20 @@ What this acquisition was asked to preserve
     One more field: chance 3% (nominal 95% bound 15%); 1 of 29 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 29).
     Seen in few fields: 1 of 29 fields hold a state seen in 2 to 3 fields; together 3% of fields
-      (95%
-      interval 0.09%-18%): to see it once with 95% probability, about 86 independent representative
-      fields, up to 3432 at the low end of the interval.
+      (95% interval 0.09%-18%): to see it once with 95% probability, about 86 independent
+      representative fields, up to 3432 at the low end of the interval.
     Fields still needed: at least 30 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 64 more fields if none
-        shows
-      anything new (572 at the current rate of new fields).
+      shows anything new (572 at the current rate of new fields).
 
   'New' means at least 1 observation with no other FOV within distance 1 (robust_standardize), on 1
     feature (Filopodia number).
 
   ⚠️ Mean-precision rule, per cell, 5%, in 1 of 54 groups (siCCT8#5 · repeat siCCT8_2): the SD
-     between
-     cells exceeds 50% of their mean; Zweifach (JCB 2024) advises acquiring more data and repeating
-     the estimate; the upper-95 SD bound assumes normal values, and these cells have excess kurtosis
-     2.7 (above 2: a heavy tail), so the bound can be optimistic (with 10% of cells at four times
-       the
-     level of the rest it covered the true SD 68-88% of the time, not 97.5%)
+     between cells exceeds 50% of their mean; Zweifach (JCB 2024) advises acquiring more data and
+     repeating the estimate; the upper-95 SD bound assumes normal values, and these cells have
+     excess kurtosis 2.7 (above 2: a heavy tail), so the bound can be optimistic (with 10% of cells
+     at four times the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
   ⚠️ Mean-precision rule, per cell, 5%, in 9 of 54 groups (siCCT8#8 · repeat siCCT8_1,
      siCSNK1A1#5 · repeat siCSNK1A1_1, siCTRL · repeat siCSNK1A1_1, siCTRL · repeat siMAP4K4_3,
      siMAP4K4#6 · repeat siMAP4K4_1 and 4 more): the upper-95 SD bound assumes normal values, and
@@ -1019,11 +931,9 @@ What this acquisition was asked to preserve
      between cells exceeds 50% of their mean; Zweifach (JCB 2024) advises acquiring more data and
      repeating the estimate.
   ⚠️ Mean-precision rule, per cell, 5%, in 1 of 54 groups (siSCRIB#6 · repeat siSCRIB_3): the
-     upper-95
-     SD bound assumes normal values, and these cells have bimodality coefficient 0.575 (above 5/9 =
-     0.556: two groups of values), so the bound can be optimistic (with 10% of cells at four times
-       the
-     level of the rest it covered the true SD 68-88% of the time, not 97.5%)
+     upper-95 SD bound assumes normal values, and these cells have bimodality coefficient 0.575
+     (above 5/9 = 0.556: two groups of values), so the bound can be optimistic (with 10% of cells at
+     four times the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
   ⚠️ Mean-precision rule, per cell, 5% was met and then lost as more fields arrived, in 2 of 54
      groups.
   ⚠️ Mean-precision rule, per field, 5%, in 2 of 54 groups (siCCT8#5 · repeat siCCT8_2 and
@@ -1032,8 +942,7 @@ What this acquisition was asked to preserve
   ⚠️ Mean-precision rule, per field, 5% was met and then lost as more fields arrived, in 3 of 54
      groups.
   ⚠️ The acquisition order was not checked, so every stop treats the fields as a random sample of
-     the
-     well's positions; a raster over a spatial trend can stop early.
+     the well's positions; a raster over a spatial trend can stop early.
   Assumptions:
     - A state below the not-yet-seen bound can remain: rarer states can remain.
     - A state seen in few fields (fields counted as new are not among them) is not new to the next
@@ -1082,13 +991,13 @@ What this acquisition was asked to preserve
   Analysis groups: condition · biological repeat · technical repeat.
   siCCT8#5 · repeat siCCT8_2: fields to reopen before trusting the result
     siCCT8|siCCT8#5|siCCT8_2|cell041 (image_file unrecorded): 1 cell of a state no other field
-      shows.
+    shows.
   siCCT8#5 · repeat siCCT8_3: fields to reopen before trusting the result
     siCCT8|siCCT8#5|siCCT8_3|cell001 (image_file unrecorded): 1 cell of a state no other field
-      shows.
+    shows.
   siCCT8#8 · repeat siCCT8_1: fields to reopen before trusting the result
     siCCT8|siCCT8#8|siCCT8_1|cell014 (image_file unrecorded): 1 cell of a state no other field
-      shows.
+    shows.
   siCSNK1A1#5 · repeat siCSNK1A1_3: fields to reopen before trusting the result
     siCSNK1A1|siCSNK1A1#5|siCSNK1A1_3|cell030 (image_file unrecorded): 1 cell of a state no other
       field shows.
@@ -1128,7 +1037,7 @@ What this acquisition was asked to preserve
     siNF2|siNF2#7|siNF2_3|cell018 (image_file unrecorded): 1 cell of a state no other field shows.
   siCTRL · repeat siSCRIB_1: fields to reopen before trusting the result
     siSCRIB|siCTRL|siSCRIB_1|cell010 (image_file unrecorded): 1 cell of a state no other field
-      shows.
+    shows.
   siSCRIB#6 · repeat siSCRIB_2: fields to reopen before trusting the result
     siSCRIB|siSCRIB#6|siSCRIB_2|cell030 (image_file unrecorded): 1 cell of a state no other field
       shows.
@@ -1147,8 +1056,7 @@ What this acquisition was asked to preserve
     repeat. The fields of a condition's analysis groups are pooled for this comparison. Cells are
     compared as Plot&Stats does and, since a microscope acquires them through fields, with the field
     as the unit and, where each side has at least two, with the technical repeat (technical_repeat)
-      as
-    the unit.
+    as the unit.
   Design: 6 sub-experiments, each with its own siCTRL in its own 3 biological repeats (siCCT8#5 and
     siCCT8#8; siCSNK1A1#11 and siCSNK1A1#5; siMAP4K4#5 and siMAP4K4#6; siMINK1#10 and siMINK1#3;
     siNF2#17 and siNF2#7; siSCRIB#6 and siSCRIB#7). Reading, condition by condition, against siCTRL.
@@ -1159,20 +1067,17 @@ What this acquisition was asked to preserve
     too often (1 experiment in 4 with 3 repeats). Beside it, the cell-level screen (as Plot&Stats,
     every cell an independent draw) is exploratory: it finds candidates, not effects that repeat:
     - siCCT8#5 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
-      repeat,
-      mean -1.44, mean 44% lower than the control); paired t-test on the 3 repeat means p 0.037, q
-      0.037 (screen-wide q 0.063); on raw values q 0.069; change ×0.65, ×0.45 and ×0.61 in the 3
-      repeats, ×0.56 overall, 95% t interval ×0.35 to ×0.917; cell-level screen (exploratory) q
-        0.001
-      (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 8% of experiments like
-      this one); siCCT8#8 (CCT8) agrees in 3 of 3 biological repeats.
+      repeat, mean -1.44, mean 44% lower than the control); paired t-test on the 3 repeat means p
+      0.037, q 0.037 (screen-wide q 0.063); on raw values q 0.069; change ×0.65, ×0.45 and ×0.61 in
+      the 3 repeats, ×0.56 overall, 95% t interval ×0.35 to ×0.917; cell-level screen (exploratory)
+      q 0.001 (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 8% of
+      experiments like this one); siCCT8#8 (CCT8) agrees in 3 of 3 biological repeats.
     - siCCT8#8 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
-      repeat,
-      mean -1.54, mean 45% lower than the control); paired t-test on the 3 repeat means p 0.027, q
-      0.037 (screen-wide q 0.0531); on raw values q 0.069; change ×0.65, ×0.56 and ×0.46 in the 3
-      repeats, ×0.55 overall, 95% t interval ×0.36 to ×0.84; cell-level screen (exploratory) q 0.001
-      (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 37% of experiments like
-      this one); siCCT8#5 (CCT8) agrees in 3 of 3 biological repeats.
+      repeat, mean -1.54, mean 45% lower than the control); paired t-test on the 3 repeat means p
+      0.027, q 0.037 (screen-wide q 0.0531); on raw values q 0.069; change ×0.65, ×0.56 and ×0.46 in
+      the 3 repeats, ×0.55 overall, 95% t interval ×0.36 to ×0.84; cell-level screen (exploratory) q
+      0.001 (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 37% of experiments
+      like this one); siCCT8#5 (CCT8) agrees in 3 of 3 biological repeats.
     - siCSNK1A1#11 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.86, mean 48% lower than the control); paired t-test on the 3 repeat means p
       0.012, q 0.012 (screen-wide q 0.033); change ×0.60, ×0.50 and ×0.47 in the 3 repeats, ×0.52
@@ -1192,9 +1097,8 @@ What this acquisition was asked to preserve
       normalised; with no real effect it gives p ≤ 0.05 in about 5% of experiments like this one);
       siMAP4K4#6 (MAP4K4) agrees in 3 of 3 biological repeats.
     - siMAP4K4#6 — not significant across repeats: higher in 3 of 3 biological repeats (Cohen's d
-      per
-      repeat, mean +1.39, mean 60% higher than the control); paired t-test on the 3 repeat means p
-      0.058, q 0.058 (screen-wide q 0.077); change ×1.88, ×1.27 and ×1.72 in the 3 repeats, ×1.60
+      per repeat, mean +1.39, mean 60% higher than the control); paired t-test on the 3 repeat means
+      p 0.058, q 0.058 (screen-wide q 0.077); change ×1.88, ×1.27 and ×1.72 in the 3 repeats, ×1.60
       overall, 95% t interval ×0.963 to ×2.66; cell-level screen (exploratory) q 0.001 (balanced,
       normalised; with no real effect it gives p ≤ 0.05 in about 40% of experiments like this one);
       siMAP4K4#5 (MAP4K4) agrees in 3 of 3 biological repeats.
@@ -1208,9 +1112,8 @@ What this acquisition was asked to preserve
       repeat, mean -0.49, mean 17% lower than the control); paired t-test on the 3 repeat means p
       0.062, q 0.064 (screen-wide q 0.077); on raw values q 0.043; change ×0.75, ×0.85 and ×0.88 in
       the 3 repeats, ×0.83 overall, 95% t interval ×0.67 to ×1.023; cell-level screen (exploratory)
-        q
-      0.008 (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 5% of experiments
-      like this one); siMINK1#10 (MINK1) agrees in 3 of 3 biological repeats.
+      q 0.008 (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 5% of
+      experiments like this one); siMINK1#10 (MINK1) agrees in 3 of 3 biological repeats.
     - siNF2#17 — not significant across repeats: higher in 3 of 3 biological repeats (Cohen's d per
       repeat, mean +0.53, mean 16% higher than the control); paired t-test on the 3 repeat means p
       0.15, q 0.15 (screen-wide q 0.15); change ×1.071, ×1.10 and ×1.32 in the 3 repeats, ×1.16
@@ -1263,27 +1166,18 @@ What this acquisition was asked to preserve
     NF2      siNF2#17, siNF2#7          all higher in 3 of 3
     SCRIB    siSCRIB#6, siSCRIB#7       all lower in 3 of 3
   Cell-level screen (exploratory, as in Plot&Stats): Cohen's d on every cell against the control,
-    the
-    randomization test shuffling the labels over the cells:
+    the randomization test shuffling the labels over the cells:
     Balance: for siCCT8#5, siMAP4K4#5, siMAP4K4#6 and 2 more, one biological repeat holds more than
       25% more cells than another on one side (up to 2.5 times); and for every condition, the
-        control
-      as provided is pooled from 15 biological repeats the condition was not imaged in; so the test
-        is
-      also given balanced (each condition against the control of its own biological repeats, the
-        same
-      number of cells from each biological repeat; the median d over 100 draws, labels shuffled
-        within
-      each biological repeat for p), and as provided only where the control comes from the
-        condition's
-      own biological repeats. The control means differ up to 2.0x between biological repeats, so a
-        raw
-      test pooling them would compare each condition with other repeats' level: read the normalised
-        or
-      balanced columns.
+      control as provided is pooled from 15 biological repeats the condition was not imaged in; so
+      the test is also given balanced (each condition against the control of its own biological
+      repeats, the same number of cells from each biological repeat; the median d over 100 draws,
+      labels shuffled within each biological repeat for p), and as provided only where the control
+      comes from the condition's own biological repeats. The control means differ up to 2.0x between
+      biological repeats, so a raw test pooling them would compare each condition with other
+      repeats' level: read the normalised or balanced columns.
     Not given as provided for siCCT8#5, siCCT8#8, siCSNK1A1#11 and 9 more: their control would
-      include
-      biological repeats the condition was not imaged in.
+      include biological repeats the condition was not imaged in.
     Balanced over the repeats:
     condition               raw: d, p (q)         normalised: d, p (q)  cells per repeat, condition / control  gives p ≤ 0.05 with no effect
     siCCT8#5 vs siCTRL      -1.29, 0.001 (0.001)  -1.39, 0.001 (0.001)  30 / 32                                about 8%
@@ -1340,8 +1234,8 @@ What this acquisition was asked to preserve
     variation seen here recur; not what the current result needs): the biological repeats a paired
     t-test on the repeat means needs for 80% power, corrected over the conditions of its
     sub-experiment (a follow-up on Filopodia number alone), with the cells per repeat as now and
-      with
-    twice as many; then the cells a side each of 3 repeats needs to show the difference on its own:
+    with twice as many; then the cells a side each of 3 repeats needs to show the difference on its
+    own:
     condition               change across repeats  mean d per repeat (cells)  repeats needed  with twice the cells  cells a side per repeat
     siCCT8#5 vs siCTRL      ×0.56                  -1.44                      4               4                     about 8
     siCCT8#8 vs siCTRL      ×0.55                  -1.54                      4               4                     about 8

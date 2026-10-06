@@ -111,8 +111,8 @@ What this acquisition was asked to preserve
 
 ➖ 1. Can these features detect what I care about?
   Not assessed: name a condition known to change the phenotype as the positive control (the guided
-    session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again;
-    it can be added after the acquisition, whenever such a condition was imaged.
+  session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again; it
+  can be added after the acquisition, whenever such a condition was imaged.
 
 ⚠️ 2. Did I image enough?
   Each feature alike, 13 features, ordered as in “Do the conditions differ?” (significant across

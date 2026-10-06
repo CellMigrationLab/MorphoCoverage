@@ -1,16 +1,13 @@
 ❌ What is in the dataset
   590 tracks in 133 acquired fields; a field is identified by condition, biological_repeat,
-    technical_repeat, position_id.
-  13 feature columns: Mean Speed, Median Speed, Speed Standard Deviation, Mean Speed Rolling, Median
-    Speed Rolling, Max Speed Rolling, Min Speed Rolling Rolling, Speed Standard Deviation Rolling,
-    Total Distance Traveled Rolling, Directionality Rolling, Tortuosity Rolling, Total Turning Angle
-    Rolling and 1 more.
-  18 technical repeats (technical_repeat, a well or a dish within a repeat, 1 per condition and
-    repeat).
-  5 conditions (condition: siCTRL, siCCT7#3, siCCT7#6, siCCT8#5, siCCT8#8); 6 repeats
-    (biological_repeat: CCT7_1, CCT7_2, CCT7_3, CCT8_1, CCT8_2, CCT8_3).
-  2 sub-experiments, each of 2 conditions and its own siCTRL in its own 3 biological repeats
-    (siCCT7#3 and siCCT7#6; siCCT8#5 and siCCT8#8).
+  technical_repeat, position_id. 13 feature columns: Mean Speed, Median Speed, Speed Standard
+  Deviation, Mean Speed Rolling, Median Speed Rolling, Max Speed Rolling, Min Speed Rolling Rolling,
+  Speed Standard Deviation Rolling, Total Distance Traveled Rolling, Directionality Rolling,
+  Tortuosity Rolling, Total Turning Angle Rolling and 1 more. 18 technical repeats
+  (technical_repeat, a well or a dish within a repeat, 1 per condition and repeat). 5 conditions
+  (condition: siCTRL, siCCT7#3, siCCT7#6, siCCT8#5, siCCT8#8); 6 repeats (biological_repeat: CCT7_1,
+  CCT7_2, CCT7_3, CCT8_1, CCT8_2, CCT8_3). 2 sub-experiments, each of 2 conditions and its own
+  siCTRL in its own 3 biological repeats (siCCT7#3 and siCCT7#6; siCCT8#5 and siCCT8#8).
     condition  biological_repeat  fields  empty  tracks  technical repeats
     siCTRL     CCT7_1                  8      0      30                  1
     siCTRL     CCT7_2                  7      0      23                  1
@@ -38,28 +35,23 @@
 
   ❌ Data integrity — 6 findings in 12 fields (structure to inspect, not a judgment)
     Exact checks for copied data, to 6 significant digits: 133 fields and 590 tracks checked, on
-      Mean
-    Speed, Median Speed, Speed Standard Deviation, Mean Speed Rolling, Median Speed Rolling and 8
-    more.
-    Fields are named condition · biological repeat · technical repeat · position id.
+    Mean Speed, Median Speed, Speed Standard Deviation, Mean Speed Rolling, Median Speed Rolling and
+    8 more. Fields are named condition · biological repeat · technical repeat · position id.
     - copied field: siCCT7#3 · repeat CCT7_2 · B5 · B5_04 and siCCT7#3 · repeat
-      CCT7_2 · B5 · B5_04-1
-      (5 observations): the same observations in the same order (to 6 significant digits).
+      CCT7_2 · B5 · B5_04-1 (5 observations): the same observations in the same order (to 6
+      significant digits).
     - copied small field, 2 pairs of fields within siCCT7#6 · repeat CCT7_3 · B6, e.g.
       siCCT7#6 · repeat CCT7_3 · B6 · B6_01-1 and siCCT7#6 · repeat CCT7_3 · B6 · B6_02-1 (4
       observations): all 4 observations of the first field are also in the second (to 6 significant
       digits, in at least 3 continuous features): a field too small for the whole-field checks,
       exported twice or pasted.
     - copied small field: siCTRL · repeat CCT7_1 · B4 · B4_05 and siCTRL · repeat
-      CCT7_1 · B4 · B4_052
-      (4 observations): all 4 observations of the first field are also in the second (to 6
-        significant
-      digits, in at least 3 continuous features): a field too small for the whole-field checks,
-      exported twice or pasted.
+      CCT7_1 · B4 · B4_052 (4 observations): all 4 observations of the first field are also in the
+      second (to 6 significant digits, in at least 3 continuous features): a field too small for the
+      whole-field checks, exported twice or pasted.
     - repeated block: siCCT8#5 · repeat CCT8_3 · B2 · B2_01 and siCCT8#5 · repeat
-      CCT8_3 · B2 · B2_02
-      (6 observations): 6 consecutive observations are the same (to 6 significant digits), from
-      observation 1 of the first field and 1 of the second.
+      CCT8_3 · B2 · B2_02 (6 observations): 6 consecutive observations are the same (to 6
+      significant digits), from observation 1 of the first field and 1 of the second.
     - repeated block: siCTRL · repeat CCT8_3 · B1 · B1_03 and siCTRL · repeat CCT8_3 · B1 · B1_04 (5
       observations): 5 consecutive observations are the same (to 6 significant digits), from
       observation 1 of the first field and 1 of the second.
@@ -68,10 +60,9 @@
     ⚠️ Whole fields compared: 63 of 133; 70 fields held fewer than 5 observations.
     Assumptions:
       - Out of reach of these checks: a copy re-rounded to fewer than 6 significant digits, a block
-        of
-        fewer than 10 observations that is not the whole of the smaller field, a copy with feature
-        columns swapped or a feature (or a value) missing in one copy only, and observations pasted
-        into two or more other fields (they read as recurring).
+        of fewer than 10 observations that is not the whole of the smaller field, a copy with
+        feature columns swapped or a feature (or a value) missing in one copy only, and observations
+        pasted into two or more other fields (they read as recurring).
 
     ⚠️ Acquisition anomalies (quality control): 1 field 5 SDs or more from the other fields of its
        condition and repeat on the log scale for Mean Speed, Speed Standard Deviation, Mean Speed
@@ -188,8 +179,8 @@ What this acquisition was asked to preserve
 
 ➖ 1. Can these features detect what I care about?
   Not assessed: name a condition known to change the phenotype as the positive control (the guided
-    session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again;
-    it can be added after the acquisition, whenever such a condition was imaged.
+  session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again; it
+  can be added after the acquisition, whenever such a condition was imaged.
 
 ⚠️ 2. Did I image enough?
   Each feature alike, 13 features, ordered as in “Do the conditions differ?” (significant across
@@ -226,8 +217,7 @@ What this acquisition was asked to preserve
     siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -0.76 (-1.07 to -0.57)      yes (shown)
 
   Within each repeat, does the difference from the control show? Median Speed, each condition
-    against
-    the control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    against the control of the same repeat, 95% interval of d from the fields resampled as acquired:
     comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
     siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.37 (-1.12 to +0.28)      no: about 26 fields a side
     siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.49 (-1.37 to +0.04)      no: about 15 fields a side
@@ -260,8 +250,8 @@ What this acquisition was asked to preserve
     siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -0.97 (-1.42 to -0.59)      yes (shown)
 
   Within each repeat, does the difference from the control show? Median Speed Rolling, each
-    condition
-    against the control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    condition against the control of the same repeat, 95% interval of d from the fields resampled as
+    acquired:
     comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
     siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.38 (-1.13 to +0.29)      no: about 26 fields a side
     siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.68 (-1.52 to -0.14)      yes (shown)
@@ -309,9 +299,8 @@ What this acquisition was asked to preserve
     siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.69 (-2.26 to -1.30)      yes (shown)
 
   Within each repeat, does the difference from the control show? Total Distance Traveled Rolling,
-    each
-    condition against the control of the same repeat, 95% interval of d from the fields resampled as
-    acquired:
+    each condition against the control of the same repeat, 95% interval of d from the fields
+    resampled as acquired:
     comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
     siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.39 (-1.22 to +0.34)      no: too small to show with more fields
     siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.61 (-1.58 to -0.03)      yes (shown)
@@ -378,8 +367,7 @@ What this acquisition was asked to preserve
 
   Within each repeat, does the difference from the control show? Speed Standard Deviation Rolling,
     each condition against the control of the same repeat, 95% interval of d from the fields
-      resampled
-    as acquired:
+    resampled as acquired:
     comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
     siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.59 (-1.49 to +0.07)      no: about 13 fields a side
     siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.45 (-1.23 to +0.14)      no: about 17 fields a side
@@ -437,8 +425,7 @@ What this acquisition was asked to preserve
     lowest to the highest group.
   Rules: mean-precision rule, per field, 5% (scalar_precision_fov_upper95: averaging_cv <= 0.05;
     config d757b01eda57fc1e); nothing new (≤5%) (support_novelty: lofo_novel_fov_upper <= 0.05;
-      config
-    3270f42ad71a05ec).
+    config 3270f42ad71a05ec).
   Per group below: whether each rule was met by its own threshold, where it was first met, and the
     fields imaged beyond that point (beyond: a median over the random orders, or the recorded one
     without them; only where the acquired fields are enough).
@@ -450,13 +437,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 1 of 7 fields hold a state seen in 2 to 3 fields; together 14% of fields
-      (95%
-      interval 0.4%-58%): to see it once with 95% probability, about 20 independent representative
-      fields, up to 829 at the low end of the interval.
+      (95% interval 0.4%-58%): to see it once with 95% probability, about 20 independent
+      representative fields, up to 829 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none
-        shows
-      anything new (52 at the current rate of new fields).
+      shows anything new (52 at the current rate of new fields).
 
   siCCT7#3 · repeat CCT7_2 · B5 — 8 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -465,13 +450,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields
-      (95%
-      interval 3%-65%): to see it once with 95% probability, about 11 independent representative
-      fields, up to 93 at the low end of the interval.
+      (95% interval 3%-65%): to see it once with 95% probability, about 11 independent
+      representative fields, up to 93 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none
-        shows
-      anything new (51 at the current rate of new fields).
+      shows anything new (51 at the current rate of new fields).
 
   siCCT7#3 · repeat CCT7_3 · B5 — 7 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -480,13 +463,11 @@ What this acquisition was asked to preserve
     One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields
-      (95%
-      interval 4%-71%): to see it once with 95% probability, about 9 independent representative
+      (95% interval 4%-71%): to see it once with 95% probability, about 9 independent representative
       fields, up to 81 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 86 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   siCCT7#6 · repeat CCT7_1 · B6 — 7 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -495,13 +476,11 @@ What this acquisition was asked to preserve
     One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 3 of 7 fields hold a state seen in 2 to 3 fields; together 43% of fields
-      (95%
-      interval 10%-82%): to see it once with 95% probability, about 6 independent representative
-      fields, up to 29 at the low end of the interval.
+      (95% interval 10%-82%): to see it once with 95% probability, about 6 independent
+      representative fields, up to 29 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 86 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   siCCT7#6 · repeat CCT7_2 · B6 — 8 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -510,13 +489,11 @@ What this acquisition was asked to preserve
     One more field: chance 13% (nominal 95% bound 47%); 1 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields
-      (95%
-      interval 0.3%-53%): to see it once with 95% probability, about 23 independent representative
-      fields, up to 947 at the low end of the interval.
+      (95% interval 0.3%-53%): to see it once with 95% probability, about 23 independent
+      representative fields, up to 947 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 85 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   siCCT7#6 · repeat CCT7_3 · B6 — 6 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -525,13 +502,11 @@ What this acquisition was asked to preserve
     One more field: chance 17% (nominal 95% bound 58%); 1 of 6 fields showed a state counted as new.
     Not yet seen: at most 39% of fields (95% confidence, about 3 / 6).
     Seen in few fields: 2 of 6 fields hold a state seen in 2 to 3 fields; together 33% of fields
-      (95%
-      interval 4%-78%): to see it once with 95% probability, about 8 independent representative
+      (95% interval 4%-78%): to see it once with 95% probability, about 8 independent representative
       fields, up to 68 at the low end of the interval.
     Fields still needed: at least 53 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 87 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   siCTRL · repeat CCT7_1 · B4 — 8 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -540,13 +515,11 @@ What this acquisition was asked to preserve
     One more field: chance 13% (nominal 95% bound 47%); 1 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 3 of 8 fields hold a state seen in 2 to 3 fields; together 38% of fields
-      (95%
-      interval 9%-76%): to see it once with 95% probability, about 7 independent representative
+      (95% interval 9%-76%): to see it once with 95% probability, about 7 independent representative
       fields, up to 34 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 85 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   siCTRL · repeat CCT7_2 · B4 — 7 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -555,13 +528,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields
-      (95%
-      interval 4%-71%): to see it once with 95% probability, about 9 independent representative
+      (95% interval 4%-71%): to see it once with 95% probability, about 9 independent representative
       fields, up to 81 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none
-        shows
-      anything new (52 at the current rate of new fields).
+      shows anything new (52 at the current rate of new fields).
 
   siCTRL · repeat CCT7_3 · B4 — 5 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -570,14 +541,12 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 45%); 0 of 5 fields showed a state counted as new.
     Not yet seen: at most 45% of fields (95% confidence, about 3 / 5).
     Seen in few fields: 4 of 5 fields hold a state seen in 2 to 3 fields; together 80% of fields
-      (95%
-      interval 28%-99.5%): to see it once with 95% probability, about 2 independent representative
-      fields, up to 9 at the low end of the interval; they may hold several states, each rarer: one
-      seen in only 2 fields needs about 6.
+      (95% interval 28%-99.5%): to see it once with 95% probability, about 2 independent
+      representative fields, up to 9 at the low end of the interval; they may hold several states,
+      each rarer: one seen in only 2 fields needs about 6.
     Fields still needed: at least 54 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 54 more fields if none
-        shows
-      anything new (54 at the current rate of new fields).
+      shows anything new (54 at the current rate of new fields).
 
   siCCT8#5 · repeat CCT8_1 · B2 — 8 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -586,13 +555,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields
-      (95%
-      interval 3%-65%): to see it once with 95% probability, about 11 independent representative
-      fields, up to 93 at the low end of the interval.
+      (95% interval 3%-65%): to see it once with 95% probability, about 11 independent
+      representative fields, up to 93 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none
-        shows
-      anything new (51 at the current rate of new fields).
+      shows anything new (51 at the current rate of new fields).
 
   siCCT8#5 · repeat CCT8_2 · B2 — 8 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -601,13 +568,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields
-      (95%
-      interval 0.3%-53%): to see it once with 95% probability, about 23 independent representative
-      fields, up to 947 at the low end of the interval.
+      (95% interval 0.3%-53%): to see it once with 95% probability, about 23 independent
+      representative fields, up to 947 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none
-        shows
-      anything new (51 at the current rate of new fields).
+      shows anything new (51 at the current rate of new fields).
 
   siCCT8#5 · repeat CCT8_3 · B2 — 7 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -616,14 +581,12 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 4 of 7 fields hold a state seen in 2 to 3 fields; together 57% of fields
-      (95%
-      interval 18%-90%): to see it once with 95% probability, about 4 independent representative
-      fields, up to 15 at the low end of the interval; they may hold several states, each rarer: one
-      seen in only 2 fields needs about 9.
+      (95% interval 18%-90%): to see it once with 95% probability, about 4 independent
+      representative fields, up to 15 at the low end of the interval; they may hold several states,
+      each rarer: one seen in only 2 fields needs about 9.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none
-        shows
-      anything new (52 at the current rate of new fields).
+      shows anything new (52 at the current rate of new fields).
 
   siCCT8#8 · repeat CCT8_1 · B3 — 8 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -632,14 +595,12 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 4 of 8 fields hold a state seen in 2 to 3 fields; together 50% of fields
-      (95%
-      interval 16%-84%): to see it once with 95% probability, about 5 independent representative
-      fields, up to 18 at the low end of the interval; they may hold several states, each rarer: one
-      seen in only 2 fields needs about 11.
+      (95% interval 16%-84%): to see it once with 95% probability, about 5 independent
+      representative fields, up to 18 at the low end of the interval; they may hold several states,
+      each rarer: one seen in only 2 fields needs about 11.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none
-        shows
-      anything new (51 at the current rate of new fields).
+      shows anything new (51 at the current rate of new fields).
 
   siCCT8#8 · repeat CCT8_2 · B3 — 8 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -648,13 +609,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields
-      (95%
-      interval 0.3%-53%): to see it once with 95% probability, about 23 independent representative
-      fields, up to 947 at the low end of the interval.
+      (95% interval 0.3%-53%): to see it once with 95% probability, about 23 independent
+      representative fields, up to 947 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none
-        shows
-      anything new (51 at the current rate of new fields).
+      shows anything new (51 at the current rate of new fields).
 
   siCCT8#8 · repeat CCT8_3 · B3 — 7 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -663,13 +622,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields
-      (95%
-      interval 4%-71%): to see it once with 95% probability, about 9 independent representative
+      (95% interval 4%-71%): to see it once with 95% probability, about 9 independent representative
       fields, up to 81 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none
-        shows
-      anything new (52 at the current rate of new fields).
+      shows anything new (52 at the current rate of new fields).
 
   siCTRL · repeat CCT8_1 · B1 — 7 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -678,13 +635,11 @@ What this acquisition was asked to preserve
     One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 3 of 7 fields hold a state seen in 2 to 3 fields; together 43% of fields
-      (95%
-      interval 10%-82%): to see it once with 95% probability, about 6 independent representative
-      fields, up to 29 at the low end of the interval.
+      (95% interval 10%-82%): to see it once with 95% probability, about 6 independent
+      representative fields, up to 29 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 86 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   siCTRL · repeat CCT8_2 · B1 — 9 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -693,13 +648,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 28%); 0 of 9 fields showed a state counted as new.
     Not yet seen: at most 28% of fields (95% confidence, about 3 / 9).
     Seen in few fields: 2 of 9 fields hold a state seen in 2 to 3 fields; together 22% of fields
-      (95%
-      interval 3%-60%): to see it once with 95% probability, about 12 independent representative
-      fields, up to 105 at the low end of the interval.
+      (95% interval 3%-60%): to see it once with 95% probability, about 12 independent
+      representative fields, up to 105 at the low end of the interval.
     Fields still needed: at least 50 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 50 more fields if none
-        shows
-      anything new (50 at the current rate of new fields).
+      shows anything new (50 at the current rate of new fields).
 
   siCTRL · repeat CCT8_3 · B1 — 8 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -708,19 +661,16 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields
-      (95%
-      interval 3%-65%): to see it once with 95% probability, about 11 independent representative
-      fields, up to 93 at the low end of the interval.
+      (95% interval 3%-65%): to see it once with 95% probability, about 11 independent
+      representative fields, up to 93 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none
-        shows
-      anything new (51 at the current rate of new fields).
+      shows anything new (51 at the current rate of new fields).
 
   'New' means a cluster of at least 3 similar observations (each linked to another by a step within
     the distance, so a more spread-out state is not counted) with no other FOV within distance
-      3.60555
-    (robust_standardize), on 13 features (Mean Speed, Median Speed, Speed Standard Deviation and 10
-    more); two observations of a state that varies by one SD per feature sit about 5.1 apart.
+    3.60555 (robust_standardize), on 13 features (Mean Speed, Median Speed, Speed Standard Deviation
+    and 10 more); two observations of a state that varies by one SD per feature sit about 5.1 apart.
 
   ⚠️ Mean-precision rule, per field, 5%, in 1 of 18 groups (siCCT8#5 · repeat CCT8_1 · B2): the SD
      between tracks exceeds 50% of their mean; Zweifach (JCB 2024) advises acquiring more data and
@@ -871,21 +821,19 @@ What this acquisition was asked to preserve
 
 ⚠️ 9. Do the conditions differ, and how confidently?
   Feature Mean Speed, each condition against the control (siCTRL), within each biological repeat.
-    The
-    fields of a condition's analysis groups are pooled for this comparison. Tracks are compared as
-    Plot&Stats does and, since a microscope acquires them through fields, with the field as the unit
-    and, where each side has at least two, with the technical repeat (technical_repeat) as the unit.
+    The fields of a condition's analysis groups are pooled for this comparison. Tracks are compared
+    as Plot&Stats does and, since a microscope acquires them through fields, with the field as the
+    unit and, where each side has at least two, with the technical repeat (technical_repeat) as the
+    unit.
   Design: 2 sub-experiments, each with its own siCTRL in its own 3 biological repeats (siCCT7#3 and
     siCCT7#6; siCCT8#5 and siCCT8#8). Reading, condition by condition, against siCTRL. Significant
     across repeats: the paired t-test on the biological repeat means (as SuperPlots; values
-      normalised
-    to each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg within the condition's
-    sub-experiment, over its 13 features and their conditions: this is the result to report (with 3
-    repeats only large, consistent effects reach it). No trend is called below 6 repeats: every
-      repeat
-    goes the same way by chance too often (1 experiment in 4 with 3 repeats). Beside it, the
-    track-level screen (as Plot&Stats, every track an independent draw) is exploratory: it finds
-    candidates, not effects that repeat:
+    normalised to each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg within the
+    condition's sub-experiment, over its 13 features and their conditions: this is the result to
+    report (with 3 repeats only large, consistent effects reach it). No trend is called below 6
+    repeats: every repeat goes the same way by chance too often (1 experiment in 4 with 3 repeats).
+    Beside it, the track-level screen (as Plot&Stats, every track an independent draw) is
+    exploratory: it finds candidates, not effects that repeat:
     - siCCT7#3 — no consistent direction: lower in 1 and higher in 2 of 3 biological repeats; paired
       t-test on the 3 repeat means p 0.65, q 0.99 (screen-wide q 0.90); change ×0.904, ×1.31 and
       ×1.004 in the 3 repeats, ×1.061 overall, 95% t interval ×0.66 to ×1.71; track-level screen
@@ -894,8 +842,7 @@ What this acquisition was asked to preserve
       repeats this condition was not imaged in; siCCT7#6 (CCT7) agrees in 2 of 3 biological repeats.
     - siCCT7#6 — no consistent direction: lower in 2 and higher in 1 of 3 biological repeats; paired
       t-test on the 3 repeat means p 0.75, q 0.99 (screen-wide q 0.91); change ×0.86, ×1.17 and
-        ×0.90
-      in the 3 repeats, ×0.966 overall, 95% t interval ×0.64 to ×1.45; track-level screen
+      ×0.90 in the 3 repeats, ×0.966 overall, 95% t interval ×0.64 to ×1.45; track-level screen
       (exploratory) q 0.87 (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 35%
       of experiments like this one); the raw pooled test is not read here: it pools the control of
       repeats this condition was not imaged in; siCCT7#3 (CCT7) agrees in 2 of 3 biological repeats.
@@ -930,15 +877,13 @@ What this acquisition was asked to preserve
     the randomization test shuffling the labels over the tracks:
     Balance: for every condition, one biological repeat holds more than 25% more tracks than another
       on one side (up to 1.4 times); and for every condition, the control as provided is pooled from
-        3
-      biological repeats the condition was not imaged in; so the test is also given balanced (each
+      3 biological repeats the condition was not imaged in; so the test is also given balanced (each
       condition against the control of its own biological repeats, the same number of tracks from
-        each
-      biological repeat; the median d over 100 draws, labels shuffled within each biological repeat
-      for p), and as provided only where the control comes from the condition's own biological
-      repeats. The control means differ up to 1.8x between biological repeats, so a raw test pooling
-      them would compare each condition with other repeats' level: read the normalised or balanced
-      columns.
+      each biological repeat; the median d over 100 draws, labels shuffled within each biological
+      repeat for p), and as provided only where the control comes from the condition's own
+      biological repeats. The control means differ up to 1.8x between biological repeats, so a raw
+      test pooling them would compare each condition with other repeats' level: read the normalised
+      or balanced columns.
     Not given as provided for siCCT7#3, siCCT7#6, siCCT8#5 and 1 more: their control would include
       biological repeats the condition was not imaged in.
     Balanced over the repeats:
@@ -948,9 +893,8 @@ What this acquisition was asked to preserve
     siCCT8#5 vs siCTRL  -0.99, 0.001 (0.001)  -1.00, 0.001 (0.0011)  37 / 31                                 about 34%
     siCCT8#8 vs siCTRL  -1.09, 0.001 (0.001)  -1.05, 0.001 (0.0011)  31 / 31                                 about 35%
     q: the version the reading uses (balanced and normalised when given, else normalised) is
-      corrected
-      over the 13 features and their conditions of each sub-experiment, as the feature ranking; the
-      other columns over this feature's conditions only.
+      corrected over the 13 features and their conditions of each sub-experiment, as the feature
+      ranking; the other columns over this feature's conditions only.
   Within each repeat:
     contrast                           fields  tracks    tech. repeats  d on tracks  d on field means  over control SD, every track
     siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8  28 vs 30  1 vs 1         -0.37        -0.83             -0.38
@@ -969,8 +913,7 @@ What this acquisition was asked to preserve
     variation seen here recur; not what the current result needs): the biological repeats a paired
     t-test on the repeat means needs for 80% power, corrected over the conditions of its
     sub-experiment (a follow-up on Mean Speed alone), with the fields per repeat as now and with
-      twice
-    as many; then the fields a side each of 3 repeats needs to show the difference on its own:
+    twice as many; then the fields a side each of 3 repeats needs to show the difference on its own:
     condition           change across repeats  mean d per repeat (tracks)  repeats needed  with twice the fields  fields a side per repeat
     siCCT7#3 vs siCTRL  ×1.061                 +0.17                       more than 30    more than 30           more than 4 times the fields
     siCCT7#6 vs siCTRL  ×0.966                 -0.17                       more than 30    more than 30           about 11
@@ -980,16 +923,11 @@ What this acquisition was asked to preserve
   Which features separate the conditions? 12 of 13 features are candidates in the exploratory
     track-level screen: they differ for at least one condition (each condition against the control,
     siCTRL: Cohen's d on the observations normalised to each repeat's control, randomization test, q
-      ≤
-    0.05 after Benjamini-Hochberg within each sub-experiment: 26 tests in each of 2
-      sub-experiments).
-    Ranked by the largest difference (|d|); change: the condition's mean over the control's, the
-      fold
-    change the paired t-test compares (the difference of the means for a feature with a value that
-      is
-    not positive, the same scale for every condition); a candidate is significant across repeats
-      when
-    the paired t-test on the repeat means also gives q ≤ 0.05:
+    ≤ 0.05 after Benjamini-Hochberg within each sub-experiment: 26 tests in each of 2
+    sub-experiments). Ranked by the largest difference (|d|); change: the condition's mean over the
+    control's, the fold change the paired t-test compares (the difference of the means for a feature
+    with a value that is not positive, the same scale for every condition); a candidate is
+    significant across repeats when the paired t-test on the repeat means also gives q ≤ 0.05:
     rank  feature                               d  condition   change  change in each repeat         95% t interval     q track level  q repeat means  repeats
        1  Median Speed                      -1.24  siCCT8#8    -0.162  -0.134, -0.138 and -0.215     -0.275 to -0.0492         0.0011           0.088  3 of 3 lower
        2  Total Turning Angle Rolling       -1.12  siCCT8#8     ×0.63  ×0.56, ×0.68 and ×0.65        ×0.49 to ×0.80            0.0011           0.088  3 of 3 lower
@@ -1008,11 +946,9 @@ What this acquisition was asked to preserve
   Not a candidate for any condition (1 feature): Directionality Rolling.
   Plotted by default: up to 5 best-ranked features (the readout when none ranks).
   ⚠️ Rests on 3 near-identical repeats: Tortuosity Rolling for siCCT8#5 (SD 0.0019, median 0.18).
-     The
-     SD of the log ratios across the repeats is under a fifth of its median over the
-       sub-experiment's
-     features and conditions, so the small p comes from repeats that agree almost exactly, which 3
-     repeats cannot show to be typical.
+     The SD of the log ratios across the repeats is under a fifth of its median over the
+     sub-experiment's features and conditions, so the small p comes from repeats that agree almost
+     exactly, which 3 repeats cannot show to be typical.
   Assumptions:
     - Across biological repeats, the paired t-test on the repeat means (as in SuperPlots) treats
       each biological repeat as one replicate and assumes the differences (raw) or the log ratios to

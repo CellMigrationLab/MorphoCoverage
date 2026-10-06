@@ -1,10 +1,9 @@
 ❌ What is in the dataset
   174 cells in 174 acquired fields; a field is identified by condition, biological_repeat,
-    technical_repeat, position_id.
-  10 feature columns: Area, Perim., Major, Minor, Circ., Feret, MinFeret, AR, Round, Solidity.
-  9 technical repeats (technical_repeat, a well or a dish within a repeat, 1 per condition and
-    repeat).
-  3 conditions (condition: siCTRL, siCCT8#5, siCCT8#8); 3 repeats (biological_repeat: 1, 2, 3).
+  technical_repeat, position_id. 10 feature columns: Area, Perim., Major, Minor, Circ., Feret,
+  MinFeret, AR, Round, Solidity. 9 technical repeats (technical_repeat, a well or a dish within a
+  repeat, 1 per condition and repeat). 3 conditions (condition: siCTRL, siCCT8#5, siCCT8#8); 3
+  repeats (biological_repeat: 1, 2, 3).
     condition  biological_repeat  fields  empty  cells  technical repeats
     siCTRL     1                      18      0     18                  1
     siCTRL     2                      24      0     24                  1
@@ -20,9 +19,8 @@
 
   ❌ Data integrity — 1 finding in 2 fields (structure to inspect, not a judgment)
     Exact checks for copied data, to 6 significant digits: 174 fields and 174 cells checked, on
-      Area,
-    Perim., Major, Minor, Circ. and 5 more.
-    Fields are named condition · biological repeat · technical repeat · position id.
+    Area, Perim., Major, Minor, Circ. and 5 more. Fields are named condition · biological
+    repeat · technical repeat · position id.
     - copied small field: siCCT8#5 · repeat 1 · siCCT8#5|1|cell007 and siCCT8#5 · repeat
       1 · siCCT8#5|1|cell008 (1 observation): the two fields hold the same single observation (to 6
       significant digits, in at least 3 continuous features): a field too small for the whole-field
@@ -32,21 +30,19 @@
     ⚠️ Whole fields compared: 0 of 174; 174 fields held fewer than 5 observations.
     Assumptions:
       - Out of reach of these checks: a copy re-rounded to fewer than 6 significant digits, a block
-        of
-        fewer than 10 observations that is not the whole of the smaller field, a copy with feature
-        columns swapped or a feature (or a value) missing in one copy only, and observations pasted
-        into two or more other fields (they read as recurring).
+        of fewer than 10 observations that is not the whole of the smaller field, a copy with
+        feature columns swapped or a feature (or a value) missing in one copy only, and observations
+        pasted into two or more other fields (they read as recurring).
 
     ⚠️ Acquisition anomalies (quality control): 4 fields 5 SDs or more from the other fields of
-       their
-       condition and repeat on the log scale: siCCT8#8 · repeat 2 · siCCT8#8|2|cell006 (MinFeret,
-         7.6
-       SDs below, ×0.18), siCTRL · repeat 2 · siCTRL|2|cell023 (Solidity, 6.2 SDs below, −43%),
-       siCCT8#5 · repeat 2 · siCCT8#5|2|cell018 (Circ., 5.9 SDs below, ×0.076) and siCTRL · repeat
-       2 · siCTRL|2|cell001 (MinFeret, 5.3 SDs above, ×3.3); about 0.001 expected by chance in the
-       1740 values of a field and feature judged, were the differences Gaussian on these scales; an
-       engineering quality-control threshold, never a biological verdict: open their images, 174
-       fields judged in 9 groups; each field holds one cell, so this reads single cells.
+       their condition and repeat on the log scale: siCCT8#8 · repeat 2 · siCCT8#8|2|cell006
+       (MinFeret, 7.6 SDs below, ×0.18), siCTRL · repeat 2 · siCTRL|2|cell023 (Solidity, 6.2 SDs
+       below, −43%), siCCT8#5 · repeat 2 · siCCT8#5|2|cell018 (Circ., 5.9 SDs below, ×0.076) and
+       siCTRL · repeat 2 · siCTRL|2|cell001 (MinFeret, 5.3 SDs above, ×3.3); about 0.001 expected by
+       chance in the 1740 values of a field and feature judged, were the differences Gaussian on
+       these scales; an engineering quality-control threshold, never a biological verdict: open
+       their images, 174 fields judged in 9 groups; each field holds one cell, so this reads single
+       cells.
       field                                     feature   field median  other fields  difference   SDs
       siCCT8#8 · repeat 2 · siCCT8#8|2|cell006  MinFeret          3.64          19.9       ×0.18  -7.6
       siCTRL · repeat 2 · siCTRL|2|cell023      Solidity          0.49         0.857        −43%  -6.2
@@ -104,8 +100,8 @@ What this acquisition was asked to preserve
 
 ➖ 1. Can these features detect what I care about?
   Not assessed: name a condition known to change the phenotype as the positive control (the guided
-    session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again;
-    it can be added after the acquisition, whenever such a condition was imaged.
+  session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again; it
+  can be added after the acquisition, whenever such a condition was imaged.
 
 ⚠️ 2. Did I image enough?
   Each feature alike, 10 features, ordered as in “Do the conditions differ?” (significant across
@@ -173,8 +169,7 @@ What this acquisition was asked to preserve
     siCCT8#8 vs siCTRL, repeat 3  15 vs 11                      +0.95 (+0.11 to +1.76)     yes (shown)
 
   Within each repeat, does the difference from the control show? Solidity, each condition against
-    the
-    control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    the control of the same repeat, 95% interval of d from the fields resampled as acquired:
     comparison                    cells (condition vs control)  d on cells (95% interval)  enough in this repeat?
     siCCT8#5 vs siCTRL, repeat 1  25 vs 18                      +1.52 (+0.82 to +2.20)     yes (shown)
     siCCT8#8 vs siCTRL, repeat 1  27 vs 18                      +2.40 (+1.61 to +3.17)     yes (shown)
@@ -214,8 +209,7 @@ What this acquisition was asked to preserve
     siCCT8#8 vs siCTRL, repeat 3  15 vs 11                      -0.96 (-1.78 to -0.13)     yes (shown)
 
   Within each repeat, does the difference from the control show? MinFeret, each condition against
-    the
-    control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    the control of the same repeat, 95% interval of d from the fields resampled as acquired:
     comparison                    cells (condition vs control)  d on cells (95% interval)  enough in this repeat?
     siCCT8#5 vs siCTRL, repeat 1  25 vs 18                      +0.45 (-0.17 to +1.06)     no: about 34 cells a side
     siCCT8#8 vs siCTRL, repeat 1  27 vs 18                      +0.83 (+0.21 to +1.45)     yes (shown)
@@ -251,9 +245,8 @@ What this acquisition was asked to preserve
       new.
     Not yet seen: at most 11% of fields (95% confidence, about 3 / 25).
     Seen in few fields: 2 of 25 fields hold a state seen in 2 to 3 fields; together 8% of fields
-      (95%
-      interval 1%-26%): to see it once with 95% probability, about 36 independent representative
-      fields, up to 303 at the low end of the interval.
+      (95% interval 1%-26%): to see it once with 95% probability, about 36 independent
+      representative fields, up to 303 at the low end of the interval.
     Fields still needed: at least 34 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 183 more fields if none
       shows anything new (never, at the current rate of new fields).
@@ -268,9 +261,8 @@ What this acquisition was asked to preserve
       new.
     Not yet seen: at most 13% of fields (95% confidence, about 3 / 21).
     Seen in few fields: 3 of 21 fields hold a state seen in 2 to 3 fields; together 14% of fields
-      (95%
-      interval 3%-36%): to see it once with 95% probability, about 20 independent representative
-      fields, up to 97 at the low end of the interval.
+      (95% interval 3%-36%): to see it once with 95% probability, about 20 independent
+      representative fields, up to 97 at the low end of the interval.
     Fields still needed: at least 38 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 213 more fields if none
       shows anything new (never, at the current rate of new fields).
@@ -286,9 +278,8 @@ What this acquisition was asked to preserve
       new.
     Not yet seen: at most 16% of fields (95% confidence, about 3 / 17).
     Seen in few fields: 2 of 17 fields hold a state seen in 2 to 3 fields; together 12% of fields
-      (95%
-      interval 1%-36%): to see it once with 95% probability, about 24 independent representative
-      fields, up to 204 at the low end of the interval.
+      (95% interval 1%-36%): to see it once with 95% probability, about 24 independent
+      representative fields, up to 204 at the low end of the interval.
     Fields still needed: at least 42 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 107 more fields if none
       shows anything new (never, at the current rate of new fields).
@@ -301,13 +292,11 @@ What this acquisition was asked to preserve
     One more field: chance 7% (nominal 95% bound 22%); 2 of 27 fields showed a state counted as new.
     Not yet seen: at most 11% of fields (95% confidence, about 3 / 27).
     Seen in few fields: 2 of 27 fields hold a state seen in 2 to 3 fields; together 7% of fields
-      (95%
-      interval 0.9%-24%): to see it once with 95% probability, about 39 independent representative
-      fields, up to 328 at the low end of the interval.
+      (95% interval 0.9%-24%): to see it once with 95% probability, about 39 independent
+      representative fields, up to 328 at the low end of the interval.
     Fields still needed: at least 32 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 97 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   siCCT8#8 · repeat 2 — 16 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -319,10 +308,9 @@ What this acquisition was asked to preserve
       new.
     Not yet seen: at most 17% of fields (95% confidence, about 3 / 16).
     Seen in few fields: 4 of 16 fields hold a state seen in 2 to 3 fields; together 25% of fields
-      (95%
-      interval 7%-52%): to see it once with 95% probability, about 11 independent representative
-      fields, up to 40 at the low end of the interval; they may hold several states, each rarer: one
-      seen in only 2 fields needs about 23.
+      (95% interval 7%-52%): to see it once with 95% probability, about 11 independent
+      representative fields, up to 40 at the low end of the interval; they may hold several states,
+      each rarer: one seen in only 2 fields needs about 23.
     Fields still needed: at least 43 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 192 more fields if none
       shows anything new (never, at the current rate of new fields).
@@ -338,10 +326,9 @@ What this acquisition was asked to preserve
       new.
     Not yet seen: at most 18% of fields (95% confidence, about 3 / 15).
     Seen in few fields: 4 of 15 fields hold a state seen in 2 to 3 fields; together 27% of fields
-      (95%
-      interval 8%-55%): to see it once with 95% probability, about 10 independent representative
-      fields, up to 37 at the low end of the interval; they may hold several states, each rarer: one
-      seen in only 2 fields needs about 21.
+      (95% interval 8%-55%): to see it once with 95% probability, about 10 independent
+      representative fields, up to 37 at the low end of the interval; they may hold several states,
+      each rarer: one seen in only 2 fields needs about 21.
     Fields still needed: at least 44 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 109 more fields if none
       shows anything new (never, at the current rate of new fields).
@@ -354,14 +341,12 @@ What this acquisition was asked to preserve
     One more field: chance 6% (nominal 95% bound 24%); 1 of 18 fields showed a state counted as new.
     Not yet seen: at most 15% of fields (95% confidence, about 3 / 18).
     Seen in few fields: 7 of 18 fields hold a state seen in 2 to 3 fields; together 39% of fields
-      (95%
-      interval 17%-64%): to see it once with 95% probability, about 7 independent representative
-      fields, up to 16 at the low end of the interval; they may hold several states, each rarer: one
-      seen in only 2 fields needs about 26.
+      (95% interval 17%-64%): to see it once with 95% probability, about 7 independent
+      representative fields, up to 16 at the low end of the interval; they may hold several states,
+      each rarer: one seen in only 2 fields needs about 26.
     Fields still needed: at least 41 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 75 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   siCTRL · repeat 2 — 24 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
@@ -373,9 +358,8 @@ What this acquisition was asked to preserve
     One more field: chance 8% (nominal 95% bound 24%); 2 of 24 fields showed a state counted as new.
     Not yet seen: at most 12% of fields (95% confidence, about 3 / 24).
     Seen in few fields: 2 of 24 fields hold a state seen in 2 to 3 fields; together 8% of fields
-      (95%
-      interval 1%-27%): to see it once with 95% probability, about 35 independent representative
-      fields, up to 291 at the low end of the interval.
+      (95% interval 1%-27%): to see it once with 95% probability, about 35 independent
+      representative fields, up to 291 at the low end of the interval.
     Fields still needed: at least 35 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 100 more fields if none
       shows anything new (never, at the current rate of new fields).
@@ -389,9 +373,8 @@ What this acquisition was asked to preserve
       new.
     Not yet seen: at most 24% of fields (95% confidence, about 3 / 11).
     Seen in few fields: 3 of 11 fields hold a state seen in 2 to 3 fields; together 27% of fields
-      (95%
-      interval 6%-61%): to see it once with 95% probability, about 10 independent representative
-      fields, up to 49 at the low end of the interval.
+      (95% interval 6%-61%): to see it once with 95% probability, about 10 independent
+      representative fields, up to 49 at the low end of the interval.
     Fields still needed: at least 48 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 142 more fields if none
       shows anything new (never, at the current rate of new fields).
@@ -402,12 +385,10 @@ What this acquisition was asked to preserve
   ⚠️ Mean-precision rule, per cell, 5%, in 4 of 9 groups (siCCT8#5 · repeat 1, siCCT8#5 · repeat 3,
      siCCT8#8 · repeat 3 and siCTRL · repeat 2): the SD between cells exceeds 50% of their mean;
      Zweifach (JCB 2024) advises acquiring more data and repeating the estimate; the upper-95 SD
-       bound
-     assumes normal values, and these cells have excess kurtosis 4.4 to 9.0 (above 2: a heavy tail)
-     and bimodality coefficient 0.589 to 0.671 (above 5/9 = 0.556: two groups of values), so the
-       bound
-     can be optimistic (with 10% of cells at four times the level of the rest it covered the true SD
-     68-88% of the time, not 97.5%)
+     bound assumes normal values, and these cells have excess kurtosis 4.4 to 9.0 (above 2: a heavy
+     tail) and bimodality coefficient 0.589 to 0.671 (above 5/9 = 0.556: two groups of values), so
+     the bound can be optimistic (with 10% of cells at four times the level of the rest it covered
+     the true SD 68-88% of the time, not 97.5%)
   ⚠️ Mean-precision rule, per cell, 5%, in 2 of 9 groups (siCCT8#5 · repeat 2 and siCCT8#8 · repeat
      2): the SD between cells exceeds 50% of their mean; Zweifach (JCB 2024) advises acquiring more
      data and repeating the estimate; the upper-95 SD bound assumes normal values, and these cells
@@ -415,11 +396,9 @@ What this acquisition was asked to preserve
      bound can be optimistic (with 10% of cells at four times the level of the rest it covered the
      true SD 68-88% of the time, not 97.5%)
   ⚠️ Mean-precision rule, per cell, 5%, in 1 of 9 groups (siCCT8#8 · repeat 1): the upper-95 SD
-     bound
-     assumes normal values, and these cells have bimodality coefficient 0.557 (above 5/9 = 0.556:
-       two
-     groups of values), so the bound can be optimistic (with 10% of cells at four times the level of
-     the rest it covered the true SD 68-88% of the time, not 97.5%)
+     bound assumes normal values, and these cells have bimodality coefficient 0.557 (above 5/9 =
+     0.556: two groups of values), so the bound can be optimistic (with 10% of cells at four times
+     the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
   ⚠️ Mean-precision rule, per field, 5%, in 6 of 9 groups (siCCT8#5 · repeat 1, siCCT8#5 · repeat 2,
      siCCT8#5 · repeat 3, siCCT8#8 · repeat 2, siCCT8#8 · repeat 3 and 1 more): the SD between cells
      exceeds 50% of their mean; Zweifach (JCB 2024) advises acquiring more data and repeating the
@@ -535,35 +514,28 @@ What this acquisition was asked to preserve
 
 ✅ 9. Do the conditions differ, and how confidently?
   Feature Area, each condition against the control (siCTRL), within each biological repeat. The
-    fields
-    of a condition's analysis groups are pooled for this comparison. Cells are compared as
-      Plot&Stats
-    does and, since a microscope acquires them through fields, with the field as the unit and, where
-    each side has at least two, with the technical repeat (technical_repeat) as the unit.
+    fields of a condition's analysis groups are pooled for this comparison. Cells are compared as
+    Plot&Stats does and, since a microscope acquires them through fields, with the field as the unit
+    and, where each side has at least two, with the technical repeat (technical_repeat) as the unit.
   Reading, condition by condition, against siCTRL. Significant across repeats: the paired t-test on
     the biological repeat means (as SuperPlots; values normalised to each repeat's control) gives q
-      ≤
-    0.05 after Benjamini-Hochberg within the condition's sub-experiment, over its 10 features and
+    ≤ 0.05 after Benjamini-Hochberg within the condition's sub-experiment, over its 10 features and
     their conditions: this is the result to report (with 3 repeats only large, consistent effects
     reach it). No trend is called below 6 repeats: every repeat goes the same way by chance too
-      often
-    (1 experiment in 4 with 3 repeats). Beside it, the cell-level screen (as Plot&Stats, every cell
-      an
-    independent draw) is exploratory: it finds candidates, not effects that repeat:
+    often (1 experiment in 4 with 3 repeats). Beside it, the cell-level screen (as Plot&Stats, every
+    cell an independent draw) is exploratory: it finds candidates, not effects that repeat:
     - siCCT8#5 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -0.57, mean 23% lower than the control); paired t-test on the 3 repeat means p
       0.21, q 0.26; change ×0.82, ×0.946 and ×0.58 in the 3 repeats, ×0.77 overall, 95% t interval
       ×0.41 to ×1.43; cell-level screen (exploratory) q 0.018 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 17% of experiments like this one); siCCT8#8 (CCT8) agrees in
-        3
-      of 3 biological repeats.
+      3 of 3 biological repeats.
     - siCCT8#8 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -0.59, mean 24% lower than the control); paired t-test on the 3 repeat means p
       0.11, q 0.18; change ×0.90, ×0.77 and ×0.63 in the 3 repeats, ×0.76 overall, 95% t interval
       ×0.49 to ×1.17; cell-level screen (exploratory) q 0.0063 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 5% of experiments like this one); siCCT8#5 (CCT8) agrees in
-        3
-      of 3 biological repeats.
+      3 of 3 biological repeats.
     With 3 biological repeats, very limited biological replication: each verdict gives the change in
     each repeat and the 95% t interval of the change, which is wide; a change that is not
       significant
@@ -577,15 +549,12 @@ What this acquisition was asked to preserve
     target  reagents            repeats
     CCT8    siCCT8#5, siCCT8#8  all lower in 3 of 3
   Cell-level screen (exploratory, as in Plot&Stats): Cohen's d on every cell against the control,
-    the
-    randomization test shuffling the labels over the cells:
+    the randomization test shuffling the labels over the cells:
     Balance: for every condition, one biological repeat holds more than 25% more cells than another
-      on
-      one side (up to 2.2 times); so the test is also given balanced (each condition against the
+      on one side (up to 2.2 times); so the test is also given balanced (each condition against the
       control of its own biological repeats, the same number of cells from each biological repeat;
-        the
-      median d over 100 draws, labels shuffled within each biological repeat for p), and as provided
-      only where the control comes from the condition's own biological repeats.
+      the median d over 100 draws, labels shuffled within each biological repeat for p), and as
+      provided only where the control comes from the condition's own biological repeats.
     As provided:
     condition           raw: d, p (q)          normalised: d, p (q)   gives p ≤ 0.05 with no effect
     siCCT8#5 vs siCTRL  -0.44, 0.020 (0.020)   -0.44, 0.029 (0.029)   about 22%
@@ -595,9 +564,8 @@ What this acquisition was asked to preserve
     siCCT8#5 vs siCTRL  -0.43, 0.020 (0.020)  -0.47, 0.016 (0.018)   17 / 11                                about 17%
     siCCT8#8 vs siCTRL  -0.53, 0.011 (0.020)  -0.59, 0.005 (0.0063)  15 / 11                                about 5%
     q: the version the reading uses (balanced and normalised when given, else normalised) is
-      corrected
-      over the 10 features and their conditions of each sub-experiment, as the feature ranking; the
-      other columns over this feature's conditions only.
+      corrected over the 10 features and their conditions of each sub-experiment, as the feature
+      ranking; the other columns over this feature's conditions only.
   Within each repeat:
     contrast                      fields    cells     tech. repeats  d on cells  over control SD, every cell
     siCCT8#5 vs siCTRL, repeat 1  25 vs 18  25 vs 18  1 vs 1         -0.48       -0.69
@@ -607,12 +575,10 @@ What this acquisition was asked to preserve
     siCCT8#5 vs siCTRL, repeat 3  17 vs 11  17 vs 11  1 vs 1         -1.13       -1.23
     siCCT8#8 vs siCTRL, repeat 3  15 vs 11  15 vs 11  1 vs 1         -0.96       -1.08
   Planning the next experiment on Area (for a new experiment, if the difference and the variation
-    seen
-    here recur; not what the current result needs): the biological repeats a paired t-test on the
-    repeat means needs for 80% power, corrected over the conditions of its sub-experiment (a
-      follow-up
-    on Area alone), with the cells per repeat as now and with twice as many; then the cells a side
-    each of 3 repeats needs to show the difference on its own:
+    seen here recur; not what the current result needs): the biological repeats a paired t-test on
+    the repeat means needs for 80% power, corrected over the conditions of its sub-experiment (a
+    follow-up on Area alone), with the cells per repeat as now and with twice as many; then the
+    cells a side each of 3 repeats needs to show the difference on its own:
     condition           change across repeats  mean d per repeat (cells)  repeats needed  with twice the cells  cells a side per repeat
     siCCT8#5 vs siCTRL  ×0.77                  -0.57                      12              10                    more than 4 times the cells
     siCCT8#8 vs siCTRL  ×0.76                  -0.59                      7               5                     about 46
@@ -620,14 +586,11 @@ What this acquisition was asked to preserve
   Which features separate the conditions? 9 of 10 features are candidates in the exploratory
     cell-level screen: they differ for at least one condition (each condition against the control,
     siCTRL: Cohen's d on the observations normalised to each repeat's control, randomization test, q
-      ≤
-    0.05 after Benjamini-Hochberg within each sub-experiment: 20 tests). Ranked by the largest
+    ≤ 0.05 after Benjamini-Hochberg within each sub-experiment: 20 tests). Ranked by the largest
     difference (|d|); change: the condition's mean over the control's, the fold change the paired
     t-test compares (the difference of the means for a feature with a value that is not positive,
-      the
-    same scale for every condition); a candidate is significant across repeats when the paired
-      t-test
-    on the repeat means also gives q ≤ 0.05:
+    the same scale for every condition); a candidate is significant across repeats when the paired
+    t-test on the repeat means also gives q ≤ 0.05:
     rank  feature       d  condition  change  change in each repeat    95% t interval   q cell level  q repeat means  repeats
        1  Round     +2.06  siCCT8#8    ×2.25  ×2.16, ×2.44 and ×2.15   ×1.88 to ×2.68         0.0015           0.015  3 of 3 higher
        2  AR        -1.89  siCCT8#5    ×0.42  ×0.41, ×0.40 and ×0.47   ×0.34 to ×0.52         0.0015           0.015  3 of 3 lower

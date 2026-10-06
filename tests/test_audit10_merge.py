@@ -82,3 +82,22 @@ def test_the_page_and_the_short_report_carry_no_provenance(tmp_path: Path) -> No
     html = page.read_text()
     assert not CONFIG.search(html)
     assert "_upper95" not in html
+
+
+def test_a_long_line_is_wrapped_with_its_continuation_lines() -> None:
+    """``fitted`` wrapped a line of 101-104 columns alone, leaving its last word on a line of
+    its own ("    the", "      ≤") in the committed full reports; it now wraps the line with
+    its continuation lines, a list item or a deeper block left apart."""
+    from morphocoverage._fitted import fitted
+
+    long = "word " * 19 + "xx the"
+    text = (
+        f"  Header line that is short.\n  {long}\n    control, per repeat: a few words.\n"
+        f"    - {long} xx\n      of 3 repeats.\n    - next item\n"
+        "    feature   a    b\n"
+    )
+    lines = fitted(text).splitlines()
+    assert all(len(line.strip()) > 3 for line in lines)
+    assert all(len(line) <= 100 for line in lines)
+    assert " ".join(fitted(text).split()) == " ".join(text.split())
+    assert "    - next item" in lines and "    feature   a    b" in lines

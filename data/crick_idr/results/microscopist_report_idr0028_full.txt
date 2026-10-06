@@ -1,16 +1,15 @@
 ⚠️ What is in the dataset
   9550 nuclei in 336 acquired fields; a field is identified by condition, biological_repeat,
-    technical_repeat, image_file.
-  31 feature columns: YAPTAZ_Ratio, Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ,
-    Nuclei_Intensity_IntegratedIntensity_YAPTAZ, Nuclei_Intensity_LowerQuartileIntensity_YAPTAZ,
-    Nuclei_Intensity_MADIntensity_YAPTAZ, Nuclei_Intensity_MassDisplacement_YAPTAZ,
-    Nuclei_Intensity_MaxIntensityEdge_YAPTAZ, Nuclei_Intensity_MaxIntensity_YAPTAZ,
-    Nuclei_Intensity_MeanIntensityEdge_YAPTAZ, Nuclei_Intensity_MeanIntensity_YAPTAZ,
-    Nuclei_Intensity_MedianIntensity_YAPTAZ, Nuclei_Intensity_MinIntensityEdge_YAPTAZ and 19 more.
-  12 technical repeats (technical_repeat, a well or a dish within a repeat, 1 to 2 per condition and
-    repeat).
-  4 conditions (condition: MOCK, ARAP2, LATS1, YAP); 3 repeats (biological_repeat: 1A, 2A, 2B).
-  ARAP2, LATS1 and YAP each in 2 of the 3 repeats.
+  technical_repeat, image_file. 31 feature columns: YAPTAZ_Ratio,
+  Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ, Nuclei_Intensity_IntegratedIntensity_YAPTAZ,
+  Nuclei_Intensity_LowerQuartileIntensity_YAPTAZ, Nuclei_Intensity_MADIntensity_YAPTAZ,
+  Nuclei_Intensity_MassDisplacement_YAPTAZ, Nuclei_Intensity_MaxIntensityEdge_YAPTAZ,
+  Nuclei_Intensity_MaxIntensity_YAPTAZ, Nuclei_Intensity_MeanIntensityEdge_YAPTAZ,
+  Nuclei_Intensity_MeanIntensity_YAPTAZ, Nuclei_Intensity_MedianIntensity_YAPTAZ,
+  Nuclei_Intensity_MinIntensityEdge_YAPTAZ and 19 more. 12 technical repeats (technical_repeat, a
+  well or a dish within a repeat, 1 to 2 per condition and repeat). 4 conditions (condition: MOCK,
+  ARAP2, LATS1, YAP); 3 repeats (biological_repeat: 1A, 2A, 2B). ARAP2, LATS1 and YAP each in 2 of
+  the 3 repeats.
     condition  biological_repeat  fields  empty  nuclei  technical repeats
     MOCK       1A                     28      0     966                  1
     MOCK       2A                     28      0     953                  1
@@ -31,14 +30,12 @@
     Nuclei_Intensity_MADIntensity_YAPTAZ and 26 more.
     Assumptions:
       - Out of reach of these checks: a copy re-rounded to fewer than 6 significant digits, a block
-        of
-        fewer than 10 observations that is not the whole of the smaller field, a copy with feature
-        columns swapped or a feature (or a value) missing in one copy only, and observations pasted
-        into two or more other fields (they read as recurring).
+        of fewer than 10 observations that is not the whole of the smaller field, a copy with
+        feature columns swapped or a feature (or a value) missing in one copy only, and observations
+        pasted into two or more other fields (they read as recurring).
 
     ⚠️ Acquisition anomalies (quality control): 3 fields 5 SDs or more from the other fields of
-       their
-       condition and repeat on the log scale for YAPTAZ_Ratio,
+       their condition and repeat on the log scale for YAPTAZ_Ratio,
        Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ, Nuclei_Intensity_IntegratedIntensity_YAPTAZ,
        Nuclei_Intensity_LowerQuartileIntensity_YAPTAZ, Nuclei_Intensity_MADIntensity_YAPTAZ and 23
        more, else on the values: MOCK · repeat 2B · P13 · 016013-18.tif
@@ -46,10 +43,8 @@
        2B · P13 · 016013-14.tif (Nuclei_Intensity_MinIntensity_YAPTAZ, 6.1 SDs above, +0.000275) and
        YAP · repeat 1A · M23 · 013023-14.tif (Cytoplasm_Intensity_MassDisplacement_YAPTAZ, 5.2 SDs
        above, ×2.2); about 0.006 expected by chance in the 10416 values of a field and feature
-         judged,
-       were the differences Gaussian on these scales; an engineering quality-control threshold,
-         never
-       a biological verdict: open their images, 336 fields judged in 9 groups.
+       judged, were the differences Gaussian on these scales; an engineering quality-control
+       threshold, never a biological verdict: open their images, 336 fields judged in 9 groups.
       field                                   feature                                      field median  other fields  difference    SDs
       MOCK · repeat 2B · P13 · 016013-18.tif  Nuclei_Intensity_MinIntensity_YAPTAZ             0.000793      0.000221   +0.000572  +12.6
       MOCK · repeat 2B · P13 · 016013-14.tif  Nuclei_Intensity_MinIntensity_YAPTAZ             0.000496      0.000221   +0.000275   +6.1
@@ -224,8 +219,7 @@ What this acquisition was asked to preserve
 
   Within each repeat, does the difference from the control show?
     Nuclei_Intensity_MeanIntensity_YAPTAZ, each condition against the control of the same repeat,
-      95%
-    interval of d from the fields resampled as acquired:
+    95% interval of d from the fields resampled as acquired:
     comparison                fields (condition vs control)  d on nuclei (95% interval)  enough in this repeat?
     LATS1 vs MOCK, repeat 1A  56 vs 28                       +0.34 (+0.21 to +0.47)      yes (shown)
     YAP vs MOCK, repeat 1A    56 vs 28                       -4.11 (-5.35 to -2.84)      yes (shown)
@@ -269,8 +263,7 @@ What this acquisition was asked to preserve
 
   Within each repeat, does the difference from the control show?
     Nuclei_Intensity_MeanIntensityEdge_YAPTAZ, each condition against the control of the same
-      repeat,
-    95% interval of d from the fields resampled as acquired:
+    repeat, 95% interval of d from the fields resampled as acquired:
     comparison                fields (condition vs control)  d on nuclei (95% interval)  enough in this repeat?
     LATS1 vs MOCK, repeat 1A  56 vs 28                       -0.55 (-0.69 to -0.41)      yes (shown)
     YAP vs MOCK, repeat 1A    56 vs 28                       -3.23 (-4.88 to -1.96)      yes (shown)
@@ -291,10 +284,8 @@ What this acquisition was asked to preserve
     ARAP2 vs MOCK, repeat 2B  56 vs 28                       +0.29 (+0.13 to +0.42)      yes (shown)
 
   Within each repeat, does the difference from the control show?
-    Nuclei_Intensity_MaxIntensity_YAPTAZ,
-    each condition against the control of the same repeat, 95% interval of d from the fields
-      resampled
-    as acquired:
+    Nuclei_Intensity_MaxIntensity_YAPTAZ, each condition against the control of the same repeat, 95%
+    interval of d from the fields resampled as acquired:
     comparison                fields (condition vs control)  d on nuclei (95% interval)  enough in this repeat?
     LATS1 vs MOCK, repeat 1A  56 vs 28                       +0.78 (+0.66 to +0.90)      yes (shown)
     YAP vs MOCK, repeat 1A    56 vs 28                       -2.58 (-4.59 to -1.43)      yes (shown)
@@ -348,10 +339,8 @@ What this acquisition was asked to preserve
     ARAP2 vs MOCK, repeat 2B  56 vs 28                       -0.10 (-0.23 to +0.02)      no: about 41 fields a side
 
   Within each repeat, does the difference from the control show?
-    Nuclei_Intensity_StdIntensity_YAPTAZ,
-    each condition against the control of the same repeat, 95% interval of d from the fields
-      resampled
-    as acquired:
+    Nuclei_Intensity_StdIntensity_YAPTAZ, each condition against the control of the same repeat, 95%
+    interval of d from the fields resampled as acquired:
     comparison                fields (condition vs control)  d on nuclei (95% interval)  enough in this repeat?
     LATS1 vs MOCK, repeat 1A  56 vs 28                       +1.07 (+0.94 to +1.21)      yes (shown)
     YAP vs MOCK, repeat 1A    56 vs 28                       -1.81 (-3.51 to -0.96)      yes (shown)
@@ -362,8 +351,7 @@ What this acquisition was asked to preserve
 
   Within each repeat, does the difference from the control show?
     Cytoplasm_Intensity_UpperQuartileIntensity_YAPTAZ, each condition against the control of the
-      same
-    repeat, 95% interval of d from the fields resampled as acquired:
+    same repeat, 95% interval of d from the fields resampled as acquired:
     comparison                fields (condition vs control)  d on nuclei (95% interval)  enough in this repeat?
     LATS1 vs MOCK, repeat 1A  56 vs 28                       -1.17 (-1.31 to -1.03)      yes (shown)
     YAP vs MOCK, repeat 1A    56 vs 28                       -3.86 (-4.25 to -3.52)      yes (shown)
@@ -373,10 +361,8 @@ What this acquisition was asked to preserve
     ARAP2 vs MOCK, repeat 2B  56 vs 28                       -0.23 (-0.48 to -0.04)      yes (shown)
 
   Within each repeat, does the difference from the control show?
-    Nuclei_Intensity_MADIntensity_YAPTAZ,
-    each condition against the control of the same repeat, 95% interval of d from the fields
-      resampled
-    as acquired:
+    Nuclei_Intensity_MADIntensity_YAPTAZ, each condition against the control of the same repeat, 95%
+    interval of d from the fields resampled as acquired:
     comparison                fields (condition vs control)  d on nuclei (95% interval)  enough in this repeat?
     LATS1 vs MOCK, repeat 1A  56 vs 28                       +1.23 (+1.11 to +1.36)      yes (shown)
     YAP vs MOCK, repeat 1A    56 vs 28                       -1.84 (-3.01 to -1.06)      yes (shown)
@@ -431,8 +417,7 @@ What this acquisition was asked to preserve
 
   Within each repeat, does the difference from the control show?
     Cytoplasm_Intensity_MedianIntensity_YAPTAZ, each condition against the control of the same
-      repeat,
-    95% interval of d from the fields resampled as acquired:
+    repeat, 95% interval of d from the fields resampled as acquired:
     comparison                fields (condition vs control)  d on nuclei (95% interval)  enough in this repeat?
     LATS1 vs MOCK, repeat 1A  56 vs 28                       -1.09 (-1.22 to -0.95)      yes (shown)
     YAP vs MOCK, repeat 1A    56 vs 28                       -3.23 (-3.56 to -2.97)      yes (shown)
@@ -454,8 +439,7 @@ What this acquisition was asked to preserve
 
   Within each repeat, does the difference from the control show?
     Cytoplasm_Intensity_IntegratedIntensityEdge_YAPTAZ, each condition against the control of the
-      same
-    repeat, 95% interval of d from the fields resampled as acquired:
+    same repeat, 95% interval of d from the fields resampled as acquired:
     comparison                fields (condition vs control)  d on nuclei (95% interval)  enough in this repeat?
     LATS1 vs MOCK, repeat 1A  56 vs 28                       -0.55 (-0.69 to -0.40)      yes (shown)
     YAP vs MOCK, repeat 1A    56 vs 28                       -2.28 (-3.02 to -1.73)      yes (shown)
@@ -466,8 +450,7 @@ What this acquisition was asked to preserve
 
   Within each repeat, does the difference from the control show?
     Cytoplasm_Intensity_LowerQuartileIntensity_YAPTAZ, each condition against the control of the
-      same
-    repeat, 95% interval of d from the fields resampled as acquired:
+    same repeat, 95% interval of d from the fields resampled as acquired:
     comparison                fields (condition vs control)  d on nuclei (95% interval)  enough in this repeat?
     LATS1 vs MOCK, repeat 1A  56 vs 28                       -0.95 (-1.09 to -0.84)      yes (shown)
     YAP vs MOCK, repeat 1A    56 vs 28                       -2.45 (-2.82 to -2.10)      yes (shown)
@@ -477,8 +460,7 @@ What this acquisition was asked to preserve
     ARAP2 vs MOCK, repeat 2B  56 vs 28                       +0.05 (-0.33 to +0.19)      no, more fields will not resolve it: more wells or biological repeats
 
   Within each repeat, does the difference from the control show? YAPTAZ_Ratio, each condition
-    against
-    the control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    against the control of the same repeat, 95% interval of d from the fields resampled as acquired:
     comparison                fields (condition vs control)  d on nuclei (95% interval)  enough in this repeat?
     LATS1 vs MOCK, repeat 1A  56 vs 28                       +1.32 (+1.12 to +1.52)      yes (shown)
     YAP vs MOCK, repeat 1A    56 vs 28                       -1.08 (-1.23 to -0.94)      yes (shown)
@@ -488,10 +470,8 @@ What this acquisition was asked to preserve
     ARAP2 vs MOCK, repeat 2B  56 vs 28                       +0.35 (+0.21 to +0.50)      yes (shown)
 
   Within each repeat, does the difference from the control show?
-    Nuclei_Intensity_MinIntensity_YAPTAZ,
-    each condition against the control of the same repeat, 95% interval of d from the fields
-      resampled
-    as acquired:
+    Nuclei_Intensity_MinIntensity_YAPTAZ, each condition against the control of the same repeat, 95%
+    interval of d from the fields resampled as acquired:
     comparison                fields (condition vs control)  d on nuclei (95% interval)  enough in this repeat?
     LATS1 vs MOCK, repeat 1A  56 vs 28                       -0.26 (-0.39 to -0.15)      yes (shown)
     YAP vs MOCK, repeat 1A    56 vs 28                       -1.34 (-1.45 to -1.23)      yes (shown)
@@ -575,8 +555,8 @@ What this acquisition was asked to preserve
   Fields when first met: in the order acquired, when it first said enough; recorded: the range over
     groups; random: the median of the groups' medians, 10-90% from the lowest to the highest group.
   Rules: mean-precision rule, per nucleus, 5% (scalar_precision_object_upper95: averaging_cv <=
-    0.05;
-    config 7f33d85e490f1fa8); mean-precision rule, per field, 5% (scalar_precision_fov_upper95:
+    0.05; config 7f33d85e490f1fa8); mean-precision rule, per field, 5%
+    (scalar_precision_fov_upper95:
     averaging_cv <= 0.05; config bcd923e343521c46); nothing new (≤5%) (support_novelty:
     lofo_novel_fov_upper <= 0.05; config 3036da4652c45177).
   Per group below: whether each rule was met by its own threshold, where it was first met, and the
@@ -589,18 +569,15 @@ What this acquisition was asked to preserve
     mean-precision rule, per field, 5%    yes     5         5 (0.3; 5-6)                             23
     nothing new (≤5%)                     no      never     never                                    –
     Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 2.3; mean-precision rule,
-      per
-      field, 5%: Spearman rho -0.43, p = 0.023.
+      per field, 5%: Spearman rho -0.43, p = 0.023.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 2 of 28 fields hold a state seen in 2 to 3 fields; together 7% of fields
-      (95%
-      interval 0.9%-24%): to see it once with 95% probability, about 41 independent representative
-      fields, up to 341 at the low end of the interval.
+      (95% interval 0.9%-24%): to see it once with 95% probability, about 41 independent
+      representative fields, up to 341 at the low end of the interval.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
-        shows
-      anything new (31 at the current rate of new fields).
+      shows anything new (31 at the current rate of new fields).
 
   LATS1 · repeat 1A · I23 — 28 fields acquired:
     rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
@@ -608,18 +585,15 @@ What this acquisition was asked to preserve
     mean-precision rule, per field, 5%    yes     4         5 (0.5; 4-6)                             23
     nothing new (≤5%)                     no      never     never                                    –
     Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 3.0; mean-precision rule,
-      per
-      field, 5%: Spearman rho -0.41, p = 0.032.
+      per field, 5%: Spearman rho -0.41, p = 0.032.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 1 of 28 fields hold a state seen in 2 to 3 fields; together 4% of fields
-      (95%
-      interval 0.09%-18%): to see it once with 95% probability, about 83 independent representative
-      fields, up to 3314 at the low end of the interval.
+      (95% interval 0.09%-18%): to see it once with 95% probability, about 83 independent
+      representative fields, up to 3314 at the low end of the interval.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
-        shows
-      anything new (31 at the current rate of new fields).
+      shows anything new (31 at the current rate of new fields).
 
   LATS1 · repeat 1A · J23 — 28 fields acquired:
     rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
@@ -627,18 +601,15 @@ What this acquisition was asked to preserve
     mean-precision rule, per field, 5%    yes     5         5 (0.3; 5-6)                             23
     nothing new (≤5%)                     no      never     never                                    –
     Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 2.8; mean-precision rule,
-      per
-      field, 5%: Spearman rho -0.49, p = 0.0085.
+      per field, 5%: Spearman rho -0.49, p = 0.0085.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 2 of 28 fields hold a state seen in 2 to 3 fields; together 7% of fields
-      (95%
-      interval 0.9%-24%): to see it once with 95% probability, about 41 independent representative
-      fields, up to 341 at the low end of the interval.
+      (95% interval 0.9%-24%): to see it once with 95% probability, about 41 independent
+      representative fields, up to 341 at the low end of the interval.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
-        shows
-      anything new (31 at the current rate of new fields).
+      shows anything new (31 at the current rate of new fields).
 
   YAP · repeat 1A · M23 — 28 fields acquired:
     rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
@@ -648,13 +619,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 1 of 28 fields hold a state seen in 2 to 3 fields; together 4% of fields
-      (95%
-      interval 0.09%-18%): to see it once with 95% probability, about 83 independent representative
-      fields, up to 3314 at the low end of the interval.
+      (95% interval 0.09%-18%): to see it once with 95% probability, about 83 independent
+      representative fields, up to 3314 at the low end of the interval.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
-        shows
-      anything new (31 at the current rate of new fields).
+      shows anything new (31 at the current rate of new fields).
 
   YAP · repeat 1A · N23 — 28 fields acquired:
     rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
@@ -666,8 +635,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
-        shows
-      anything new (31 at the current rate of new fields).
+      shows anything new (31 at the current rate of new fields).
 
   ARAP2 · repeat 2A · C13 — 28 fields acquired:
     rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
@@ -680,8 +648,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
-        shows
-      anything new (31 at the current rate of new fields).
+      shows anything new (31 at the current rate of new fields).
 
   LATS1 · repeat 2A · J23 — 28 fields acquired:
     rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
@@ -692,13 +659,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 1 of 28 fields hold a state seen in 2 to 3 fields; together 4% of fields
-      (95%
-      interval 0.09%-18%): to see it once with 95% probability, about 83 independent representative
-      fields, up to 3314 at the low end of the interval.
+      (95% interval 0.09%-18%): to see it once with 95% probability, about 83 independent
+      representative fields, up to 3314 at the low end of the interval.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
-        shows
-      anything new (31 at the current rate of new fields).
+      shows anything new (31 at the current rate of new fields).
 
   MOCK · repeat 2A · K16 — 28 fields acquired:
     rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
@@ -708,14 +673,12 @@ What this acquisition was asked to preserve
     One more field: chance 4% (nominal 95% bound 16%); 1 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 4 of 28 fields hold a state seen in 2 to 3 fields; together 14% of fields
-      (95%
-      interval 4%-33%): to see it once with 95% probability, about 20 independent representative
-      fields, up to 73 at the low end of the interval; they may hold several states, each rarer: one
-      seen in only 2 fields needs about 41.
+      (95% interval 4%-33%): to see it once with 95% probability, about 20 independent
+      representative fields, up to 73 at the low end of the interval; they may hold several states,
+      each rarer: one seen in only 2 fields needs about 41.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 65 more fields if none
-        shows
-      anything new (689 at the current rate of new fields).
+      shows anything new (689 at the current rate of new fields).
 
   YAP · repeat 2A · N23 — 28 fields acquired:
     rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
@@ -726,13 +689,11 @@ What this acquisition was asked to preserve
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 1 of 28 fields hold a state seen in 2 to 3 fields; together 4% of fields
-      (95%
-      interval 0.09%-18%): to see it once with 95% probability, about 83 independent representative
-      fields, up to 3314 at the low end of the interval.
+      (95% interval 0.09%-18%): to see it once with 95% probability, about 83 independent
+      representative fields, up to 3314 at the low end of the interval.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
-        shows
-      anything new (31 at the current rate of new fields).
+      shows anything new (31 at the current rate of new fields).
 
   ARAP2 · repeat 2B · C13 — 28 fields acquired:
     rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
@@ -745,8 +706,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 96 more fields if none
-        shows
-      anything new (never, at the current rate of new fields).
+      shows anything new (never, at the current rate of new fields).
 
   ARAP2 · repeat 2B · C17 — 28 fields acquired:
     rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
@@ -759,8 +719,7 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
-        shows
-      anything new (31 at the current rate of new fields).
+      shows anything new (31 at the current rate of new fields).
 
   MOCK · repeat 2B · P13 — 28 fields acquired:
     rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
@@ -772,16 +731,13 @@ What this acquisition was asked to preserve
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 65 more fields if none
-        shows
-      anything new (689 at the current rate of new fields).
+      shows anything new (689 at the current rate of new fields).
 
   'New' means a cluster of at least 3 similar observations (each linked to another by a step within
     the distance, so a more spread-out state is not counted) with no other FOV within distance
-      5.47723
-    (robust_standardize), on 30 features (Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ,
+    5.47723 (robust_standardize), on 30 features (Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ,
     Nuclei_Intensity_IntegratedIntensity_YAPTAZ, Nuclei_Intensity_LowerQuartileIntensity_YAPTAZ and
-      27
-    more); two observations of a state that varies by one SD per feature sit about 7.7 apart.
+    27 more); two observations of a state that varies by one SD per feature sit about 7.7 apart.
 
   ⚠️ Mean-precision rule, per nucleus, 5%, in 7 of 12 groups (MOCK · repeat 1A · B6, LATS1 · repeat
      1A · I23, LATS1 · repeat 1A · J23, ARAP2 · repeat 2A · C13, YAP · repeat 2A · N23 and 2 more):
@@ -792,40 +748,35 @@ What this acquisition was asked to preserve
      1A · I23, LATS1 · repeat 1A · J23 and LATS1 · repeat 2A · J23): field size and field mean are
      related (Spearman rho -0.55 to -0.41, p = 0.0023 to 0.032, over 28 fields with nuclei): the
      per-field averaging CV can then be several times too small; check it against a bootstrap of
-       whole
-     fields (FOVBootstrapEstimator, centroid summary) or the mean of field means
+     whole fields (FOVBootstrapEstimator, centroid summary) or the mean of field means
      (statistics.field_weighted_mean_se)
 
   Adjusted for the declared control's detection rate (100% of its fields recognized against the
     reference fields of an analysis group; at least 96% at 95% confidence, of 84 checks, pooled over
     all biological repeats): a phenotype seen as well as the control, and shown by no FOV yet, could
-    still be in
-    condition=MOCK, biological_repeat=1A, technical_repeat=B6: up to 11% of FOVs (the 10% bound
-      above divided by 96%), if detection is independent between fields.
-    condition=LATS1, biological_repeat=1A, technical_repeat=I23: up to 11% of FOVs (the 10% bound
-      above divided by 96%), if detection is independent between fields.
-    condition=LATS1, biological_repeat=1A, technical_repeat=J23: up to 11% of FOVs (the 10% bound
-      above divided by 96%), if detection is independent between fields.
-    condition=YAP, biological_repeat=1A, technical_repeat=M23: up to 11% of FOVs (the 10% bound
-      above divided by 96%), if detection is independent between fields.
+    still be in condition=MOCK, biological_repeat=1A, technical_repeat=B6: up to 11% of FOVs (the
+    10% bound above divided by 96%), if detection is independent between fields. condition=LATS1,
+    biological_repeat=1A, technical_repeat=I23: up to 11% of FOVs (the 10% bound above divided by
+    96%), if detection is independent between fields. condition=LATS1, biological_repeat=1A,
+    technical_repeat=J23: up to 11% of FOVs (the 10% bound above divided by 96%), if detection is
+    independent between fields. condition=YAP, biological_repeat=1A, technical_repeat=M23: up to 11%
+    of FOVs (the 10% bound above divided by 96%), if detection is independent between fields.
     condition=YAP, biological_repeat=1A, technical_repeat=N23: up to 11% of FOVs (the 10% bound
-      above divided by 96%), if detection is independent between fields.
-    condition=ARAP2, biological_repeat=2A, technical_repeat=C13: up to 11% of FOVs (the 10% bound
-      above divided by 96%), if detection is independent between fields.
-    condition=LATS1, biological_repeat=2A, technical_repeat=J23: up to 11% of FOVs (the 10% bound
-      above divided by 96%), if detection is independent between fields.
-    condition=MOCK, biological_repeat=2A, technical_repeat=K16: up to 11% of FOVs (the 10% bound
-      above divided by 96%), if detection is independent between fields.
+    above divided by 96%), if detection is independent between fields. condition=ARAP2,
+    biological_repeat=2A, technical_repeat=C13: up to 11% of FOVs (the 10% bound above divided by
+    96%), if detection is independent between fields. condition=LATS1, biological_repeat=2A,
+    technical_repeat=J23: up to 11% of FOVs (the 10% bound above divided by 96%), if detection is
+    independent between fields. condition=MOCK, biological_repeat=2A, technical_repeat=K16: up to
+    11% of FOVs (the 10% bound above divided by 96%), if detection is independent between fields.
     condition=YAP, biological_repeat=2A, technical_repeat=N23: up to 11% of FOVs (the 10% bound
-      above divided by 96%), if detection is independent between fields.
-    condition=ARAP2, biological_repeat=2B, technical_repeat=C13: up to 11% of FOVs (the 10% bound
-      above divided by 96%), if detection is independent between fields.
-    condition=ARAP2, biological_repeat=2B, technical_repeat=C17: up to 11% of FOVs (the 10% bound
-      above divided by 96%), if detection is independent between fields.
-    condition=MOCK, biological_repeat=2B, technical_repeat=P13: up to 11% of FOVs (the 10% bound
-      above divided by 96%), if detection is independent between fields.
+    above divided by 96%), if detection is independent between fields. condition=ARAP2,
+    biological_repeat=2B, technical_repeat=C13: up to 11% of FOVs (the 10% bound above divided by
+    96%), if detection is independent between fields. condition=ARAP2, biological_repeat=2B,
+    technical_repeat=C17: up to 11% of FOVs (the 10% bound above divided by 96%), if detection is
+    independent between fields. condition=MOCK, biological_repeat=2B, technical_repeat=P13: up to
+    11% of FOVs (the 10% bound above divided by 96%), if detection is independent between fields.
     This holds for whole-field phenotypes like the control only: a small state in an ordinary field
-      is recognized less often (declare planted_objects to measure it).
+    is recognized less often (declare planted_objects to measure it).
   Assumptions:
     - Shown: the 95% interval of d, from resampling the technical repeats and their fields as
       acquired, empty fields included, excludes 0. With fewer than 5 fields a side, not assessable.
@@ -964,17 +915,14 @@ What this acquisition was asked to preserve
     013023-14.tif (stage_x_um 444, stage_y_um 0): 6 nuclei; the median is 21.5.
   YAP · repeat 1A · N23: fields to reopen before trusting the result
     014023-4.tif (stage_x_um 0, stage_y_um -1008): its mean YAPTAZ_Ratio is 5.6 SD below its 4
-      nearest
-      fields (within 557 µm).
+      nearest fields (within 557 µm).
   ARAP2 · repeat 2A · C13: fields to reopen before trusting the result
     003013-26.tif (stage_x_um 0, stage_y_um 1008): its mean YAPTAZ_Ratio is 3.1 SD above its 4
-      nearest
-      fields (within 557 µm).
+      nearest fields (within 557 µm).
   MOCK · repeat 2A · K16: fields to reopen before trusting the result
     011016-6.tif (stage_x_um 889, stage_y_um -1008): 3 nuclei of a state no other field shows.
     011016-15.tif (stage_x_um -444, stage_y_um 0): its mean YAPTAZ_Ratio is 3.2 SD above its 4
-      nearest
-      fields (within 558 µm; fields tied in distance taken by field name).
+      nearest fields (within 558 µm; fields tied in distance taken by field name).
   ARAP2 · repeat 2B · C13: fields to reopen before trusting the result
     003013-4.tif (stage_x_um 0, stage_y_um -1008): 4 nuclei of a state no other field shows.
     003013-19.tif (stage_x_um 889, stage_y_um 336): 3 nuclei of a state no other field shows.
@@ -987,31 +935,26 @@ What this acquisition was asked to preserve
 
 ➖ 9. Do the conditions differ, and how confidently?
   Feature YAPTAZ_Ratio, each condition against the control (MOCK), within each biological repeat.
-    The
-    fields of a condition's analysis groups are pooled for this comparison. Nuclei are compared as
-    Plot&Stats does and, since a microscope acquires them through fields, with the field as the unit
-    and, where each side has at least two, with the technical repeat (technical_repeat) as the unit.
+    The fields of a condition's analysis groups are pooled for this comparison. Nuclei are compared
+    as Plot&Stats does and, since a microscope acquires them through fields, with the field as the
+    unit and, where each side has at least two, with the technical repeat (technical_repeat) as the
+    unit.
   Reading, condition by condition, against MOCK, in 2 biological repeats: the direction and Cohen's
-    d
-    of each; whether a difference holds across repeats needs 3 of them (the paired t-test on the
+    d of each; whether a difference holds across repeats needs 3 of them (the paired t-test on the
     repeat means). The nucleus-level screen (as Plot&Stats, every nucleus an independent draw) is
     exploratory: it finds candidates, not effects that repeat:
     - LATS1 — not tested across repeats: higher in 2 of 2 biological repeats (Cohen's d per repeat,
       mean +1.00, mean 6.9% higher than the control); the paired test needs 3 biological repeats;
       nucleus-level screen (exploratory) q < 0.001 (balanced, normalised; with no real effect it
-        gives
-      p ≤ 0.05 in about 83% of experiments like this one).
+      gives p ≤ 0.05 in about 83% of experiments like this one).
     - YAP — not tested across repeats: lower in 2 of 2 biological repeats (Cohen's d per repeat,
-      mean
-      -1.35, mean 8.8% lower than the control); the paired test needs 3 biological repeats;
+      mean -1.35, mean 8.8% lower than the control); the paired test needs 3 biological repeats;
       nucleus-level screen (exploratory) q < 0.001 (balanced, normalised; with no real effect it
-        gives
-      p ≤ 0.05 in about 79% of experiments like this one).
+      gives p ≤ 0.05 in about 79% of experiments like this one).
     - ARAP2 — not tested across repeats: higher in 2 of 2 biological repeats (Cohen's d per repeat,
       mean +0.32, mean 2.2% higher than the control); the paired test needs 3 biological repeats;
       nucleus-level screen (exploratory) q < 0.001 (balanced, normalised; with no real effect it
-        gives
-      p ≤ 0.05 in about 5% of experiments like this one).
+      gives p ≤ 0.05 in about 5% of experiments like this one).
   Across the 2 biological repeats (each repeat's value is the mean of its nuclei, paired with the
     control of the same repeat):
     condition      vs control, by repeat  d nuclei per repeat: mean (range)
@@ -1022,25 +965,21 @@ What this acquisition was asked to preserve
     control, the randomization test shuffling the labels over the nuclei:
     Balance: for every condition, one biological repeat holds more than 25% more nuclei than another
       on one side (up to 2.5 times); and for every condition, the control as provided is pooled from
-        1
-      biological repeat the condition was not imaged in; so the test is also given balanced (each
+      1 biological repeat the condition was not imaged in; so the test is also given balanced (each
       condition against the control of its own biological repeats, the same number of nuclei from
-        each
-      biological repeat; the median d over 100 draws, labels shuffled within each biological repeat
-      for p), and as provided only where the control comes from the condition's own biological
-      repeats.
+      each biological repeat; the median d over 100 draws, labels shuffled within each biological
+      repeat for p), and as provided only where the control comes from the condition's own
+      biological repeats.
     Not given as provided for LATS1, YAP and ARAP2: their control would include biological repeats
-      the
-      condition was not imaged in.
+      the condition was not imaged in.
     Balanced over the repeats:
     condition      raw: d, p (q)         normalised: d, p (q)      nuclei per repeat, condition / control  gives p ≤ 0.05 with no effect
     LATS1 vs MOCK  +0.99, 0.001 (0.001)  +0.99, < 0.001 (< 0.001)  736 / 953                               about 83%
     YAP vs MOCK    -1.33, 0.001 (0.001)  -1.33, < 0.001 (< 0.001)  557 / 953                               about 79%
     ARAP2 vs MOCK  +0.32, 0.001 (0.001)  +0.32, < 0.001 (< 0.001)  797 / 953                               about 5%
     q: the version the reading uses (balanced and normalised when given, else normalised) is
-      corrected
-      over the 31 features and their conditions of each sub-experiment, as the feature ranking; the
-      other columns over this feature's conditions only.
+      corrected over the 31 features and their conditions of each sub-experiment, as the feature
+      ranking; the other columns over this feature's conditions only.
   Within each repeat:
     contrast                  fields    nuclei       tech. repeats  d on nuclei  d on field means  over control SD, every nucleus
     LATS1 vs MOCK, repeat 1A  56 vs 28  1365 vs 966  2 vs 1         +1.32        +4.94             +1.42
@@ -1090,18 +1029,13 @@ What this acquisition was asked to preserve
 
   Which features separate the conditions? 31 of 31 features are candidates in the exploratory
     nucleus-level screen: they differ for at least one condition (each condition against the
-      control,
-    MOCK: Cohen's d on the observations normalised to each repeat's control, randomization test, q ≤
-    0.05 after Benjamini-Hochberg within each sub-experiment: 93 tests; the p-values at or below
-      0.05
-    rerun with 1860 shuffles, so that q can reach 0.05 in a family this large). Ranked by the
-      largest
-    difference (|d|); change: the condition's mean over the control's, the fold change the paired
-    t-test compares (the difference of the means for a feature with a value that is not positive,
-      the
-    same scale for every condition); a candidate is significant across repeats when the paired
-      t-test
-    on the repeat means also gives q ≤ 0.05:
+    control, MOCK: Cohen's d on the observations normalised to each repeat's control, randomization
+    test, q ≤ 0.05 after Benjamini-Hochberg within each sub-experiment: 93 tests; the p-values at or
+    below 0.05 rerun with 1860 shuffles, so that q can reach 0.05 in a family this large). Ranked by
+    the largest difference (|d|); change: the condition's mean over the control's, the fold change
+    the paired t-test compares (the difference of the means for a feature with a value that is not
+    positive, the same scale for every condition); a candidate is significant across repeats when
+    the paired t-test on the repeat means also gives q ≤ 0.05:
     rank  feature                                                 d  condition  change  q nucleus level  q repeat means  repeats
        1  Nuclei_Intensity_MedianIntensity_YAPTAZ             -4.33  YAP         ×0.25          < 0.001               –  2 of 2 lower
        2  Nuclei_Intensity_MeanIntensity_YAPTAZ               -4.26  YAP         ×0.26          < 0.001               –  2 of 2 lower
@@ -1133,9 +1067,9 @@ What this acquisition was asked to preserve
   ⚠️ No paired test: fewer than 3 biological repeats hold a condition and the control.
   ⚠️ Candidates, but lower in some repeats and higher in others:
      Nuclei_Intensity_IntegratedIntensity_YAPTAZ (LATS1),
-       Nuclei_Intensity_IntegratedIntensity_YAPTAZ
-     (ARAP2), Nuclei_Intensity_MADIntensity_YAPTAZ (ARAP2), Nuclei_Intensity_MaxIntensity_YAPTAZ
-     (ARAP2) and 7 more; a shift between repeats, not a consistent effect.
+     Nuclei_Intensity_IntegratedIntensity_YAPTAZ (ARAP2), Nuclei_Intensity_MADIntensity_YAPTAZ
+     (ARAP2), Nuclei_Intensity_MaxIntensity_YAPTAZ (ARAP2) and 7 more; a shift between repeats, not
+     a consistent effect.
   Assumptions:
     - With 2 biological repeats holding both sides, LATS1, YAP and ARAP2 are described by direction
       and effect size; the paired test across repeats needs 3.

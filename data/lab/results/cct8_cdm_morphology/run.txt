@@ -1,5 +1,5 @@
 dataset: cct8_cdm_morphology
-morphocoverage: unversioned at commit 1476aa5
+morphocoverage: unversioned at commit ba91fb1
 readout: Area; features: 10; control: {'condition': 'siCTRL'}
 novelty: default_novelty(features); rules: the defaults; random_state 0
 run time: 20 s
