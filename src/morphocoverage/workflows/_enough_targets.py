@@ -117,6 +117,10 @@ def fingerprint_precision(
                 own = complete[i].get(group_key(group))
                 left_out = len(group_data.objects) - (len(own.objects) if own is not None else 0)
                 here = FovSubsets(own) if own is not None and subsets is not None else None
+            reading = space.readings.get(names[i])
+            # Too few observations for the common k: not assessable here (audit 8).
+            small = reading is not None and group_key(group) in {k for k, *_ in reading.small}
+            here = None if small else here
             splits = SPLITS if here is not None else 0
             for _ in range(splits):
                 order = rng.permutation(n)
@@ -132,7 +136,6 @@ def fingerprint_precision(
                 else np.nan
             )
             tolerance = float(criterion.threshold)
-            reading = space.readings.get(names[i])
             rows.append(
                 {
                     **group,
@@ -156,6 +159,7 @@ def fingerprint_precision(
                         else np.nan
                     ),
                     "components": reading.components if reading is not None else None,
+                    "small": small,
                     "reading": (
                         reading.words(setup.unit_word, setup.unit_words) if reading else ""
                     ),
@@ -172,16 +176,20 @@ def _unjudged_reasons(missing: pd.DataFrame, fields: str) -> str:
     """Why the groups of ``missing`` (rows without ``met``) were not judged: one reason, or each
     with its count."""
     few = missing["fields"] < MIN_FIELDS
+    small = missing.get("small", pd.Series(False, index=missing.index)).eq(True) & ~few
+    rest = ~few & ~small
     reasons = []
     if few.any():
         reasons.append((f"fewer than {MIN_FIELDS} {fields}", int(few.sum())))
-    if not few.all():
-        shares = missing.loc[~few, "undefined_splits"] / missing.loc[~few, "splits"]
+    if small.any():  # the common k needs five times its observations (audit 8)
+        reasons.append(("too few observations for the common k", int(small.sum())))
+    if rest.any():
+        shares = missing.loc[rest, "undefined_splits"] / missing.loc[rest, "splits"]
         reason = (
             f"no defined error on {span(shares, 'percent')} of the random halves, more than "
             f"{percent(UNDEFINED_TOLERANCE)}"
         )
-        reasons.append((reason, int((~few).sum())))
+        reasons.append((reason, int(rest.sum())))
     if len(reasons) == 1:
         return reasons[0][0]
     return "; ".join(f"{n} with {reason}" for reason, n in reasons)

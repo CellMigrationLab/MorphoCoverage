@@ -15,11 +15,14 @@ from test_feature_tables_batch import _batch, _setup
 
 from morphocoverage.embedding import robust_scale
 from morphocoverage.feature_tables import mfa_weights
+from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.objectives import ObjectiveConfig, SamplingObjective
+from morphocoverage.retrospective.criteria import OutcomeCriterion
 from morphocoverage.schema import validate_input_tables
 from morphocoverage.separation import separation
 from morphocoverage.transforms import BlockWeights
-from morphocoverage.workflows import Setup, default_novelty, html_report, report
+from morphocoverage.workflows import Setup, default_novelty, html_report, optimise, report
+from morphocoverage.workflows._enough_targets import fingerprint_lines, fingerprint_precision
 from morphocoverage.workflows._feature_space import (
     analysed_tables,
     attached,
@@ -28,6 +31,7 @@ from morphocoverage.workflows._feature_space import (
     separation_in_report,
     unusual_space,
 )
+from morphocoverage.workflows._fingerprint_space import fingerprint_space
 from morphocoverage.workflows._html_maps import _maps, _tables
 from morphocoverage.workflows._label_control import _robust
 from morphocoverage.workflows._populations import populations_in_report, populations_text
@@ -236,3 +240,67 @@ def test_an_embedding_only_combined_space_has_its_centred_map():
         warnings.simplefilter("ignore")
         maps = _maps(setup, tables, fovs, (), [])
     assert set(maps["centred"]) == {"Combined", "D1", "D2"}
+
+
+# --- 8. One common k for a wide fingerprint ---------------------------------------------------
+
+COLUMNS = tuple(f"d{j}" for j in range(30))
+
+
+def _fingerprint_data(pilot: bool, fields: int = 6, cells: int = 25):
+    """ctrl and a in 3 repeats, ``fields`` fields of ``cells`` cells, a table of 30 columns
+    on 3 latent axes; with ``pilot``, a condition of 4 fields of 3 cells in R1."""
+    rng = np.random.default_rng(0)
+    load = rng.normal(size=(3, len(COLUMNS)))
+    groups = [(c, r, fields, cells) for c in ("ctrl", "a") for r in ("R1", "R2", "R3")]
+    groups += [("pilot", "R1", 4, 3)] if pilot else []
+    frames = []
+    for c, r, n_fields, n_cells in groups:
+        for field in range(n_fields):
+            values = rng.normal(size=(n_cells, 3)) @ load
+            values += 0.3 * rng.normal(size=(n_cells, len(COLUMNS)))
+            frame = pd.DataFrame(values, columns=list(COLUMNS))
+            frame.insert(0, "label_id", np.arange(1, n_cells + 1))
+            frame.insert(0, "image_file", f"{c}{r}{field}")
+            frame.insert(0, "biological_repeat", r)
+            frame.insert(0, "condition", c)
+            frames.append(frame)
+    objects = pd.concat(frames, ignore_index=True)
+    return objects, objects[KEY[:3]].drop_duplicates().reset_index(drop=True)
+
+
+def _fingerprint_setup() -> Setup:
+    criterion = OutcomeCriterion(
+        CovarianceError(COLUMNS, True), 0.15, "lower_is_better", "DINO covariance within 15%"
+    )
+    return Setup(
+        fingerprint=(criterion,), feature_tables={"DINO": COLUMNS}, observation_unit="cell"
+    )
+
+
+def test_a_small_pilot_group_is_not_assessable_and_named_never_lowering_k():
+    setup = _fingerprint_setup()
+    alone = fingerprint_precision(*_fingerprint_data(False), setup)
+    with_pilot = fingerprint_precision(*_fingerprint_data(True), setup)
+    # k = a fifth of the median group's 150 cells, capped at the 30 columns (audit 8 A6).
+    assert set(alone["components"]) == set(with_pilot["components"]) == {30}
+    pilot = with_pilot[with_pilot["condition"] == "pilot"].iloc[0]
+    assert pilot["small"] and pilot["met"] is None
+    others = with_pilot[with_pilot["condition"] != "pilot"].reset_index(drop=True)
+    assert others["met"].tolist() == alone["met"].tolist()
+    text = " ".join(" ".join(fingerprint_lines(with_pilot, "group", "fields", unit="cell")).split())
+    assert "not assessable in pilot R1, holding fewer than 5 k, 150 cells)" in text
+    assert "Not judged in 1 group: too few observations for the common k." in text
+
+
+def test_without_a_group_of_four_fields_a_tables_fingerprint_is_not_assessable_anywhere():
+    objects, fovs = _fingerprint_data(False, fields=3)
+    setup = _fingerprint_setup()
+    space = fingerprint_space(objects, fovs, setup)
+    assert not space.setup.fingerprint
+    reason = "no group holds 4 fields, so no group sets the number of its principal components"
+    assert list(space.not_assessable.values()) == [reason]
+    # optimise never judges the full width (seed 9): here it has nothing to judge.
+    with pytest.raises(ValueError, match="no group holds 4 fields"):
+        optimise(objects, fovs, setup, fov_counts=(1, 2), reservoir_fraction=0.35)
+

@@ -1,5 +1,5 @@
 """The owner's decisions of 2026-10-06 on wide feature tables: the fingerprint of a table on
-its first principal components (k at most a fifth of the smallest group, not assessable
+its first principal components (k at most a fifth of the median group, audit 8; not assessable
 below 2), and the centred map view (audit 8: no repeat left out for a small control)."""
 
 import numpy as np
@@ -61,7 +61,7 @@ def test_a_wide_tables_fingerprint_reads_its_first_components_and_says_k():
     text = " ".join(" ".join(fingerprint_lines(precision, "well", "fields", unit="cell")).split())
     assert (
         "The fingerprint of DINO (DINO the covariance within 50%), read on its first 2 "
-        "principal components (k at most a fifth of the smallest group's 12 cells and at "
+        "principal components (k at most a fifth of the median group's 12 cells and at "
         "most its 60 columns)"
     ) in text
 
@@ -91,7 +91,7 @@ def test_groups_too_small_for_two_components_are_not_assessable_and_say_why():
     text = " ".join(" ".join(fingerprint_lines(precision, "well", "fields", unit="cell")).split())
     assert (
         "The fingerprint of DINO (DINO the covariance within 50%): not assessable: its "
-        "smallest group holds 8 cells, and 2 principal components need groups of at least 10"
+        "median group holds 8 cells, and 2 principal components need groups of at least 10"
     ) in text
     _statuses, parts = targets_status(None, precision, setup)
     assert "the fingerprint of DINO not assessable" in parts

@@ -132,14 +132,22 @@ and the report says which space.
   a few images: on the ECM tables the error of the DINO fingerprint read up to 192,282 and
   asked for "1e13 images per group". The principal components are fitted on every
   observation of the table holding all its values, robustly standardised as the maps are,
-  and keep their variance (the first weighs most). The rule for k: at most a fifth of the
-  observations of the smallest group the fingerprint judges (an analysis group of at least
-  4 fields) and at most the table's columns; the line says k ("read on its first 4
-  principal components (k at most a fifth of the smallest group's 23 images and at most its
-  384 columns)"). Below k = 2 the fingerprint is **not assessable**, and the line says why
-  (the smallest group's size, and that 2 components need groups of 10). The explainable
-  features keep today's form when they number at most that fifth, and follow the same rule
-  when they are wider. `optimise` judges the same components on held-back fields
+  and keep their variance (the first weighs most). The rule for k, one k for every group
+  (owner, 2026-10-06, audit 8): at most a fifth of the observations of the median group the
+  fingerprint judges (an analysis group of at least 4 fields) and at most the table's
+  columns; the line says k ("read on its first 4 principal components (k at most a fifth of
+  the median group's 23 images and at most its 384 columns)"). A judged group holding fewer
+  than five times k observations is **not assessable** and named in that line ("not
+  assessable in pilot R1, holding fewer than 5 k, 200 cells"), never lowering k: when k came
+  from the smallest group, a pilot condition of 4 fields of 3 cells took k from 40 to 2 and
+  turned every other group's verdict from 0-17% meeting the tolerance to 100% (with the rule,
+  k stays 40 and the verdicts do not move). Below k = 2 for the median group the fingerprint
+  is not assessable in any group, and the line says why (the median group's size, and that 2
+  components need groups of 10); so it is, for a table's fingerprint, when no group holds 4
+  fields: `optimise` then says it is not assessable rather than judging the full width
+  (seed 9). The explainable features keep today's form when they number at most that fifth,
+  or when no group holds 4 fields, and follow the same rule when they are wider. `optimise`
+  judges the same components on held-back fields, and names the groups too small for k
   (`workflows._fingerprint_space`, `multivariate_outcomes.ComponentsError`).
 
 In the weighted combined space each table, robustly standardised, is divided by its own

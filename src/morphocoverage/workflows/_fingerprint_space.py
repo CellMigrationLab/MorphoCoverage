@@ -11,12 +11,19 @@ a few images cannot estimate that: the error of its fingerprint reads noise (err
   maps are (``embedding.robust_scale``: median and MAD, the SD where the MAD is under a
   quarter of it); the components keep their variance, so the first weighs most
   (``multivariate_outcomes.ComponentsError``, the inner metric not standardised again);
-- ``k`` is at most a fifth (``SHARE``) of the observations of the smallest group the
-  fingerprint judges (an analysis group of at least ``MIN_FIELDS`` fields, the observations
-  holding every value of the table), and at most the table's columns;
-- below ``MIN_COMPONENTS`` (2) components the fingerprint is not assessable, and says why;
-- the explainable features keep today's form when they number at most that fifth, and
-  follow the same rule when they are wider.
+- one common ``k`` for every group: at most a fifth (``SHARE``) of the observations of the
+  median group the fingerprint judges (an analysis group of at least ``MIN_FIELDS`` fields,
+  the observations holding every value of the table), and at most the table's columns
+  (owner, 2026-10-06, audit 8; before, of the smallest group, so a pilot condition of a few
+  cells set k for every other group and flipped their verdicts);
+- a judged group holding fewer than ``SHARE`` times ``k`` observations is not assessable
+  and named, never lowering ``k`` (``Reading.small``);
+- below ``MIN_COMPONENTS`` (2) components for the median group the fingerprint is not
+  assessable in any group, and says why; so it is when no group holds ``MIN_FIELDS`` fields,
+  for a table's fingerprint: ``optimise`` then says it is not assessable instead of judging
+  the full width (audit 8, seed 9);
+- the explainable features keep today's form when they number at most that fifth, or when
+  no group holds ``MIN_FIELDS`` fields, and follow the same rule when they are wider.
 
 The criteria are rewritten in a copy of the ``Setup`` (``FingerprintSpace.setup``), so the
 report and ``optimise`` judge the same fingerprint; the line of each says ``k``.
@@ -30,7 +37,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from .._wording import count
+from .._seeds import group_key
+from .._wording import count, listing
 from ..embedding import robust_scale
 from ..evaluator import iter_analysis_groups
 from ..multivariate_outcomes import ComponentsError
@@ -40,7 +48,7 @@ if TYPE_CHECKING:
     from ..retrospective.criteria import OutcomeCriterion
     from .setup import Setup
 
-# k is at most this fraction (one in SHARE) of the smallest judged group's observations.
+# k is at most this fraction (one in SHARE) of the median judged group's observations.
 SHARE = 5
 # Fewer components than this: the fingerprint of the table is not assessable.
 MIN_COMPONENTS = 2
@@ -74,23 +82,35 @@ def table_of(columns: list[str], setup: Setup) -> str | None:
 @dataclass(frozen=True)
 class Reading:
     """How one criterion is read: ``components`` (``k``, ``None`` in today's form),
-    ``columns`` its table's, ``smallest`` the observations of the smallest judged group,
-    ``reason`` why it is not assessable (``None`` when it is)."""
+    ``columns`` its table's, ``median`` the observations of the median judged group,
+    ``reason`` why it is not assessable (``None`` when it is), ``small`` the judged groups
+    holding fewer than ``SHARE`` times ``k`` observations, each its key, name and size, not
+    assessable there."""
 
     components: int | None
     columns: int
-    smallest: int | None
+    median: int | None
     reason: str | None = None
+    small: tuple[tuple[tuple[Any, ...], str, int], ...] = ()
 
     def words(self, unit: str, units: str) -> str:
-        """``read on its first 4 principal components (k at most a fifth of the smallest
-        group's 23 images and at most its 384 columns)``, or empty in today's form."""
-        if self.components is None or self.smallest is None:
+        """``read on its first 4 principal components (k at most a fifth of the median
+        group's 23 images and at most its 384 columns; not assessable in pilot R1, holding
+        fewer than 5 k, 20 images)``, or empty in today's form."""
+        if self.components is None or self.median is None:
             return ""
+        small = ""
+        if self.small:
+            named = listing([name for _, name, _ in self.small], 4)
+            hold = "holding" if len(self.small) == 1 else "each holding"
+            small = (
+                f"; not assessable in {named}, {hold} fewer than {SHARE} k, "
+                f"{count(SHARE * self.components, unit, units)}"
+            )
         return (
             f"read on its first {self.components} principal components (k at most a fifth "
-            f"of the smallest group's {count(self.smallest, unit, units)} and at most its "
-            f"{count(self.columns, 'column')})"
+            f"of the median group's {count(self.median, unit, units)} and at most its "
+            f"{count(self.columns, 'column')}{small})"
         )
 
 
@@ -109,16 +129,28 @@ class FingerprintSpace:
         """Why each criterion left out is not assessable, by label."""
         return {k: r.reason for k, r in self.readings.items() if r.reason is not None}
 
+    def small_groups(self, unit: str, units: str) -> list[str]:
+        """``The fingerprint, <criterion>, is not assessable in pilot R1: fewer than 5 k,
+        200 cells.``: the groups too small for the common k, one sentence per criterion."""
+        return [
+            f"The fingerprint, {name}, is not assessable in "
+            f"{listing([n for _, n, _ in r.small], 4)}: fewer than {SHARE} k, "
+            f"{count(SHARE * int(r.components or 0), unit, units)}."
+            for name, r in self.readings.items()
+            if r.small
+        ]
 
-def _smallest(data: Any, columns: list[str], min_fields: int) -> int | None:
-    """The observations holding every value of ``columns`` in the smallest analysis group of
-    at least ``min_fields`` fields; ``None`` when no group has that many."""
+
+def _judged(data: Any, columns: list[str], min_fields: int) -> list[tuple[Any, str, int]]:
+    """Each analysis group of at least ``min_fields`` fields: its key, its name and the
+    observations holding every value of ``columns``."""
     sizes = []
-    for _, group in iter_analysis_groups(data):
-        if len(group.fovs) >= min_fields:
-            held = ~group.objects[columns].isna().any(axis=1)
-            sizes.append(int(held.sum()))
-    return min(sizes) if sizes else None
+    for group, members in iter_analysis_groups(data):
+        if len(members.fovs) >= min_fields:
+            held = ~members.objects[columns].isna().any(axis=1)
+            name = " ".join(str(value) for value in group.values())
+            sizes.append((group_key(group), name, int(held.sum())))
+    return sizes
 
 
 def _components(matrix: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -150,27 +182,37 @@ def _read(
     explainable = set(columns) <= set(setup.columns)
     other = not explainable and table_of(columns, setup) is not None
     # A single-column metric, or columns spanning several tables, are read as declared.
-    smallest = _smallest(data, columns, min_fields) if hasattr(metric, "family") else None
-    if not (other or explainable) or smallest is None:
+    if not (other or explainable) or not hasattr(metric, "family"):
         return criterion, None
-    cap = smallest // SHARE
+    judged = _judged(data, columns, min_fields)
+    if not judged:
+        if explainable:
+            return criterion, None
+        reason = (
+            f"no group holds {min_fields} fields, so no group sets the number of its principal "
+            "components"
+        )
+        return None, Reading(None, len(columns), None, reason)
+    median = int(np.median([size for _, _, size in judged]))
+    cap = median // SHARE
     if explainable and len(columns) <= cap:
         return criterion, None
     k = min(cap, len(columns))
     if k < MIN_COMPONENTS:
         reason = (
-            f"its smallest group holds {count(smallest, setup.unit_word, setup.unit_words)}, "
+            f"its median group holds {count(median, setup.unit_word, setup.unit_words)}, "
             f"and {MIN_COMPONENTS} principal components need groups of at least "
-            f"{MIN_COMPONENTS * SHARE} (k at most a fifth of the smallest group)"
+            f"{MIN_COMPONENTS * SHARE} (k at most a fifth of the median group)"
         )
-        return None, Reading(None, len(columns), smallest, reason)
+        return None, Reading(None, len(columns), median, reason)
+    small = tuple(item for item in judged if item[2] < SHARE * k)
     complete = data.objects[columns].dropna()
     centre, scale, loadings = _components(complete.to_numpy(dtype=float), k)
     prefix = table_of(columns, setup) if other else "explainable"
     names = tuple(f"{prefix} PC{i + 1}" for i in range(k))
     inner = replace(metric, features=names, standardize=False, weights=None)
     read = ComponentsError(inner, tuple(columns), tuple(centre), tuple(scale), tuple(loadings))
-    return replace(criterion, metric=read), Reading(k, len(columns), smallest)
+    return replace(criterion, metric=read), Reading(k, len(columns), median, small=small)
 
 
 def fingerprint_space(
