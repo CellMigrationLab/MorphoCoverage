@@ -29,7 +29,7 @@ from .._control import versus
 from .._style import SINGLE_LEVEL, Status, table, wrap
 from .._wording import count, percent
 from ..metadata import REPEAT_COLUMN
-from ..sampling_unit.contrast_sampling import LEVEL, MORE_WELLS, PRACTICAL
+from ..sampling_unit.contrast_sampling import LEVEL, MIN_FIELDS, MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import observation_words
 from ..sufficiency_short import met_count
@@ -64,15 +64,24 @@ def between_wells(rows: pd.DataFrame) -> pd.Series:
     return rows["between_wells"].fillna(False).astype(bool)
 
 
+def assessable(rows: pd.DataFrame) -> pd.Series:
+    """Whether each comparison's "shown" is assessable: an interval and ``MIN_FIELDS`` fields
+    a side (audit 10, owner, 2026-10-06; a table from before the column: an interval)."""
+    has = rows["d_low"].notna()
+    if "assessable" not in rows:
+        return has
+    return has & rows["assessable"].fillna(False).astype(bool)
+
+
 def _needing(rows: pd.DataFrame) -> pd.DataFrame:
     """The comparisons with an interval that more fields would resolve."""
     open_ = ~rows["resolved"] & ~rows["too_small"] & ~between_wells(rows)
-    return rows[open_ & rows["d_low"].notna()]
+    return rows[open_ & assessable(rows)]
 
 
 def _unassessed(rows: pd.DataFrame) -> int:
-    """How many comparisons have no interval (too few fields to resample)."""
-    return int(rows["d_low"].isna().sum())
+    """How many comparisons are not assessable (fewer than ``MIN_FIELDS`` fields a side)."""
+    return int((~assessable(rows)).sum())
 
 
 def resolved_headline(contrast: Any) -> tuple[Status, str]:
@@ -96,7 +105,9 @@ def resolved_headline(contrast: Any) -> tuple[Status, str]:
     if wells:
         text += f"; {wells} that more {fields_word} will not resolve: {MORE_WELLS}"
     if _unassessed(rows):
-        text += f"; {_unassessed(rows)} not assessed (too few {fields_word} for an interval)"
+        text += (
+            f"; {_unassessed(rows)} not assessable (fewer than {MIN_FIELDS} {fields_word} a side)"
+        )
     # The marker says what was found: every comparison shown is enough, any other partly or
     # not yet (owner, 2026-10-01).
     return (Status.OK if resolved == len(rows) else Status.CAUTION), text
@@ -112,8 +123,8 @@ def _name(row: dict[str, Any]) -> str:
 
 
 def _answer(row: dict[str, Any], fields: str = "fields") -> str:
-    if pd.isna(row["d_low"]):
-        return f"not assessed: too few {fields}"
+    if pd.isna(row["d_low"]) or not row.get("assessable", True):
+        return f"not assessable: fewer than {MIN_FIELDS} {fields} a side"
     if row["resolved"]:
         return "yes (shown)"
     if row["too_small"]:
@@ -125,7 +136,8 @@ def _answer(row: dict[str, Any], fields: str = "fields") -> str:
 
 
 def _interval(row: dict[str, Any]) -> str:
-    if pd.isna(row["d_low"]):
+    # Not assessable: d alone, its interval kept for the plan only (audit 10).
+    if pd.isna(row["d_low"]) or not row.get("assessable", True):
         return "no interval" if pd.isna(row["d_objects"]) else f"{row['d_objects']:+.2f}"
     return f"{row['d_objects']:+.2f} ({row['d_low']:+.2f} to {row['d_high']:+.2f})"
 
@@ -154,25 +166,57 @@ def _columns(contrast: Any) -> list[str]:
     ]
 
 
+def _intervals(contrast: Any) -> set[str]:
+    """The kinds of interval of the comparisons: ``bootstrap`` and ``noncentral t`` (one
+    observation per field and one well a side; ``contrast_sampling``)."""
+    rows = getattr(contrast, "table", pd.DataFrame())
+    if "interval" not in rows:
+        return {"bootstrap"}
+    return {str(k) for k in rows["interval"].dropna() if k} or {"bootstrap"}
+
+
 def _notes(contrast: Any) -> list[str]:
     _, fields = field_words(contrast)
+    # Below MIN_FIELDS a side, "shown" is not assessable (audit 10, owner, 2026-10-06).
+    few = f"With fewer than {MIN_FIELDS} {fields} a side, not assessable."
+    kinds = _intervals(contrast)
+    exact = (
+        "exact from the noncentral t distribution, each field holding one observation and "
+        "each side one well, so the observations are independent draws"
+    )
+    if kinds == {"noncentral t"}:
+        return [
+            assumption(
+                f"Shown: the {percent(LEVEL)} interval of d, {exact}, excludes 0. {few} The "
+                f"{fields} a side it would take are projected from it (narrowing as "
+                f"1/sqrt({fields})). Beyond {PRACTICAL} times the {fields} acquired a "
+                "difference is called too small to show."
+            )
+        ]
+    also = (
+        " Where each field holds one observation and each side one well, the interval is "
+        "exact, from the noncentral t distribution."
+        if "noncentral t" in kinds
+        else ""
+    )
     if not contrast.settings.get("unit"):  # no technical repeat: the fields alone (audit 8B)
         return [
             assumption(
                 f"Shown: the {percent(LEVEL)} interval of d, from resampling the {fields} as "
-                f"acquired, empty fields included, excludes 0. The {fields} a side it would take "
-                f"are projected from it (narrowing as 1/sqrt({fields})). Beyond {PRACTICAL} "
-                f"times the {fields} acquired a difference is called too small to show."
+                f"acquired, empty fields included, excludes 0.{also} {few} The {fields} a side "
+                f"it would take are projected from it (narrowing as 1/sqrt({fields})). Beyond "
+                f"{PRACTICAL} times the {fields} acquired a difference is called too small to "
+                "show."
             )
         ]
     return [
         assumption(
             f"Shown: the {percent(LEVEL)} interval of d, from resampling the technical repeats "
-            f"and their fields as acquired, empty fields included, excludes 0. The {fields} a "
-            f"side it would take are projected from the part of the interval within wells "
-            f"(narrowing as 1/sqrt({fields})); the part between wells does not shrink with more "
-            f"{fields}, and when it alone is as wide as the difference, more {fields} will not "
-            f"resolve it: {MORE_WELLS}. Beyond {PRACTICAL} times the {fields} acquired a "
+            f"and their fields as acquired, empty fields included, excludes 0.{also} {few} The "
+            f"{fields} a side it would take are projected from the part of the interval within "
+            f"wells (narrowing as 1/sqrt({fields})); the part between wells does not shrink with "
+            f"more {fields}, and when it alone is as wide as the difference, more {fields} will "
+            f"not resolve it: {MORE_WELLS}. Beyond {PRACTICAL} times the {fields} acquired a "
             "difference is called too small to show."
         )
     ]

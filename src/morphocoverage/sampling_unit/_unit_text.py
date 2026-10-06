@@ -316,7 +316,8 @@ def object_rule_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str
     lines = [
         wrap(
             f"Would the mean-precision count rule hold with whole fields? The {words} it asks "
-            f"for, taken as whole fields in random order, against {reference}:",
+            f"for, taken as whole fields drawn at random with replacement, against "
+            f"{reference}:",
             indent,
             hang=indent + 2,
         )
@@ -410,7 +411,8 @@ def object_rule_full(result: Any, indent: int = 0) -> str:
             wrap(
                 f"Target: met or missed by the real error. {words.capitalize()} asked: the "
                 f"rule's number of {words}; fields taken: the mean number of whole fields drawn "
-                "at random until that many; SD/sqrt(n) → real: the rule's predicted error of "
+                "at random, with replacement, until that many, so it can exceed the fields "
+                "acquired; SD/sqrt(n) → real: the rule's predicted error of "
                 "their mean, then its real error (the SD of that mean over the draws), both as "
                 "shares of the reference mean, and real over predicted. As fields: the fields "
                 "the rule asks for with the field as the unit, from the point SD (in brackets: "

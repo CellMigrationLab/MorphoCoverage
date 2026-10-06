@@ -33,13 +33,14 @@ from ..retrospective.report_resolved import (
     SHORT_ROWS,
     _needing,
     _table,
+    _unassessed,
     between_wells,
     has_resolution,
     resolved_parts,
 )
 from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
-from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
+from ..sampling_unit.contrast_sampling import MIN_FIELDS, MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency_short import (
     field_bound_assumption,
@@ -47,7 +48,7 @@ from ..sufficiency_short import (
     rule_tallies,
     uniformity_assumption,
 )
-from ._enough_features import ENOUGH, NOT_YET, PARTLY, FeatureEnough
+from ._enough_features import ENOUGH, NOT_ASSESSABLE, NOT_YET, PARTLY, FeatureEnough
 from ._enough_targets import (
     NO_TARGET,
     assessable_reason,
@@ -60,7 +61,7 @@ from ._html_render import text_html
 from ._html_sections import _resolution
 from ._html_tabs import tabs_html
 
-_MARKS = {ENOUGH: "✅", PARTLY: "⚠️", NOT_YET: "⚠️"}
+_MARKS = {ENOUGH: "✅", PARTLY: "⚠️", NOT_YET: "⚠️", NOT_ASSESSABLE: NOT_ASSESSED}
 # The summary table's rows shown before "Show all" (the style hides the others).
 _FIRST_ROWS = 20
 # Named in full up to this many; beyond, the first few and how many more.
@@ -114,10 +115,12 @@ def _rest(rows: pd.DataFrame, fields: str) -> str:
     beyond = f"too small to show even with {PRACTICAL} times the {fields}"
     if not unshown:
         return ""
+    unassessed = int(rows["unassessed"].sum()) if "unassessed" in rows else 0
     said_of = (
         (small, f"are {beyond}"),
         (need, f"would show with more {fields}"),
         (wells, f"need {MORE_WELLS}, not more {fields}"),
+        (unassessed, f"are not assessable, with fewer than {MIN_FIELDS} {fields} a side"),
     )
     for part, said in said_of:
         if part == unshown:
@@ -202,6 +205,8 @@ def _needs(contrast: Any, fields: str, repeats: int = 0) -> str:
     wells = int(between_wells(rows).sum())
     if wells:
         parts.append(f"{wells} {MORE_WELLS}")
+    if _unassessed(rows):
+        parts.append(f"{_unassessed(rows)} not assessable: fewer than {MIN_FIELDS} {fields} a side")
     return "; ".join(parts) or "–"
 
 
@@ -422,6 +427,10 @@ def _single_answer(contrast: Any, fields: str, repeats: int) -> str:
     wells = int(between_wells(rows).sum())
     if wells:
         parts.append(f"{wells} that more {fields} will not resolve: {MORE_WELLS}")
+    if _unassessed(rows):
+        parts.append(
+            f"{_unassessed(rows)} not assessable, with fewer than {MIN_FIELDS} {fields} a side"
+        )
     return "; ".join(parts) + "."
 
 

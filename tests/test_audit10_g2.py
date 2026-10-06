@@ -32,8 +32,15 @@ from morphocoverage import (
 from morphocoverage._control import ACROSS, MASTER_RAW
 from morphocoverage.plots_pairwise import PANEL_KEYS, verdict_note
 from morphocoverage.policies import decide
+from morphocoverage.sampling_unit import object_rule_check
 from morphocoverage.sampling_unit.contrast_across import across_rows
 from morphocoverage.sampling_unit.contrast_cells import repeats_to_balance, trusted_test
+from morphocoverage.sampling_unit.contrast_sampling import (
+    MIN_FIELDS,
+    noncentral_d_interval,
+    sampling_row,
+)
+from morphocoverage.statistics import cohen_d
 from morphocoverage.sufficiency_short import met_count
 from morphocoverage.workflows import Setup, plots, report
 from morphocoverage.workflows._whole_table import across_reason
@@ -181,3 +188,80 @@ def test_each_kind_of_row_across_experiments_gives_its_own_reason_for_no_whole_t
         "controls with the master."
     )
     assert across_reason(["own_control"], features=True) == ""
+
+
+def test_the_exact_interval_of_d_covers_at_its_level() -> None:
+    # B1: every new interval with a coverage test (AGENTS.md).
+    rng = np.random.default_rng(10)
+    covered, reps, true = 0, 1500, 0.8
+    for _ in range(reps):
+        first, second = rng.normal(true, 1, 6), rng.normal(0, 1, 5)
+        low, high = noncentral_d_interval(cohen_d(first, second), 6, 5)
+        covered += low <= true <= high
+    assert 0.93 <= covered / reps <= 0.97
+    assert all(np.isnan(noncentral_d_interval(0.5, 1, 6)))
+
+
+def _fields(values: np.ndarray) -> list[list[np.ndarray]]:
+    """One side, no wells: one field per value."""
+    return [[np.array([v]) for v in values]]
+
+
+def test_shown_within_a_repeat_holds_its_false_alarm_rate_and_needs_five_fields() -> None:
+    # B1, A16: the percentile bootstrap called a null difference "shown" in 22% of 3-vs-3
+    # comparisons and 11-15% from 5 vs 4; one image per field and no wells now gets the
+    # exact interval, and fewer than 5 fields a side is not assessable.
+    rng = np.random.default_rng(11)
+    shown = 0
+    for _ in range(400):
+        t, c = rng.normal(0, 1, 5), rng.normal(0, 1, 5)
+        row = sampling_row(_fields(t), _fields(c), cohen_d(t, c), rng, n_boot=50)
+        assert row["interval"] == "noncentral t" and row["assessable"]
+        shown += row["resolved"]
+    assert shown / 400 <= 0.08
+    few = sampling_row(_fields([5.0, 6, 7]), _fields([0.0, 1, 2]), 5.0, rng, n_boot=50)
+    assert not few["assessable"] and not few["resolved"]
+    assert np.isfinite(few["d_low"])  # kept for the plan of the next experiment
+    # Wells or several observations per field: the bootstrap, as before.
+    wells = [[np.array([1.0, 2.0]), np.array([1.5, 2.5])]] * 3
+    row = sampling_row(wells, wells, 0.1, rng, n_boot=50)
+    assert row["interval"] == "bootstrap"
+
+
+def test_question_2_says_not_assessable_below_five_fields_a_side() -> None:
+    # e01: three fields a side in each repeat.
+    text = " ".join(_scenario_report("e01_two_repeats").summary("full").split())
+    assert f"not assessable: fewer than {MIN_FIELDS} fields a side" in text
+    assert "yes (shown)" not in text
+    assert "not assessed: too few fields" not in text
+
+
+def test_the_count_rule_with_whole_fields_says_its_draws_repeat_fields() -> None:
+    # A16: "fields taken" 4-18 of 3 acquired fields, the draws with replacement unsaid.
+    rng = np.random.default_rng(12)
+    rows = []
+    for well, fields in (("w1", 3), ("w2", 8)):
+        for field in range(fields):
+            for label in range(20):
+                rows.append(
+                    {
+                        "condition": "ctrl",
+                        "biological_repeat": "r1",
+                        "technical_repeat": well,
+                        "image_file": f"{well}_{field}.tif",
+                        "label_id": label,
+                        "x": 10 + rng.normal(0, 1 + field % 3),
+                    }
+                )
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "technical_repeat", "image_file"]]
+    result = object_rule_check(
+        objects, fovs.drop_duplicates(), feature="x", observation_unit="cell", n_draws=50
+    )
+    status = dict(zip(result.table["technical_repeat"], result.table["status"], strict=False))
+    assert status["w1"] == f"fewer than {MIN_FIELDS} fields with cells"
+    assert status["w2"] == "ok"
+    short = " ".join(result.summary().split())
+    full = " ".join(result.summary("full").split())
+    assert "drawn at random with replacement" in short
+    assert "with replacement, until that many, so it can exceed the fields acquired" in full

@@ -38,12 +38,13 @@ from .._wording import count, listing
 from ..retrospective.report_resolved import (
     _needing,
     _table,
+    _unassessed,
     between_wells,
     has_resolution,
     resolved_full,
 )
 from ..sampling_unit.contrast import condition_contrast
-from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
+from ..sampling_unit.contrast_sampling import MIN_FIELDS, MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency import sufficiency_report
 from ..sufficiency_short import rule_tallies
@@ -53,6 +54,9 @@ if TYPE_CHECKING:
     from .setup import Setup
 
 ENOUGH, PARTLY, NOT_YET = "enough", "partly", "not yet"
+# Every comparison of a feature with fewer than MIN_FIELDS fields a side (audit 10, owner,
+# 2026-10-06).
+NOT_ASSESSABLE = "not assessable"
 # Where the readout's own resolution ends in the short form and its rules begin.
 _RULES_HEAD = "The precision of each group's own mean:"
 # Fewest features a worker replays on its own: below it, one replay over them all.
@@ -143,7 +147,10 @@ def _row(feature: str, contrast: Any, tally: dict[str, Any] | None) -> dict[str,
     wells = int(between_wells(rows).sum()) if len(rows) else 0
     needing = _needing(rows) if len(rows) else rows
     counts = needing["fields_to_resolve"].astype(float) if len(needing) else pd.Series([])
+    unassessed = _unassessed(rows) if len(rows) else 0
     verdict = ENOUGH if len(rows) and shown == len(rows) else PARTLY if shown else NOT_YET
+    if len(rows) and unassessed == len(rows):
+        verdict = NOT_ASSESSABLE
     return {
         "feature": feature,
         "comparisons": len(rows),
@@ -154,6 +161,7 @@ def _row(feature: str, contrast: Any, tally: dict[str, Any] | None) -> dict[str,
         "fields_high": float(counts.max()) if len(counts) else np.nan,
         "too_small": small,
         "between_wells": wells,
+        "unassessed": unassessed,
         "precision_rule": tally["label"] if tally else None,
         "precision_met": tally["met"] if tally else np.nan,
         "precision_groups": tally["groups"] if tally else np.nan,
@@ -221,6 +229,10 @@ def _needed(row: dict[str, Any], fields: str) -> str:
         parts.append(f"{row['too_small']} too small to show")
     if row.get("between_wells", 0):
         parts.append(f"{row['between_wells']} {MORE_WELLS}")
+    if row.get("unassessed", 0):
+        parts.append(
+            f"{row['unassessed']} not assessable (fewer than {MIN_FIELDS} {fields} a side)"
+        )
     return "; ".join(parts) or "–"
 
 
@@ -238,7 +250,11 @@ def features_table(features: FeatureEnough, word: str = "well", indent: int = 2)
     rows = [
         [
             r["feature"],
-            f"{r['verdict']}: shown in {r['shown']} of {r['comparisons']}",
+            (
+                f"{NOT_ASSESSABLE}: fewer than {MIN_FIELDS} {fields} a side"
+                if r["verdict"] == NOT_ASSESSABLE
+                else f"{r['verdict']}: shown in {r['shown']} of {r['comparisons']}"
+            ),
             _needed(r, fields),
             *([_precision_cell(r, word)] if rule else []),
         ]
@@ -285,7 +301,7 @@ def features_status(
     rows = features.table
     fields = _fields(features)
     parts = []
-    for verdict in (ENOUGH, PARTLY, NOT_YET):
+    for verdict in (ENOUGH, PARTLY, NOT_YET, NOT_ASSESSABLE):
         names = list(rows.loc[rows["verdict"] == verdict, "feature"].astype(str))
         if names:
             parts.append(f"{verdict} {_for(names, len(rows))}")

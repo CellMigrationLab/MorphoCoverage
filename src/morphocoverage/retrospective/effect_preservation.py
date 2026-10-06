@@ -222,7 +222,7 @@ def _reference(
     row = {"reference_d": d, "d_low": np.nan, "d_high": np.nan}
     if filled < 2:
         return {**row, "status": SHALLOW}
-    sampled = sampling_row(t_units, c_units, d, rng, N_BOOT, LEVEL)
+    sampled = sampling_row(t_units, c_units, d, rng, N_BOOT, LEVEL, min_fields=2)
     row.update(d_low=sampled["d_low"], d_high=sampled["d_high"])
     return {**row, "status": OK if sampled["resolved"] else UNCLEAR}
 

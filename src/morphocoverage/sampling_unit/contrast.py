@@ -113,7 +113,7 @@ from ._units import (
 from .contrast_across import ACROSS_COLUMNS, across_table
 from .contrast_cells import CELL_COLUMNS, cell_table
 from .contrast_repeats import REPEAT_COLUMNS, TARGET_COLUMNS, across_repeats, reagent_agreement
-from .contrast_sampling import SAMPLING_COLUMNS, sampling_row
+from .contrast_sampling import NOT_SAMPLED, SAMPLING_COLUMNS, sampling_row
 from .contrast_text import FEW_UNITS_D, NO_CONTROL, contrast_summary
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
 from .repeat_plan import PLAN_COLUMNS, repeat_plan
@@ -584,15 +584,7 @@ _NO_TEST = {
     "p_exact": False,
     "p_floor": np.nan,
     "effect_full": np.nan,
-    "d_low": np.nan,
-    "d_high": np.nan,
-    "resolved": False,
-    "fields_to_resolve": np.nan,
-    "too_small": False,
-    "between_wells": False,
-    "between_share": np.nan,
-    "difference_se": np.nan,
-    "log_ratio_se": np.nan,
+    **NOT_SAMPLED,
 }
 
 

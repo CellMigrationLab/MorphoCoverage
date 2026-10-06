@@ -26,7 +26,12 @@ which more fields of the same wells do not reduce, and a part within wells, whic
 shrinks as 1/fields. When the part between wells alone is as wide as the difference,
 the answer is that more fields will not resolve it: more wells or biological repeats.
 With one well a side the interval holds no variation between wells, and the
-projection is from its fields alone. The plan's repeats needed with twice the fields halve
+projection is from its fields alone. With one observation per field and no wells the
+observations are independent draws, and the interval of d is the exact one, from the
+noncentral t distribution, instead of the bootstrap's; with fewer than 5 fields with
+observations on either side a comparison is "not assessable", never shown: a percentile
+bootstrap of 3 fields a side called 22% of null differences shown (audit 10, owner,
+2026-10-06). Its interval is still kept for the plan of the next experiment. The plan's repeats needed with twice the fields halve
 only that part within wells too. Then one feature at a time,
 as tabs: its comparisons, the precision of each well's own mean and its table within
 each repeat; the rare phenotype and the fingerprint have their own tabs after the

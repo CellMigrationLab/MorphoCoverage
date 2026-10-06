@@ -32,6 +32,16 @@ observations of each draw. From the draws:
   is called too small to settle with more fields of these wells: it is
   described, not flagged.
 
+**Fewer than ``MIN_FIELDS`` fields a side: not assessable** (audit 10, owner,
+2026-10-06). A percentile bootstrap of 3 fields a side called a difference "shown" in 22%
+of null comparisons, 11-15% from 5 vs 4 to 10 vs 3 (audit 10B). Below ``MIN_FIELDS`` fields
+with observations on either side the row is ``assessable`` False and never ``resolved``;
+its interval and sampling errors are kept for the plan of the next experiment
+(``repeat_plan``), not for a verdict. **One observation per field and no wells**: the
+observations are then independent draws, and the interval of d is the exact one, from the
+noncentral t distribution of ``d sqrt(n1 n2 / (n1 + n2))`` (``noncentral_d_interval``),
+instead of the bootstrap's; the bootstrap still gives the sampling errors.
+
 This is a sampling answer about these wells and repeats: whether the
 difference between conditions generalizes is question 9, across biological
 repeats. The draws are seeded from each contrast's labels.
@@ -42,6 +52,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+from scipy import optimize, stats
 
 from ..statistics import cohen_d
 
@@ -54,9 +65,14 @@ N_BOOT = 400
 PRACTICAL = 4
 # What a difference that more fields will not resolve needs (owner, 2026-10-05).
 MORE_WELLS = "more wells or biological repeats"
+# Below this many fields with observations on a side, "shown" is not assessable (audit 10,
+# owner, 2026-10-06).
+MIN_FIELDS = 5
 SAMPLING_COLUMNS = [
     "d_low",
     "d_high",
+    "assessable",
+    "interval",
     "resolved",
     "fields_to_resolve",
     "too_small",
@@ -65,6 +81,20 @@ SAMPLING_COLUMNS = [
     "difference_se",
     "log_ratio_se",
 ]
+# A contrast with no interval: its sampling columns.
+NOT_SAMPLED: dict[str, Any] = {
+    "d_low": np.nan,
+    "d_high": np.nan,
+    "assessable": False,
+    "interval": "",
+    "resolved": False,
+    "fields_to_resolve": np.nan,
+    "too_small": False,
+    "between_wells": False,
+    "between_share": np.nan,
+    "difference_se": np.nan,
+    "log_ratio_se": np.nan,
+}
 
 
 def _draw(
@@ -107,6 +137,42 @@ def _draws(
             continue
         sampled.append((cohen_d(treated, control), treated.mean(), control.mean()))
     return np.array(sampled, dtype=float)
+
+
+def noncentral_d_interval(
+    d: float, n1: int, n2: int, level: float = LEVEL
+) -> tuple[float, float]:
+    """The exact ``level`` interval of Cohen's d of two independent normal samples of ``n1``
+    and ``n2`` values (Hedges and Olkin 1985; Steiger and Fouladi 1997): ``t = d sqrt(n1 n2 /
+    (n1 + n2))`` follows the noncentral t with ``n1 + n2 - 2`` degrees of freedom, and the
+    interval inverts it for its noncentrality, scaled back to d. NaN without a d or below
+    two values a side."""
+    if not np.isfinite(d) or n1 < 2 or n2 < 2:
+        return np.nan, np.nan
+    scale = np.sqrt(n1 * n2 / (n1 + n2))
+    t, df, tail = d * scale, n1 + n2 - 2, (1 - level) / 2
+
+    def gap(ncp: float, target: float) -> float:
+        # The cdf as the upper tail of the mirrored t: scipy's noncentral t cdf returns NaN
+        # far in its tail (scipy 1.17), its sf stays exact there (as in repeat_plan).
+        value = float(stats.nct.sf(-t, df, -ncp))
+        return (value if np.isfinite(value) else float(stats.nct.cdf(t, df, ncp))) - target
+
+    def bound(target: float) -> float:
+        # The cdf at t falls as the noncentrality grows: widen a bracket around t to the root.
+        width = 2.0
+        while gap(t - width, target) * gap(t + width, target) > 0 and width < 1e3:
+            width *= 2
+        return float(optimize.brentq(gap, t - width, t + width, args=(target,)))
+
+    return float(bound(1 - tail) / scale), float(bound(tail) / scale)
+
+
+def _one_per_field(units: list[list[np.ndarray]]) -> bool:
+    """Whether a side is one unit (no wells) whose fields hold at most one observation each:
+    its observations are then independent draws."""
+    units = [u for u in units if u]
+    return len(units) == 1 and all(len(field) <= 1 for field in units[0])
 
 
 def _variance(values: np.ndarray) -> float:
@@ -162,19 +228,11 @@ def sampling_row(
     rng: np.random.Generator,
     n_boot: int = N_BOOT,
     level: float = LEVEL,
+    min_fields: int = MIN_FIELDS,
 ) -> dict[str, Any]:
-    """Whether the fields acquired resolve the difference ``d`` (see the module)."""
-    empty = {
-        "d_low": np.nan,
-        "d_high": np.nan,
-        "resolved": False,
-        "fields_to_resolve": np.nan,
-        "too_small": False,
-        "between_wells": False,
-        "between_share": np.nan,
-        "difference_se": np.nan,
-        "log_ratio_se": np.nan,
-    }
+    """Whether the fields acquired resolve the difference ``d`` (see the module); below
+    ``min_fields`` fields a side, not ``assessable``."""
+    empty = dict(NOT_SAMPLED)
     n_fields = min(
         sum(1 for u in t_units for f in u if len(f)), sum(1 for u in c_units for f in u if len(f))
     )
@@ -187,11 +245,20 @@ def sampling_row(
         return empty
     tail = (1 - level) / 2
     low, high = np.quantile(draws, [tail, 1 - tail])
-    resolved = bool(low > 0 or high < 0)
+    interval = "bootstrap"
+    if _one_per_field(t_units) and _one_per_field(c_units):
+        # Independent observations: the exact interval (see the module).
+        counts = [sum(len(f) for u in units for f in u) for units in (t_units, c_units)]
+        low, high = noncentral_d_interval(d, *counts, level)
+        interval = "noncentral t"
+    assessable = n_fields >= min_fields
+    resolved = bool(assessable and (low > 0 or high < 0))
     row = {
         **empty,
         "d_low": float(low),
         "d_high": float(high),
+        "assessable": assessable,
+        "interval": interval,
         "resolved": resolved,
         "difference_se": float(np.std(values[:, 1] - values[:, 2], ddof=1)),
     }
@@ -204,7 +271,7 @@ def sampling_row(
         row["log_ratio_se"] = float(np.std(ratios, ddof=1))
     # After the draws above, so the interval does not depend on it.
     row["between_share"] = _between_share(t_units, c_units, _variance(values), rng, n_boot)
-    if not resolved:
+    if assessable and not resolved:
         # In fields acquired, empty ones included: the draws hold them too (#289).
         acquired = min(sum(len(u) for u in t_units), sum(len(u) for u in c_units))
         needed, between = projected_fields(acquired, d, low, high, row["between_share"])
@@ -217,10 +284,13 @@ def sampling_row(
 
 __all__ = [
     "LEVEL",
+    "MIN_FIELDS",
     "MORE_WELLS",
+    "NOT_SAMPLED",
     "N_BOOT",
     "PRACTICAL",
     "SAMPLING_COLUMNS",
+    "noncentral_d_interval",
     "projected_fields",
     "sampling_row",
 ]

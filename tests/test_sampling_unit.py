@@ -514,10 +514,23 @@ def test_idr0139_fovs_are_not_random_objects(idr0139):
         control={"condition": "Untreated"},
         n_draws=1000,
         group_cols=groups,
+        # Wells of 4 fields: below the 5 the check asks by default since audit 10 (owner,
+        # 2026-10-06), so the entry is reproduced with the rule before, 2 fields.
+        min_fields=2,
     ).table.set_index("technical_repeat")
     assert check.loc["J05", "fovs_used"] == pytest.approx(1.0)
     assert 0.03 < check.loc["J05", "real_error"] < 0.055
     assert not check.loc["J05", "meets_target"]
+    default = object_rule_check(
+        objects,
+        fovs,
+        feature=ratio,
+        targets=[0.025],
+        control={"condition": "Untreated"},
+        n_draws=10,
+        group_cols=groups,
+    ).table
+    assert default["status"].eq("fewer than 5 fields with cells").all()
 
 
 # -- the report places the checks ---------------------------------------------------------
