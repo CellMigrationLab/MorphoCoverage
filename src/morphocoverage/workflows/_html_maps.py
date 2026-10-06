@@ -406,14 +406,15 @@ def embeddings(
         "sets": sets,
         **({"tables": spaces} if several else {}),
     }
-    # Each map once in the files: an other table's is the same in both values.
+    # Each map once in the files: an other table's is the same in both values; the centred
+    # view is in the interactive maps only, which keeps the page within its budget.
     taken: set[str] = set()
     stems = {space: file_stem(space, taken) for space in spaces}
     shown = [
         (values, space, embedding)
         for values, view in maps.items()
         for space, embedding in view.items()
-        if values in ("raw", "centred") or space not in own
+        if values == "raw" or (values == "normalised" and space not in own)
     ]
     data_files = embedding_data(
         {f"{values}, {s}" if several else values: e for values, s, e in shown}, folder

@@ -238,10 +238,14 @@ features and 151 conditions about 30 min. The guided session says its estimate
 before it starts. It is approximate, from constructed datasets of 5 to 300
 features and 3 to 151 conditions (2026-10-02 and 2026-10-05), which took 13, 50
 and about 30 min; a busy machine, the novelty question below and many objects
-per field add to it. Other feature tables add little, as they are never tested
-feature by feature: on the ECM tables of 2026-10-05 (236 images, 8 conditions, 17
-explainable features and a DINO table of 384), the report and its page took 76 s on 2
-processes, against 65 s without the DINO table.
+per field add to it. Other feature tables are never tested feature by feature, but
+each adds its populations, maps and copy checks: the estimate counts 40 s per table and
+0.06 s per column (owner, 2026-10-06). Measured on 2026-10-06 on 3 processes, at 5,000
+cells in 72 fields with 17 explainable features and 3 conditions, the report and its page
+took 54 s and 16 s without a table (a page of 12.5 MB), 86 s and 49 s with a table of 400
+columns, and 129 s and 70 s with one of 1,500 (pages of 23.7 MB, within the 25 MB the page
+carries its files to); on the ECM tables (236 images, 8 conditions, 17 explainable features
+and a DINO table of 384), 94 s on 1 process, a page of 7.3 MB.
 
 `Setup.n_jobs` reaches every workflow, the report's replay of the stopping
 rules included (`sufficiency_report(..., n_jobs=)`, since audit 4), and the

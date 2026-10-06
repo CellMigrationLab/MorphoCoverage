@@ -90,9 +90,10 @@ SECONDS_PER_PAIR = 0.6
 SECONDS_PER_CONDITION = 8.0
 SECONDS_FIXED = 60.0
 # Each other feature table (owner, 2026-10-06): its populations, maps and copy checks, a
-# fixed part and a part per column, measured at 5,000 cells with 400 and 1,500 columns.
-SECONDS_PER_TABLE = 60.0
-SECONDS_PER_TABLE_COLUMN = 0.2
+# fixed part and a part per column, from a report and page of 5,000 cells with a table of
+# 400 and of 1,500 columns on 3 processes (65 s and 129 s more than without; 2026-10-06).
+SECONDS_PER_TABLE = 40.0
+SECONDS_PER_TABLE_COLUMN = 0.06
 
 
 def rough_runtime(

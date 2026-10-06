@@ -393,7 +393,8 @@ def test_the_page_draws_a_map_per_table_the_combined_one_first(combined_report, 
     assert data["values"] == ["raw", "centred"]
     assert set(data["sets"]["centred"]) == {"sep", "noise"}
     assert "Centred on control: each column of an other feature table minus" in text
-    assert (tmp_path / "figures" / "pca_centred_sep.png").exists()
+    # In the interactive maps only: no static figure or CSV of its own.
+    assert not (tmp_path / "figures" / "pca_centred_sep.png").exists()
     assert "How far the conditions and the repeats separate in each feature table" in text
     assert (tmp_path / "figures" / "pca_raw_sep.png").exists()
     with pytest.raises(ValueError, match="pass the tables themselves"):

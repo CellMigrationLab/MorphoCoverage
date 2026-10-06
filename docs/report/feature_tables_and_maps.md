@@ -73,8 +73,10 @@ An other table is never divided by a control (an embedding has no ratio scale), 
 the same in raw and normalised values. Beside them, its map **centred on control** shows each
 column minus its median in the control of the same biological repeat (each condition's own
 control with several controls; owner, 2026-10-06): it removes a shift shared by a whole
-repeat, a batch, and keeps the differences within it. It is for the maps only: no test reads
-these values. The live session and `optimise` read the columns already in `objects`: for
+repeat, a batch, and keeps the differences within it. It is for the interactive maps only:
+no test reads these values, and it has no static figure or CSV of its own. With few control
+images in a repeat, the median subtracted carries their noise into every image of that
+repeat, so the repeats can sit further apart in this view than in the raw one. The live session and `optimise` read the columns already in `objects`: for
 them, attach the tables first (`attach_feature_tables(objects, fovs, tables).objects`).
 
 ## The PCA and UMAP: `embedding_plots`
