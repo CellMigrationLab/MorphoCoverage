@@ -434,8 +434,11 @@ class ComponentsError(OutcomeMetric):
     feature), and ``metric`` compares the projections, its own ``features`` naming the
     components. ``workflows._fingerprint_space`` fits them on every observation of the table,
     robustly standardised as the maps are, and chooses how many. ``None`` when a selected
-    value is missing, as for every metric here. The parameters keep the table's columns, the
-    number of components, the inner metric and a checksum of the projection.
+    value is missing, as for every metric here. ``excluded`` names analysis groups, each as
+    its ``(column, value)`` pairs, too small for the number of components: the metric is
+    ``None`` (not judged) on a sample of one of them (owner, 2026-10-06, audit 8). The
+    parameters keep the table's columns, the number of components, the inner metric, a
+    checksum of the projection and the groups excluded.
     """
 
     metric: _MultivariateOutcome
@@ -443,6 +446,7 @@ class ComponentsError(OutcomeMetric):
     centre: tuple[float, ...]
     scale: tuple[float, ...]
     loadings: tuple[tuple[float, ...], ...]
+    excluded: tuple[tuple[tuple[str, str], ...], ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "features", _feature_tuple(self.features))
@@ -463,6 +467,10 @@ class ComponentsError(OutcomeMetric):
         object.__setattr__(self, "centre", centre)
         object.__setattr__(self, "scale", scale)
         object.__setattr__(self, "loadings", loadings)
+        excluded = tuple(
+            tuple((str(column), str(value)) for column, value in group) for group in self.excluded
+        )
+        object.__setattr__(self, "excluded", excluded)
 
     @property
     def name(self) -> str:
@@ -484,7 +492,16 @@ class ComponentsError(OutcomeMetric):
             "components": len(self.loadings),
             "metric": {"family": self.metric.family, **self.metric.parameters},
             "projection": hashlib.sha256(np.round(fitted, 12).tobytes()).hexdigest()[:16],
+            "excluded": [dict(group) for group in self.excluded],
         }
+
+    def _excluded(self, data: ValidatedInput) -> bool:
+        """Whether every observation of ``data`` is of one excluded group."""
+        frame = data.objects
+        return len(frame) > 0 and any(
+            all(c in frame and frame[c].astype(str).eq(v).all() for c, v in group)
+            for group in self.excluded
+        )
 
     def _projected(self, data: ValidatedInput) -> ValidatedInput:
         """``data`` with its observations on the components, as the inner metric reads them."""
@@ -498,7 +515,9 @@ class ComponentsError(OutcomeMetric):
         return replace(data, objects=frame, feature_cols=self.metric.features)
 
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
-        """The inner metric on both samples' components."""
+        """The inner metric on both samples' components; ``None`` in an excluded group."""
+        if self.excluded and self._excluded(full):
+            return None
         return self.metric.evaluate(self._projected(full), self._projected(stopped))
 
 

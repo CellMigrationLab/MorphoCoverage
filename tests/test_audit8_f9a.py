@@ -348,3 +348,21 @@ def test_with_several_controls_the_fingerprint_names_the_cells_without_their_own
     text = " ".join(" ".join(fingerprint_lines(rows, "group", "fields", unit="cell")).split())
     assert "18 cells of b1 in R1 left out: no own control." in text
     assert "missing value" not in text
+
+
+def test_optimise_does_not_judge_a_group_too_small_for_the_common_k_and_names_it():
+    objects, fovs = _fingerprint_data(True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        plan = optimise(
+            objects, fovs, _fingerprint_setup(), fov_counts=(2,), reservoir_fraction=0.35
+        )
+    curve = plan.results["reliability"].curve
+    pilot = curve[curve["condition"] == "pilot"]
+    assert len(pilot) and (pilot["defined_draws"] == 0).all() and pilot["preserved"].isna().all()
+    others = curve[curve["condition"] != "pilot"]
+    assert (others["defined_draws"] > 0).all()
+    assert (
+        "The fingerprint, DINO covariance within 15%, is not assessable in pilot R1: fewer than "
+        "5 k, 150 cells." in plan.document.notes
+    )

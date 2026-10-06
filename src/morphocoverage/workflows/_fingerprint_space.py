@@ -141,15 +141,18 @@ class FingerprintSpace:
         ]
 
 
-def _judged(data: Any, columns: list[str], min_fields: int) -> list[tuple[Any, str, int]]:
-    """Each analysis group of at least ``min_fields`` fields: its key, its name and the
-    observations holding every value of ``columns``."""
+def _judged(
+    data: Any, columns: list[str], min_fields: int
+) -> list[tuple[Any, str, int, tuple[tuple[str, str], ...]]]:
+    """Each analysis group of at least ``min_fields`` fields: its key, its name, the
+    observations holding every value of ``columns`` and its ``(column, value)`` pairs."""
     sizes = []
     for group, members in iter_analysis_groups(data):
         if len(members.fovs) >= min_fields:
             held = ~members.objects[columns].isna().any(axis=1)
             name = " ".join(str(value) for value in group.values())
-            sizes.append((group_key(group), name, int(held.sum())))
+            pairs = tuple((str(c), str(v)) for c, v in group.items())
+            sizes.append((group_key(group), name, int(held.sum()), pairs))
     return sizes
 
 
@@ -193,7 +196,7 @@ def _read(
             "components"
         )
         return None, Reading(None, len(columns), None, reason)
-    median = int(np.median([size for _, _, size in judged]))
+    median = int(np.median([item[2] for item in judged]))
     cap = median // SHARE
     if explainable and len(columns) <= cap:
         return criterion, None
@@ -205,13 +208,17 @@ def _read(
             f"{MIN_COMPONENTS * SHARE} (k at most a fifth of the median group)"
         )
         return None, Reading(None, len(columns), median, reason)
-    small = tuple(item for item in judged if item[2] < SHARE * k)
+    small = tuple(item[:3] for item in judged if item[2] < SHARE * k)
+    excluded = tuple(item[3] for item in judged if item[2] < SHARE * k)
     complete = data.objects[columns].dropna()
     centre, scale, loadings = _components(complete.to_numpy(dtype=float), k)
     prefix = table_of(columns, setup) if other else "explainable"
     names = tuple(f"{prefix} PC{i + 1}" for i in range(k))
     inner = replace(metric, features=names, standardize=False, weights=None)
-    read = ComponentsError(inner, tuple(columns), tuple(centre), tuple(scale), tuple(loadings))
+    # The groups too small for k are not judged, in the report and in optimise (audit 8).
+    read = ComponentsError(
+        inner, tuple(columns), tuple(centre), tuple(scale), tuple(loadings), excluded
+    )
     return replace(criterion, metric=read), Reading(k, len(columns), median, small=small)
 
 

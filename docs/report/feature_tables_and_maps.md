@@ -147,7 +147,8 @@ and the report says which space.
   fields: `optimise` then says it is not assessable rather than judging the full width
   (seed 9). The explainable features keep today's form when they number at most that fifth,
   or when no group holds 4 fields, and follow the same rule when they are wider. `optimise`
-  judges the same components on held-back fields, and names the groups too small for k
+  judges the same components on held-back fields, never in a group too small for k (its
+  draws not judged, the group named; `ComponentsError.excluded`)
   (`workflows._fingerprint_space`, `multivariate_outcomes.ComponentsError`).
 
 In the weighted combined space each table, robustly standardised, is divided by its own
