@@ -74,6 +74,8 @@ Locally it needs `ipywidgets` and, for the plots, `matplotlib`.
    - [Online acquisition](live/online_acquisition.md): the `OnlineSession` contract and
      timing.
 6. Shared, in `common/`:
+   - [What happens for what you provide](common/what_happens.md): which analyses each input
+     switches on, the rules per type of feature, normalisation and testing in one place;
    - [Glossary](common/glossary.md), generated from `morphocoverage.glossary`;
    - [Project aim](common/project_aim.md) and [scientific contract](common/scientific_contract.md);
    - [Architecture](common/architecture.md);
