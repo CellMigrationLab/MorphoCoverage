@@ -18,6 +18,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from morphocoverage import (
@@ -28,11 +29,14 @@ from morphocoverage import (
     Evidence,
     SamplingObjective,
 )
+from morphocoverage._control import ACROSS, MASTER_RAW
 from morphocoverage.plots_pairwise import PANEL_KEYS, verdict_note
 from morphocoverage.policies import decide
+from morphocoverage.sampling_unit.contrast_across import across_rows
 from morphocoverage.sampling_unit.contrast_cells import repeats_to_balance, trusted_test
 from morphocoverage.sufficiency_short import met_count
 from morphocoverage.workflows import Setup, plots, report
+from morphocoverage.workflows._whole_table import across_reason
 
 SCENARIOS = Path(__file__).resolve().parents[1] / "data" / "scenarios"
 sys.path.insert(0, str(SCENARIOS))
@@ -128,3 +132,52 @@ def test_a_balanced_test_left_with_one_repeat_gives_way_to_the_test_as_provided(
     assert not test["balanced"]
     assert test["observations"] == 19 and test["control_observations"] == 19
     assert np.isfinite(test["p"])
+
+
+def test_a_control_against_the_master_is_tested_on_the_scale_of_its_fold_change() -> None:
+    # B17: the vs_master_raw row printed a fold change (x0.88) but tested the differences.
+    rows = pd.DataFrame(
+        [
+            {
+                "kind": MASTER_RAW,
+                "label": "cB vs cA (raw)",
+                "condition": "cB",
+                "reference": "cA",
+                "condition_control": None,
+                "reference_control": None,
+                "family": MASTER_RAW,
+            }
+        ]
+    )
+    means = {("cA", r): m for r, m in zip("123", (10.0, 100.0, 1000.0), strict=True)}
+    means |= {("cB", r): m for r, m in zip("123", (8.0, 90.0, 880.0), strict=True)}
+    [row] = across_rows(means, rows, list("123"), 0).to_dict("records")
+    expected = np.log([0.8, 0.9, 0.88])
+    assert row["values"] == "normalised"
+    assert row["effects"] == pytest.approx(expected)
+    assert row["fold_change"] == pytest.approx(np.exp(expected.mean()))
+    # A signed feature keeps the difference, and says so.
+    signed = {key: value - 50 for key, value in means.items()}
+    [raw] = across_rows(signed, rows, list("123"), 0).to_dict("records")
+    assert raw["values"] == "raw" and np.isnan(raw["fold_change"])
+    assert raw["effects"] == pytest.approx([-2.0, -10.0, -120.0])
+
+
+def test_each_kind_of_row_across_experiments_gives_its_own_reason_for_no_whole_table_test():
+    # B16: "a difference of log ratios has no meaning" was said of the master rows too, which
+    # compare raw centres.
+    loaded = make_scenarios.load("a23_embed2_several_image_tech_fp_dino")
+    setup = Setup(**{**loaded.setup, "control_parents": None})
+    assert set(setup.contrast_table["kind"]) >= {ACROSS, MASTER_RAW}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(loaded.objects, loaded.fovs, setup, feature_tables=loaded.feature_tables)
+    full = " ".join(result.summary("full").split())
+    assert "a difference of log ratios has no meaning in a table such as an embedding" in full
+    assert "not the controls with the master" in full
+    assert across_reason([MASTER_RAW], features=True) == (
+        "The rows across experiments of the contrast table are tested feature by feature "
+        "only: the whole-table test compares each condition with its own control, not the "
+        "controls with the master."
+    )
+    assert across_reason(["own_control"], features=True) == ""

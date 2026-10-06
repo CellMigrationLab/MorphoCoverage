@@ -144,8 +144,14 @@ secondary rows:
   holding all four (raw differences of differences where a mean is not positive). Shifts the
   four conditions of a repeat share cancel, so without a difference of effects it gives
   p <= 0.05 in about 5% of experiments (`tests/test_comparisons.py` simulates it).
-- **`vs_master_raw`**: a control against the master control, the paired t-test on each
-  repeat's difference of the means, in the repeats holding both.
+- **`vs_master_raw`**: a control against the master control, not normalised, the paired
+  t-test on each repeat's log ratio of the means, on the feature's scale as every test (the
+  difference of the means for a feature read on differences), in the repeats holding both,
+  so the fold change printed beside it is what it tests (audit 10, owner, 2026-10-06; before,
+  the difference was tested beside a fold change). In a report with other tables, these
+  rows are tested feature by feature only, each kind with its reason: a difference of log
+  ratios has no meaning in an embedding; the whole-table test compares each condition with
+  its own control, not the controls with the master.
 
 The sign-flip test is given where it can reach 0.05 once corrected (`_reach`). The code is
 `sampling_unit.contrast_across`, its words `across_text`, and the table `_control`.

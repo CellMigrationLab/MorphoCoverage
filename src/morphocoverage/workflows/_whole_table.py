@@ -8,8 +8,9 @@ test of "Do the conditions differ?". Here:
 
 - ``table_pairs``: the comparisons tested, each condition against its own control: the main
   rows of the contrast table with several controls; its rows across experiments are tested
-  feature by feature only, as a difference of log ratios has no meaning in an embedding
-  (said once, ``ACROSS_NOT_TESTED``);
+  feature by feature only, each kind's reason said once (``across_reason``): a difference of
+  log ratios has no meaning in an embedding; the controls against the master are not a
+  condition against its own control;
 - ``whole_table_in_report``: the tests, ``None`` without other tables or a comparison;
 - ``whole_table_lines``: the words, a block per table, a line per comparison;
 - ``with_whole_table``: the block in "Do the conditions differ?", the headline naming the
@@ -27,7 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from .._control import VS
+from .._control import ACROSS, MASTER_RAW, VS
 from .._style import Status, wrap
 from .._wording import count, listing, p_value
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
@@ -46,15 +47,30 @@ if TYPE_CHECKING:
 
 WHOLE_CSV = "tests_whole_table.csv"
 ACROSS_NOT_TESTED = (
-    "The rows across experiments of the contrast table are tested feature by feature only: a "
-    "difference of log ratios has no meaning in a table such as an embedding."
+    "The rows across experiments of the contrast table are tested feature by feature only: {}."
 )
 # The same without explainable features: nothing tests those rows (audit 8B).
 ACROSS_NO_FEATURES = (
-    "The rows across experiments of the contrast table are not tested: a difference of log "
-    "ratios has no meaning in a table such as an embedding, and there are no explainable "
-    "features to test them on."
+    "The rows across experiments of the contrast table are not tested: {}, and there are no "
+    "explainable features to test them on."
 )
+# Why each kind of row across experiments is not tested on a whole table, its own reason
+# (audit 10, owner, 2026-10-06: the log-ratio reason did not fit the master rows).
+ACROSS_REASONS = {
+    ACROSS: "a difference of log ratios has no meaning in a table such as an "
+    "embedding",
+    MASTER_RAW: "the whole-table test compares each condition with its own control, "
+    "not the controls with the master",
+}
+
+
+def across_reason(kinds: Any, features: bool) -> str:
+    """Why the rows across experiments of the ``kinds`` present are not tested whole, each
+    kind's own reason; ``features``: whether explainable features test them instead."""
+    reasons = [ACROSS_REASONS[k] for k in ACROSS_REASONS if k in set(kinds)]
+    if not reasons:
+        return ""
+    return (ACROSS_NOT_TESTED if features else ACROSS_NO_FEATURES).format("; ".join(reasons))
 
 
 def table_pairs(setup: Setup, fovs: pd.DataFrame) -> list[tuple[Any, Any]]:
@@ -87,9 +103,8 @@ def whole_table_in_report(
         **setup.common,
     )
     table = setup.contrast_table
-    across = table is not None and bool((table["kind"] != "own_control").any())
-    said = ACROSS_NOT_TESTED if setup.columns else ACROSS_NO_FEATURES
-    result.settings["across_not_tested"] = said if across else ""
+    kinds = [] if table is None else list(table["kind"])
+    result.settings["across_not_tested"] = across_reason(kinds, bool(setup.columns))
     return result
 
 
