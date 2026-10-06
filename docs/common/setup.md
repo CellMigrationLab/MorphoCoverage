@@ -169,8 +169,8 @@ ranking and the discovery read the raw values, each normalising to its own contr
 stopping rules and every other analysis read the raw values, where levels across
 experiments are read. The fingerprint and the held-back outcomes read the normalised values
 whatever the number of controls (owner, 2026-10-06, audit 8; before, the raw values with
-several controls, so their scale changed with the number of controls). The condition contrast reads the raw values and normalises them
-itself, so its raw columns hold raw values and its normalised ones the values divided by
+several controls, so their scale changed with the number of controls). The condition
+contrast reads the raw values and normalises them itself, so its raw columns hold raw values and its normalised ones the values divided by
 the control mean of the same repeat (owner, 2026-10-05; before, it read the normalised
 values, so its "raw" d and paired t were the normalised ones).
 

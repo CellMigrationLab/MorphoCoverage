@@ -96,8 +96,8 @@ every biological repeat? The test, its calibration and its words are in
 report says once what the tables join: the whole-table test, the maps, the populations, the
 copy checks and their own fingerprints, not novelty or unusual observations, which read the
 explainable features only (with a readout and no `features` declared, unusual observations
-read the readout alone; owner, 2026-10-06, audit 8). With novelty on all the columns, an audit found 99.6% of the
-cells of null data called new and a planted new state missed: in hundreds of dimensions the
+read the readout alone; owner, 2026-10-06, audit 8). With novelty on all the columns, an
+audit found 99.6% of the cells of null data called new and a planted new state missed: in hundreds of dimensions the
 distance to the nearest cell of another field does not follow a radius set for the
 explainable features. A report with **no explainable feature** at all (an embedding-only
 Setup, `readout=None`, owner 2026-10-06) reads the tables alone: see
@@ -188,11 +188,12 @@ per-condition medians of ctrl, a and b, the conditions in every repeat; ...").
 When normalisation is declared
 (`normalize="control_mean"`), the tables' analyses read these centred values, as the
 explainable features read their control-normalised ones: the populations, unusual
-observations (in a report without explainable features), the separation scores and the
-centred map; the raw map is still shown. The combined map, whose space the populations
-search, follows them (owner, 2026-10-06, audit 8, seed 15): with `normalize` its normalised
-view reads the normalised explainable features and the centred tables, and in a report
-without explainable features it has a centred view, the tables' combined space centred. These values never enter a test: the whole-table
+observations (in a report without explainable features), the separation of the conditions
+and the centred map; the raw map is still shown. The combined map, whose space the
+populations search, follows them (owner, 2026-10-06, audit 8, seed 15): with `normalize` its
+normalised view reads the normalised explainable features and the centred tables, and in a
+report without explainable features it has a centred view, the tables' combined space
+centred. These values never enter a test: the whole-table
 test computes its own differences within each repeat on raw values, and the fingerprint
 reads raw values too. On the ECM tables, whose repeats do not all hold the same conditions
 (R4 lacks VEC and THBS5, R5 the SiNC controls), the tables are centred on the conditions
