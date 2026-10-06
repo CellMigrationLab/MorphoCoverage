@@ -100,6 +100,7 @@ def whole_table_in_report(
         tables=dict(setup.feature_tables),
         pairs=pairs,
         random_state=setup.random_state,
+        families=setup.families(fovs),
         **setup.common,
     )
     table = setup.contrast_table
@@ -123,7 +124,7 @@ def _line(row: Any) -> str:
             f"shifted the same way in {row.same_way} of {count(row.repeats, 'repeat')}, "
             f"p {p_value(row.p_repeats)} (q {p_value(row.q_repeats)}) across repeats"
             + (
-                f" (an exact sign-flip test could give no p below {p_value(floor)} with "
+                f" (an exact sign-flip test could give no p below {floor:g} with "
                 f"{count(row.repeats, 'repeat')})"
                 if pd.notna(floor)
                 else ""
