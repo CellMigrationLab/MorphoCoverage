@@ -23,6 +23,9 @@ condition and control, from the per-repeat contrasts:
   tests a fold change and removes a scale both wells of a repeat share; NaN
   when a value of the feature is not positive (the scale is chosen once per
   feature from all its observations, owner 2026-10-06);
+- **each repeat's contrast and the t-based 95% interval** of the effect on the verdict's
+  scale (fold changes, else differences; ``repeat_contrasts``, ``ci_low``, ``ci_high``),
+  which the reading shows with exactly 3 repeats (plan v2, owner, 2026-10-06);
 - **an exact sign-flip test** on the same differences, which assumes only that
   their sign is exchangeable without an effect: every one of the ``2 ** n``
   sign assignments is enumerated, so p is exact and never below ``2 / 2 ** n``.
@@ -51,7 +54,7 @@ import pandas as pd
 
 from .._seeds import group_rng
 from ..metadata import REPEAT_COLUMN as REPEAT
-from ..statistics import paired_t, repeat_values
+from ..statistics import contrasts_text, paired_t, repeat_effect, repeat_values
 from ._experiments import corrected, experiments
 from ._reach import reachable
 
@@ -85,6 +88,9 @@ REPEAT_COLUMNS = [
     "q_paired_t_normalised",
     "experiment",
     "status",
+    "repeat_contrasts",
+    "ci_low",
+    "ci_high",
 ]
 
 
@@ -138,6 +144,11 @@ def across_repeats(
         ["condition", "control_condition"], sort=False
     ):
         differences = (block["mean"] - block["control_mean"]).to_numpy(float)
+        # The verdict's scale: each repeat's contrast and the t interval (plan v2).
+        values, compared, _ = repeat_values(block["mean"], block["control_mean"], log)
+        effect = repeat_effect(values, compared)
+        named = next((c for c in (REPEAT, repeat_col) if c in block), None)
+        repeats = list(block[named]) if named else list(range(1, len(block) + 1))
         d = block["d_objects"].to_numpy(float)
         d = d[np.isfinite(d)]
         row: dict[str, Any] = {
@@ -161,6 +172,9 @@ def across_repeats(
             "q_paired_t_normalised": np.nan,
             "experiment": 0,
             "status": "ok",
+            "repeat_contrasts": contrasts_text(repeats, effect["contrasts"]),
+            "ci_low": effect["ci_low"],
+            "ci_high": effect["ci_high"],
         }
         if len(differences) < MIN_REPEATS:
             row["status"] = (

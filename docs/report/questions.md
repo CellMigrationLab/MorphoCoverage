@@ -148,6 +148,10 @@ The PCA and UMAP of every observation on all the features, one map per feature t
 
 ### Are there populations or groups of cells?
 
+Population enrichment is exploratory (plan v2, owner, 2026-10-06): not yet validated by the
+benchmark of [the validation protocol](../common/validation.md), and the report and the page
+say so once in this section.
+
 Question 10, in every report, finds
 groups of cells that sit together on all the declared features, from every
 condition pooled. The candidates are the clusters of HDBSCAN (scikit-learn) on a

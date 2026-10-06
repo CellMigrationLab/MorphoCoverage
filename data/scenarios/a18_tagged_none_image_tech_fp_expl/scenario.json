@@ -66,11 +66,11 @@
    "whole_table"
   ],
   "not_applicable": {
-   "conditions": "needs a control"
+   "conditions": "no control is declared"
   },
   "table_column": true,
   "headlines": {
-   "enough": "the fingerprint not assessable"
+   "enough": "the covariance fingerprint not assessable"
   },
   "separation_spaces": [
    "Explainable"

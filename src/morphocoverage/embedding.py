@@ -83,6 +83,29 @@ def robust_scale(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return centre, np.where(scale >= MAD_FLOOR * sd, scale, sd)
 
 
+def robust_components(matrix: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Centre, scale and the first ``k`` loadings of the robustly standardised ``matrix``
+    (complete rows), the centre folding in the standardised columns' means; a column with
+    one value gets scale 1 and no weight. The fit of a wide table's fingerprint
+    (``multivariate_outcomes.ComponentsError``); ``ValueError`` when ``matrix`` cannot give
+    ``k`` components."""
+    centre, scale = robust_scale(matrix)
+    varies = scale > 0
+    scale = np.where(varies, scale, 1.0)
+    z = (matrix - centre) / scale
+    means = z.mean(axis=0)
+    _, _, vt = np.linalg.svd((z - means)[:, varies], full_matrices=False)
+    if len(vt) < k:
+        raise ValueError(f"{len(matrix)} rows and {int(varies.sum())} varying columns")
+    loadings = np.zeros((k, matrix.shape[1]))
+    loadings[:, varies] = vt[:k]
+    # One sign for one data set: the largest loading of each component is positive.
+    for row in loadings:
+        if row[np.argmax(np.abs(row))] < 0:
+            row *= -1
+    return centre + means * scale, scale, loadings
+
+
 def _standardised(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Median and MAD-scaled columns (the SD where the MAD is under ``MAD_FLOOR`` of it), and
     which columns vary."""
@@ -275,4 +298,4 @@ def _umap(z: np.ndarray, n_neighbors: int, min_dist: float, random_state: int) -
         return reducer.fit_transform(z)
 
 
-__all__ = ["MIN_FEATURES", "Embedding", "embed", "robust_scale"]
+__all__ = ["MIN_FEATURES", "Embedding", "embed", "robust_components", "robust_scale"]

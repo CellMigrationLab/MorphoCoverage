@@ -221,6 +221,9 @@ def _split_draws(
     holdout = group_key(
         {"fovs": sorted(map(str, reservoir.fovs[list(data.fov_key)].itertuples(index=False)))}
     )
+    # A fitted outcome (a wide table's components) is fitted on the stream, never on the
+    # held-back fields that judge it (owner, 2026-10-06).
+    criteria = [criterion.trained(stream) for criterion in criteria]
     for criterion in criteria:
         status, value = criterion.assess(reservoir, stream)
         ceiling.append(

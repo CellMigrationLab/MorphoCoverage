@@ -18,6 +18,7 @@ from .._checks import check_seed, is_integer, is_number
 from .._former_repeat import read_fields
 from .._parallel import check_n_jobs
 from ..metadata import REPEAT_COLUMN
+from ..statistics import SCALES
 from ..strategies import SupportNoveltyEstimator
 from ..transforms import RobustStandardize, Standardize
 
@@ -107,6 +108,35 @@ def check_positive(setup: Setup) -> None:
         )
 
 
+def check_scales(setup: Setup) -> None:
+    """``scales`` (plan v2, owner, 2026-10-06): a mapping of explainable features to
+    ``"ratio"`` (the paired test across repeats on the log ratio to the control) or
+    ``"difference"``, stored as a dict; a feature not declared keeps the automatic rule
+    (``statistics.log_scale``). A name that is no declared explainable column is refused once
+    the columns are known (``features`` declared, or the explainable tables attached);
+    a ratio on a value that is not positive is refused where the values are read."""
+    if setup.scales is None:
+        return
+    if not isinstance(setup.scales, Mapping):
+        raise TypeError("scales must map feature names to 'ratio' or 'difference'")
+    object.__setattr__(setup, "scales", dict(setup.scales))
+    for feature, scale in setup.scales.items():
+        if not isinstance(feature, str) or scale not in SCALES:
+            raise ValueError(
+                f"scales must map feature names to 'ratio' or 'difference', not "
+                f"{feature!r}: {scale!r}"
+            )
+    tables = setup.explainable_tables
+    if setup.features or tables is not None:
+        known = {*setup.columns, *(c for columns in (tables or {}).values() for c in columns)}
+        unknown = sorted(set(setup.scales) - known)
+        if unknown:
+            raise ValueError(
+                f"scales names {unknown[:3]}, not declared explainable features: a scale is "
+                "declared for the features tested one by one (readout, features)"
+            )
+
+
 def check_presets(setup: Setup) -> None:
     """The novelty target, the detection preset and the computational settings."""
     target = setup.novelty_target
@@ -179,6 +209,7 @@ __all__ = [
     "check_few_fovs",
     "check_positive",
     "check_presets",
+    "check_scales",
     "default_novelty",
     "warn_novelty_dimension",
 ]

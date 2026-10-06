@@ -39,6 +39,10 @@ plan `optimise` would make are not in this card: they are in the text report
 
 ## A rare phenotype and a fingerprint
 
+The covariance fingerprint and the rare target are exploratory (plan v2, owner, 2026-10-06):
+not yet validated by the benchmark of [the validation protocol](../common/validation.md); the
+answer says so once, in one line, as it does for novelty below.
+
 With a rare label or a fingerprint declared, the answer says, per well, whether the labelled state was
 seen in at least `k` fields and how many fields would see it there with the
 declared probability, at the share of fields holding it in the data; and
@@ -52,9 +56,15 @@ with the reasons, marked ➖. When the fields `optimise` holds back (35% of a we
 would themselves err by more than the tolerance, the text report says so
 once: the held-back judgement cannot confirm that target, and the estimate is
 the guide. On the page each target has its own tab, after the features, and a
-line at the top of the card.
+line at the top of the card. A covariance criterion, the one the guided session declares,
+is named the covariance fingerprint ("The covariance fingerprint of DINOv2 (...)"): it
+reads how the features vary together, not their whole distribution (plan v2, owner,
+2026-10-06).
 
 ## The stopping rules and the next field: `sufficiency_report`
+
+Novelty, the chance that one more field shows something new, is exploratory (plan v2, owner,
+2026-10-06) until [the validation protocol](../common/validation.md) validates it.
 
 `sufficiency_report(objects, fovs, feature_cols=..., strategies=..., objective=..., orders=..., novelty=..., novelty_target=..., calibration=...)` answers two questions per analysis group of an analysed dataset:
 

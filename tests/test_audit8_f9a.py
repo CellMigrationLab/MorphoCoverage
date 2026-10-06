@@ -69,8 +69,9 @@ def test_one_well_per_condition_says_a_well_difference_reads_as_a_condition_sepa
     assert unknown.startswith("The wells are not given, so a difference between the wells")
     one = fovs.assign(technical_repeat=fovs["condition"] + fovs["biological_repeat"])
     assert separation(merged, one, spaces=spaces).well_line() == (
-        "Each condition is imaged in one well per biological repeat, so a difference between "
-        "wells reads here as a separation of the conditions."
+        "Each condition is imaged in one well per biological repeat, no within-repeat "
+        "technical replication, so a difference between wells reads here as a separation of "
+        "the conditions."
     )
     field = fovs["image_file"].str.extract(r"_(\d+)\.tif$")[0].astype(int)
     two = one.assign(technical_repeat=one["technical_repeat"] + (field % 2).astype(str))
@@ -366,7 +367,8 @@ def test_optimise_does_not_judge_a_group_too_small_for_the_common_k_and_names_it
     others = curve[curve["condition"] != "pilot"]
     assert (others["defined_draws"] > 0).all()
     assert (
-        "The fingerprint, DINO covariance within 15%, is not assessable in pilot R1: fewer than "
+        "The covariance fingerprint, DINO covariance within 15%, is not assessable in pilot R1: "
+        "fewer than "
         "5 k, 150 cells." in plan.document.notes
     )
 

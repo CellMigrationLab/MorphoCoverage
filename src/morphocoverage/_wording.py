@@ -15,6 +15,10 @@ import pandas as pd
 
 from ._checks import is_integer
 
+# Benjamini-Hochberg bounds the false discovery rate of each family it corrects, never of the
+# report as a whole (plan v2, owner, 2026-10-06): said once where the families are listed.
+WITHIN_FAMILY = "The false discovery rate is controlled within each family, not across the report."
+
 
 def percent(value: float) -> str:
     """A share as a short percentage: ``37%``, ``0.3%``, ``99.5%``; ``undefined`` for NaN.
@@ -85,6 +89,13 @@ def change(value: float, values: str = "normalised") -> str:
         return f"{value:+.3g}"
     off = abs(value - 1)
     return f"×{value:.2f}" if off >= 0.1 else f"×{value:.3f}" if off >= 0.01 else f"×{value:.5g}"
+
+
+def contrasts_words(text: str, values: str) -> str:
+    """``×0.82, ×0.75 and ×0.91``: each repeat's contrast of a ``repeat_contrasts`` text
+    (``statistics.contrasts_text``, ``R1: 0.82; ...``), written as ``change`` writes one."""
+    shown = [change(float(item.rsplit(": ", 1)[1]), values) for item in text.split("; ") if item]
+    return listing(shown, len(shown))
 
 
 def number(value: float) -> str:
@@ -209,8 +220,10 @@ def rows_of(frame: pd.DataFrame, group: Mapping[str, Any]) -> pd.DataFrame:
 
 
 __all__ = [
+    "WITHIN_FAMILY",
     "change",
     "column_word",
+    "contrasts_words",
     "count",
     "duration",
     "features_counted",

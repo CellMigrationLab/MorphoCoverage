@@ -254,7 +254,7 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
         reasons["unit"] = "no explainable features"
         (ran if control else absent).append("unusual")
         reasons["profile"] = "Fields against random" if control else "against the control"
-        reasons["conditions"] = "Per feature" if control else "no control declared"
+        reasons["conditions"] = "Per feature" if control else "no control is declared"
         reasons["enough"] = "Per feature" if target != "tol" else "no target declared"
     else:
         ran += ["sufficiency", "inspection"]
@@ -271,7 +271,8 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
             ran += ["unusual"] + (["object_rules", "clustering"] if per_field else [])
         else:
             absent += ["contrast", "discovery", "unusual", "object_rules", "distribution"]
-            reasons["conditions"] = "needs a control"
+            # Plan v2 (owner, 2026-10-06): requested contrasts, not yet supported.
+            reasons["conditions"] = "no control is declared"
         if target == "positive":  # judged by the field version of new on images
             ran.append("controls")
             if per_field:  # 5 reference fields seen, as the definition of new needs
@@ -300,11 +301,12 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
 def _fingerprint_headline(target: str, other_tables: bool, per_field: bool) -> str:
     """The fingerprint's part of "Did I image enough?": judged in groups of 12 cells (k = 2),
     not assessable in groups of 4 images (k would be 0)."""
-    named = "the fingerprint"
+    # A covariance criterion: the covariance fingerprint (plan v2, owner, 2026-10-06).
+    named = "the covariance fingerprint"
     if target == "fp_dino":
-        named = "the fingerprint of DINO1"
+        named = "the covariance fingerprint of DINO1"
     elif other_tables:
-        named = "the fingerprint of the explainable features"
+        named = "the covariance fingerprint of the explainable features"
     return f"{named} within its tolerance" if per_field else f"{named} not assessable"
 
 

@@ -70,6 +70,7 @@ from ._setup_parts import (
     check_few_fovs,
     check_positive,
     check_presets,
+    check_scales,
     default_novelty,
     warn_novelty_dimension,
 )
@@ -105,6 +106,9 @@ class Setup:
     - ``intensity_features``: with several controls, declared columns compared between the
       controls for an acquisition gap, beside every declared column whose name contains
       "intensity" (``_acquisition_gap``, owner 2026-10-05).
+    - ``scales``: each explainable feature's scale for the tests across repeats, ``{"area":
+      "ratio", "velocity": "difference"}`` (plan v2, owner, 2026-10-06; ``check_scales``);
+      a feature not named keeps the automatic rule (log ratio when every value is positive).
     - ``feature_tables``: the non-explainable feature tables, each name with its columns,
       such as a DINO embedding (owner, 2026-10-05): never tested feature by feature, they
       join the maps, the populations, the copy checks and their own fingerprints, never
@@ -136,57 +140,49 @@ class Setup:
       ``QuantileError`` within a tolerance), judged on held-back FOVs beside the mean. Their
       features must be declared in ``features`` (or be the readout). Empty means the
       fingerprint is not declared and the planning answers speak of the mean only.
-    - ``rare`` and ``rare_label``: the rare-phenotype target, a ``RareTarget``
-      (its definition, prevalence and/or field incidence, detection
-      probability, fields it must be seen in), and the observation column
-      that labels it (booleans or 0/1) when an independent label exists. With
-      the label, held-back fields judge whether ``k`` fields showed the state
-      (``RareStateDetected``); without it the target is stated and planned
-      for, not judged.
-    - ``novelty``: the definition of "new" (``default_novelty(features)`` or
-      your own); ``None`` leaves the novelty questions not assessed.
-    - ``novelty_target``: with ``novelty``, the chance that one more field
-      shows something new that the report asks to rule out (default 5%). The
-      report then also judges a report-only rule, "the upper bound of that
-      chance is at most ``novelty_target``" (``novelty_rule()``), beside
-      ``rules``: unless it is one of ``rules`` (then it is judged once, as one
-      of them), the live session does not run it and ``optimise`` and
-      ``benchmark`` do not calibrate it; the declaration says so. ``None``
-      answers the next-field question without a target and adds no rule.
-    - ``few_fovs``: with ``novelty``, the report also counts the fields holding
-      a state that fewer than ``few_fovs`` other fields show (seen, but not
-      established). It must exceed the definition's ``min_other_fovs``;
-      ``None`` means two more than it (3 for ``default_novelty``).
-    - ``hierarchy`` and ``effort_strata``: FOV, sample and repeat columns for
-      "more fields or more samples?" and protocol reliability. When the FOV
-      table has the MorphoBricks ``technical_repeat`` column (a well, a dish)
-      and no hierarchy is declared, one is derived: the field within the
-      technical repeat within the repeat (``resolved_hierarchy``).
-      ``effort_strata=None`` (the default) keeps one stratum per condition,
-      declared or derived hierarchy alike, so conditions are never pooled
-      silently; ``effort_strata=()`` pools every sample, as explicitly asked
-      (``resolved_effort_strata``).
+    - ``rare`` and ``rare_label``: the rare-phenotype target, a ``RareTarget`` (its definition,
+      prevalence and/or field incidence, detection probability, fields it must be seen in), and the
+      observation column that labels it (booleans or 0/1) when an independent label exists. With the
+      label, held-back fields judge whether ``k`` fields showed the state (``RareStateDetected``);
+      without it the target is stated and planned for, not judged.
+    - ``novelty``: the definition of "new" (``default_novelty(features)`` or your own); ``None``
+      leaves the novelty questions not assessed.
+    - ``novelty_target``: with ``novelty``, the chance that one more field shows something new that
+      the report asks to rule out (default 5%). The report then also judges a report-only rule, "the
+      upper bound of that chance is at most ``novelty_target``" (``novelty_rule()``), beside
+      ``rules``: unless it is one of ``rules`` (then it is judged once, as one of them), the live
+      session does not run it and ``optimise`` and ``benchmark`` do not calibrate it; the
+      declaration says so. ``None`` answers the next-field question without a target and adds no
+      rule.
+    - ``few_fovs``: with ``novelty``, the report also counts the fields holding a state that fewer
+      than ``few_fovs`` other fields show (seen, but not established). It must exceed the
+      definition's ``min_other_fovs``; ``None`` means two more than it (3 for ``default_novelty``).
+    - ``hierarchy`` and ``effort_strata``: FOV, sample and repeat columns for "more fields or more
+      samples?" and protocol reliability. When the FOV table has the MorphoBricks
+      ``technical_repeat`` column (a well, a dish) and no hierarchy is declared, one is derived: the
+      field within the technical repeat within the repeat (``resolved_hierarchy``).
+      ``effort_strata=None`` (the default) keeps one stratum per condition, declared or derived
+      hierarchy alike, so conditions are never pooled silently; ``effort_strata=()`` pools every
+      sample, as explicitly asked (``resolved_effort_strata``).
     - ``acquisition_order_col``, ``stage_cols``: acquisition order and stage
       coordinates, when recorded.
-    - ``fields_independent``: declares that the fields are independent draws
-      of their condition (default ``False``). The condition contrast and the
-      feature ranking shuffle the technical repeats (``technical_repeat``),
-      else a group column nested within condition x repeat (a well column in
-      ``group_cols``); without either they give no p-value, since fields of
-      one dish or well are not independent draws, unless this is ``True``.
-    - ``fov_col``, ``group_cols``, ``observation_unit``: as for
-      ``validate_input_tables`` (MorphoBricks defaults when ``None``).
+    - ``fields_independent``: declares that the fields are independent draws of their condition
+      (default ``False``). The condition contrast and the feature ranking shuffle the technical
+      repeats (``technical_repeat``), else a group column nested within condition x repeat (a well
+      column in ``group_cols``); without either they give no p-value, since fields of one dish or
+      well are not independent draws, unless this is ``True``.
+    - ``fov_col``, ``group_cols``, ``observation_unit``: as for ``validate_input_tables``
+      (MorphoBricks defaults when ``None``).
     - ``rules``: the stopping rules to assess, calibrate and run live; by
       default the mean-precision rule (upper-95 SD, first tolerance) per observation and
       per FOV, per FOV only for observations other than objects such as patches or tracks
       (the declaration names them and marks the default).
-    - ``random_state``: the seed of every random procedure the workflows run
-      (subset draws, hold-outs, replay orders, the report's random orders,
-      the default benchmark families' resampling, bootstraps and randomization
-      tests), so a run is reproducible; a non-negative integer, a
-      computational setting, not a scientific one.
-    - ``n_jobs``: worker processes for the analyses that can use them (``-1``:
-      every CPU); results are identical for every value.
+    - ``random_state``: the seed of every random procedure the workflows run (subset draws,
+      hold-outs, replay orders, the report's random orders, the default benchmark families'
+      resampling, bootstraps and randomization tests), so a run is reproducible; a non-negative
+      integer, a computational setting, not a scientific one.
+    - ``n_jobs``: worker processes for the analyses that can use them (``-1``: every CPU); results
+      are identical for every value.
 
     Per-plane features (a z-stack measured plane by plane) are split before
     the Setup: ``morphocoverage.planes_as_features`` turns ``area`` into
@@ -224,6 +220,7 @@ class Setup:
     feature_tables: Mapping[str, tuple[str, ...]] | None = None
     intensity_features: tuple[str, ...] = ()
     explainable_tables: Mapping[str, tuple[str, ...]] | None = None
+    scales: Mapping[str, str] | None = None
 
     def __post_init__(self) -> None:
         if self.readout is not None and (not isinstance(self.readout, str) or not self.readout):
@@ -289,6 +286,7 @@ class Setup:
         check_few_fovs(self)
         warn_novelty_dimension(self)
         check_feature_tables(self)
+        check_scales(self)
         if set(self.intensity_features) - set(self.columns):
             raise ValueError("intensity_features must be declared columns (readout or features)")
         undeclared = set(self.criterion_columns) - {*self.columns, *table_columns(self)}
@@ -301,6 +299,10 @@ class Setup:
         names = [c.name for c in self.criteria()]
         if len(set(names)) != len(names):
             raise ValueError("the declared criteria must be distinct (same metric and features)")
+
+    def scale_of(self, feature: str | None) -> str | None:
+        """The declared scale of ``feature`` (``scales``), ``None`` for the automatic rule."""
+        return (self.scales or {}).get(feature) if feature is not None else None
 
     @property
     def columns(self) -> list[str]:

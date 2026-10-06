@@ -60,7 +60,7 @@ def test_a_wide_tables_fingerprint_reads_its_first_components_and_says_k():
     assert explainable["components"].isna().all()  # 2 columns: today's form
     text = " ".join(" ".join(fingerprint_lines(precision, "well", "fields", unit="cell")).split())
     assert (
-        "The fingerprint of DINO (DINO the covariance within 50%), read on its first 2 "
+        "The covariance fingerprint of DINO (DINO the covariance within 50%), read on its first 2 "
         "principal components (k at most a fifth of the median group's 12 cells and at "
         "most its 60 columns)"
     ) in text
@@ -90,11 +90,11 @@ def test_groups_too_small_for_two_components_are_not_assessable_and_say_why():
     assert dino["met"].isna().all() and dino["not_assessable"].notna().all()
     text = " ".join(" ".join(fingerprint_lines(precision, "well", "fields", unit="cell")).split())
     assert (
-        "The fingerprint of DINO (DINO the covariance within 50%): not assessable: its "
+        "The covariance fingerprint of DINO (DINO the covariance within 50%): not assessable: its "
         "median group holds 8 cells, and 2 principal components need groups of at least 10"
     ) in text
     _statuses, parts = targets_status(None, precision, setup)
-    assert "the fingerprint of DINO not assessable" in parts
+    assert "the covariance fingerprint of DINO not assessable" in parts
 
 
 def test_wide_explainable_features_follow_the_same_rule():

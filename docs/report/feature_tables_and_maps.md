@@ -147,9 +147,13 @@ and the report says which space.
   fields: `optimise` then says it is not assessable rather than judging the full width
   (seed 9). The explainable features keep today's form when they number at most that fifth,
   or when no group holds 4 fields, and follow the same rule when they are wider. `optimise`
-  judges the same components on held-back fields, never in a group too small for k (its
-  draws not judged, the group named; `ComponentsError.excluded`)
-  (`workflows._fingerprint_space`, `multivariate_outcomes.ComponentsError`).
+  judges the same number of components on held-back fields, never in a group too small for
+  k (its draws not judged, the group named; `ComponentsError.excluded`)
+  (`workflows._fingerprint_space`, `multivariate_outcomes.ComponentsError`). There the
+  components are refitted in each split on the group's fields that are not held back, so no
+  held-back field enters the fit that it judges (owner, 2026-10-06, plan v2: a fit on every
+  field let the reference shape its own axes); the report's reading, from random halves of
+  all the fields with nothing held back, keeps the fit on every observation.
 
 In the weighted combined space each table, robustly standardised, is divided by its own
 first singular value over `sqrt(n - 1)`, as in multiple factor analysis (MFA; owner,
@@ -259,8 +263,9 @@ also a difference between the conditions of a repeat, so the score by condition 
 a separation of the conditions (audit 8: a well shift of 0.5 SD with no condition effect
 took the score 34% of the way from chance to 100%, and "the repeats separate more" in half
 the simulations). One line under the maps says so for such a design ("Each condition is
-imaged in one well per biological repeat, so a difference between wells reads here as a
-separation of the conditions."); with two wells or more per condition and repeat, a well is
+imaged in one well per biological repeat, no within-repeat technical replication, so a
+difference between wells reads here as a separation of the conditions."; wording of plan v2,
+owner, 2026-10-06); with two wells or more per condition and repeat, a well is
 never its own observations' neighbour and the line is left out.
 
 Neighbours never come from the observation's own field, nor from its own well when its

@@ -139,13 +139,14 @@ def table_checksum(table: pd.DataFrame) -> str:
 class Answers:
     """What the user answered, as saved in ``ANSWERS_FILE``.
 
-    ``aim`` is ``"population"``, ``"fingerprint"`` or ``"both"``; ``control`` is
-    ``{"condition": ...}`` (one control, or several with their conditions, then with
-    ``control_parents`` and ``master_control`` as ``Setup`` takes them) or ``None``;
-    ``fingerprint_tolerance`` is the share the covariance
-    of the standardised features must stay within (``None`` for the population aim);
-    ``dataset`` records the tables the answers were given for: paths, rows, the observation
-    table's ``checksum`` and the FOV table's ``fovs_checksum`` (``None`` without one).
+    ``aim`` is ``"population"``, ``"fingerprint"`` or ``"both"``; ``control`` is ``{"condition":
+    ...}`` (one control, or several with their conditions, then with ``control_parents`` and
+    ``master_control`` as ``Setup`` takes them) or ``None``; ``fingerprint_tolerance`` is the share
+    the covariance of the standardised features must stay within (``None`` for the population aim);
+    ``dataset`` records the tables the answers were given for: paths, rows, the observation table's
+    ``checksum`` and the FOV table's ``fovs_checksum`` (``None`` without one). ``scales``: the
+    features named like an intensity or an area and the scale confirmed (``ask_scales``; plan v2,
+    owner, 2026-10-06).
     """
 
     loaded_correctly: bool
@@ -162,6 +163,7 @@ class Answers:
     control_parents: dict[str, Any] | None = None
     master_control: Any = None
     rare_label: str | None = None
+    scales: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
         if self.control_parents:
@@ -241,6 +243,7 @@ class Answers:
             values["positive"] = PositiveControl(dict(self.positive), fovs_seen=POSITIVE_FIELDS)
         if self.rare_label is not None:
             values["rare"], values["rare_label"] = self.rare_target(scan), self.rare_label
+        values["scales"] = self.scales or None
         values.update(fields)
         with warnings.catch_warnings():
             # A control the user chose to leave out is an answer, not a guess to warn about.
@@ -298,7 +301,7 @@ class Answers:
             )
         if self.fingerprint_tolerance is not None:
             lines.append(f"Fingerprint tolerance: {percent(self.fingerprint_tolerance)}.")
-        return lines
+        return lines + q.scale_lines(self.scales or {})
 
 
 def save_answers(folder: str | Path, answers: Answers) -> Path:
@@ -470,13 +473,14 @@ def _questions(
     if not numeric and tables:
         # No explainable feature, other tables given (owner, 2026-10-06): no feature or
         # readout question, the aim among the targets that need no readout.
-        features, readout = [], None
+        features, readout, scales = [], None, {}
         rare_label = q.ask_rare_label(ask, say, labels)
         aim = q.ask_table_aim(ask, say, rare_label)
     else:
         aim = q.ask_aim(ask, say)
         features = q.ask_features(ask, say, scan.settings["feature_cols"])
         readout = q.ask_readout(ask, say, features)
+        scales = q.ask_scales(ask, say, scan.objects, features)
         rare_label = q.ask_rare_label(ask, say, q.label_columns(scan.objects, [*features, *taken]))
     fingerprint = aim not in ("population", "label")
     tolerance = q.ask_tolerance(ask, say, features) if fingerprint else None
@@ -493,6 +497,7 @@ def _questions(
         control_parents=parents,
         master_control=master,
         rare_label=rare_label,
+        scales=scales or None,
     ), scan
 
 

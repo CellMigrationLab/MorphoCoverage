@@ -67,6 +67,20 @@ features two objects of one ordinarily variable state often sit farther
 apart than that, and `Setup` warns (reduce the dimension, for example
 `Chain([RobustStandardize(), PCA(k)])`, or declare fewer features).
 
+`scales` declares the scale of a feature's tests across repeats (plan v2, owner,
+2026-10-06): `Setup(scales={"area": "ratio", "velocity": "difference"})`. `"ratio"` tests
+the log ratio of each repeat's mean to its control's, a fold change, and is refused, with a
+message, for a feature holding a value that is not positive; `"difference"` tests the
+difference of the means. A feature not named keeps the automatic rule: the log ratio when
+every observation of the feature is positive, else the difference, one scale per feature for
+every condition. A positive value is not evidence of a multiplicative effect, so declare the
+scale whenever the measurement says which it is: intensities and areas are measured from
+zero and usually change by a factor, a velocity or a signed shape descriptor by an amount.
+The declared scale is used by the paired test, the discovery's second gate, the rows across
+experiments and the pairwise panels, and the test descriptions name it. The guided session
+proposes `"ratio"` for the features named like an intensity or an area whose values are all
+positive, asks to confirm ("No" declares `"difference"`), and saves the answer.
+
 `fields_independent` (default `False`) declares that the fields are
 independent draws of their condition. Only then do the condition contrast and
 the feature ranking give a p-value when the fields have no unit to shuffle

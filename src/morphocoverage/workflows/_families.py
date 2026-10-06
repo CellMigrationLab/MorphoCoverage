@@ -99,6 +99,7 @@ def shared_across(
         features=features,
         rows=table,
         random_state=setup.random_state,
+        scales=setup.scales,
         **setup.common,
     )
     if every.empty:

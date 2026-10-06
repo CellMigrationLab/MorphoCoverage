@@ -50,7 +50,15 @@ from .._former_repeat import one_warning, read_former
 from .._parallel import check_n_jobs
 from .._seeds import group_rng
 from .._style import check_detail, span, table, wrap
-from .._wording import change, column_word, count, features_counted, listing, p_value
+from .._wording import (
+    change,
+    column_word,
+    contrasts_words,
+    count,
+    features_counted,
+    listing,
+    p_value,
+)
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
 from ._common import groups, validated
@@ -103,6 +111,9 @@ TEST_COLUMNS = [
     "d_repeat_max",
     "repeat_observations_min",
     "repeat_observations_max",
+    "repeat_contrasts",
+    "ci_low",
+    "ci_high",
 ]
 
 
@@ -120,6 +131,10 @@ def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
             "q_cells": np.nan,
             "q_paired": np.nan,
             "change": np.nan,
+            "ci_low": np.nan,
+            "ci_high": np.nan,
+            "repeat_contrasts": "",
+            "repeats": 0,
             "paired_values": "",
             "confirmed": False,
             "direction": "",
@@ -138,6 +153,10 @@ def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
                 q_cells=float(best["q_cells"]),
                 q_paired=float(best["q_paired"]),
                 change=float(best["change"]),
+                ci_low=float(best["ci_low"]),
+                ci_high=float(best["ci_high"]),
+                repeat_contrasts=best["repeat_contrasts"],
+                repeats=int(best["repeats"]),
                 paired_values=best["paired_values"],
                 confirmed=bool(passing["confirmed"].any()),
                 direction=f"{same} of {int(best['repeats'])} {word}",
@@ -146,6 +165,16 @@ def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
     ranking = pd.DataFrame(rows)
     ranking = ranking.sort_values(["score", "order"], ascending=[False, True], na_position="last")
     return ranking.drop(columns="order").reset_index(drop=True)
+
+
+def _limited(row: Mapping[str, Any]) -> list[str]:
+    """Each repeat's change and the 95% t interval of a ranked row on exactly 3 repeats."""
+    values = row["paired_values"]
+    if row["repeats"] != MIN_REPEATS or not row["repeat_contrasts"]:
+        return ["–", "–"]
+    low, high = row["ci_low"], row["ci_high"]
+    interval = f"{change(low, values)} to {change(high, values)}" if np.isfinite(low) else "–"
+    return [contrasts_words(row["repeat_contrasts"], values), interval]
 
 
 def _q(value: float) -> str:
@@ -229,10 +258,20 @@ class FeatureDiscovery:
             "largest difference "
             "(|d|); change: the condition's mean over the control's, the fold change the "
             "paired t-test compares (the difference of the means for a feature with a value "
-            "that is not positive, the same scale for every condition); a candidate is "
+            f"that is not positive, the same scale for every condition{self._declared()}); a "
+            "candidate is "
             "significant across repeats when the paired t-test on the "
             f"repeat means also gives q ≤ {alpha:g}:"
         )
+
+    def _declared(self) -> str:
+        """``; declared in the Setup: velocity, the difference``: the scales the Setup
+        declares (plan v2, owner, 2026-10-06), which replace the rule; empty without."""
+        scales = self.settings.get("scales") or {}
+        if not scales:
+            return ""
+        named = [f"{feature}, the {scale}" for feature, scale in scales.items()]
+        return f"; declared in the Setup: {'; '.join(named[:6])}"
 
     def _counted(self, features: list[str] | int) -> str:
         """``features`` (names, or a number of all the features), the labelled state's share
@@ -272,6 +311,8 @@ class FeatureDiscovery:
         ranked = self.ranking.dropna(subset=["score"])
         if ranked.empty:
             return []
+        # Exactly 3 repeats: each repeat's change and the 95% t interval (plan v2).
+        three = bool((ranked["repeats"] == MIN_REPEATS).any())
         rows = [
             [
                 rank,
@@ -279,6 +320,7 @@ class FeatureDiscovery:
                 f"{row['d']:+.2f}",
                 f"{row['condition']}",
                 change(row["change"], row["paired_values"]),
+                *(_limited(row) if three else []),
                 _q(row["q_cells"]),
                 _q(row["q_paired"]),
                 row["direction"],
@@ -291,11 +333,13 @@ class FeatureDiscovery:
             "d",
             "condition",
             "change",
+            *(["change in each repeat", "95% t interval"] if three else []),
             f"q {self._unit()} level",
             "q repeat means",
             "repeats",
         ]
-        lines = [table(rows, columns, indent=indent, align="rlrlrrrl")]
+        align = "rlrlr" + ("ll" if three else "") + "rrl"
+        lines = [table(rows, columns, indent=indent, align=align)]
         if len(ranked) > max_rows:
             lines.append(" " * indent + f"and {len(ranked) - max_rows} more ranked features")
         confirmed = self.confirmed()
@@ -401,10 +445,12 @@ def feature_discovery(
     observation_unit: str | None = None,
     comparisons: Sequence[tuple[Any, Any]] | None = None,
     n_jobs: int = 1,
+    scales: Mapping[str, str] | None = None,
 ) -> FeatureDiscovery:
     """Rank ``features`` by the cell-level gate, with the paired test beside it (see the
     module). Arguments follow ``condition_contrast``; ``n_jobs`` worker processes test the
-    features, with the same results for every value (``_parallel``)."""
+    features, with the same results for every value (``_parallel``); ``scales``, each
+    feature's declared scale (``Setup.scales``), else the automatic rule."""
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     features = list(dict.fromkeys(features))
     if not features:
@@ -434,11 +480,12 @@ def feature_discovery(
         "random_state": random_state,
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
+        "scales": dict(scales or {}),
     }
     contrasts = contrasts_of(described)
     workers = check_n_jobs(n_jobs)
     rows, retests, held = tested_rows(
-        (all_groups, described, contrasts, technical_col),
+        (all_groups, described, contrasts, technical_col, dict(scales or {})),
         features,
         (n_permutations, random_state, alpha),
         workers,

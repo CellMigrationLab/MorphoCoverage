@@ -156,8 +156,9 @@ class Separation:
         wells = self.settings.get("wells")
         if wells == "one":
             return (
-                "Each condition is imaged in one well per biological repeat, so a difference "
-                "between wells reads here as a separation of the conditions."
+                "Each condition is imaged in one well per biological repeat, no within-repeat "
+                "technical replication, so a difference between wells reads here as a "
+                "separation of the conditions."
             )
         if wells == "unknown":
             return (

@@ -28,7 +28,7 @@ from typing import Any
 
 import pandas as pd
 
-from .._control import not_found
+from .._control import NO_CONTROL, not_found
 from .._former_repeat import renamed_tables
 from .._wording import count, plural
 from ..benchmark import AcquisitionOrder
@@ -54,6 +54,7 @@ from ..sampling_unit import (
     unusual_objects,
 )
 from ..schema import ValidatedInput
+from ..statistics import log_scale
 from ..strategies import FixedFOVStrategy
 from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
@@ -146,6 +147,9 @@ def check_workflow_inputs(
                 f"rare_label {setup.rare_label!r} must hold booleans or 0/1, got "
                 f"{sorted(map(str, labels.unique()))[:5]}"
             )
+    for feature, scale in (setup.scales or {}).items():  # a ratio needs positive values
+        if feature in objects.columns:
+            log_scale(objects[feature].to_numpy(dtype=float), scale, repr(feature))
     columns = setup.columns
     if not check:
         return objects, fovs, None
@@ -227,10 +231,13 @@ def replay_rules(
     checked at every prefix of every run with a fingerprint of the reservoir
     and the revealed fields' keys (``_RevealedFields``), besides the stream
     sizes and stage travel. The first replay judges only that fingerprint and
-    the second runs only a fixed-count rule, whose decisions are discarded.
+    the second runs only a fixed-count rule, whose decisions are discarded. So it is when a
+    criterion reads columns the rules do not (another table's fingerprint): the second replay
+    reads them too, the rules never.
     """
     common = {"feature_cols": setup.columns, "objective": setup.objective(), **setup.common}
-    if prepared is raw:
+    judged = [*setup.columns, *(c for c in setup.judged_columns if c not in setup.columns)]
+    if prepared is raw and judged == setup.columns:
         return replay_acquisitions(
             raw, fovs, strategies=strategies, criteria=criteria, **common, **settings
         )
@@ -242,7 +249,7 @@ def replay_rules(
         fovs,
         strategies=[FixedFOVStrategy(1)],
         criteria=[*criteria, _REVEALED],
-        **common,
+        **{**common, "feature_cols": judged},
         **{**settings, "keep_results": False},
     )
     revealed = scored.outcomes["criterion"] == _REVEALED.name
@@ -267,7 +274,11 @@ def replay_rules(
             **decided.settings,
             "criteria": [c.parameters for c in criteria],
             "labels": {c.name: c.label for c in criteria},
-            "values": "stopping rules on raw values; outcome criteria on normalised values",
+            **(
+                {"values": "stopping rules on raw values; outcome criteria on normalised values"}
+                if prepared is not raw
+                else {}
+            ),
         },
     )
 
@@ -459,6 +470,8 @@ def conditions(
             f"not applicable: the FOV table holds one condition, {only}, so no other "
             "condition is compared with the control"
         )
+    if not setup.compares and setup.control is None and held > 1:
+        reasons["conditions"] = f"not applicable: {NO_CONTROL}"  # plan v2 (owner, 2026-10-06)
     if not (setup.compares and held > 1):
         return {}
     pooled = pooled_columns(objects, fovs, setup, [CONDITION_COLUMN, REPEAT_COLUMN])
@@ -474,6 +487,7 @@ def conditions(
             feature=setup.readout,
             random_state=setup.random_state,
             fields_independent=setup.fields_independent,
+            scale=setup.scale_of(setup.readout),
             # One control, or the contrast table: its main verdicts and its secondary rows.
             **(
                 {"control": setup.control}
@@ -492,6 +506,7 @@ def conditions(
             features=compared,
             random_state=setup.random_state,
             n_jobs=setup.n_jobs,
+            scales=setup.scales,
             **setup.contrast_arguments,
             **setup.common,
         )

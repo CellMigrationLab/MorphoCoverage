@@ -11,6 +11,8 @@ a few images cannot estimate that: the error of its fingerprint reads noise (err
   maps are (``embedding.robust_scale``: median and MAD, the SD where the MAD is under a
   quarter of it); the components keep their variance, so the first weighs most
   (``multivariate_outcomes.ComponentsError``, the inner metric not standardised again);
+  where held-back fields judge them (``optimise``), they are refitted in each split on the
+  fields not held back (``ComponentsError.trained``; owner, 2026-10-06, plan v2);
 - one common ``k`` for every group: at most a fifth (``SHARE``) of the observations of the
   median group the fingerprint judges (an analysis group of at least ``MIN_FIELDS`` fields,
   the observations holding every value of the table), and at most the table's columns
@@ -39,9 +41,9 @@ import pandas as pd
 
 from .._seeds import group_key
 from .._wording import count, listing
-from ..embedding import robust_scale
+from ..embedding import robust_components
 from ..evaluator import iter_analysis_groups
-from ..multivariate_outcomes import ComponentsError
+from ..multivariate_outcomes import ComponentsError, CovarianceError
 from ..schema import validate_input_tables
 
 if TYPE_CHECKING:
@@ -59,6 +61,15 @@ MIN_FIELDS = 4
 def label(criterion: OutcomeCriterion) -> str:
     """The criterion as the report names it: its description, else its metric's name."""
     return criterion.description or criterion.metric.name
+
+
+def noun(criterion: OutcomeCriterion) -> str:
+    """``covariance fingerprint`` for a covariance criterion, on components or as declared, as
+    a covariance is not the whole distribution (plan v2, owner, 2026-10-06); ``fingerprint``
+    for any other."""
+    metric = criterion.metric
+    inner = metric.metric if isinstance(metric, ComponentsError) else metric
+    return "covariance fingerprint" if isinstance(inner, CovarianceError) else "fingerprint"
 
 
 def criterion_columns(criterion: OutcomeCriterion) -> list[str]:
@@ -118,11 +129,13 @@ class Reading:
 class FingerprintSpace:
     """The ``setup`` with each assessable criterion as it is read (on components or as
     declared) and the not assessable left out; ``readings`` by criterion label; ``pairs``
-    each declared criterion with the one read (``None``: not assessable)."""
+    each declared criterion with the one read (``None``: not assessable); ``nouns`` how
+    each is named, by label (``noun``)."""
 
     setup: Setup
     readings: dict[str, Reading] = field(default_factory=dict)
     pairs: tuple[tuple[OutcomeCriterion, OutcomeCriterion | None], ...] = ()
+    nouns: dict[str, str] = field(default_factory=dict)
 
     @property
     def not_assessable(self) -> dict[str, str]:
@@ -133,7 +146,7 @@ class FingerprintSpace:
         """``The fingerprint, <criterion>, is not assessable in pilot R1: fewer than 5 k,
         200 cells.``: the groups too small for the common k, one sentence per criterion."""
         return [
-            f"The fingerprint, {name}, is not assessable in "
+            f"The {self.nouns.get(name, 'fingerprint')}, {name}, is not assessable in "
             f"{listing([n for _, n, _ in r.small], 4)}: fewer than {SHARE} k, "
             f"{count(SHARE * int(r.components or 0), unit, units)}."
             for name, r in self.readings.items()
@@ -154,25 +167,6 @@ def _judged(
             pairs = tuple((str(c), str(v)) for c, v in group.items())
             sizes.append((group_key(group), name, int(held.sum()), pairs))
     return sizes
-
-
-def _components(matrix: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Centre, scale and the first ``k`` loadings of the robustly standardised ``matrix``
-    (complete rows), the centre folding in the standardised columns' means; a column with
-    one value gets scale 1 and no weight."""
-    centre, scale = robust_scale(matrix)
-    varies = scale > 0
-    scale = np.where(varies, scale, 1.0)
-    z = (matrix - centre) / scale
-    means = z.mean(axis=0)
-    _, _, vt = np.linalg.svd((z - means)[:, varies], full_matrices=False)
-    loadings = np.zeros((k, matrix.shape[1]))
-    loadings[:, varies] = vt[:k]
-    # One sign for one data set: the largest loading of each component is positive.
-    for row in loadings:
-        if row[np.argmax(np.abs(row))] < 0:
-            row *= -1
-    return centre + means * scale, scale, loadings
 
 
 def _read(
@@ -211,7 +205,7 @@ def _read(
     small = tuple(item[:3] for item in judged if item[2] < SHARE * k)
     excluded = tuple(item[3] for item in judged if item[2] < SHARE * k)
     complete = data.objects[columns].dropna()
-    centre, scale, loadings = _components(complete.to_numpy(dtype=float), k)
+    centre, scale, loadings = robust_components(complete.to_numpy(dtype=float), k)
     prefix = table_of(columns, setup) if other else "explainable"
     names = tuple(f"{prefix} PC{i + 1}" for i in range(k))
     inner = replace(metric, features=names, standardize=False, weights=None)
@@ -237,10 +231,11 @@ def fingerprint_space(
         if reading is not None:
             readings[label(criterion)] = reading
         pairs.append((criterion, read))
+    nouns = {label(c): noun(c) for c in setup.fingerprint}
     if not readings:
-        return FingerprintSpace(setup, {}, tuple(pairs))
+        return FingerprintSpace(setup, {}, tuple(pairs), nouns)
     kept = tuple(read for _, read in pairs if read is not None)
-    return FingerprintSpace(replace(setup, fingerprint=kept), readings, tuple(pairs))
+    return FingerprintSpace(replace(setup, fingerprint=kept), readings, tuple(pairs), nouns)
 
 
 __all__ = [
@@ -252,5 +247,6 @@ __all__ = [
     "criterion_columns",
     "fingerprint_space",
     "label",
+    "noun",
     "table_of",
 ]

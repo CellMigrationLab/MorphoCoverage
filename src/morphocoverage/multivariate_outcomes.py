@@ -88,6 +88,7 @@ import pandas as pd
 
 from . import distances
 from ._checks import is_integer
+from .embedding import robust_components
 from .outcomes import OutcomeMetric, _check_label
 from .schema import ValidatedInput
 from .transforms import Standardize, constant_columns
@@ -433,12 +434,13 @@ class ComponentsError(OutcomeMetric):
     divided by ``scale`` and projected on ``loadings`` (one row per component, one column per
     feature), and ``metric`` compares the projections, its own ``features`` naming the
     components. ``workflows._fingerprint_space`` fits them on every observation of the table,
-    robustly standardised as the maps are, and chooses how many. ``None`` when a selected
-    value is missing, as for every metric here. ``excluded`` names analysis groups, each as
-    its ``(column, value)`` pairs, too small for the number of components: the metric is
-    ``None`` (not judged) on a sample of one of them (owner, 2026-10-06, audit 8). The
-    parameters keep the table's columns, the number of components, the inner metric, a
-    checksum of the projection and the groups excluded.
+    robustly standardised as the maps are, and chooses how many; where held-back fields judge
+    a stop, ``trained`` refits them on the fields not held back (owner, 2026-10-06).
+    ``None`` when a selected value is missing, as for every metric here. ``excluded`` names
+    analysis groups, each as its ``(column, value)`` pairs, too small for the number of
+    components: the metric is ``None`` (not judged) on a sample of one of them (owner,
+    2026-10-06, audit 8). The parameters keep the table's columns, the number of
+    components, the inner metric, a checksum of the projection and the groups excluded.
     """
 
     metric: _MultivariateOutcome
@@ -513,6 +515,21 @@ class ComponentsError(OutcomeMetric):
         points = (values - np.array(self.centre)) / np.array(self.scale) @ np.array(self.loadings).T
         frame = pd.DataFrame(points, index=data.objects.index, columns=list(self.metric.features))
         return replace(data, objects=frame, feature_cols=self.metric.features)
+
+    def trained(self, training: ValidatedInput) -> ComponentsError:
+        """The same number of components refitted on ``training`` alone, the fields of one
+        group not held back (owner, 2026-10-06: no held-back field enters the fit). A group
+        too small for the components, or excluded, is not judged."""
+        if self.excluded and self._excluded(training):
+            return self
+        matrix = _matrix(training, self.features)
+        matrix = matrix[~np.isnan(matrix).any(axis=1)]
+        try:
+            centre, scale, loadings = robust_components(matrix, len(self.loadings))
+        except ValueError:  # fewer complete rows than components: not judged here
+            group = tuple((c, str(training.objects[c].iloc[0])) for c in training.group_cols)
+            return replace(self, excluded=(*self.excluded, group))
+        return replace(self, centre=tuple(centre), scale=tuple(scale), loadings=tuple(loadings))
 
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """The inner metric on both samples' components; ``None`` in an excluded group."""

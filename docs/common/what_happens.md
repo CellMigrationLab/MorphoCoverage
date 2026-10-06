@@ -49,7 +49,8 @@ answers are known.
 
 **The control.**
 
-- None: `control=None`.
+- None: `control=None`; comparisons then need explicitly requested contrasts, not yet
+  supported by the report ([below](#d-no-control-declared)).
 - One: `control={"condition": "MOCK"}`.
 - Several: `control={"condition": {control: {treatment: condition} or [conditions]}}`, with
   `control_parents` and `master_control`; they generate the contrast table, or
@@ -67,6 +68,12 @@ the explainable features and centres the non-explainable tables, both described
 centres the tables. `intensity_features`, with several controls, names columns to compare
 between the controls besides every declared column whose name contains "intensity".
 
+**Scale.** `scales={"area": "ratio", "velocity": "difference"}` declares the scale of a
+feature's tests across repeats; a feature not named keeps the automatic rule, the log ratio
+when every observation is positive, else the difference, which the test description says
+once. A declared ratio on a feature with a value that is not positive is refused
+([setup](setup.md#the-setup); plan v2, owner, 2026-10-06).
+
 **Targets** ([what the acquisition must preserve](setup.md#what-must-the-acquisition-preserve)).
 
 - `tolerances`, default 5% and 2.5%: the readout's mean, always declared with a readout.
@@ -76,7 +83,10 @@ between the controls besides every declared column whose name contains "intensit
   target is stated and planned for, not judged.
 - In the guided session, the aim sets the fingerprint: "averages" declares none; "the whole
   distribution" or "both" declares a covariance criterion on the features and one per table
-  at one tolerance, and the default definition of new on the features. "The whole
+  at one tolerance, and the default definition of new on the features. A covariance
+  criterion is named the **covariance fingerprint** in the report, the page and the guided
+  session, since a covariance is not the whole distribution; any other criterion stays "the
+  fingerprint" (plan v2, owner, 2026-10-06). "The whole
   distribution" declares no mean target (`tolerances=()`), so no mean-precision rule, and
   the declaration says so once; "averages" and "both" keep the mean target (owner,
   2026-10-06). Without explainable features the aims are the whole distribution, the
@@ -134,7 +144,7 @@ the contrast table, or the one control.
 
 | Analysis | Values it reads | Level | Correction family | Not run, or not applicable, when |
 | --- | --- | --- | --- | --- |
-| Paired t across repeats, the main rows | raw means per repeat; tested on the log ratio to the own control when every observation of the feature is positive, else the difference, one scale per feature for every condition (owner, 2026-10-06); raw beside | biological repeat | Benjamini-Hochberg over every explainable feature, the label share and every main row, per sub-experiment | fewer than 3 repeats: direction and d only; no repeat holds both: "Not compared" |
+| Paired t across repeats, the main rows | raw means per repeat; tested on the scale declared in `Setup(scales=...)` (plan v2, owner, 2026-10-06), else on the log ratio to the own control when every observation of the feature is positive, else the difference, one scale per feature for every condition (owner, 2026-10-06); raw beside | biological repeat | Benjamini-Hochberg over every explainable feature, the label share and every main row, per sub-experiment | fewer than 3 repeats: direction and d only; no repeat holds both: "Not compared" |
 | `across_normalised` rows | per repeat, each condition's log ratio to its own control, their difference | repeats holding all four | one family over every feature and row of this kind | fewer than 3 repeats: named, not compared; no treatment key: no row |
 | `vs_master_raw` rows | per repeat, the raw difference of a control and the master | repeats holding both | one family over every feature and row of this kind | no master; a pair joined by a parent link |
 | Cell-level screen | observations pooled over repeats, divided by the same repeat's control mean when every control mean is positive; balanced when the repeats are unbalanced | observation | the same family as the paired t | the control pooled from other repeats with no balanced test possible |
@@ -152,11 +162,11 @@ the contrast table, or the one control.
 | Acquisition anomalies | raw field medians of the readout and `features`, each field against the other fields of its condition and repeat: 5 SDs or more, the larger of their robust SD and SD, engineering QC thresholds (owner, 2026-10-06, plan v2) | field | none: quality control in "What is in the dataset", never a biological verdict | no explainable column; a condition and repeat of fewer than 8 fields: counted, not judged |
 | Novelty and the positive control | the declared `features`, MFA across tables, fitted on the visible fields; with `normalize`, normalised for the positive control and the fields to check, raw for the novelty rule, as every stopping rule reads raw values, as live does (the same reading when an analysis group lies in one repeat, the default definition standardising within the group); one observation per field: its field version | field | none | no `novelty` |
 | Maps PCA and UMAP | raw, and divided by the own control whenever a control is declared; robustly standardised | observation | none | fewer than 3 columns in the space |
-| Separation scores | by condition as the figures read them; by repeat always raw; one line with one well per condition and repeat | neighbours outside the field, per repeat | none, descriptive | one condition; a space of fewer than 3 columns, which has no map |
+| Separation scores | by condition as the figures read them; by repeat always raw; one line with one well per condition and repeat, no within-repeat technical replication | neighbours outside the field, per repeat | none, descriptive | one condition; a space of fewer than 3 columns, which has no map |
 | Copy checks | each explainable table apart, or the features as one table | field | none, exact | `integrity=True` not given; the guided session gives it |
 | Duplicated or derived features | every declared column, on all rows and within each experiment | column pair | none, a caution | none |
-| Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap, in the acquisition block of "What is in the dataset" | one control |
-| `optimise` | criteria on held-back fields, divided as the fingerprint; the rules replayed raw | analysis group | none | no target it can judge |
+| Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap, an engineering threshold for quality control, not a test, in the acquisition block of "What is in the dataset" | one control |
+| `optimise` | criteria on held-back fields, divided as the fingerprint, a fingerprint's components refitted on the fields not held back; the rules replayed raw | analysis group | none | no target it can judge |
 | `live_session` | the raw columns of each field | analysis group | none | none |
 
 With the readout as the only explainable column, its own tests are corrected over its
@@ -186,7 +196,8 @@ observations read the readout alone, as the declaration and the report say (owne
 The whole-table headline names a condition shifted the same way in every repeat as a trend
 when no shift is significant, from 6 repeats only, as the per-feature "same direction in
 every repeat, not significant" (owner, 2026-10-06): with fewer, every repeat goes the same
-way without an effect too often (25% with 3 repeats, 13% with 4). The test, its calibration and its words are in
+way without an effect too often, with the exact chance `2^(1-n)` for a feature's `n`
+independent repeats (25% with 3, 12.5% with 4, 3.1% with 6; plan v2, owner, 2026-10-06). The test, its calibration and its words are in
 [the whole-table test](../report/conditions.md#the-whole-table-test-other-feature-tables);
 the spaces and the centred view in
 [feature tables and maps](../report/feature_tables_and_maps.md).
@@ -250,12 +261,12 @@ without explainable features the combined map has a centred view instead (owner,
 
 | Test | Unit of replication | Benjamini-Hochberg family | Role |
 | --- | --- | --- | --- |
-| Paired t on repeat means, main rows | biological repeat, from 3 | every explainable feature, the label share and every main row, per sub-experiment | the verdict, "significant across repeats" |
+| Paired t on repeat means, main rows | biological repeat, from 3 | every explainable feature, the label share and every main row, per sub-experiment | the verdict, "significant across repeats"; with exactly 3 repeats, each repeat's change and the 95% t interval beside it, "very limited biological replication" said once (plan v2, owner, 2026-10-06) |
 | Sign-flip test | biological repeat | the readout's conditions per sub-experiment | in the full report, only where its smallest p can reach 0.05 |
 | `across_normalised`, `vs_master_raw` | biological repeat, from 3 | one family per kind over every feature and row | verdicts across experiments |
 | Whole-table test | biological repeat, from 3 | per table and sub-experiment | the verdict for a table |
-| Beyond the mean | biological repeat | per sub-experiment, its own family | a verdict on the distribution |
-| Population enrichment | biological repeat, from 3 | groups and conditions per sub-experiment | a verdict on a group's share |
+| Beyond the mean | biological repeat | per sub-experiment, its own family | exploratory: on the distribution |
+| Population enrichment | biological repeat, from 3 | groups and conditions per sub-experiment | exploratory: on a group's share |
 | Cell-level screen | observation | the paired t's family | exploratory: candidates |
 | Within one repeat | wells, or fields with `fields_independent` | Bonferroni over the comparisons | descriptive, run only when it can reach 0.05 |
 | Ranking within repeats | wells, or fields | all its tests together | which features to plot |
@@ -263,6 +274,17 @@ without explainable features the combined map has a centred view instead (owner,
 | Whole-table shuffle | wells, else fields | none | exploratory, CSV only |
 | Clustering in fields | field | groups and states | a state called clustered at q 0.05 or less |
 | Acquisition order | field | Bonferroni over its two tests | a caution beside a stop, never a veto |
+
+Exploratory until their module of [the validation protocol](validation.md) validates them
+(plan v2, owner, 2026-10-06): population enrichment, beyond the mean, the covariance
+fingerprint, the rare target and novelty. Each section of the report and of the page that
+answers with one of them says so once, in one sentence pointing to that protocol
+(`workflows._exploratory`).
+
+Benjamini-Hochberg controls the false discovery rate within each family above, never across
+the report: a report of several families can hold more false discoveries overall than any
+one family allows. The report says so once, where it explains its q-values (plan v2, owner,
+2026-10-06).
 
 Descriptive, with no p-value: Cohen's d per repeat, the separation scores, the populations
 and their rules, unusual observations, novelty and the positive control, the label check,
@@ -327,3 +349,9 @@ given to `report`.
   separation.
 - No condition test, no whole-table test, no unusual observations, no normalisation: a
   Setup with `normalize` and no control is refused.
+- "Do the conditions differ?" reads, once: "not applicable: no control is declared:
+  comparisons are available only for explicitly requested contrasts estimable from the
+  repeat design, which the report does not support yet" (plan v2, owner, 2026-10-06; before,
+  "described, not tested"): two conditions in shared repeats are a legitimate direct
+  contrast, which the contrast layer will estimate once validated (module P2 of the
+  [validation protocol](validation.md)); the guided session says the same sentence.

@@ -43,7 +43,16 @@ import numpy as np
 import pandas as pd
 
 from .._style import wrap
-from .._wording import column_word, count, listing, p_value, percent, percent_fine
+from .._wording import (
+    change,
+    column_word,
+    contrasts_words,
+    count,
+    listing,
+    p_value,
+    percent,
+    percent_fine,
+)
 from ..metadata import REPEAT_COLUMN
 from ..schema import observation_words
 from ..statistics import repeat_values
@@ -58,6 +67,18 @@ NOT_SIGNIFICANT = "not significant across repeats"
 NOT_TESTED = "not tested across repeats"
 MIXED = "no consistent direction"
 ONE_REPEAT = "one repeat"
+_VALUES = {
+    None: "values normalised to each repeat's control",
+    "ratio": "values normalised to each repeat's control, as declared in the Setup",
+    "difference": "the differences from each repeat's control, as declared in the Setup",
+}
+# With exactly MIN_REPEATS repeats each verdict shows its repeats' contrasts and the t interval
+# of the effect, and its section says this once (plan v2, owner, 2026-10-06).
+LIMITED_REPLICATION = (
+    f"With {MIN_REPEATS} biological repeats, very limited biological replication: each "
+    "verdict gives the change in each repeat and the 95% t interval of the change, which is "
+    "wide; a change that is not significant is not evidence of no change."
+)
 VERDICTS = (CONFIRMED, CONSISTENT, NOT_SIGNIFICANT, NOT_TESTED, MIXED, ONE_REPEAT)
 # The status of a contrast whose repeat holds no control field (``condition_contrast``).
 NO_CONTROL = "no control group in"
@@ -236,6 +257,27 @@ def change_words(contrast: Any, condition: Any) -> str:
     return f"mean {percent_fine(abs(fold - 1))} {side} than the control"
 
 
+def limited_words(row: Any, values: str) -> str:
+    """``change ×0.82, ×0.75 and ×0.91 in the 3 repeats, ×0.83 overall, 95% t interval
+    ×0.68 to ×1.01``: a verdict on exactly ``MIN_REPEATS`` repeats (``row`` holds
+    ``repeat_contrasts``, ``ci_low``, ``ci_high`` and the change); empty otherwise (plan v2,
+    owner, 2026-10-06)."""
+    text = row.get("repeat_contrasts")
+    if int(row.get("repeats", 0)) != MIN_REPEATS or not isinstance(text, str) or not text:
+        return ""
+    named = "fold_change" if values == "normalised" else "mean_difference"
+    effect = row["change"] if "change" in row else row.get(named)
+    interval = (
+        f", 95% t interval {change(row['ci_low'], values)} to {change(row['ci_high'], values)}"
+        if pd.notna(row.get("ci_low"))
+        else ""
+    )
+    return (
+        f"change {contrasts_words(text, values)} in the {MIN_REPEATS} repeats, "
+        f"{change(effect, values)} overall{interval}"
+    )
+
+
 def _reagents(contrast: Any, condition: Any, word: str) -> str:
     targets = getattr(contrast, "targets", None)
     if targets is None or len(targets) == 0:
@@ -290,6 +332,9 @@ def condition_readings(contrast: Any) -> pd.DataFrame:
                 verdict = CONFIRMED if confirmed else trend if n >= MIN_REPEATS else NOT_TESTED
                 parts = [f"{direction} in {n} of {n} {word}s" + (f" ({d})" if d else "")]
             parts.append(paired)
+            values = "normalised" if pd.notna(row.get("fold_change")) else "raw"
+            limited = limited_words(row, values)
+            parts += [limited] if limited else []
         left_out = _left_out(contrast, condition, str(row["control_condition"]), word)
         parts[1:1] = [left_out] if left_out else []
         cell = _cells(cells.loc[condition] if condition in cells.index else None, words, n == 1)
@@ -389,10 +434,12 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
             "exploratory: it finds candidates, not effects that repeat:"
         )
     else:
+        # What the test compares, with a scale declared in the Setup said (plan v2).
+        values = _VALUES.get(contrast.settings.get("scale"), _VALUES[None])
         head = (
             f"Reading, condition by condition, against {control}. Significant across repeats: "
-            "the paired t-test on the biological repeat means (as SuperPlots; values "
-            "normalised to each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg "
+            f"the paired t-test on the biological repeat means (as SuperPlots; {values}) gives "
+            "q ≤ 0.05 after Benjamini-Hochberg "
             f"{family_words(contrast.settings, own=True)}: this is the result to report. Same "
             "direction, not significant: on one side of the control in every repeat without "
             "reaching q ≤ 0.05, a consistent trend and not evidence of no effect (with 3 "
@@ -407,6 +454,8 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
     lines = [wrap(design + head, indent, hang=indent + 2)] + [
         wrap(f"- {text}", indent + 2, hang=indent + 4) for text in readings["reading"]
     ]
+    if (_direction_rows(contrast)["repeats"] == MIN_REPEATS).any():
+        lines.append(wrap(LIMITED_REPLICATION, indent + 2, hang=indent + 2))
     if unpaired:
         lines.append(wrap(not_compared(unpaired, control, word), indent + 2, hang=indent + 4))
     # Main verdicts joining two controls apart in intensity (owner, 2026-10-05).
@@ -532,6 +581,7 @@ __all__ = [
     "CONFIRMED",
     "CONSISTENT",
     "FEW_CONTROL_FIELDS",
+    "LIMITED_REPLICATION",
     "MIXED",
     "NOT_SIGNIFICANT",
     "NOT_TESTED",
@@ -540,6 +590,7 @@ __all__ = [
     "VERDICTS",
     "change_words",
     "condition_readings",
+    "limited_words",
     "readings_headline",
     "readings_parts",
     "shared_control_line",
