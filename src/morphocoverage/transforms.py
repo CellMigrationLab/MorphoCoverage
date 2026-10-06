@@ -390,8 +390,7 @@ class PCA(FeatureTransform):
 class ColumnWeights(FeatureTransform):
     """Multiply each feature by a fixed, declared weight: nothing is fitted.
 
-    The weight of each column in the weighted combined space of several feature tables
-    (``feature_tables.table_weights``), applied after a standardisation:
+    Fixed weights, applied after a standardisation:
     ``Chain([RobustStandardize(), ColumnWeights(weights)])``. Not fitted when the number of
     features is not the number of weights.
     """

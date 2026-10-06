@@ -254,9 +254,14 @@ PLOTLY_SCRIPT = r"""
     // highlights the condition picked.
     var many = data.colours.indexOf(data.grey) >= 0;
     var height = 600;
+    // An other table's normalised map is its raw one (never divided by a control).
+    function setOf(values, table) {
+      var sets = data.sets[values];
+      if (!data.tables) return sets;
+      return sets[table] || (values === 'normalised' ? data.sets.raw[table] : undefined);
+    }
     function current() {
-      var sets = data.sets[state.values];
-      return (data.tables ? sets[state.table] : sets)[state.method];
+      return setOf(state.values, state.table)[state.method];
     }
     function hiddenConditions() {
       var hidden = {};
@@ -473,14 +478,26 @@ PLOTLY_SCRIPT = r"""
       Plotly.react(node, traces, layout, config);
       describe(null);
     }
+    // A view a table lacks (the centred view of the explainable features): its button off.
+    function sync() {
+      if (!data.tables) return;
+      var have = function (v) { return !!setOf(v, state.table); };
+      if (!have(state.values)) state.values = data.values[0];
+      viz.querySelectorAll('.seg button[data-key="values"]').forEach(function (o) {
+        o.disabled = !have(o.dataset.value);
+        o.setAttribute('aria-pressed', o.dataset.value === state.values ? 'true' : 'false');
+      });
+    }
     viz.querySelectorAll('.seg button').forEach(function (b) {
       b.addEventListener('click', function () {
         state[b.dataset.key] = b.dataset.value;
         viz.querySelectorAll('.seg button[data-key="' + b.dataset.key + '"]').forEach(
           function (o) { o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); });
+        sync();
         draw();
       });
     });
+    sync();
     if (menu) menu.addEventListener('change', function () { state.colour = menu.value; draw(); });
     if (find) find.addEventListener('input', function () {
       var index = data.conditions.indexOf(find.value.trim());

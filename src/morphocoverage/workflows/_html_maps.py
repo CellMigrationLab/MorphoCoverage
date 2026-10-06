@@ -28,11 +28,19 @@ from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import control_mean_problem, normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..sampling_unit.populations import MAX_COMPONENTS, VARIANCE
-from ..separation import K, Separation
 from ._contrasts import left_out_sentence, normalisation_problem
-from ._feature_space import separation_in_report, space_names
+from ._feature_space import centred_tables, features_words, separation_in_report, space_names
 from ._html_data import data_buttons, embedding_data, json_island, write_csv
 from ._html_figures import figure_block, file_stem, save
+from ._html_map_text import (
+    CENTRED,
+    NEIGHBOURS,
+    VALUE_WORDS,
+    combined_words,
+    comparison_table,
+    share_lines,
+)
+from ._population_spaces import found_words
 from ._populations import population_of
 from .figures import colour_note, highlighted
 from .retrospective import Report
@@ -140,8 +148,9 @@ def _set(
     labels = [" · ".join(str(v) for v in row if pd.notna(v)) for row in points[named].values]
     settings = embedding.settings
     n = f"{len(settings['features'])} standardised features"
-    if settings.get("weights"):  # the combined space of several feature tables
-        n += ", each table weighted to the explainable features' total variance"
+    shares = settings.get("table_shares")
+    if shares:  # the combined space of several feature tables (owner, 2026-10-06)
+        n = combined_words(settings["table_columns"])
     if method == "pc":
         first, second = embedding.explained
         loadings = embedding.loadings
@@ -161,7 +170,14 @@ def _set(
             f"PCA of {n} ({values} values): PC1 {percent(first)} and "
             f"PC2 {percent(second)} of the variance{held}; arrows: {drawn}."
         )
-        caption = "\n".join([head, *_loading_lines(loadings, embedding.explained)])
+        # The combined map: each table's share of each axis, not loadings of a table's
+        # columns under arrows of explainable ones (owner, 2026-10-06).
+        shown_lines = (
+            share_lines(shares, embedding.explained)
+            if shares
+            else _loading_lines(loadings, embedding.explained)
+        )
+        caption = "\n".join([head, *shown_lines])
         labels_xy = (f"PC1 ({percent(first)})", f"PC2 ({percent(second)})")
     else:
         arrows = []
@@ -240,6 +256,9 @@ def _tables(
             if unnormalisable is None:
                 normalised = replace(setup, normalize="control_mean")
                 tables["normalised"] = normalised.prepared(objects, fovs)
+    centred = centred_tables(objects, fovs, setup)  # the other tables only (owner, 2026-10-06)
+    if centred is not None:
+        tables["centred"] = centred
     return tables, unnormalisable
 
 
@@ -260,10 +279,10 @@ def _maps(
     maps: dict[str, dict[str, Embedding]] = {}
     for values, table in tables.items():
         maps[values] = {}
-        for name, (columns, weights) in spaces.items():
-            if len(columns) < MIN_FEATURES:
+        for name, (columns, blocks) in spaces.items():
+            if len(columns) < MIN_FEATURES or (values == "centred" and name not in own):
                 continue
-            if name in own and name in maps["raw"]:
+            if name in own and name in maps["raw"] and values != "centred":
                 maps[values][name] = maps["raw"][name]
                 continue
             maps[values][name] = embed(
@@ -273,12 +292,15 @@ def _maps(
                 top=top,
                 carry=carry,
                 random_state=setup.random_state,
-                weights=weights,
+                blocks=blocks,
                 standardised=list(setup.columns) if several else None,
                 **setup.common,
             )
-    for view in maps.values():
-        first = next(iter(view.values())).points.set_index("observation")
+    if not maps.get("centred"):
+        maps.pop("centred", None)
+    for values, view in maps.items():
+        source = maps["raw"] if values == "centred" else view
+        first = next(iter(source.values())).points.set_index("observation")
         explained = [c for c in first.columns if c.startswith("z:")]
         for name, embedding in view.items():
             points = embedding.points.drop(columns=explained, errors="ignore")
@@ -287,25 +309,6 @@ def _maps(
                     embedding, points=points.join(first[explained], on="observation")
                 )
     return maps
-
-
-def _comparison(found: Separation | None) -> str:
-    """The spaces side by side under the maps, the most separating first."""
-    if found is None or not found.spaces["repeats"].any():
-        return ""
-    rows = "".join(
-        f'<tr><td>{html.escape(str(r.space))}</td><td class="num">{r.features}</td>'
-        f'<td class="num">{percent(r.share)}</td><td class="num">{percent(r.chance)}</td>'
-        f'<td class="num">{r.repeats}</td></tr>'
-        for r in found.spaces.sort_values("share", ascending=False).itertuples()
-        if r.repeats
-    )
-    return (
-        "<p><strong>How far the conditions separate in each feature table</strong></p>"
-        '<div class="table-wrap"><table><thead><tr><th>features</th><th>columns</th>'
-        "<th>neighbours sharing the condition</th><th>by chance</th><th>repeats</th></tr>"
-        f"</thead><tbody>{rows}</tbody></table></div>"
-    )
 
 
 def embeddings(
@@ -327,8 +330,11 @@ def embeddings(
     spaces = list(maps["raw"])
     several = len(spaces) > 1
     # How far the conditions separate in each space, under its map (owner, 2026-10-05).
+    own = list(setup.feature_tables or {})
     separations = {
-        values: separation_in_report(table, fovs, setup) for values, table in tables.items()
+        values: separation_in_report(table, fovs, setup, own if values == "centred" else None)
+        for values, table in tables.items()
+        if values in maps
     }
     ranked = list(top) + [f for f in setup.columns if f not in set(top)]
     first = maps["raw"][spaces[0]]
@@ -365,8 +371,14 @@ def embeddings(
             for method, short in (("PCA", "pc"), ("UMAP", "umap"))
         }
 
+    # An other table's normalised map is its raw one: the page draws the raw set for it, not
+    # a second copy (``_html_plotly_script``), which keeps room for its centred view.
     sets = {
-        values: {space: built(values, space) for space in view}
+        values: {
+            space: built(values, space)
+            for space in view
+            if not (values == "normalised" and space in own)
+        }
         if several
         else built(values, spaces[0])
         for values, view in maps.items()
@@ -382,7 +394,7 @@ def embeddings(
             {
                 "name": r.population,
                 "share": round(float(r.share), 4),
-                "defined": r.defined_by,
+                "defined": r.defined_by or found_words(r._asdict()),
                 "kind": r.kind,
             }
             for r in result.results["populations"].populations.table.itertuples()
@@ -401,12 +413,12 @@ def embeddings(
         (values, space, embedding)
         for values, view in maps.items()
         for space, embedding in view.items()
-        if values == "raw" or space not in (setup.feature_tables or {})
+        if values in ("raw", "centred") or space not in own
     ]
     data_files = embedding_data(
         {f"{values}, {s}" if several else values: e for values, s, e in shown}, folder
     )
-    comparison = _comparison(separations[declared]) if several else ""
+    comparison = comparison_table(separations[declared]) if several else ""
     if separations[declared] is not None:
         path = write_csv(separations[declared].table, folder, "separation.csv")
         data_files.append((path, "Neighbours sharing the condition, per repeat (CSV)"))
@@ -426,7 +438,7 @@ def embeddings(
     )
     values_buttons = "".join(
         f'<button type="button" data-key="values" data-value="{v}" '
-        f'aria-pressed="{str(i == 0).lower()}">{v.capitalize()}</button>'
+        f'aria-pressed="{str(i == 0).lower()}">{VALUE_WORDS.get(v, v.capitalize())}</button>'
         for i, v in enumerate(data["values"])
     )
     table_buttons = "".join(
@@ -460,8 +472,9 @@ def embeddings(
         + (f'<p class="note">{html.escape(note)}</p>' if note else "")
         + comparison
         + f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
-        f'<p class="note">{html.escape(_NEIGHBOURS)}</p>'
-        '<p class="note">Both describe, they do not test: a separation is a pattern to read '
+        f'<p class="note">{html.escape(NEIGHBOURS)}</p>'
+        + (f'<p class="note">{html.escape(CENTRED)}</p>' if "centred" in maps else "")
+        + '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "
         + (
             f"repeats, which the normalised values ({_divided(setup, fovs)}) take out.</p></div>"
@@ -483,24 +496,14 @@ def maps_body(setup: Any, viz: str, static: list[str]) -> str:
     intro = f"All {len(setup.columns)} features at once, {words}."
     if setup.feature_tables:
         intro = (
-            f"All {len(setup.columns)} explainable features and the other feature tables "
-            f"({', '.join(setup.feature_tables)}) at once, {words}: the weighted combined map "
-            "first, then one per table."
+            f"All {features_words(setup)} ({', '.join(setup.feature_tables)}) at once, "
+            f"{words}: the weighted combined map first, then one per table."
         )
     return (
         f"<p>{html.escape(intro)}</p>{viz}"
         "<details><summary>Static PCA and UMAP (PNG and PDF)</summary>"
         f'<div class="figures">{"".join(static)}</div></details>'
     )
-
-
-# What the line under each map says (``separation``), once under the maps.
-_NEIGHBOURS = (
-    f"Under each map: of each observation's {K} nearest neighbours among the other observations "
-    "of its biological repeat, the share that have its condition, against that condition's "
-    "share of the repeat, which is what chance gives; the median over the repeats, so a batch "
-    "between repeats cannot pass for a separation. A description, not a test."
-)
 
 
 def _divided(setup: Any, fovs: pd.DataFrame) -> str:

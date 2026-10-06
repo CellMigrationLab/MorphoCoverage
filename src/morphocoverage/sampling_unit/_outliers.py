@@ -179,7 +179,7 @@ def score(
     uniformly (``_leave_one_group_out``); with a single reference group, the
     same with its fields (``_leave_one_field_out``). ``names`` are the feature
     columns, so a reason (a constant feature) names them; ``weights`` multiply the standardised
-    features (the weighted combined space of several feature tables).
+    features, a fixed weight per feature.
     """
     columns = tuple(names) if names is not None else tuple(map(str, range(reference.shape[1])))
     fitted = Standardize().fit_matrix(reference, columns)

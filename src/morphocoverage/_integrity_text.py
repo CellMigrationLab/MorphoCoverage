@@ -100,7 +100,7 @@ def _checked(settings: dict[str, Any], short: bool = False) -> str:
     """What was compared: the exact checks, the fields and observations, the features (named
     in full; counted in the short form when more than two)."""
     features = settings.get("feature_cols") or []
-    if short and len(features) > 2:
+    if short and len(features) > 2 and not settings.get("tables"):
         return (
             f"{count(settings.get('n_fovs', 0), 'field')} and "
             f"{settings.get('n_observations', 0)} "
@@ -122,8 +122,16 @@ def _label(settings: dict[str, Any], name: str, key: str = "field_labels") -> st
 
 
 def _groups(findings: pd.DataFrame) -> DataFrameGroupBy:
-    """The findings by check and pair of groups, in the order found."""
-    return findings.groupby(["check", "group", "other_group"], sort=False)
+    """The findings by check and pair of groups (and table, with several), in the order
+    found."""
+    by = ["check", "group", "other_group", *(["table"] if "table" in findings else [])]
+    return findings.groupby(by, sort=False)
+
+
+def _in(key: tuple[Any, ...]) -> str:
+    """`` in DINOv2``: the table or tables a group of findings was found in (owner,
+    2026-10-06), empty with the explainable features alone."""
+    return f" in {key[3]}" if len(key) > 3 else ""
 
 
 def _between(settings: dict[str, Any], group: str, other: str) -> str:
@@ -155,12 +163,13 @@ def _finding_table(result: IntegrityResult) -> list[str]:
     """Short: one row per check and pair of groups, then the fields named."""
     settings = result.settings
     rows = []
-    for (check, group, other), found in _groups(result.findings):
+    for key, found in _groups(result.findings):
+        check, group, other = key[:3]
         within = check == "repeated within a field"
         observations = sorted({int(n) for n in found["observations"]})
         rows.append(
             [
-                check,
+                check + _in(key),
                 _between(settings, group, other),
                 count(len(found), "field" if within else "pair"),
                 observations[0]
@@ -181,20 +190,22 @@ def _finding_lines(result: IntegrityResult) -> list[str]:
     """Full: one line per finding, or per check and pair of groups when it repeats; capped."""
     settings = result.settings
     lines = []
-    for (check, group, other), rows in _groups(result.findings):
+    for key, rows in _groups(result.findings):
+        check, group, other = key[:3]
+        named = check + _in(key)
         first = rows.iloc[0]
         observations = count(first.observations, "observation")
         if len(rows) == 1:
-            text = f"{check}: {_pair(settings, first)} ({observations}): {first.detail}."
+            text = f"{named}: {_pair(settings, first)} ({observations}): {first.detail}."
         elif check == "repeated within a field":
             text = (
-                f"{check}, {count(len(rows), 'field')} of "
+                f"{named}, {count(len(rows), 'field')} of "
                 f"{_label(settings, group, 'group_labels')}, e.g. {_pair(settings, first)} "
                 f"({observations}): {first.detail}."
             )
         else:
             text = (
-                f"{check}, {count(len(rows), 'pair')} of fields {_between(settings, group, other)}"
+                f"{named}, {count(len(rows), 'pair')} of fields {_between(settings, group, other)}"
                 f", e.g. {_pair(settings, first)} ({observations}): {first.detail}."
             )
         lines.append(text)

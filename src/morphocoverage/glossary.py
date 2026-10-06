@@ -300,10 +300,12 @@ GLOSSARY: tuple[Term, ...] = (
         "Other feature tables and the combined map",
         "Features not read one by one, such as a deep-learning embedding, loaded as named "
         "tables beside the explainable features and never tested feature by feature. Each has "
-        "its own map; the combined map weighs every table as much as the explainable features. "
-        "Under each map, the share of each cell's 10 nearest neighbours in its biological "
-        "repeat that have its condition, against chance: how far the conditions separate in "
-        "that table. Describes, does not test.",
+        "its own map; the combined map weighs every table as much as the explainable features, "
+        "each divided by its first singular value. Under each map, the share of each cell's "
+        "nearest neighbours in its biological repeat, outside its field, that have its "
+        "condition, against chance: how far the conditions separate in that table; and within "
+        "each condition, the share that have its repeat: how far the repeats do. Describes, "
+        "does not test.",
         "The whole dataset at once",
     ),
     Term(

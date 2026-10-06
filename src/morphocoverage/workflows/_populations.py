@@ -15,7 +15,9 @@ and a group most of whose cells carry it (``LABELLED``) is the label's own: its 
 compared in question 9, so it is not tested again here (owner, 2026-10-02). A cell whose
 label is missing is unknown: out of both shares of the overlap (owner, 2026-10-05).
 Each group is a candidate to validate on the images, given with the rule on the features
-that picks out its cells (``sampling_unit._population_rule``).
+that picks out its cells (``sampling_unit._population_rule``). With other feature tables the
+groups are searched in each space apart and merged (``_population_spaces``, owner
+2026-10-06); the enrichment tests then run on the merged list, one family as before.
 """
 
 from __future__ import annotations
@@ -23,20 +25,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
 import pandas as pd
 
-from .._control import comparison_label
 from .._style import Status, table, wrap
 from .._wording import count, listing, p_value, percent, percent_fine
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
-from ..sampling_unit._experiments import corrected, experiments
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
-from ..sampling_unit.populations import Populations, defined_by, find_populations, traits
+from ..sampling_unit.populations import Populations, defined_by, traits
 from ..schema import observation_words, validate_input_tables
-from ..statistics import paired_t
-from ._feature_space import space
 from ._population_rule_words import rule_cell, rule_words
+from ._population_spaces import (
+    described,
+    found_words,
+    populations_in_spaces,
+    space_words,
+    spaces_method,
+    undescribed_line,
+)
+from ._population_tests import enrichment_tests, one_sided
 
 if TYPE_CHECKING:
     from ..retrospective import MicroscopistReport
@@ -66,27 +72,19 @@ def populations_in_report(
 ) -> PopulationsResult | None:
     """The populations and their enrichment (see the module), or ``None`` with fewer than
     two features."""
-    # With other feature tables, on the weighted combined space, the groups named by the
-    # explainable features (owner, 2026-10-05).
-    features, weights = space(setup)
-    if len(features) < 2:
+    # With other feature tables, in each space apart and merged (owner, 2026-10-06).
+    populations = populations_in_spaces(objects, fovs, setup)
+    if populations is None:
         return None
-    populations = find_populations(
-        objects,
-        fovs,
-        features=features,
-        random_state=setup.random_state,
-        weights=weights,
-        named_by=setup.columns,
-        **setup.common,
-    )
     if not populations.names:
         return PopulationsResult(populations, None, None, None)
     # The validated observations: group columns only in the FOV table are attached to them.
-    data = validate_input_tables(objects, fovs=fovs, feature_cols=features, **setup.common)
-    complete = data.objects.loc[~data.objects[features].isna().any(axis=1)]
-    labels = populations.labels.reindex(complete.index)
-    marked = complete.assign(**{name: (labels == name).astype(float) for name in populations.names})
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=setup.columns, **setup.common)
+    # Each group known where its space assessed the cell: 1 in it, 0 not, missing unknown.
+    shares = {name: populations.membership(name) for name in populations.names}
+    marks = pd.DataFrame(shares).reindex(data.objects.index)
+    complete = data.objects.loc[marks.notna().any(axis=1)]
+    marked = complete.assign(**marks.loc[complete.index])
     control = (setup.single_control or {}).get(CONDITION_COLUMN)
     if setup.comparisons is not None:  # several controls: each condition against its own
         control = setup.comparisons
@@ -102,7 +100,7 @@ def populations_in_report(
         flag = complete[setup.rare_label].where(known, False).astype(bool)
         rows = []
         for name in populations.names:
-            inside = (labels == name) & known
+            inside = marked[name].eq(1) & known
             if flag.sum() and inside.sum():
                 rows.append(
                     {
@@ -132,105 +130,6 @@ def tested_populations(populations: Populations) -> list[str]:
     """The populations and groups whose enrichment is tested: all but the main population,
     whose share is all but the complement of the others' (its test would repeat theirs)."""
     return populations.of_kind("group")
-
-
-def _log_odds_ratio(t: Any, c: Any) -> float:
-    """The log odds ratio of the condition's share against its control's in one repeat
-    (``t`` and ``c`` the cells in the population, ``sum``, and the cells, ``count``). One
-    pseudo-cell is added to each side, split by the population's pooled share of that repeat,
-    so a share of 0 has log odds and uneven numbers of cells do not tip the ratio (a fixed
-    half cell would make 1 of 5000 read lower than 0 of 300); 0, no change, when the
-    population is absent from both sides (owner, 2026-10-02: the repeat still counts)."""
-    pooled = (t["sum"] + c["sum"]) / (t["count"] + c["count"])
-    if not pooled > 0:
-        return 0.0
-
-    def odds(k: float, n: float) -> float:
-        return float(np.log((k + pooled) / (n - k + 1 - pooled)))
-
-    return odds(t["sum"], t["count"]) - odds(c["sum"], c["count"])
-
-
-def one_sided(tests: pd.DataFrame) -> pd.Series:
-    """The tests on one side of the control in every repeat, over two or more repeats."""
-    every = (tests["higher"] == tests["repeats"]) | (tests["lower"] == tests["repeats"])
-    return every & (tests["repeats"] >= 2) & (tests["higher"] != tests["lower"])
-
-
-def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd.DataFrame:
-    """Per population and condition, its share against the control's in each biological
-    repeat, on the log-odds scale (a population and its complement alike, a small share as
-    steady as a large one), tested across the repeats: the one-sample t-test on the log odds
-    ratios, Benjamini-Hochberg within each sub-experiment over every population and
-    condition (``_experiments``). ``control`` is the control condition, or with several
-    controls the ``(condition, control)`` pairs: each condition against its own, its rows
-    labelled ``condition vs control`` (owner, 2026-10-05)."""
-    repeat = REPEAT_COLUMN if REPEAT_COLUMN in marked else None
-    keys = [CONDITION_COLUMN, *([repeat] if repeat else [])]
-    # Without a group to test (the declared label's only), the counts are of an empty column.
-    counts = marked.assign(_none=0.0).groupby(keys, dropna=False)[names or ["_none"]]
-    counts = counts.agg(["sum", "count"])
-    if isinstance(control, tuple):
-        pairs = [(comparison_label(c, r), c, r) for c, r in control]
-    else:
-        pairs = [(c, c, control) for c in pd.unique(marked[CONDITION_COLUMN]) if c != control]
-    rows, held, unpaired = [], {}, []
-    for label, condition, own in pairs:
-        repeats = (
-            [
-                r
-                for r in pd.unique(marked[repeat])
-                if (condition, r) in counts.index and (own, r) in counts.index
-            ]
-            if repeat
-            else [None]
-        )
-        if not repeat and not ((condition,) in counts.index or condition in counts.index):
-            continue
-        if not repeats:
-            unpaired.append(label)
-            continue
-        held[label] = set(repeats)
-        for name in names:
-            ratios = []
-            sides = {"t": [0.0, 0.0], "c": [0.0, 0.0]}  # cells in it, cells, on each side
-            for r in repeats:
-                t = counts.loc[(condition, r) if repeat else condition, name]
-                c = counts.loc[(own, r) if repeat else own, name]
-                ratios.append(_log_odds_ratio(t, c))
-                sides["t"] = [sides["t"][0] + t["sum"], sides["t"][1] + t["count"]]
-                sides["c"] = [sides["c"][0] + c["sum"], sides["c"][1] + c["count"]]
-            # Absent from the condition and from its own control in every repeat: nothing
-            # to compare. Absent from both in some repeats: no change there (0), kept in n.
-            ratios = np.array([r for r in ratios if np.isfinite(r)])
-            if not len(ratios) or not sides["t"][0] + sides["c"][0]:
-                continue
-            tested = len(ratios) >= MIN_REPEATS
-            rows.append(
-                {
-                    "feature": name,
-                    "condition": label,
-                    "repeats": len(ratios),
-                    # The sides as the test reads them (the sign of each repeat's ratio).
-                    "higher": int((ratios > 0).sum()),
-                    "lower": int((ratios < 0).sum()),
-                    "d": float(ratios.mean()),
-                    "p_paired": paired_t(ratios) if tested else np.nan,
-                    # Over the condition's repeats: its share and its own control's.
-                    "share": sides["t"][0] / sides["t"][1] if sides["t"][1] else np.nan,
-                    "control_share": sides["c"][0] / sides["c"][1] if sides["c"][1] else np.nan,
-                }
-            )
-    columns = ["feature", "condition", "repeats", "higher", "lower", "d", "p_paired"]
-    tests = pd.DataFrame(rows, columns=[*columns, "share", "control_share"])
-    if len(tests):
-        tests["experiment"] = tests["condition"].map(experiments(held))
-        tests["q_paired"] = corrected(tests["p_paired"], tests["experiment"])
-    else:
-        tests["q_paired"] = pd.Series(dtype=float)
-    # The conditions imaged in no biological repeat of the control: not compared, and said.
-    tests.attrs["unpaired"] = unpaired
-    return tests
 
 
 def _tests(result: PopulationsResult, name: str) -> pd.DataFrame:
@@ -306,7 +205,7 @@ def _finding(result: PopulationsResult, name: str, units: str, trend: bool = Fal
         versus = _versus(t)
         versus = f"{versus}, " if versus else ""
         parts.append(f"{more} common in {t['condition']} ({versus}q {p_value(t['q_paired'])})")
-    feature = traits(row["defining"][:1])
+    feature = traits(row["defining"][:1]) if described(row) else found_words(row, rule=False)
     where = "in every repeat, not significant" if trend else "across repeats"
     share = percent_fine(row["share"])
     return f"{name} ({share} of {units}; {feature}): {listing(parts, 3)} {where}"
@@ -383,6 +282,22 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         f"standardisation; a cluster holds at least {settings['min_cells']} {units}), each "
         "cluster then judged on all the features"
     )
+    if settings.get("spaces"):  # other feature tables: each space apart (owner, 2026-10-06)
+        method = (
+            f"Every condition pooled, clustered {spaces_method(pops, setup)}; in each, HDBSCAN "
+            "on a UMAP of the robust standardisation, each cluster then judged on all its "
+            f"features; groups found in two spaces are one when their {units} overlap with a "
+            f"Jaccard index of {settings['same_group']:g} or more"
+        )
+    if not settings.get("observations") and not settings.get("spaces"):
+        text = wrap(
+            f"{method}: not assessed: no {setup.unit_word} has a value of every feature "
+            f"({count(settings['incomplete_observations'], setup.unit_word)} with a missing "
+            "value).",
+            2,
+            hang=4,
+        )
+        return Status.NOT_ASSESSED, f"not assessed: every {setup.unit_word} misses a value", text
     if not settings.get("clustered", True):
         text = wrap(
             f"{method}: not clustered: too few {units} (or no feature that varies) for two "
@@ -415,7 +330,8 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             r.population,
             _KIND_WORDS.get(r.kind, r.kind),
             f"{r.observations} ({percent_fine(r.share)})",
-            defined_by(r.defining[:2]) or "–",
+            defined_by(r.defining[:2])
+            or ("no rule" if r.kind == "group" and not described(r._asdict()) else "–"),
             percent(r.purity) if pd.notna(r.purity) else "–",
             rule_cell(r),
             r.fields,
@@ -441,7 +357,13 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         "repeats",
         heading,
     ]
+    if settings.get("spaces"):  # where each was found (owner, 2026-10-06)
+        for row, r in zip(rows, pops.table.itertuples(), strict=True):
+            row.insert(3, listing([space_words(x) for x in r.found_in], 8))
+        columns.insert(3, "found in")
     lines.append(table(rows, columns, indent=4))
+    if undescribed_line(pops):
+        lines.append(wrap(undescribed_line(pops), 4, hang=6))
     significant, trend = _verdict(result)
     for name in pops.names:
         row = pops.table.set_index("population").loc[name]
@@ -468,10 +390,14 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
                 parts.append(f"{t['condition']} {side} in every repeat, not significant{inside}")
         if parts:
             rule = rule_words(row, units) if row["rule"] else ""
+            what = (
+                " and ".join(defined_by(row["defining"][:2]).split(", "))
+                if described(row)
+                else found_words(row, rule=False)
+            )
             lines.append(
                 wrap(
-                    f"- {name}, {percent_fine(row['share'])} of {units}, "
-                    f"{' and '.join(defined_by(row['defining'][:2]).split(', '))}: "
+                    f"- {name}, {percent_fine(row['share'])} of {units}, {what}: "
                     f"{'; '.join(parts)}." + (f" {rule[:1].upper()}{rule[1:]}." if rule else ""),
                     4,
                     hang=6,
@@ -564,8 +490,10 @@ def population_of(result: PopulationsResult | None, objects: pd.DataFrame) -> pd
 __all__ = [
     "LABELLED",
     "PopulationsResult",
+    "enrichment_tests",
     "label_words",
     "labelled_populations",
+    "one_sided",
     "only_labelled",
     "population_of",
     "populations_in_report",
