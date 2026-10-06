@@ -1,7 +1,7 @@
 {
  "name": "a18_tagged_none_image_tech_fp_expl",
  "kind": "axes",
- "checks": "features; no condition test; the questions about fields not applicable; a fingerprint on the explainable features",
+ "checks": "features; no condition test; the field questions on the images; a fingerprint on the explainable features",
  "axes": {
   "tables": "tagged",
   "controls": "none",
@@ -51,7 +51,8 @@
    "overview",
    "populations",
    "separation",
-   "sufficiency"
+   "sufficiency",
+   "variability"
   ],
   "absent": [
    "clustering",
@@ -62,13 +63,10 @@
    "object_rules",
    "rare_clustering",
    "unusual",
-   "variability",
    "whole_table"
   ],
   "not_applicable": {
-   "conditions": "needs a control",
-   "profile": "one image per field",
-   "unit": "each field holds one"
+   "conditions": "needs a control"
   },
   "table_column": true,
   "headlines": {

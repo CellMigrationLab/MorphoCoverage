@@ -374,7 +374,9 @@ def _novel(
     unit, words = observation_words(data)
 
     def detail(fov: int, held: int) -> str:
-        text = f"{count(held, unit, words)} of a state no other field shows"
+        others = novelty.min_other_fovs  # more than 1 with one observation per field
+        shown = "no other field shows" if others == 1 else f"fewer than {others} other fields show"
+        text = f"{count(held, unit, words)} of a state {shown}"
         if labelled is not None and labelled[fov]:
             # The new state is the declared label: say so, it is what the user looks for.
             text += f" ({'all' if labelled[fov] == held else labelled[fov]} labelled {label_col})"

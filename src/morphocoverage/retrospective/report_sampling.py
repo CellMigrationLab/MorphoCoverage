@@ -46,6 +46,7 @@ from ..sampling_unit._unit_text import (
     descriptor_spread_parts,
     object_rule_full,
     object_rule_parts,
+    one_per_field_rows,
     variability_full,
     variability_parts,
 )
@@ -275,8 +276,9 @@ def _fields_line(profile: pd.DataFrame, variability: Any, observations: str) -> 
     """How much more a mean from whole fields varies, over the groups (or per stratum)."""
     if variability is not None:
         ok = variability.groups[variability.groups["status"] == "ok"]
-        if not len(ok):
-            return []
+        if not len(ok):  # one observation per field: the fields are the observations
+            rows = one_per_field_rows(variability, observations)
+            return [f"Fields: {row['statement']}." for row in rows]
         effects = ok["design_effect"].astype(float)
         shares = pd.to_numeric(ok["unusual_fov_share"], errors="coerce").dropna()
         differ = (
@@ -295,27 +297,36 @@ def _fields_line(profile: pd.DataFrame, variability: Any, observations: str) -> 
     return [f"Fields ({row.where}): {row.statement}." for row in rows.itertuples()]
 
 
+def _unusual_share(unusual: Any, words: str) -> str:
+    """`` (farther from the siCTRL reference than all but 1% of its cells; 0-9% of each
+    group)``, empty when no group was scored."""
+    ok = unusual.groups[unusual.groups["status"] == "ok"] if unusual is not None else []
+    if not len(ok):
+        return ""
+    shares = span([float(v) for v in ok["unusual_share"]], "percent")
+    settings = unusual.settings
+    # Each against its own control with several; names joined by "/", never a tuple.
+    reference = (
+        "each against its own control, farther from it"
+        if settings.get("own")
+        else f"farther from the {control_name(settings['reference'])} reference"
+    )
+    exploratory = "exploratory, " if settings.get("exploratory") else ""
+    return (
+        f" ({exploratory}{reference} than all but {percent(settings['quantile'])} of its "
+        f"{words}; {shares} of each group)"
+    )
+
+
 def states_lines(clustering: Any, unusual: Any, words: str) -> list[str]:
-    """The labelled states over the fields, one line per state: where they cluster."""
+    """The labelled states over the fields, one line per state: where they cluster; without
+    clustering (one observation per field), the unusual observations' share alone."""
     if clustering is None:
-        return []
+        share = _unusual_share(unusual, words)
+        named = unusual.settings.get("words", words) if unusual is not None else words
+        return [f"Unusual {named}{share}."] if share else []
     keys = list(clustering.group_cols)
-    share = ""
-    if unusual is not None:
-        ok = unusual.groups[unusual.groups["status"] == "ok"]
-        if len(ok):
-            shares = span([float(v) for v in ok["unusual_share"]], "percent")
-            settings = unusual.settings
-            # Each against its own control with several; names joined by "/", never a tuple.
-            reference = (
-                "each against its own control, farther from it"
-                if settings.get("own")
-                else f"farther from the {control_name(settings['reference'])} reference"
-            )
-            share = (
-                f" ({reference} than all but "
-                f"{percent(settings['quantile'])} of its {words}; {shares} of each group)"
-            )
+    share = _unusual_share(unusual, words)
     lines = []
     for state, block in clustering.table.groupby("state", sort=False):
         seen = block[block["state_objects"] > 0]
@@ -449,6 +460,19 @@ def _seen_states(clustering: Sequence[Any], words: str) -> str:
     return listing(list(dict.fromkeys(names)), 3) or "labelled states"
 
 
+def unusual_alone(unusual: Any, clustering: Sequence[Any] = ()) -> str:
+    """``unusual images 0-8% of each group (exploratory)`` when unusual observations were
+    scored without a clustering in fields (one observation per field), else empty."""
+    if unusual is None or any(c is not None for c in clustering):
+        return ""
+    ok = unusual.groups[unusual.groups["status"] == "ok"]
+    if not len(ok):
+        return ""
+    shares = span([float(v) for v in ok["unusual_share"]], "percent")
+    words = unusual.settings.get("words") or observation_words(unusual.settings)[1]
+    return f"unusual {words} {shares} of each group (exploratory)"
+
+
 def profile_answer(profile: pd.DataFrame, clustering: Sequence[Any], unusual: Any) -> list[str]:
     """The parts of question 3's headline (``report_status.profile_status``)."""
     names, clustered, seen = clustered_states(clustering)
@@ -458,6 +482,7 @@ def profile_answer(profile: pd.DataFrame, clustering: Sequence[Any], unusual: An
         words = _unit(clustering, unusual)
         effect = float(fields["value"].iloc[0])
         parts.append(f"whole fields {effect:.1f}x as variable as random {words}")
+    parts += [alone] if (alone := unusual_alone(unusual, clustering)) else []
     parts += names
     if seen and not clustered:
         words = _unit(clustering, unusual)
@@ -487,4 +512,5 @@ __all__ = [
     "unit_full",
     "unit_short",
     "unstable_labels",
+    "unusual_alone",
 ]

@@ -80,14 +80,84 @@ def join(
 # --- Field variability --------------------------------------------------------
 
 
+# ``variability.ONE_PER_FIELD``, not imported: ``variability`` imports this module.
+_ONE_PER_FIELD = "one observation per field"
+
+
 def _variability_rows(result: Any) -> tuple[list[dict], list[dict]]:
     rows = result.groups.to_dict("records")
     return rows, [row for row in rows if row["status"] == "ok"]
 
 
+def _single_rows(rows: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    """The groups whose every field holds one observation (``variability.ONE_PER_FIELD``)."""
+    return [row for row in rows if row["status"] == _ONE_PER_FIELD]
+
+
+def _cv(row: Mapping[str, Any]) -> float | None:
+    """The spread over fields as a share of the mean, ``None`` for a mean of 0."""
+    mean = float(row["mean"])
+    return float(row["fov_mean_sd"]) / abs(mean) if mean else None
+
+
+def _single_parts(result: Any, rows: Sequence[Mapping[str, Any]], indent: int) -> list[str]:
+    """One observation per field (owner, 2026-10-06): the spread over fields, which is the
+    observations' own, with a design effect of 1 by construction; one sentence, one table."""
+    unit, words = observation_words(result.settings)
+    keys = list(result.group_cols)
+    feature = result.settings["feature"]
+    cvs = [c for c in (_cv(r) for r in rows) if c is not None]
+    spread = (
+        f" The fields spread by {span(cvs, 'percent')} of their mean (the SD over fields; "
+        f"median {percent(float(pd.Series(cvs).median()))}, over {count(len(rows), 'group')})."
+        if cvs
+        else ""
+    )
+    answer = (
+        f"How variable are the fields ({feature})? Each field holds one {unit}, so fields and "
+        f"{words} coincide: a mean from whole fields is a mean of as many random {words} "
+        f"(design effect 1), and SD / sqrt(n), n the fields, is its error.{spread}"
+    )
+    lines = [wrap(answer, indent, hang=indent + 2)]
+    cells = [
+        [
+            _group(r, keys),
+            int(r["fovs"]),
+            f"{float(r['mean']):.3g}",
+            f"{float(r['fov_mean_sd']):.3g}",
+            percent(c) if (c := _cv(r)) is not None else None,
+        ]
+        for r in rows
+    ]
+    columns = ["group", "fields", "mean", "SD over fields", "CV"]
+    lines.append(table(cells, columns, indent=indent + 2, align="lrrrr"))
+    return lines
+
+
+def one_per_field_rows(result: Any, observations: str) -> list[dict]:
+    """The sampling profile's row for groups of one observation per field (none without):
+    fields and observations coincide, a design effect of 1 (``report_profile``)."""
+    single = _single_rows(result.groups.to_dict("records"))
+    if not single:
+        return []
+    return [
+        {
+            "item": "fields against random objects",
+            "where": count(len(single), "group"),
+            "value": 1.0,
+            "statement": (
+                f"each field holds one of the {observations}, so a mean from whole fields is "
+                f"one of as many random {observations} (design effect 1)"
+            ),
+            "source": "fov_variability",
+        }
+    ]
+
+
 def _variability_cautions(result: Any, rows: list[dict], words: str) -> list[str]:
     keys = list(result.group_cols)
-    cautions = _by_reason([r for r in rows if r["status"] != "ok"], keys, "not estimated")
+    unanswered = [r for r in rows if r["status"] not in ("ok", _ONE_PER_FIELD)]
+    cautions = _by_reason(unanswered, keys, "not estimated")
     missing = [r for r in rows if int(r.get("missing_values") or 0)]
     if missing:
         numbers = [int(r["missing_values"]) for r in missing]
@@ -119,6 +189,10 @@ def variability_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str
             f"{_ones(effects)} times the variance of one from as many random {words} (median "
             f"{_one(median)}, over {count(len(ok), 'group')}), so SD / sqrt(n) understates "
             f"its error up to {_one(max(ratios))}-fold."
+        )
+    elif _single_rows(rows):
+        return _single_parts(result, _single_rows(rows), indent), _variability_cautions(
+            result, rows, words
         )
     else:
         answer = f"How variable are the fields ({feature})? Not estimated in any group."
@@ -154,7 +228,10 @@ def variability_full(result: Any, indent: int = 0) -> str:
     """Every number of ``fov_variability``, one row per group."""
     words = observation_words(result.settings)[1]
     keys = list(result.group_cols)
-    rows, _ = _variability_rows(result)
+    rows, ok = _variability_rows(result)
+    if not ok and _single_rows(rows):  # one observation per field: the short form is all
+        lines = _single_parts(result, _single_rows(rows), indent)
+        return join(lines, _variability_cautions(result, rows, words), indent, "full")
     head = (
         f"How variable are the fields? Feature {result.settings['feature']}; analysis "
         f"groups: {group_columns(keys)}."

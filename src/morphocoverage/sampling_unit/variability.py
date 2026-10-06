@@ -26,7 +26,11 @@ This is a description of the acquired fields. It does not say why fields
 differ (biology, density, illumination, focus, edge effects) and does not
 make neighbouring fields independent: whole-field resampling can itself be
 optimistic when neighbours are correlated (AGENTS.md section 3).
-Observations with a missing value are left out, counted (``missing_values``)
+When every field of a group holds one observation (one cell per image), the fields are the
+observations: the group's spread over fields is their SD, a mean from whole fields is one of as
+many random observations (design effect 1), and its status is ``ONE_PER_FIELD``; the split
+between and within fields, and the fields that differ, cannot be measured (owner,
+2026-10-06). Observations with a missing value are left out, counted (``missing_values``)
 and stated in the summary. A feature that does not vary beyond rounding (a
 constant such as 0.1 leaves components of about 1e-17) is reported as
 constant, with no intraclass correlation or design effect. Zero-observation
@@ -51,6 +55,9 @@ from ._common import groups, validated
 from ._unit_text import join, variability_full, variability_parts
 
 UNUSUAL_Z = 1.96
+# The status of a group whose every field holds one observation: its spread over fields is
+# measured, its split between and within fields cannot be (owner, 2026-10-06).
+ONE_PER_FIELD = "one observation per field"
 
 
 @dataclass(frozen=True)
@@ -76,6 +83,27 @@ class FOVVariability:
         if check_detail(detail) == "full":
             return variability_full(self)
         return join(*variability_parts(self))
+
+
+def _one_per_field(row: dict[str, Any], filled: list[np.ndarray]) -> dict[str, Any]:
+    """A group whose every field holds one observation: the fields are the observations, so
+    the spread over fields is their SD and a mean from whole fields is one of as many random
+    observations (design effect 1, exactly); no within-field part to compare with (owner,
+    2026-10-06: the field questions run on the rows as fields)."""
+    values = np.concatenate(filled)
+    sd = float(values.std(ddof=1))
+    constant = spread_is_zero(sd, values)
+    row.update(
+        {
+            "mean": float(values.mean()),
+            "object_sd": sd,
+            "fov_mean_sd": sd,
+            "design_effect": None if constant else 1.0,
+            "error_ratio": None if constant else 1.0,
+            "status": "the feature is constant" if constant else ONE_PER_FIELD,
+        }
+    )
+    return row
 
 
 def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -108,8 +136,7 @@ def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str
         row["status"] = "fewer than 2 fields with observations"
         return row, fov_rows
     if observations <= len(filled):
-        row["status"] = "every field holds a single observation"
-        return row, fov_rows
+        return _one_per_field(row, filled), fov_rows
     values = np.concatenate(filled)
     codes = np.repeat(np.arange(len(filled)), [len(f) for f in filled])
     v_fov, v_obs = nested_variance_components(values, [codes])
@@ -189,4 +216,4 @@ def fov_variability(
     return FOVVariability(pd.DataFrame(group_rows), pd.DataFrame(fov_rows), tuple(keys), settings)
 
 
-__all__ = ["FOVVariability", "fov_variability"]
+__all__ = ["ONE_PER_FIELD", "FOVVariability", "fov_variability"]

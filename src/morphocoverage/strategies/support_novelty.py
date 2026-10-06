@@ -24,7 +24,12 @@ cluster: they are linked by chains of steps of at most ``epsilon`` between
 novel observations of that FOV (single linkage at the same resolution). So
 ``m`` new objects must resemble each other, and scattered outliers (debris,
 segmentation errors) do not add up to a phenotype however many there are.
-With ``min_novel_observations=1`` any novel observation counts. Acquired FOVs
+With ``min_novel_observations=1`` any novel observation counts. When every visible FOV
+with observations holds exactly one (one cell per image), a cluster of ``m`` in one FOV
+cannot occur, so the estimator, ``novel_fovs_against`` and ``novel_observation_flags`` read
+the definition on fields (``per_field``): an observation is new when no other FOV holds one
+within ``epsilon``, a state seen once (owner, 2026-10-06, plan v2), the same in the report,
+``optimise``, ``benchmark`` and a live session. Acquired FOVs
 without observations count in the denominator, since the next FOV may be
 empty too.
 
@@ -124,8 +129,8 @@ matrix for small groups, or bounded nearest-neighbour queries per FOV (about
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, replace
+from typing import Any, TypeVar
 
 import numpy as np
 
@@ -169,6 +174,28 @@ def _check(
             raise ValueError(f"{label} must be at least {minimum}")
     if transform is not None and not isinstance(transform, FeatureTransform):
         raise TypeError("transform must be a FeatureTransform or None (raw feature units)")
+
+
+_Novelty = TypeVar("_Novelty", "SupportNoveltyEstimator", "SupportNoveltyStrategy")
+
+
+def per_field(novelty: _Novelty) -> _Novelty:
+    """The definition of new on fields of one observation each (owner, 2026-10-06, plan v2):
+    a new state's ``min_novel_observations`` similar observations cannot sit in one field, so
+    an observation is new when no other field holds one within ``epsilon`` (a state seen
+    once): ``min_other_fovs`` 1 and ``min_novel_observations`` 1, the radius, transform and
+    confidence kept. Unchanged when the definition already needs one observation."""
+    if novelty.min_novel_observations <= 1:
+        return novelty
+    fewest = max(novelty.min_fovs, 2)
+    return replace(novelty, min_other_fovs=1, min_novel_observations=1, min_fovs=fewest)
+
+
+def one_per_field(data: ValidatedInput) -> bool:
+    """Whether every field of ``data`` with observations holds exactly one."""
+    positions = fov_positions(data, data.fovs)
+    counts = np.bincount(positions[positions >= 0])
+    return bool(len(counts)) and int(counts.max()) == 1
 
 
 def _check_novel(min_novel_observations: int) -> None:
@@ -271,7 +298,10 @@ class SupportNoveltyEstimator(Estimator):
         }
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
-        """The leave-one-FOV-out novel fractions of observations and of FOVs."""
+        """The leave-one-FOV-out novel fractions of observations and of FOVs; on fields of
+        one observation each, by ``per_field``'s definition, as every workflow judges it."""
+        if self.min_novel_observations > 1 and one_per_field(data):
+            return per_field(self).estimate(data, objective=objective)
         matrix = data.feature_matrix()
         missing = missing_values_reason(matrix, data.feature_cols)
         if missing:
@@ -345,6 +375,8 @@ class SupportNoveltyEstimator(Estimator):
         callers check ``estimate`` first. Both inputs must have the same feature
         columns in the same order, the coordinates the distances are taken in.
         """
+        if self.min_novel_observations > 1 and one_per_field(visible):
+            return per_field(self).novel_fovs_against(visible, new)
         if tuple(new.feature_cols) != tuple(visible.feature_cols):
             raise ValueError(
                 f"new has feature columns {list(new.feature_cols)}, visible "
@@ -385,8 +417,11 @@ class SupportNoveltyEstimator(Estimator):
         The per-observation flags behind the estimate, for inspecting which
         objects were counted as new; ``None`` when the estimate is unavailable.
         With ``new_states_only``, only the novel observations that form a new
-        state (a cluster of at least ``min_novel_observations``) are flagged.
+        state (a cluster of at least ``min_novel_observations``) are flagged. On fields of
+        one observation each, by ``per_field``'s definition.
         """
+        if self.min_novel_observations > 1 and one_per_field(data):
+            return per_field(self).novel_observation_flags(data, new_states_only=new_states_only)
         matrix = data.feature_matrix()
         positions = fov_positions(data, data.fovs)
         minimum = self._minimum_fovs
@@ -517,4 +552,6 @@ __all__ = [
     "new_state_members",
     "novel_against",
     "novel_observations",
+    "one_per_field",
+    "per_field",
 ]

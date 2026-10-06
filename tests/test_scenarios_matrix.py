@@ -81,7 +81,8 @@ def _sections(result: Any, truth: dict[str, Any]) -> None:
         assert part in result.document.headlines[question]
     for part in truth.get("overview", ()):
         assert part in result.document.overview
-    full = result.summary("full") if "full" in truth else ""
+    # Flattened: a sentence wraps where its words fall, so a part may straddle two lines.
+    full = " ".join(result.summary("full").split()) if "full" in truth else ""
     for part in truth.get("full", ()):
         assert part in full, part
     if "controls_status" in truth:

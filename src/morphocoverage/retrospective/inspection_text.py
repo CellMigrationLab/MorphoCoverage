@@ -132,6 +132,9 @@ def _reason_words(result: Any, reason: str) -> str:
     """A reason in a few words; the report's influence is on the result, not a summary."""
     if reason == "influence" and result.settings.get("influence_on") == "result":
         return "sways the result"
+    others = int((result.settings.get("novelty") or {}).get("min_other_fovs", 1))
+    if reason == "new state" and others > 1:  # one observation per field (plan v2)
+        return f"a state fewer than {others} other fields show"
     return _REASON_WORDS.get(reason, reason)
 
 

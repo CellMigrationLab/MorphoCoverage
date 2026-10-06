@@ -17,7 +17,7 @@ questions of [optimise](../optimise/optimise.md).
 | R1 | **Can my analysis detect the phenotype I care about?** Does the selected representation detect a declared positive control, and at what false-alarm rate? | `representation_control`: detection and false-alarm rates for declared controls, or "not assessed"; the unseen-state bound divided by the detection rate | done, for declared controls only |
 | R2 | **Did I image enough?** With a control and other conditions, first: do the fields acquired resolve the difference from the control in each repeat (the 95% interval of d from the fields resampled as acquired excludes 0), and if not, about how many fields a side would; `sampling_unit.contrast_sampling`, `retrospective.report_resolved` ([Did I image enough?](did_i_image_enough.md)). Then, separately, for the average or common phenotype, the phenotype distribution, and rare or minority phenotypes. | `sufficiency_report` (what each criterion says, by its own threshold), `adequacy_points` (when held-back FOVs confirmed it) | average: done. Distribution: partial (criteria exist; judged only through distribution distances, which are not zero-centred; the report estimates each well's fingerprint error from split halves of its fields, and compares the distributions between conditions beyond the mean in R7). Rare: with a label, the report says per well whether it was seen in `k` fields and the fields to see it from its observed field incidence; without one, partial (states seen in few FOVs and a planning line). **Benchmark** |
 | R3 | **Would another representative FOV likely have shown something new?** What phenotype information might still be missing? | next-FOV novelty chance with its nominal bound, checked by `calibrate_next_fov_novelty`; what the FOVs rule out (about 3 / k) | done. **Benchmark** (calibration of a probability) |
-| R4 | **What is limiting my sampling?** Too few FOVs, strong FOV heterogeneity, spatial correlation, rare-state clustering, or a poor representation? | the sampling profile of `microscopist_report`: design effect, variance components, redundancy distance, control detection, fields with new states; rare-state clustering by field (`sampling_unit.fov_clustering`, on labels from `unusual_objects` or any other source): field incidence against random objects, and the fields needed to see the state | done; clustering is only as good as its labels |
+| R4 | **What is limiting my sampling?** Too few FOVs, strong FOV heterogeneity, spatial correlation, rare-state clustering, or a poor representation? | the sampling profile of `microscopist_report`: design effect, variance components, redundancy distance, control detection, fields with new states; rare-state clustering by field (`sampling_unit.fov_clustering`, on labels from `unusual_objects`, which the report reads on values relative to each own control in its repeat and calls exploratory, plan v2, or any other source): field incidence against random objects, and the fields needed to see the state | done; clustering is only as good as its labels |
 | R5 | **Which FOVs should I go back and inspect?** Unique states, strong influence, disagreement with neighbours, empty or unusual fields, copied fields. | `inspect_fovs`, one reason per line, no combined score, no FOV called an artifact; with `report(..., integrity=True)`, the fields the exact data-integrity checks name (`integrity_checks`: copied, reordered or scaled fields, shared or repeated observations, repeated summaries; [Data integrity](integrity.md)) are listed with them | done |
 | R6 | **What can this dataset not tell me?** For example: too shallow to assess a 1% state, no positive control, no stage coordinates, only one biological repeat. | the closing section of `microscopist_report`, "What this dataset cannot tell me": every question not assessed with what it needs, then the notes to read the answers with (among them the fields the integrity checks name, which every answer still counts as independent fields); ceilings stay beside the curves they cap | done |
 | R7 | **Do the conditions differ, and how confidently?** Each condition against its control: across the biological repeats first, the repeat as the replicate (SuperPlots): the direction in every repeat, the per-repeat d and from 3 repeats the paired t-test on the repeat means, raw and normalised; beside it, the lab's Plot&Stats cell-level test, labelled with its chance of p ≤ 0.05 without an effect, and balanced when the repeats are not; within each repeat, the tests over whole technical repeats; with a `target` column, the reagents of one target; with several features, which of them separate the conditions; and the plan of the next experiment at the design the user ran. The tests, their assumptions and limitations, and what the report and the page show: [Do the conditions differ?](conditions.md). | `sampling_unit.condition_contrast`, `sampling_unit.feature_discovery`, `sampling_unit.feature_ranking`; section 9 of `microscopist_report`; run by the `report` workflow whenever a control condition is declared and others exist | done, descriptive: what these fields support about a difference under this feature; generalizing needs independent repeats. Whether `k` fields a side preserve each repeat's difference from the control is `retrospective.effect_preservation` (standalone; in OPTIMISE once the multi-group outcome contract is settled, open work item 2) |
@@ -60,10 +60,19 @@ resampling and replay the rule stays absolute: the objects of one field
 enter together and are never drawn, bootstrapped or revealed individually.
 
 When every field holds one observation (one cell per image, as in manual
-single-cell imaging), fields and observations coincide: the Foundation and R3
-say so in one line (not applicable, not a caution), the field analyses are not
-run, a definition of new that needs several similar observations in one field
-is left out of R2 with a note, and R7 shows one d (`workflows._shared.one_per_field`).
+single-cell imaging), fields and observations coincide, and the field questions
+run on the rows as fields (owner, 2026-10-06, replacing the earlier "not
+applicable"): the Foundation gives the spread over fields (a design effect of 1
+by construction), R4 the unusual images, R2 and R3 novelty across fields with the
+field version of the definition of new (a field's observation is new when no
+other field holds one within the radius: a state seen once, exploratory until
+module P10 of the validation protocol; `support_novelty.per_field`, which the
+estimator applies on such data, so `optimise`, `benchmark` and a live session
+judge it alike), R1 the positive control judged by it, and R7 one d
+(`workflows._one_per_field`). Only the ideas within a field are said not to apply,
+once: unusual cells or a labelled state clustering in a few fields, and the
+count rule checked with whole fields (random cells and whole fields are the same
+draws).
 
 The Foundation reports, per analysis group: objects per field; the
 between-field share of variance, the design effect and the fields that
@@ -104,7 +113,12 @@ that repeat one measurement, one row per group: copies, exact affine relations s
 1 − x or a change of units, and near copies at |r| ≥ 0.999, so that one measurement counts
 several times in each test family, and with several controls also within each
 experiment, a relation found there only named with where it holds; nothing is dropped,
-keep one of them, owner 2026-10-05)
+keep one of them, owner 2026-10-05); and the **acquisition anomalies**, on the raw values
+as quality control, never a biological verdict: the fields 5 SDs or more (an engineering
+QC threshold) from the other
+fields of their condition and repeat (the larger of their robust SD and SD, in groups of 8
+fields or more; `sampling_unit.acquisition`), and with several controls the controls apart
+in intensity (owner, 2026-10-06, plan v2)
 and a line naming what
 was not declared and so not checked; the tables, what was checked (the
 declaration in short lines) and the declaration in full are under "Show more".

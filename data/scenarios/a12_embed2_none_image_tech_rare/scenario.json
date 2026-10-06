@@ -1,7 +1,7 @@
 {
  "name": "a12_embed2_none_image_tech_rare",
  "kind": "axes",
- "checks": "embedding-only report; no condition test; the questions about fields not applicable; the rare label's share and clustering",
+ "checks": "embedding-only report; no condition test; the field questions on the images; the rare label's share and clustering",
  "axes": {
   "tables": "embed2",
   "controls": "none",
@@ -50,7 +50,6 @@
    "object_rules",
    "sufficiency",
    "unusual",
-   "variability",
    "whole_table"
   ],
   "not_applicable": {
@@ -58,8 +57,8 @@
    "controls": "no explainable features",
    "enough": "Per feature",
    "inspect": "no explainable features",
-   "profile": "one image per field",
-   "unit": "each field holds one"
+   "profile": "against the control",
+   "unit": "no explainable features"
   },
   "table_column": false,
   "separation_spaces": [

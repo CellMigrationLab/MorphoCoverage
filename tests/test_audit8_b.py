@@ -161,12 +161,16 @@ def test_seed3_b4_one_image_per_field_says_why_and_declares_only_what_runs():
         result = report(objects, fovs, setup)
     full = " ".join(result.summary(detail="full").split())
     short = " ".join(result.summary().split())
-    assert "no check could be made" not in full and "controls" not in result.results
-    assert "the positive control is judged by the definition of new" in short
+    # One observation per field (owner, 2026-10-06, plan v2, replacing the earlier "not
+    # applicable"): the positive control is judged by the field version of new, and the
+    # unusual images run; only the clustering within fields is said not to apply.
+    assert "no check could be made" not in full and "controls" in result.results
+    assert result.results["controls"].status != "not assessed"
     for text in (full, short):
-        assert "for unusual images" not in text and "Report-only rule" not in text
-        assert "Positive control: fields of" not in text
-        assert "unusual images are not assessed, as each field holds one image" in text
+        assert "for unusual images" in text and "Positive control: fields of" in text
+        assert "exploratory (new: an image that no other field shows)" in text
+        assert "unusual images are not assessed" not in text
+    assert "cluster in a few fields is not applicable: each field holds one image" in short
 
 
 def test_seed3_seed18_b12_embedding_only_gives_the_real_reason():
@@ -185,12 +189,13 @@ def test_seed3_seed18_b12_embedding_only_gives_the_real_reason():
     assert "2. Did I image enough? — not applicable: no target declared; declare the" in short
     assert "fingerprint) or a labelled phenotype (rare with rare_label)" in short
     assert "unusual images not assessed without a control" in short
-    # One image per field: the reason, in question 3 and the Foundation, as in any report.
+    # One image per field: the unusual images run (plan v2), only their clustering within
+    # fields is said not to apply; the Foundation needs explainable features.
     short = " ".join(single.summary().split())
-    assert "3. What limits my sampling? — not applicable: with one image per field" in short
-    assert "Foundation. Why count fields? — not applicable: each field holds one image" in short
-    assert "unusual images not assessed, as each field holds one image" in short
-    assert "the copy checks, unusual observations" not in short
+    assert "3. What limits my sampling? — unusual images" in short
+    assert "cluster in a few fields is not applicable: each field holds one image" in short
+    assert "Foundation. Why count fields? — not applicable: no explainable features" in short
+    assert "unusual images on the 6 columns of T (relative to the control of each repeat" in short
 
 
 def test_b8_b9_embedding_only_values_and_space_are_said_as_they_are():
@@ -199,7 +204,9 @@ def test_b8_b9_embedding_only_values_and_space_are_said_as_they_are():
     assert "Values: as given (not normalised)" not in full
     assert "Values: the other feature tables centred per biological repeat" in full
     # One table: its columns, not a weighted combined space.
-    assert "unusual cells on the 12 columns of DINO, no definition of new" in full
+    space = "unusual cells on the 12 columns of DINO (relative to the control of each repeat; "
+    assert space in full
+    assert "exploratory), no definition of new" in full
     assert "weighted combined space" not in full
 
 

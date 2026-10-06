@@ -73,7 +73,10 @@ copied cell row planted in the CDM tables.
 3. **One observation per field (two of three datasets).** The Foundation, clustering of unusual
    cells, novelty ("3 similar cells in a field") and the d-cells / d-fields columns are
    structurally inapplicable, yet they show as ⚠️ ("spread like random cells", "not estimated in all
-   54"). They should read ➖ "not applicable: one cell per field", once.
+   54"). They should read ➖ "not applicable: one cell per field", once. (Superseded, owner
+   2026-10-06, plan v2: the field questions run on the rows as fields, the spread over fields,
+   unusual images and novelty across fields; only clustering within fields and the count rule
+   with whole fields are said not to apply.)
 4. **Track data refused by the per-object JCB rule** ("assumes observation_unit in ('cell',
    'nucleus', 'object'), got 'track'"). A track of one cell is an object for this rule; the unit
    list should not decide it.

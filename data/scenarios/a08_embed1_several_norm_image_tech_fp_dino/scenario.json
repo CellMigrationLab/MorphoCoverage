@@ -1,7 +1,7 @@
 {
  "name": "a08_embed1_several_norm_image_tech_fp_dino",
  "kind": "axes",
- "checks": "embedding-only report; own controls and the rows across experiments; normalised and centred views; the questions about fields not applicable; a fingerprint on DINO1",
+ "checks": "embedding-only report; own controls and the rows across experiments; normalised and centred views; the field questions on the images; a fingerprint on DINO1",
  "axes": {
   "tables": "embed1",
   "controls": "several",
@@ -71,6 +71,7 @@
    "overview",
    "populations",
    "separation",
+   "unusual",
    "whole_table"
   ],
   "absent": [
@@ -81,17 +82,15 @@
    "label_control",
    "object_rules",
    "rare_clustering",
-   "sufficiency",
-   "unusual",
-   "variability"
+   "sufficiency"
   ],
   "not_applicable": {
    "conditions": "Per feature",
    "controls": "no explainable features",
    "enough": "Per feature",
    "inspect": "no explainable features",
-   "profile": "one image per field",
-   "unit": "each field holds one"
+   "profile": "Fields against random",
+   "unit": "no explainable features"
   },
   "table_column": false,
   "headlines": {

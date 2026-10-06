@@ -69,6 +69,7 @@ from ..sampling_unit import (
 )
 from ..schema import resolve_observation_unit
 from ..sufficiency import sufficiency_report
+from ._acquisition_block import acquisition_in_report, gap_moved, with_acquisition
 from ._acquisition_gap import with_gap_caution, with_gaps
 from ._contrasts import experiments
 from ._distribution import distribution_by_feature
@@ -96,6 +97,7 @@ from ._feature_space import (
 )
 from ._fingerprint_space import fingerprint_space
 from ._label_control import label_control
+from ._one_per_field import field_setup, one_per_field, one_per_field_reasons
 from ._populations import populations_in_report
 from ._rare_share import unlabelled_note
 from ._result_influence import influence_on_result, with_result_influence
@@ -113,8 +115,6 @@ from ._shared import (
     check_workflow_inputs,
     conditions,
     control_checks,
-    one_per_field,
-    one_per_field_reasons,
     rare_clustering,
     replay_rules,
     report_only,
@@ -183,11 +183,13 @@ def report(
         return embedding_report(objects, fovs, setup, data_check, tables, integrity)
     common = setup.common
     readout = setup.readout
-    # One observation per field (one cell per image): the questions about fields do not
-    # apply, and are said so once, not answered with warnings.
+    # One observation per field (one cell per image): the field questions run on the rows as
+    # fields, new judged across fields; only the ideas within a field are said not to apply
+    # (owner, 2026-10-06, plan v2).
     per_field = not one_per_field(objects, fovs, setup)
     reasons: dict[str, str] = {} if per_field else one_per_field_reasons(setup)
-    novelty = setup.novelty if per_field or "enough" not in reasons else None
+    declared, setup = setup, setup if per_field else field_setup(setup)
+    novelty = setup.novelty
     results: dict[str, Any] = {
         "overview": dataset_overview(
             objects,
@@ -201,10 +203,12 @@ def report(
             **common,
         ),
     }
-    if per_field:
-        results["variability"] = fov_variability(objects, fovs, feature=readout, **common)
+    results["variability"] = fov_variability(objects, fovs, feature=readout, **common)
+    prepared = setup.prepared(objects, fovs)
+    # The definition of new reads the normalised values when normalize is declared (plan v2).
+    novel = prepared if setup.normalize is not None else objects
     if setup.reference_control is not None:
-        results.update(control_checks(objects, fovs, setup, reasons, per_field))
+        results.update(control_checks(objects, fovs, setup, reasons, per_field, prepared))
     if setup.positive is None and setup.rare_label is not None:
         # The labelled rare state is a positive control of its own (owner, 2026-10-02).
         results["label_control"] = label_control(objects, fovs, setup)
@@ -214,7 +218,7 @@ def report(
     if setup.positive is not None and novelty is not None:
         positive = setup.positive
         results["controls"] = representation_control(
-            objects,
+            novel,
             fovs,
             feature_cols=novelty_cols,
             novelty=combined,
@@ -242,13 +246,14 @@ def report(
         results["integrity"] = integrity_by_table(objects, fovs, tables=tables_read, **common)
     if setup.rare_label is not None:
         results["rare_clustering"] = rare_clustering(objects, fovs, setup)
-    prepared = setup.prepared(objects, fovs)
     # The tests read the raw values and normalise to each condition's own control
     # themselves, so their raw columns are raw (owner, 2026-10-05); the populations read
     # the figures' values.
     compared = objects
     results.update(conditions(compared, fovs, setup, reasons))
     gaps = with_gaps(results, objects, fovs, setup)  # several controls apart in intensity
+    gap_moved(results)  # said in the acquisition block, beside the fields far from their group
+    results["acquisition"] = acquisition_in_report(objects, fovs, setup)
     if "contrast" in results:
         # Question 2 for every feature alike: the report is neutral (owner, 2026-10-01).
         results["enough_features"] = enough_by_feature(
@@ -296,18 +301,18 @@ def report(
         results["sufficiency"] = report_only(sufficiency, setup)
     # Every reason at once: new states on the declared features, influence, empty
     # or crowded fields and stage neighbours on the readout.
-    novel = novelty is not None and bool(setup.features)
+    judged = novelty is not None and bool(setup.features)
     # With a contrast, a field's influence is on the result (the repeat means the paired
     # test compares, on the values it compares, _result_influence); without one, on the
     # field-weighted mean.
     on_result = influence_on_result(results.get("contrast"))
     results["inspection"] = inspect_fovs(
-        objects,
+        novel,
         fovs,
         feature_cols=[readout],
         summaries=[] if on_result else [Summary(readout, "mean")],
-        novelty=combined if novel else None,
-        novelty_cols=novelty_cols if novel else None,
+        novelty=combined if judged else None,
+        novelty_cols=novelty_cols if judged else None,
         stage_cols=setup.stage_cols,
         label_col=setup.rare_label,
         **common,
@@ -323,11 +328,12 @@ def report(
     }
     document = assemble(results, setup, per_field)
     document = with_gap_caution(with_reasons(document, reasons), gaps)
+    document = with_acquisition(document, results.get("acquisition"), gaps)
     unlabelled = unlabelled_note(objects, setup)
     if unlabelled:
         # Said once, where the label is used: the notes every answer is read with.
         document = replace(document, notes=(*document.notes, unlabelled))
-    return Report(results, document, setup, reasons, settings)
+    return Report(results, document, declared, reasons, settings)
 
 
 def optimise(
@@ -367,6 +373,9 @@ def optimise(
     only once it holds on samples it was not chosen on.
     """
     objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
+    # One observation per field: the field version of new, as the report and the estimator
+    # read it (plan v2); the Plan keeps the declared Setup.
+    declared, setup = setup, field_setup(setup) if one_per_field(objects, fovs, setup) else setup
     common = setup.common
     hierarchy = setup.resolved_hierarchy(objects, fovs)
     strata = setup.resolved_effort_strata(fovs)
@@ -460,7 +469,9 @@ def optimise(
             random_state=setup.random_state,
             observation_unit=setup.observation_unit,
         )
-    document = assemble({k: v for k, v in results.items() if k != "calibration"}, setup)
+    document = assemble(
+        {k: v for k, v in results.items() if k != "calibration"}, setup, setup is declared
+    )
     settings = {
         **settings,
         "reservoir_fovs": reservoir_sizes(replay),
@@ -480,7 +491,7 @@ def optimise(
     document = replace(
         with_reasons(document, reasons), title=title, notes=(*document.notes, *unread)
     )
-    return Plan(results, document, setup, reasons, settings)
+    return Plan(results, document, declared, reasons, settings)
 
 
 def _same_setup(first: Setup, other: Setup) -> bool:
