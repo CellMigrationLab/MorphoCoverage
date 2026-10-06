@@ -1,0 +1,80 @@
+{
+ "name": "a17_tagged_one_norm_image_tech_positive",
+ "kind": "axes",
+ "checks": "features; each condition against the control; normalised and centred views; the questions about fields not applicable; a positive control",
+ "axes": {
+  "tables": "tagged",
+  "controls": "one",
+  "normalize": true,
+  "unit": "image",
+  "wells": "tech",
+  "target": "positive"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "fib_len",
+   "fib_w",
+   "prof_0"
+  ],
+  "observation_unit": "image",
+  "control": {
+   "condition": "ctrl"
+  },
+  "normalize": "control_mean",
+  "positive": {
+   "selector": {
+    "condition": "a"
+   },
+   "fovs_seen": 5,
+   "draws": 5
+  },
+  "novelty": "default"
+ },
+ "feature_tables": {
+  "fiber": {
+   "file": "fiber.csv",
+   "tag": "explainable"
+  },
+  "profiler": {
+   "file": "profiler.csv",
+   "tag": "explainable"
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery",
+   "enough_features",
+   "inspection",
+   "overview",
+   "populations",
+   "ranking",
+   "separation",
+   "sufficiency"
+  ],
+  "absent": [
+   "clustering",
+   "controls",
+   "distribution",
+   "fingerprint_precision",
+   "label_control",
+   "object_rules",
+   "rare_clustering",
+   "unusual",
+   "variability",
+   "whole_table"
+  ],
+  "not_applicable": {
+   "controls": "judged by the definition of new",
+   "enough": "is not asked",
+   "profile": "one image per field",
+   "unit": "each field holds one"
+  },
+  "table_column": true,
+  "html": false
+ }
+}

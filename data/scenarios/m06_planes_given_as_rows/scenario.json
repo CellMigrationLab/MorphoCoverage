@@ -1,0 +1,24 @@
+{
+ "name": "m06_planes_given_as_rows",
+ "kind": "mistake",
+ "checks": "one row per cell and plane given as is: refused, naming planes_as_features",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "refused",
+  "at": "report",
+  "error": "ValueError",
+  "match": "planes_as_features"
+ }
+}

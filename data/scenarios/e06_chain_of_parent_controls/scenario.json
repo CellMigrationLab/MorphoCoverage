@@ -1,0 +1,46 @@
+{
+ "name": "e06_chain_of_parent_controls",
+ "kind": "edge",
+ "checks": "controls in a chain of parents: each condition against its own control, each control against its parent",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": {
+    "cA": [
+     "a1"
+    ],
+    "cB": [
+     "b1"
+    ],
+    "cC": [
+     "c1"
+    ]
+   }
+  },
+  "control_parents": {
+   "cB": "cA",
+   "cC": "cB"
+  },
+  "master_control": "cA"
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery"
+  ],
+  "contrast_kinds": [
+   "own_control",
+   "vs_master_raw"
+  ]
+ }
+}

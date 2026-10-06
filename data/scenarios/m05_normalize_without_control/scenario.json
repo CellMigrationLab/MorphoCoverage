@@ -1,0 +1,24 @@
+{
+ "name": "m05_normalize_without_control",
+ "kind": "mistake",
+ "checks": "normalisation without a control: refused at the Setup",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "normalize": "control_mean"
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "refused",
+  "at": "setup",
+  "error": "ValueError",
+  "match": "normalize needs"
+ }
+}

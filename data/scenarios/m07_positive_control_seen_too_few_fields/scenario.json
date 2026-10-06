@@ -1,0 +1,35 @@
+{
+ "name": "m07_positive_control_seen_too_few_fields",
+ "kind": "mistake",
+ "checks": "a positive control after 2 reference fields, where the definition of new needs 5: runs, the control never judged",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  },
+  "positive": {
+   "selector": {
+    "condition": "a"
+   },
+   "fovs_seen": 2,
+   "draws": 5
+  },
+  "novelty": "default"
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "controls"
+  ],
+  "controls_status": "not assessed"
+ }
+}

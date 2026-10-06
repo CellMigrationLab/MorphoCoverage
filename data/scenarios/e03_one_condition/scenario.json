@@ -1,0 +1,39 @@
+{
+ "name": "e03_one_condition",
+ "kind": "edge",
+ "checks": "one condition: no comparison, no separation; the rest runs",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "variability",
+   "sufficiency",
+   "inspection"
+  ],
+  "absent": [
+   "contrast",
+   "discovery",
+   "separation",
+   "whole_table"
+  ]
+ }
+}

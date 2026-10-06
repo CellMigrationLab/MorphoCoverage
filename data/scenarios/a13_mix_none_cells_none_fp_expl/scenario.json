@@ -1,0 +1,74 @@
+{
+ "name": "a13_mix_none_cells_none_fp_expl",
+ "kind": "axes",
+ "checks": "features; no condition test; a fingerprint on the explainable features",
+ "axes": {
+  "tables": "mix",
+  "controls": "none",
+  "normalize": false,
+  "unit": "cells",
+  "wells": "none",
+  "target": "fp_expl"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "fib_len"
+  ],
+  "observation_unit": "cell",
+  "fingerprint": [
+   {
+    "metric": "covariance",
+    "columns": [
+     "area",
+     "length",
+     "fib_len"
+    ],
+    "tolerance": 0.2
+   }
+  ]
+ },
+ "feature_tables": {
+  "fiber": {
+   "file": "fiber.csv",
+   "tag": "explainable"
+  },
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": "non-explainable"
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "fingerprint_precision",
+   "inspection",
+   "overview",
+   "populations",
+   "separation",
+   "sufficiency",
+   "variability"
+  ],
+  "absent": [
+   "contrast",
+   "discovery",
+   "distribution",
+   "label_control",
+   "object_rules",
+   "rare_clustering",
+   "unusual",
+   "whole_table"
+  ],
+  "not_applicable": {
+   "conditions": "needs a control"
+  },
+  "table_column": true,
+  "headlines": {
+   "enough": "fingerprint"
+  },
+  "html": false
+ }
+}

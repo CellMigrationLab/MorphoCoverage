@@ -1,0 +1,84 @@
+{
+ "name": "a04_embed1_none_cells_tech_fp_dino",
+ "kind": "axes",
+ "checks": "embedding-only report; no condition test; a fingerprint on DINO1",
+ "axes": {
+  "tables": "embed1",
+  "controls": "none",
+  "normalize": false,
+  "unit": "cells",
+  "wells": "tech",
+  "target": "fp_dino"
+ },
+ "planes": null,
+ "setup": {
+  "readout": null,
+  "observation_unit": "cell",
+  "fingerprint": [
+   {
+    "metric": "covariance",
+    "columns": [
+     "d0",
+     "d1",
+     "d2",
+     "d3",
+     "d4",
+     "d5",
+     "d6",
+     "d7"
+    ],
+    "tolerance": 0.2
+   }
+  ],
+  "feature_tables": {
+   "DINO1": [
+    "d0",
+    "d1",
+    "d2",
+    "d3",
+    "d4",
+    "d5",
+    "d6",
+    "d7"
+   ]
+  }
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "fingerprint_precision",
+   "overview",
+   "populations",
+   "separation"
+  ],
+  "absent": [
+   "contrast",
+   "discovery",
+   "inspection",
+   "label_control",
+   "rare_clustering",
+   "sufficiency",
+   "unusual",
+   "whole_table"
+  ],
+  "not_applicable": {
+   "conditions": "no control declared",
+   "controls": "no explainable features",
+   "enough": "Per feature",
+   "inspect": "no explainable features",
+   "profile": "against the control",
+   "unit": "no explainable features"
+  },
+  "table_column": false,
+  "headlines": {
+   "enough": "fingerprint"
+  },
+  "html": false
+ }
+}

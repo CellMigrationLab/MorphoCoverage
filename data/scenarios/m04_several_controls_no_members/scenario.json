@@ -1,0 +1,30 @@
+{
+ "name": "m04_several_controls_no_members",
+ "kind": "mistake",
+ "checks": "several controls with no condition under them: refused at the Setup",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": {
+    "cA": {},
+    "cB": {}
+   }
+  },
+  "master_control": "cA"
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "refused",
+  "at": "setup",
+  "error": "ValueError",
+  "match": "have no condition under them and no parent"
+ }
+}

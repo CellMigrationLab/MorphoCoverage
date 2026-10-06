@@ -1,0 +1,73 @@
+{
+ "name": "a24_expl_one_norm_image_none_fp_expl",
+ "kind": "axes",
+ "checks": "features; each condition against the control; normalised and centred views; the questions about fields not applicable; a fingerprint on the explainable features",
+ "axes": {
+  "tables": "expl",
+  "controls": "one",
+  "normalize": true,
+  "unit": "image",
+  "wells": "none",
+  "target": "fp_expl"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "image",
+  "control": {
+   "condition": "ctrl"
+  },
+  "normalize": "control_mean",
+  "fingerprint": [
+   {
+    "metric": "covariance",
+    "columns": [
+     "area",
+     "length",
+     "ecc"
+    ],
+    "tolerance": 0.2
+   }
+  ]
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery",
+   "distribution",
+   "enough_features",
+   "fingerprint_precision",
+   "inspection",
+   "overview",
+   "populations",
+   "ranking",
+   "separation",
+   "sufficiency"
+  ],
+  "absent": [
+   "clustering",
+   "label_control",
+   "object_rules",
+   "rare_clustering",
+   "unusual",
+   "variability",
+   "whole_table"
+  ],
+  "not_applicable": {
+   "profile": "one image per field",
+   "unit": "each field holds one"
+  },
+  "table_column": false,
+  "headlines": {
+   "enough": "fingerprint"
+  },
+  "html": false
+ }
+}

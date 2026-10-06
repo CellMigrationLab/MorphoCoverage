@@ -1,0 +1,102 @@
+{
+ "name": "a08_embed1_several_norm_image_tech_fp_dino",
+ "kind": "axes",
+ "checks": "embedding-only report; own controls and the rows across experiments; normalised and centred views; the questions about fields not applicable; a fingerprint on DINO1",
+ "axes": {
+  "tables": "embed1",
+  "controls": "several",
+  "normalize": true,
+  "unit": "image",
+  "wells": "tech",
+  "target": "fp_dino"
+ },
+ "planes": null,
+ "setup": {
+  "readout": null,
+  "observation_unit": "image",
+  "control": {
+   "condition": {
+    "cA": {
+     "k1": "a1"
+    },
+    "cB": {
+     "k1": "b1"
+    }
+   }
+  },
+  "control_parents": {
+   "cB": "cA"
+  },
+  "master_control": "cA",
+  "normalize": "control_mean",
+  "fingerprint": [
+   {
+    "metric": "covariance",
+    "columns": [
+     "d0",
+     "d1",
+     "d2",
+     "d3",
+     "d4",
+     "d5",
+     "d6",
+     "d7"
+    ],
+    "tolerance": 0.2
+   }
+  ],
+  "feature_tables": {
+   "DINO1": [
+    "d0",
+    "d1",
+    "d2",
+    "d3",
+    "d4",
+    "d5",
+    "d6",
+    "d7"
+   ]
+  }
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "fingerprint_precision",
+   "overview",
+   "populations",
+   "separation",
+   "whole_table"
+  ],
+  "absent": [
+   "clustering",
+   "contrast",
+   "discovery",
+   "inspection",
+   "label_control",
+   "object_rules",
+   "rare_clustering",
+   "sufficiency",
+   "unusual",
+   "variability"
+  ],
+  "not_applicable": {
+   "conditions": "Per feature",
+   "controls": "no explainable features",
+   "enough": "Per feature",
+   "inspect": "no explainable features",
+   "profile": "one image per field",
+   "unit": "each field holds one"
+  },
+  "table_column": false,
+  "headlines": {
+   "enough": "fingerprint"
+  },
+  "html": false
+ }
+}

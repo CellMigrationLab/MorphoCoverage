@@ -1,0 +1,90 @@
+{
+ "name": "a01_tagged_several_image_none_rare",
+ "kind": "axes",
+ "checks": "features; own controls and the rows across experiments; the questions about fields not applicable; the rare label's share and clustering",
+ "axes": {
+  "tables": "tagged",
+  "controls": "several",
+  "normalize": false,
+  "unit": "image",
+  "wells": "none",
+  "target": "rare"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "fib_len",
+   "fib_w",
+   "prof_0"
+  ],
+  "observation_unit": "image",
+  "control": {
+   "condition": {
+    "cA": {
+     "k1": "a1"
+    },
+    "cB": {
+     "k1": "b1"
+    }
+   }
+  },
+  "control_parents": {
+   "cB": "cA"
+  },
+  "master_control": "cA",
+  "rare": {
+   "detection_probability": 0.8,
+   "min_fov_occurrences": 2,
+   "phenotype": "rare",
+   "object_prevalence": 0.1
+  },
+  "rare_label": "rare"
+ },
+ "feature_tables": {
+  "fiber": {
+   "file": "fiber.csv",
+   "tag": "explainable"
+  },
+  "profiler": {
+   "file": "profiler.csv",
+   "tag": "explainable"
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery",
+   "enough_features",
+   "inspection",
+   "label_control",
+   "overview",
+   "populations",
+   "ranking",
+   "rare_clustering",
+   "separation",
+   "sufficiency"
+  ],
+  "absent": [
+   "clustering",
+   "distribution",
+   "fingerprint_precision",
+   "object_rules",
+   "unusual",
+   "variability",
+   "whole_table"
+  ],
+  "not_applicable": {
+   "profile": "one image per field",
+   "unit": "each field holds one"
+  },
+  "table_column": true,
+  "contrast_kinds": [
+   "across_normalised",
+   "own_control"
+  ],
+  "html": false
+ }
+}

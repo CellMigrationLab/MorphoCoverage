@@ -1,0 +1,39 @@
+{
+ "name": "e10_features_per_z_plane",
+ "kind": "edge",
+ "checks": "one row per cell and plane, split per plane (planes_as_features): one feature per plane",
+ "axes": {},
+ "planes": {
+  "features": [
+   "area"
+  ],
+  "axes": [
+   "z"
+  ]
+ },
+ "setup": {
+  "readout": "area_z0",
+  "features": [
+   "area_z0",
+   "area_z1",
+   "area_z2"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery"
+  ],
+  "tested_features": [
+   "area_z0",
+   "area_z1",
+   "area_z2"
+  ]
+ }
+}

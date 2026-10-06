@@ -1,0 +1,26 @@
+{
+ "name": "e04_screen_30_conditions",
+ "kind": "edge",
+ "checks": "a screen of 30 conditions against one control, the readout alone: its tests corrected over the conditions, every condition compared",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "observation_unit": "image",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast"
+  ],
+  "absent": [
+   "populations",
+   "separation"
+  ],
+  "compared": 30
+ }
+}

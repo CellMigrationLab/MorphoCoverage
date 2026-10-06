@@ -1,0 +1,79 @@
+{
+ "name": "a18_tagged_none_image_tech_fp_expl",
+ "kind": "axes",
+ "checks": "features; no condition test; the questions about fields not applicable; a fingerprint on the explainable features",
+ "axes": {
+  "tables": "tagged",
+  "controls": "none",
+  "normalize": false,
+  "unit": "image",
+  "wells": "tech",
+  "target": "fp_expl"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "fib_len",
+   "fib_w",
+   "prof_0"
+  ],
+  "observation_unit": "image",
+  "fingerprint": [
+   {
+    "metric": "covariance",
+    "columns": [
+     "area",
+     "fib_len",
+     "fib_w",
+     "prof_0"
+    ],
+    "tolerance": 0.2
+   }
+  ]
+ },
+ "feature_tables": {
+  "fiber": {
+   "file": "fiber.csv",
+   "tag": "explainable"
+  },
+  "profiler": {
+   "file": "profiler.csv",
+   "tag": "explainable"
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "fingerprint_precision",
+   "inspection",
+   "overview",
+   "populations",
+   "separation",
+   "sufficiency"
+  ],
+  "absent": [
+   "clustering",
+   "contrast",
+   "discovery",
+   "distribution",
+   "label_control",
+   "object_rules",
+   "rare_clustering",
+   "unusual",
+   "variability",
+   "whole_table"
+  ],
+  "not_applicable": {
+   "conditions": "needs a control",
+   "profile": "one image per field",
+   "unit": "each field holds one"
+  },
+  "table_column": true,
+  "headlines": {
+   "enough": "fingerprint"
+  },
+  "html": false
+ }
+}
