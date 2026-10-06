@@ -20,9 +20,11 @@ from ._checks import is_integer, is_number
 from ._repeat_statistics import (
     BIMODAL,
     bimodality_coefficient,
+    contrasts_text,
     excess_kurtosis,
     log_scale,
     paired_t,
+    repeat_effect,
     repeat_values,
 )
 
@@ -560,6 +562,7 @@ __all__ = [
     "bootstrap_nested",
     "cluster_size",
     "cohen_d",
+    "contrasts_text",
     "describe",
     "design_effect",
     "effective_sd_upper_bound_factor",
@@ -578,6 +581,7 @@ __all__ = [
     "nested_variance_components",
     "object_weighted_mean_se",
     "paired_t",
+    "repeat_effect",
     "repeat_values",
     "sd_upper_bound_factor",
     "small_sample_widening",

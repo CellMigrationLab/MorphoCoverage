@@ -240,7 +240,7 @@ without explainable features the combined map has a centred view instead (owner,
 
 | Test | Unit of replication | Benjamini-Hochberg family | Role |
 | --- | --- | --- | --- |
-| Paired t on repeat means, main rows | biological repeat, from 3 | every explainable feature, the label share and every main row, per sub-experiment | the verdict, "significant across repeats" |
+| Paired t on repeat means, main rows | biological repeat, from 3 | every explainable feature, the label share and every main row, per sub-experiment | the verdict, "significant across repeats"; with exactly 3 repeats, each repeat's change and the 95% t interval beside it, "very limited biological replication" said once (plan v2, owner, 2026-10-06) |
 | Sign-flip test | biological repeat | the readout's conditions per sub-experiment | in the full report, only where its smallest p can reach 0.05 |
 | `across_normalised`, `vs_master_raw` | biological repeat, from 3 | one family per kind over every feature and row | verdicts across experiments |
 | Whole-table test | biological repeat, from 3 | per table and sub-experiment | the verdict for a table |

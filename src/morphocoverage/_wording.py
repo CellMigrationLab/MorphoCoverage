@@ -91,6 +91,13 @@ def change(value: float, values: str = "normalised") -> str:
     return f"×{value:.2f}" if off >= 0.1 else f"×{value:.3f}" if off >= 0.01 else f"×{value:.5g}"
 
 
+def contrasts_words(text: str, values: str) -> str:
+    """``×0.82, ×0.75 and ×0.91``: each repeat's contrast of a ``repeat_contrasts`` text
+    (``statistics.contrasts_text``, ``R1: 0.82; ...``), written as ``change`` writes one."""
+    shown = [change(float(item.rsplit(": ", 1)[1]), values) for item in text.split("; ") if item]
+    return listing(shown, len(shown))
+
+
 def number(value: float) -> str:
     """A count or median as a person reads it: ``7``, ``7.5``, ``1234567``; one decimal at most."""
     value = round(float(value), 1)
@@ -216,6 +223,7 @@ __all__ = [
     "WITHIN_FAMILY",
     "change",
     "column_word",
+    "contrasts_words",
     "count",
     "duration",
     "features_counted",

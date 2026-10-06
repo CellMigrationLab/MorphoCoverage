@@ -535,6 +535,18 @@ advance (plan v2, owner, 2026-10-06). 6 is the first number of repeats where thi
 below 5%. With fewer the fact is still shown, the direction in each repeat, never as
 evidence.
 
+**Three repeats** (plan v2, owner, 2026-10-06). With exactly 3 biological repeats, the
+fewest the paired t-test needs, each verdict gives the change in each repeat, the change
+overall and its 95% t interval (2 degrees of freedom; for a fold change the interval of the
+mean log ratio, back-transformed): in the readings ("change ×0.65, ×0.45 and ×0.61 in the 3
+repeats, ×0.56 overall, 95% t interval ×0.35 to ×0.917"), in the text's table of ranked
+features and in the page's table across repeats. The section says once: "With 3 biological
+repeats, very limited biological replication: each verdict gives the change in each repeat
+and the 95% t interval of the change, which is wide; a change that is not significant is not
+evidence of no change." The paired t-test itself is unchanged. `tests_across_repeats.csv`
+and `feature_discovery.csv` carry each repeat's change (`repeat_contrasts`, `R1: 0.6463;
+...`) and the interval (`ci_low`, `ci_high`) at any number of repeats.
+
 With a `target` column, the report also says whether the independent reagents of one
 target (two siRNAs of one gene) are on the same side of the control in every repeat
 (`contrast_repeats.reagent_agreement`; described, not tested).

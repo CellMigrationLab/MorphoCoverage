@@ -14,7 +14,14 @@ import numpy as np
 
 from .._parallel import UNITS_PER_WORKER, map_units, worker_pool
 from .._seeds import group_rng
-from ..statistics import cohen_d, log_scale, paired_t, repeat_values
+from ..statistics import (
+    cohen_d,
+    contrasts_text,
+    log_scale,
+    paired_t,
+    repeat_effect,
+    repeat_values,
+)
 from ._units import control_label, side_units, sides
 from .contrast_cells import trusted_test
 from .contrast_repeats import MIN_REPEATS
@@ -84,6 +91,20 @@ def _paired(
     return paired_t(compared), values, lower, higher, paired_t(means - controls), change
 
 
+def _effect(by_t: dict, by_c: dict, log: bool | None) -> dict[str, Any]:
+    """Each repeat's contrast on the paired test's scale and the t-based 95% interval of the
+    effect (``statistics.repeat_effect``; plan v2, owner, 2026-10-06)."""
+    means = np.array([np.mean(by_t[r]) for r in by_t])
+    controls = np.array([np.mean(by_c[r]) for r in by_t])
+    values, compared, _ = repeat_values(means, controls, log)
+    effect = repeat_effect(values, compared)
+    return {
+        "repeat_contrasts": contrasts_text(list(by_t), effect["contrasts"]),
+        "ci_low": effect["ci_low"],
+        "ci_high": effect["ci_high"],
+    }
+
+
 def _per_repeat(by_t: dict, by_c: dict) -> dict[str, float]:
     """Cohen's d of the observations in each repeat (``condition_contrast``'s ``d_objects``),
     its mean and range, and the fewest and most observations on a side in one repeat, for
@@ -125,6 +146,7 @@ def _row(
         "p_paired_raw": p_raw,
         "status": "ok",
         **_per_repeat(by_t, by_c),
+        **_effect(by_t, by_c, side["log"]),
     }
     values = np.concatenate([*by_t.values(), *side["every"].values()])
     if np.ptp(values) == 0:

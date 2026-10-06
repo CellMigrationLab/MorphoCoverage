@@ -6,6 +6,8 @@
   rule is written: the log ratios of the repeat means to the control's (a fold change) when
   every observation of the feature is positive, else their differences, chosen once per
   feature so every condition is tested on the same scale (owner, 2026-10-06, audit 8);
+- ``repeat_effect`` and ``contrasts_text``: the per-repeat contrasts on that scale and the
+  t-based 95% interval of their mean (plan v2, owner, 2026-10-06);
 - ``bimodality_coefficient``: Sarle's coefficient, above ``BIMODAL`` (5/9) when the values
   may form two groups; ``excess_kurtosis`` tells a heavy tail apart from two groups.
 """
@@ -56,6 +58,29 @@ def repeat_values(
     return "raw", differences, float(differences.mean()) if len(differences) else float("nan")
 
 
+def repeat_effect(values: str, compared: np.ndarray, level: float = 0.95) -> dict[str, float]:
+    """The per-repeat contrasts in the feature's own terms (fold changes for ``normalised``
+    log ratios, else differences) and the t-based ``level`` interval of their mean effect
+    (``n - 1`` degrees of freedom, back-transformed for fold changes): ``ci_low`` and
+    ``ci_high``, NaN below 2 repeats or with a missing value (plan v2, owner, 2026-10-06: with
+    3 repeats each verdict shows them)."""
+    compared = np.asarray(compared, dtype=float)
+    shown = np.exp(compared) if values == "normalised" else compared
+    low = high = float("nan")
+    if len(compared) >= 2 and not np.isnan(compared).any():
+        half = stats.t.ppf(0.5 + level / 2, len(compared) - 1) * stats.sem(compared)
+        low, high = compared.mean() - half, compared.mean() + half
+        if values == "normalised":
+            low, high = float(np.exp(low)), float(np.exp(high))
+    return {"contrasts": shown, "ci_low": float(low), "ci_high": float(high)}
+
+
+def contrasts_text(repeats: list, contrasts: np.ndarray) -> str:
+    """``R1: 0.82; R2: 0.75; R3: 0.91``, each repeat's contrast for a CSV (4 significant
+    digits)."""
+    return "; ".join(f"{r}: {float(v):.4g}" for r, v in zip(repeats, contrasts, strict=True))
+
+
 # Sarle's bimodality coefficient above this suggests two groups of values (5/9, its value
 # for a uniform distribution).
 BIMODAL = 5 / 9
@@ -95,9 +120,11 @@ def excess_kurtosis(values: np.ndarray) -> float:
 __all__ = [
     "BIMODAL",
     "bimodality_coefficient",
+    "contrasts_text",
     "excess_kurtosis",
     "log_scale",
     "paired_t",
+    "repeat_effect",
     "repeat_values",
     "sarle",
 ]
