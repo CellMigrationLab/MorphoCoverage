@@ -33,7 +33,14 @@ from ..data_check import check_tables
 from ..retrospective import dataset_overview
 from ._document import assemble, with_reasons
 from ._enough_targets import fingerprint_precision
-from ._feature_space import FeatureTables, separation_in_report, table_columns, table_lines
+from ._feature_space import (
+    FeatureTables,
+    analysed_tables,
+    centring_line,
+    separation_in_report,
+    table_columns,
+    table_lines,
+)
 from ._populations import populations_in_report
 from ._rare_share import unlabelled_note
 from ._results import PLAN_TITLE, Plan, Report
@@ -101,7 +108,7 @@ def embedding_report(
         feature_cols=table_columns(setup)[:1],  # validated by one; no explainable feature
         control=setup.single_control,
         data_check=data_check,
-        feature_tables=table_lines(setup, tables),
+        feature_tables=table_lines(setup, tables, centring_line(objects, fovs, setup)),
         **common,
     )
     counts = {**overview.counts, "features": 0}
@@ -109,8 +116,10 @@ def embedding_report(
         "overview": replace(overview, features=(), counts=counts, value_checks=())
     }
     side: dict[str, str] = {}
+    # With normalize, the tables centred per repeat (never for a test, owner 2026-10-06).
+    analysed = analysed_tables(objects, fovs, setup)
     if setup.reference_control is not None:
-        results.update(control_checks(objects, fovs, setup, side, per_field))
+        results.update(control_checks(analysed, fovs, setup, side, per_field))
     if integrity:  # on each table apart, the union said
         results["integrity"] = integrity_by_table(
             objects, fovs, tables=dict(setup.feature_tables), **common
@@ -121,8 +130,8 @@ def embedding_report(
     results["whole_table"] = whole_table_in_report(objects, fovs, setup)
     if setup.fingerprint:
         results["fingerprint_precision"] = fingerprint_precision(objects, fovs, setup)
-    results["populations"] = populations_in_report(objects, fovs, setup)
-    results["separation"] = separation_in_report(objects, fovs, setup)
+    results["populations"] = populations_in_report(analysed, fovs, setup)
+    results["separation"] = separation_in_report(analysed, fovs, setup)
     reasons = embedding_reasons(results)
     reasons.update({k: v for k, v in side.items() if k not in reasons})
     document = with_reasons(assemble(results, setup), reasons)

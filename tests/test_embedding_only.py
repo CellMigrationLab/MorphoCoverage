@@ -70,8 +70,9 @@ def test_a_setup_without_readout_declares_no_explainable_feature():
     assert setup.embedding_only and setup.columns == [] and setup.stopping_rules() == ()
     with pytest.raises(ValueError, match="declare the readout among them"):
         Setup(features=("area",))
-    with pytest.raises(ValueError, match="other feature tables are never divided"):
-        Setup(control={"condition": "ctrl"}, normalize="control_mean")
+    # normalize centres the tables per repeat, never divides them (owner, 2026-10-06).
+    centred = Setup(control={"condition": "ctrl"}, normalize="control_mean")
+    assert centred.prepared(pd.DataFrame({"x": [1.0]}), pd.DataFrame()) is not None
 
 
 def test_without_tables_an_embedding_only_report_is_refused():

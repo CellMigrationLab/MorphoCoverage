@@ -92,18 +92,28 @@ reads the table, the cells left out are counted (its maps, its populations, the 
 score, its fingerprint).
 
 An other table is never divided by a control (an embedding has no ratio scale), so its map is
-the same in raw and normalised values. Beside them, its map **centred on control** shows each
-column minus its median in the control of the same biological repeat (each condition's own
-control with several controls; owner, 2026-10-06): it removes a shift shared by a whole
-repeat, a batch, and keeps the differences within it. It is for the interactive maps only:
-no test reads these values, and it has no static figure or CSV of its own. A repeat is
-centred only when its control holds at least 5 observations there (`CENTRED_MIN_CONTROL`;
-owner, 2026-10-06): the median subtracted carries the control's noise into every
-observation of the repeat, so a small control can set a repeat apart in this view. The
-other repeats are left out of the view and named once under the maps ("Left out of the
-centred view, their control holding fewer than 5 images in the repeat: R6 of VEC_SiNC (1
-image)"), beside one line saying that a small control adds noise every observation of its
-repeat shares. The live session and `optimise` read the columns already in `objects`: for
+the same in raw and normalised values. **Batch normalisation** (owner, 2026-10-06): beside
+them, its map **centred per repeat** shows each column minus a median of its biological
+repeat, which removes a shift shared by a whole repeat, a batch, and keeps the differences
+within it. When every biological repeat holds the same set of conditions (a balanced
+design), the median is that of all the repeat's observations; otherwise it is that of the
+repeat's control (each condition's own control with several controls), and a repeat is
+centred only when that control holds at least 5 observations there (`CENTRED_MIN_CONTROL`):
+the median subtracted carries the control's noise into every observation of the repeat, so
+a small control can set a repeat apart. The other repeats are left out of the view and named
+once under the maps ("Left out of the centred view, their control holding fewer than 5
+images in the repeat: R6 of VEC_SiNC (1 image)"), beside one line on the noise a small
+control adds. The page and the text say in one line which centring was used ("Batch: the
+other tables centred on the median of all the cells of their biological repeat, as every
+repeat holds the same conditions; ..."). When normalisation is declared
+(`normalize="control_mean"`), the tables' analyses read these centred values, as the
+explainable features read their control-normalised ones: the populations, unusual
+observations (in a report without explainable features), the separation scores and the
+centred map; the raw map is still shown. These values never enter a test: the whole-table
+test computes its own differences within each repeat on raw values, and the fingerprint
+reads raw values too. On the ECM tables, whose repeats do not all hold the same conditions
+(R4 lacks VEC and THBS5, R5 the SiNC controls), the tables are centred on their controls.
+The live session and `optimise` read the columns already in `objects`: for
 them, attach the tables first (`attach_feature_tables(objects, fovs, tables).objects`).
 
 ## The PCA and UMAP: `embedding_plots`

@@ -125,11 +125,6 @@ def check_embedding_only(setup: Setup) -> None:
             "features are explainable features, read one by one: declare the readout among "
             "them (readout=None declares none, for a report on the other feature tables alone)"
         )
-    if setup.normalize is not None:
-        raise ValueError(
-            "normalize divides the explainable features by the control; with readout=None "
-            "there are none, and the other feature tables are never divided: leave it None"
-        )
     if setup.intensity_features:
         raise ValueError("intensity_features are explainable features: readout=None has none")
 

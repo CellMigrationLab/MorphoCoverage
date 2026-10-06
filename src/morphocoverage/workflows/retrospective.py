@@ -85,7 +85,9 @@ from ._embedding_report import embedding_plan, embedding_report
 from ._enough_features import enough_by_feature
 from ._enough_targets import fingerprint_precision
 from ._feature_space import (
+    analysed_tables,
     attached,
+    centring_line,
     novelty_space,
     separation_in_report,
     table_columns,
@@ -187,7 +189,7 @@ def report(
             normalized=setup.normalized_sentence(fovs, objects),
             control=setup.single_control,
             data_check=data_check,
-            feature_tables=table_lines(setup, tables),
+            feature_tables=table_lines(setup, tables, centring_line(objects, fovs, setup)),
             control_experiments=experiments(setup),
             **common,
         ),
@@ -250,9 +252,11 @@ def report(
     if setup.fingerprint:
         results["fingerprint_precision"] = fingerprint_precision(objects, fovs, setup)
     # Question 10: populations on every condition pooled, then their enrichment.
-    results["populations"] = populations_in_report(prepared, fovs, setup)
+    # The tables centred per repeat with normalize, as the features are divided.
+    analysed = analysed_tables(prepared, fovs, setup)
+    results["populations"] = populations_in_report(analysed, fovs, setup)
     # Per feature table, how far the conditions separate (descriptive, owner 2026-10-05).
-    results["separation"] = separation_in_report(prepared, fovs, setup)
+    results["separation"] = separation_in_report(analysed, fovs, setup)
     rules, novelty_target = sufficiency_rules(setup)
     if novelty is None:
         novelty_target = None

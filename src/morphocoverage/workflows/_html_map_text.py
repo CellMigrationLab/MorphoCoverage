@@ -14,7 +14,7 @@ from ..separation import K, Separation
 from ._feature_space import CENTRED_MIN_CONTROL
 
 # The values views, as their buttons name them.
-VALUE_WORDS = {"raw": "Raw", "normalised": "Normalised", "centred": "Centred on control"}
+VALUE_WORDS = {"raw": "Raw", "normalised": "Normalised", "centred": "Centred per repeat"}
 
 # What the line under each map says (``separation``), once under the maps.
 NEIGHBOURS = (
@@ -30,21 +30,23 @@ NEIGHBOURS = (
 
 # What the centred view removes, said once (owner, 2026-10-06).
 CENTRED = (
-    "Centred on control: each column of an other feature table minus its median in the "
-    "control of the same biological repeat (each condition's own control); this removes a "
-    "shift shared by a whole repeat, a batch, and keeps the differences within it. For the "
-    "maps only: no test reads these values."
+    "Centred: each column of an other feature table minus a median of its biological repeat, "
+    "which removes a shift shared by a whole repeat, a batch, and keeps the differences "
+    "within it."
 )
 
 
-def centred_note(unit: str, units: str, left_out: str) -> str:
-    """``CENTRED``, the line on a small control (owner, 2026-10-06) and the repeats left out
+def centred_note(unit: str, units: str, left_out: str, line: str = "") -> str:
+    """``CENTRED``, the centring used (``_feature_space.centring_line``), on a control the
+    line on a small control (owner, 2026-10-06) and the repeats left out
     (``_feature_space.centred_left_out``, empty when none is)."""
     small = (
-        f"A repeat is centred only when its control holds at least {CENTRED_MIN_CONTROL} "
-        f"{units} there: a small control adds noise that every {unit} of the repeat shares."
+        f"A repeat is centred on its control only when the control holds at least "
+        f"{CENTRED_MIN_CONTROL} {units} there: a small control adds noise that every {unit} of "
+        "the repeat shares."
     )
-    return " ".join(part for part in (CENTRED, small, left_out) if part)
+    on_control = "on the median of the control" in line or not line
+    return " ".join(p for p in (CENTRED, line, small if on_control else "", left_out) if p)
 
 
 def combined_words(columns: dict[str, int]) -> str:

@@ -4,7 +4,7 @@ below 2), and the centred map view left out where the control is small."""
 
 import numpy as np
 import pandas as pd
-from test_feature_tables_1006 import _cells, _table
+from test_feature_tables_1006 import _cells, _table, _without
 
 from morphocoverage.feature_tables import attach_feature_tables
 from morphocoverage.multivariate_outcomes import ComponentsError, CovarianceError
@@ -139,6 +139,8 @@ def test_components_error_is_its_metric_on_the_projected_values():
 
 def test_a_repeat_whose_control_is_small_is_left_out_of_the_centred_view_and_named():
     objects, fovs, rng = _cells(fields=2, cells=3)
+    # Unbalanced (b not imaged in R1), so centred on the control (owner, 2026-10-06).
+    objects, fovs = _without(objects, "b", "R1"), _without(fovs, "b", "R1")
     small = (objects["condition"] == "ctrl") & (objects["biological_repeat"] == "R2")
     objects = objects[~(small & (objects["label_id"] > 2))].reset_index(drop=True)  # 4 cells
     table = _table(objects, rng.normal(size=(len(objects), 2)), "d")
@@ -159,5 +161,5 @@ def test_a_repeat_whose_control_is_small_is_left_out_of_the_centred_view_and_nam
         "Left out of the centred view, their control holding fewer than 5 cells in the "
         "repeat: R2 of ctrl (4 cells)."
     )
-    note = centred_note("cell", "cells", left)
+    note = centred_note("cell", "cells", left, "on the median of the control")
     assert "a small control adds noise that every cell of the repeat shares." in note

@@ -387,12 +387,13 @@ def test_the_page_draws_a_map_per_table_the_combined_one_first(combined_report, 
     # The explainable features colour every map, an other table's included.
     assert set(data["sets"]["raw"]["noise"]["PCA"]["z"]) == {"f1", "f2", "f3"}
     assert 'aria-label="Feature table"' in text
-    # Beside raw and normalised, the other tables centred on each repeat's control
-    # (owner, 2026-10-06): maps only, its one line said.
+    # Beside raw and normalised, the other tables centred per repeat (owner, 2026-10-06):
+    # every repeat holds the same conditions, so on all its observations, said in one line.
     # (No normalised view here: the explainable features hold negative values.)
     assert data["values"] == ["raw", "centred"]
     assert set(data["sets"]["centred"]) == {"sep", "noise"}
-    assert "Centred on control: each column of an other feature table minus" in text
+    assert "Centred: each column of an other feature table minus a median" in text
+    assert "centred on the median of all the cells of their biological repeat" in text
     # In the interactive maps only: no static figure or CSV of its own.
     assert not (tmp_path / "figures" / "pca_centred_sep.png").exists()
     assert "How far the conditions and the repeats separate in each feature table" in text

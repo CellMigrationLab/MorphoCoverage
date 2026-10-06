@@ -361,7 +361,7 @@ class Setup:
         stopping rules and the other analyses read the raw values, as live. With several
         controls, each condition over its own control (``normalize_to_own``), for figures.
         """
-        if self.normalize is None:
+        if self.normalize is None or not self.columns:  # embedding-only: nothing divided
             return objects
         if (own := self.own_references) is not None:
             kept = {"repeat_col": self.repeat_col(fovs), "own": own, **self.common}

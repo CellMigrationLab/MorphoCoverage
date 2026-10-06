@@ -77,7 +77,9 @@ def declaration(setup: Setup) -> tuple[str, ...]:
     if setup.stopping_rules():  # an embedding-only Setup has none (NO_READOUT says why)
         lines.append(_rules(setup))
     lines.append(_order(setup))
-    if setup.normalize is not None and controls:
+    if setup.normalize is not None and setup.readout is None:
+        lines.append(TABLES_CENTRED)
+    elif setup.normalize is not None and controls:
         lines.append(
             f"Values: every declared feature divided by the mean of each condition's own "
             f"control {units} of the same repeat (a control by its parent's), for the plots and "
@@ -105,6 +107,13 @@ def declaration(setup: Setup) -> tuple[str, ...]:
     return tuple(lines)
 
 
+# An embedding-only Setup's normalisation (owner, 2026-10-06).
+TABLES_CENTRED = (
+    "Values: the other feature tables centred per biological repeat, on all its observations "
+    "when every repeat holds the same conditions, else on its control, for the maps, the "
+    "populations, unusual observations and the separation; never divided, and never for a "
+    "test, which reads the raw values."
+)
 # An embedding-only Setup's population summary, the one place it is said (owner, 2026-10-06).
 NO_READOUT = (
     "Population summary: none, as there is no readout (no explainable features, an "
@@ -478,7 +487,9 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
     order, order_cautions = _order_short(setup)
     lines += [order] if order else []
     cautions += order_cautions
-    if setup.normalize is not None and controls:
+    if setup.normalize is not None and setup.readout is None:
+        lines.append(TABLES_CENTRED)
+    elif setup.normalize is not None and controls:
         lines.append(
             "Values: each condition divided by its own control's mean in the same repeat for "
             "the plots and the populations; levels across experiments are read on the raw "
