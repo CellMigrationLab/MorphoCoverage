@@ -63,9 +63,13 @@ def test_new_states_are_not_listed_where_the_definition_is_not_informative():
     uninformative = result.settings["uninformative_novelty"]
     assert len(uninformative) == 2 and result.settings["n_fovs_judged"] == 0
     assert uninformative[0]["reason"].startswith("not informative with 12 fields in 8 features")
-    text = _flat(result.summary())
-    assert "New states are not listed in 2 groups" in text
-    assert "of the fields of a homogeneous population of this size new" in text
+    # One line for every group, in the short and the full forms (owner, 2026-10-06).
+    for detail in ("short", "full"):
+        text = _flat(result.summary(detail=detail))
+        assert text.count("New states are not listed") == 1
+        assert "New states are not listed in 2 groups" in text
+        assert "not informative with 12 fields in 8 features each" in text
+        assert "of the fields of a homogeneous population of these sizes new" in text
 
 
 def test_the_count_chance_gives_is_said_without_a_positive_control():

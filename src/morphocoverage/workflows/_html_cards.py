@@ -31,6 +31,7 @@ from ..sampling_unit.acquisition import difference_words
 from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.reading_text import VERDICTS, condition_readings, unpaired_conditions
 from ..schema import observation_words
+from ..strategies.novelty_null import uninformative_line
 from ._distribution import split_words
 from ._enough_features import NOT_YET
 from ._populations import only_labelled
@@ -176,10 +177,8 @@ def new_state_fields(result: Any) -> tuple[list[tuple[str, str]], list[str]]:
             if len(own):
                 label = " · ".join(p for p in (group_label(group) if groups else "", name) if p)
                 rows.append((label, "; ".join(own["detail"])))
-    reasons = list(
-        dict.fromkeys(e["reason"] for e in inspection.settings.get("uninformative_novelty", []))
-    )
-    return rows, reasons
+    line = uninformative_line(inspection.settings.get("uninformative_novelty", []))
+    return rows, [line] if line else []
 
 
 def _field_values(name: str, key: list[str]) -> tuple[str, ...] | None:

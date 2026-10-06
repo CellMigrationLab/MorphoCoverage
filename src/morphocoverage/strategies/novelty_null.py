@@ -33,7 +33,7 @@ from functools import lru_cache
 
 import numpy as np
 
-from .._wording import count, percent
+from .._wording import count, listing, percent
 from .support_novelty import SupportNoveltyEstimator
 
 # Above this share of a homogeneous population's fields called new, a list of new states is
@@ -107,4 +107,32 @@ def not_informative(
     return reason, rate
 
 
-__all__ = ["NOT_INFORMATIVE", "NULL_DRAWS", "not_informative", "null_rate"]
+def uninformative_line(entries: Sequence[dict]) -> str | None:
+    """The groups where new states are not listed, in one sentence (owner, 2026-10-06: one
+    line, not one per group): ``New states are not listed in 9 groups (a, b, c and 6 more):
+    not informative with 15 to 27 fields in 10 features each: ...``; ``None`` without any.
+    ``entries``: the inspection's ``uninformative_novelty``, each with its ``label``,
+    ``reason``, ``rate``, ``fields`` and ``features``."""
+    if not entries:
+        return None
+    labels = [str(e.get("label", e["group"])) for e in entries]
+    if len(entries) == 1:
+        return f"New states are not listed in {labels[0]}: {entries[0]['reason']}"
+    fields = sorted({int(e["fields"]) for e in entries})
+    features = sorted({int(e["features"]) for e in entries})
+    rates = sorted(float(e["rate"]) for e in entries)
+    size = f"{fields[0]}" if len(fields) == 1 else f"{fields[0]} to {fields[-1]}"
+    width = f"{features[0]}" if len(features) == 1 else f"{features[0]} to {features[-1]}"
+    rate = (
+        percent(rates[0])
+        if percent(rates[0]) == percent(rates[-1])
+        else f"{percent(rates[0])} to {percent(rates[-1])}"
+    )
+    return (
+        f"New states are not listed in {len(entries)} groups ({listing(labels, 3)}): not "
+        f"informative with {size} fields in {width} features each, where this definition of "
+        f"new calls {rate} of the fields of a homogeneous population of these sizes new"
+    )
+
+
+__all__ = ["NOT_INFORMATIVE", "NULL_DRAWS", "not_informative", "null_rate", "uninformative_line"]

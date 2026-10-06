@@ -28,6 +28,7 @@ from .._style import check_detail, group_columns, group_label, table, width, wra
 from .._wording import count, listing
 from .._wording import fields as fields_text
 from ..metadata import TECHNICAL_REPEAT_COLUMN
+from ..strategies.novelty_null import uninformative_line
 
 # Fields listed in the short form; the full form lists every one.
 SHORT_FIELDS = 8
@@ -55,7 +56,6 @@ _SKIPPED = (
     ),
     ("skipped_neighbours", "Stage neighbours were not compared in {groups}: {reason}"),
     ("skipped_novelty", "New states were not looked for in {groups}: {reason}"),
-    ("uninformative_novelty", "New states are not listed in {groups}: {reason}"),
     ("skipped_small", "Influence not judged: {reason} in {groups}"),
 )
 
@@ -105,7 +105,9 @@ def _skipped(result: Any, *, full: bool) -> list[str]:
                 labels[0] if len(labels) == 1 else f"{len(labels)} groups ({listing(labels, 3)})"
             )
             sentences.append(template.format(summary=summary, reason=reason, groups=groups))
-    return sentences
+    # New states not informative: one line for every group, both forms (owner, 2026-10-06).
+    uninformative = uninformative_line(result.settings.get("uninformative_novelty", []))
+    return [*sentences, *([uninformative] if uninformative else [])]
 
 
 def _empty(result: Any) -> str:

@@ -279,7 +279,9 @@ def _novel(
     sizes = np.bincount(fov_positions(data, data.fovs), minlength=len(data.fovs))
     reason, rate = not_informative(novelty, sizes, data.feature_cols)
     if reason is not None:
-        uninformative.append({"group": group, "reason": reason, "rate": rate})
+        fields, features = int((sizes > 0).sum()), len(data.feature_cols)
+        entry = {"group": group, "reason": reason, "rate": rate, "fields": fields}
+        uninformative.append({**entry, "features": features})
         return []
     flags = novelty.novel_observation_flags(data, new_states_only=True)
     if flags is None:

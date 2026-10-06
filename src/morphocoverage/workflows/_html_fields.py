@@ -70,7 +70,7 @@ def fields_cards(
         parts.append("<p>These fields hold a state no other field shows:</p>")
         parts.append(fields_table(new, annotate))
     for reason in reasons:
-        parts.append(f'<p class="note">New states are not listed: {html.escape(reason)}.</p>')
+        parts.append(f'<p class="note">{html.escape(reason)}.</p>')
     parts.append(f'<p class="note">{html.escape(exploratory_line(["novelty"]))}</p>')
     return cards + card(NEW_STATES, NEW_STATES_TITLE, "", "".join(parts))
 
