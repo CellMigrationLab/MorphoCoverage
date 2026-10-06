@@ -32,6 +32,7 @@ import pandas as pd
 
 from .._caveats import _SENTENCE_END, _assumption_block, assumption, assumption_lines
 from .._wording import WITHIN_FAMILY, count, listing, p_value, percent
+from ..sampling_unit._experiments import family_noun
 from ..sampling_unit.cells_text import balance_lines
 from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.distribution import shift_words, spread_words
@@ -414,9 +415,8 @@ def _family(result: Any) -> str:
     low, high = int(sizes.min()), int(sizes.max())
     conditions = count(high, "condition") if low == high else f"{low} to {high} conditions"
     what = f"{features} and {conditions}" if features else conditions
-    return f"{what} at once" + (
-        f" in each of {len(sizes)} sub-experiments" if len(sizes) > 1 else ""
-    )
+    noun = family_noun(getattr(discovery or contrast, "settings", None), plural=True)
+    return f"{what} at once" + (f" in each of {len(sizes)} {noun}" if len(sizes) > 1 else "")
 
 
 __all__ = ["across_frame", "d_per_repeat", "figure_legends", "page_assumptions", "tests_section"]

@@ -24,6 +24,7 @@ import pandas as pd
 
 from .._style import Status, table, wrap
 from .._wording import count, listing, p_value
+from ..sampling_unit._experiments import family_noun
 from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.distribution import (
     DRAWS,
@@ -183,7 +184,7 @@ def distribution_text(result: DistributionContrast, unit: str = "cells") -> str:
         "(their shift beyond the mean's, in control SDs), each on the feature's scale "
         f"(the log of its values when its tests read log ratios), tested across the {repeats} "
         "repeats (t-test on "
-        "the per-repeat values; Benjamini-Hochberg within each sub-experiment: "
+        f"the per-repeat values; Benjamini-Hochberg within each {family_noun(result.settings)}: "
         f"{tests_words(result)}):",
         2,
         hang=4,

@@ -25,6 +25,7 @@ from .._control import versus
 from .._style import span, table, wrap
 from .._wording import column_word, count, features_counted, listing, p_value, percent
 from ..schema import observation_words
+from ._experiments import family_noun
 from .contrast_cells import (
     ALPHA,
     BALANCED_DRAWS,
@@ -299,7 +300,8 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
                 "normalised) is corrected over the "
                 f"{features_counted(int(features), settings.get('family_share'), ', ')} and "
                 "their conditions "
-                "of each sub-experiment, as the feature ranking; the other columns over this "
+                f"of each {family_noun(settings)}, as the feature ranking; the other columns over "
+                "this "
                 "feature's conditions only.",
                 indent + 2,
                 hang=indent + 4,

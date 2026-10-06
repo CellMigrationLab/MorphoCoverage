@@ -384,7 +384,7 @@ def condition_contrast(
         "observation_unit_declared": data.observation_unit_declared,
         "log_scale": log_scale(data.feature_values(feature), scale, repr(feature)),
         "scale": scale,  # declared in the Setup, else None (the automatic rule)
-        "families": dict(families) if families else None,  # Setup.experiment (audit 10)
+        "declared_experiments": bool(families),  # Setup.experiment (audit 10)
     }
     contrasts = contrasts_of(described)
     # Repeats holding only the control: in no comparison, so not in the pooled control.

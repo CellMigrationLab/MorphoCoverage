@@ -169,12 +169,19 @@ def family_sizes(p_values: pd.Series, family: pd.Series) -> np.ndarray:
     return np.array([sizes[label] for label in labels])
 
 
+def family_noun(settings: Mapping[str, Any] | None, plural: bool = False) -> str:
+    """``sub-experiment``, or ``experiment`` when the Setup declares the correction families
+    (``settings["declared_experiments"]``, ``Setup.experiment``; owner, 2026-10-06)."""
+    word = "experiment" if (settings or {}).get("declared_experiments") else "sub-experiment"
+    return f"{word}s" if plural else word
+
+
 def family_words(settings: Mapping[str, Any], own: bool = False) -> str:
     """Where a q-value was corrected, in words: within each sub-experiment (``own``: the
     condition's), over every feature and condition of it when the report shares one family
     across its features (``settings["family_features"]``, ``workflows._families``; a
     labelled state's share among them, ``family_share``, counted apart)."""
-    where = "the condition's sub-experiment" if own else "each sub-experiment"
+    where = f"the condition's {family_noun(settings)}" if own else f"each {family_noun(settings)}"
     features = settings.get("family_features")
     if features and features > 1:
         counted = features_counted(int(features), settings.get("family_share"), ", ")
@@ -188,6 +195,7 @@ __all__ = [
     "corrected",
     "declared",
     "experiments",
+    "family_noun",
     "family_sizes",
     "family_words",
     "not_compared",

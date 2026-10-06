@@ -32,6 +32,7 @@ from .._control import ACROSS, MASTER_RAW, VS
 from .._style import Status, wrap
 from .._wording import count, listing, p_value
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
+from ..sampling_unit._experiments import family_noun
 from ..sampling_unit.contrast_repeats import TREND_REPEATS
 from ..sampling_unit.whole_table import (
     ALPHA,
@@ -174,7 +175,8 @@ def whole_table_lines(result: WholeTable, indent: int = 2) -> list[str]:
         "repeats' mean shift; a one-sided paired t-test that the projections are positive, "
         "corrected for the repeats they share by an asymptotic high-dimensional correction, "
         f"not an exact one, from {MIN_REPEATS} repeats; q within each "
-        "table and sub-experiment. Within-group SDs: the typical distance of an observation "
+        f"table and {family_noun(result.settings)}. Within-group SDs: the typical distance of an "
+        "observation "
         "from its own group's centre. The CSV also gives an exploratory p with the labels of "
         f"the {_shuffled(result)} shuffled within each repeat ({permutations} permutations), "
         "never part of the verdict: it ignores any well effect the data do not name."

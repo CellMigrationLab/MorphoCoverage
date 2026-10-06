@@ -144,3 +144,7 @@ def test_the_design_sentence_follows_declared_experiments() -> None:
     assert "Design: 3 sub-experiments, each with its own control in its own 3" in texts["derived"]
     assert "Design: 2 experiments as declared, in 3 biological repeats" in texts["declared"]
     assert "each with its own control" not in texts["declared"]
+    # The q-values are said corrected within the declared experiment (owner, 2026-10-06).
+    assert "Benjamini-Hochberg within the condition's experiment" in texts["declared"]
+    assert "within the condition's sub-experiment" not in texts["declared"]
+    assert "Benjamini-Hochberg within the condition's sub-experiment" in texts["derived"]

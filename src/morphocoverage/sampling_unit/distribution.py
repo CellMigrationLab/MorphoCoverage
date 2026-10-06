@@ -59,7 +59,7 @@ from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
 from ..statistics import BIMODAL, bimodality_coefficient, excess_kurtosis, log_scale, paired_t
 from ._common import groups, validated
-from ._experiments import corrected, declared, experiments
+from ._experiments import corrected, declared, experiments, family_noun
 from ._units import (
     contrasts_of,
     control_label,
@@ -408,6 +408,7 @@ def distribution_contrast(
         "observation_unit_declared": data.observation_unit_declared,
         "repeat_col": repeat_col,
         "families": int(tests["experiment"].nunique()) if len(tests) else 0,
+        "declared_experiments": bool(families),
         "random_state": random_state,
         "draws": DRAWS,
         "cells_cap": CELLS_CAP,
@@ -437,7 +438,7 @@ def tests_words(result: DistributionContrast) -> str:
         return count(result.n_tests, "test")
     low, high = int(min(sizes)), int(max(sizes))
     per = count(low, "test") if low == high else f"{low}-{high} tests"
-    return f"{per} in each of {count(len(sizes), 'sub-experiment')}"
+    return f"{per} in each of {len(sizes)} {family_noun(result.settings, plural=True)}"
 
 
 __all__ = [

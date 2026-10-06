@@ -479,7 +479,7 @@ def _design(contrast: Any, control: str) -> str:
         ]
         sizes = sorted({int(n) for n in across["repeats"]})
         held = count(sizes[0], word) if len(sizes) == 1 else f"{sizes[0]} to {sizes[-1]} {word}s"
-        declared = contrast.settings.get("families")  # one may hold several controls
+        declared = contrast.settings.get("declared_experiments")  # may hold several controls
         kind = "experiments as declared, in" if declared else "sub-experiments, each with its own"
         own = f"{held}" if declared else f"{control} in its own {held}"
         text = f"Design: {len(groups)} {kind} {own} ({'; '.join(groups[:6])}"

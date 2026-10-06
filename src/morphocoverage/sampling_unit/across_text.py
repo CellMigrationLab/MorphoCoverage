@@ -24,7 +24,7 @@ import pandas as pd
 from .._control import ACROSS, MASTER_RAW, OWN, comparison_label
 from .._style import CAUTION, table, wrap
 from .._wording import change, column_word, count, listing, p_value
-from ._experiments import ALPHA
+from ._experiments import ALPHA, family_noun
 from .contrast_across import NORMALISED, RAW
 from .contrast_repeats import MIN_REPEATS
 from .repeats_text import _direction
@@ -151,13 +151,14 @@ def contrast_lines(contrast: Any, indent: int = 2) -> list[str]:
     over = f" over the {features} features" if features > 1 else ""
     head = wrap(
         "The contrasts tested, one row per test (contrasts.csv): the main verdicts, "
-        f"own_control, corrected within each sub-experiment{over}; then the secondary ones, "
+        f"own_control, corrected within each {family_noun(contrast.settings)}{over}; then the "
+        "secondary ones, "
         f"each family corrected on its own{over}:",
         indent,
         hang=indent + 2,
     )
     cells = [
-        [r["kind"], r["label"], "sub-experiment" if r["kind"] == OWN else r["family"]]
+        [r["kind"], r["label"], family_noun(contrast.settings) if r["kind"] == OWN else r["family"]]
         for r in rows.to_dict("records")
     ]
     return [head, table(cells, ["kind", "contrast", "corrected within"], indent=indent + 2)]

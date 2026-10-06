@@ -381,6 +381,7 @@ def whole_table_tests(
         "min_repeats": MIN_REPEATS,
         "min_assignments": MIN_ASSIGNMENTS,
         "few_control": FEW_CONTROL,
+        "declared_experiments": bool(families),
     }
     return WholeTable(tests, settings)
 

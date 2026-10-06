@@ -63,7 +63,7 @@ from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
 from ._common import groups, validated
 from ._discovery_tests import near_identical, resting, resting_words, tested_rows
-from ._experiments import corrected, declared, experiments, not_compared, screen_wide
+from ._experiments import corrected, declared, experiments, family_noun, not_compared, screen_wide
 from ._units import (
     check_arguments,
     contrasts_of,
@@ -280,10 +280,11 @@ class FeatureDiscovery:
         # The correction family, said as counted: the tests of each sub-experiment.
         tested = self.tests[self.tests["p_cells"].notna()]
         sizes = tested.groupby("experiment").size() if "experiment" in tested else []
+        noun = family_noun(self.settings, plural=True)
         family = (
-            f"{count(int(sizes.iloc[0]), 'test')} in each of {len(sizes)} sub-experiments"
+            f"{count(int(sizes.iloc[0]), 'test')} in each of {len(sizes)} {noun}"
             if len(sizes) > 1 and sizes.nunique() == 1
-            else f"{span(list(sizes))} tests in each of {len(sizes)} sub-experiments"
+            else f"{span(list(sizes))} tests in each of {len(sizes)} {noun}"
             if len(sizes) > 1
             else count(n_tests, "test")
         )
@@ -294,7 +295,8 @@ class FeatureDiscovery:
             f"condition against {against}: Cohen's d on the observations normalised to each "
             "repeat's control, "
             f"randomization test, q ≤ {alpha:g} after Benjamini-Hochberg within each "
-            f"sub-experiment: {family}{self._shuffles()}).{self._unpaired()} Ranked by the "
+            f"{family_noun(self.settings)}: {family}{self._shuffles()}).{self._unpaired()} "
+            "Ranked by the "
             "largest difference "
             "(|d|); change: the condition's mean over the control's, the fold change the "
             "paired t-test compares (the difference of the means for a feature with a value "
@@ -528,6 +530,7 @@ def feature_discovery(
         "n_permutations": n_permutations,
         "alpha": alpha,
         "random_state": random_state,
+        "declared_experiments": bool(families),
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
         "scales": dict(scales or {}),

@@ -267,7 +267,10 @@ repeat is, and a condition with neither test is said to have no cell-level test,
   experiment is one family, so an untransfected pair imaged in the same repeats as an siRNA
   set is not corrected with it, and a screen declared as one experiment is corrected as one
   (audit 10, owner, 2026-10-06); the design sentence then names the declared experiments,
-  one of which may hold several controls. When the tests against one control label fall into two or
+  one of which may hold several controls, and the q-values are said corrected "within the
+  condition's experiment" or "within each experiment", never "sub-experiment" (owner,
+  2026-10-06; the populations' enrichment, the unusual observations' reference and the
+  plan's 0.05/m keep the sub-experiments, and say so). When the tests against one control label fall into two or
   more families (a screen run target by target against one siCTRL), the screen-wide q, over
   every test against that label, is given beside each verdict ("screen-wide q 0.054"; the
   CSV's `q_screen`, `screen_wide_adjusted_p`). The guided session asks, with several

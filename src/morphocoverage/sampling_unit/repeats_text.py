@@ -179,7 +179,11 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
                     else ""
                 )
                 + ". p uncorrected, q corrected (Benjamini-Hochberg within each "
-                "sub-experiment: the conditions sharing their repeats and control). "
+                + (
+                    "experiment, as declared). "
+                    if contrast.settings.get("declared_experiments")
+                    else "sub-experiment: the conditions sharing their repeats and control). "
+                )
                 + WITHIN_FAMILY
             )
         )
