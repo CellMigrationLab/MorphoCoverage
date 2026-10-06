@@ -54,6 +54,7 @@ from ..evidence import Component
 from ..order_check import order_caveat
 from ..results import (
     COMPONENT_WORDS,
+    NO_TARGET_WORDS,
     Decision,
     StrategyResult,
     _averaging_cv_note,
@@ -173,7 +174,9 @@ def headline(update: LiveUpdate) -> str:
             more = f" ({listing(needs)})" if needs else ""
             waiting.append(f"{_label(result, unit)}{more}")
     not_yet = f"; not yet: {'; '.join(waiting)}" if waiting else ""
-    if overall is Decision.UNSUPPORTED:
+    if overall is Decision.UNSUPPORTED and not required:
+        verdict = f"not decided: {NO_TARGET_WORDS}; {saying}"
+    elif overall is Decision.UNSUPPORTED:
         missing = [
             COMPONENT_WORDS[e.component].lower()
             for e in entries

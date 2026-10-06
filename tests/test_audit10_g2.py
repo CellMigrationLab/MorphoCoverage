@@ -13,8 +13,21 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
+import matplotlib
+
+matplotlib.use("Agg")
+
 import pytest
 
+from morphocoverage import (
+    Component,
+    Decision,
+    Effort,
+    EffortPolicy,
+    Evidence,
+    SamplingObjective,
+)
+from morphocoverage.policies import decide
 from morphocoverage.sufficiency_short import met_count
 from morphocoverage.workflows import Setup, report
 
@@ -50,3 +63,25 @@ def test_the_rule_counts_say_how_many_groups_were_judged() -> None:
     row = next(line for line in text.splitlines() if "mean-precision rule, per field, 5%  " in line)
     assert "none judged; 4 too few fields" in row
     assert " 0 of 4 " not in row
+
+
+@pytest.mark.parametrize(
+    "name", ["a10_embed2_several_norm_cells_none_tol", "a21_embed1_one_norm_cells_none_tol"]
+)
+def test_a_setup_with_no_target_has_no_component_and_nothing_decides_a_stop(name: str) -> None:
+    # C12: "a stop needs every declared target (phenotypic fingerprint)" with none declared.
+    setup = Setup(**make_scenarios.load(name).setup)
+    objective = setup.objective()
+    assert objective.objective is SamplingObjective.NO_TARGET
+    assert objective.required_components == frozenset()
+    said = [line for line in setup.declaration() if line.startswith("Live decision")]
+    assert said == ["Live decision: no target: nothing decides a stop."]
+    for detail in ("short", "full"):
+        text = " ".join(_scenario_report(name).summary(detail).split())
+        assert "a stop needs every declared target" not in text
+    assert "Live decision: no target: nothing decides a stop." in text
+    # Whatever a rule says, no target means no stop.
+    stop = EffortPolicy("n_fovs", 1, Component.DISTRIBUTION)
+    overall, per_component = decide(Evidence(), Effort(n_fovs=10, n_objects=100), [stop], objective)
+    assert per_component == {"distribution": Decision.STOP}
+    assert overall is Decision.UNSUPPORTED

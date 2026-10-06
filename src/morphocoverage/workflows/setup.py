@@ -41,7 +41,7 @@ from ..metadata import (
 )
 from ..normalize import METHODS as NORMALIZATIONS
 from ..normalize import normalize_to_control, normalize_to_own
-from ..objectives import ObjectiveConfig, RareTarget, SamplingObjective
+from ..objectives import ObjectiveConfig, RareTarget
 from ..outcomes import RareStateDetected, RelativeMeanError
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.hierarchy import SamplingHierarchy
@@ -72,6 +72,7 @@ from ._setup_parts import (
     check_presets,
     check_scales,
     default_novelty,
+    setup_objective,
     warn_novelty_dimension,
 )
 
@@ -473,28 +474,10 @@ class Setup:
         return normalized_text(self, fovs, objects)
 
     def objective(self) -> ObjectiveConfig:
-        """The objective whose components are the declared targets.
-
-        The population summary is always declared; a fingerprint adds the
-        distribution component, a rare target the rare component. The live
-        decision and every replay run under it, so a rule that has no evidence
-        about a declared target cannot alone say stop, and a target no rule
-        decides stays ``unsupported`` in the decision view rather than being
-        assumed adequate.
-        """
-        if not self.mean_target:  # no mean: the fingerprint and the rare phenotype only
-            if self.rare is None:
-                return ObjectiveConfig(SamplingObjective.DISTRIBUTION)
-            if self.fingerprint:  # owner, 2026-10-06 (audit 8): no population component
-                return ObjectiveConfig(SamplingObjective.DISTRIBUTION_RARE, rare=self.rare)
-            return ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=self.rare)
-        if self.rare is not None and self.fingerprint:
-            return ObjectiveConfig(SamplingObjective.ALL, rare=self.rare)
-        if self.rare is not None:
-            return ObjectiveConfig(SamplingObjective.BALANCED, rare=self.rare)
-        if self.fingerprint:
-            return ObjectiveConfig(SamplingObjective.PHENOTYPE)
-        return ObjectiveConfig(SamplingObjective.POPULATION)
+        """The objective whose components are the declared targets (``setup_objective``):
+        a rule with no evidence about a declared target cannot alone say stop, and a target
+        no rule decides stays ``unsupported``; with no target, nothing decides a stop."""
+        return setup_objective(self)
 
     def criteria(self) -> list[OutcomeCriterion]:
         """The declaration as outcome criteria, judged on held-back fields.

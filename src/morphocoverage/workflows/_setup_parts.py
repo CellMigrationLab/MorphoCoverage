@@ -1,5 +1,5 @@
 """Parts of a ``Setup`` declared on their own (private): the positive control and its
-checks, the default definition of new.
+checks, the default definition of new, the objective of the declared targets.
 
 Shared-private: re-exported by ``workflows.setup``, where they are imported from.
 """
@@ -18,6 +18,7 @@ from .._checks import check_seed, is_integer, is_number
 from .._former_repeat import read_fields
 from .._parallel import check_n_jobs
 from ..metadata import REPEAT_COLUMN
+from ..objectives import ObjectiveConfig, SamplingObjective
 from ..statistics import SCALES
 from ..strategies import SupportNoveltyEstimator
 from ..transforms import RobustStandardize, Standardize
@@ -202,6 +203,35 @@ def check_few_fovs(setup: Setup) -> None:
         )
 
 
+def setup_objective(setup: Setup) -> ObjectiveConfig:
+    """The objective whose components are the declared targets (``Setup.objective``).
+
+    The population summary whenever the readout's mean is a target; a fingerprint adds
+    the distribution component, a rare target the rare component; with none of them, no
+    component (``no_target``: nothing decides a stop). The live decision and every replay
+    run under it, so a rule that has no evidence about a declared target cannot alone say
+    stop, and a target no rule decides stays ``unsupported`` in the decision view rather
+    than being assumed adequate.
+    """
+    if not setup.mean_target:  # no mean: the fingerprint and the rare phenotype only
+        if setup.rare is None and not setup.fingerprint:
+            # No target at all: no component, nothing decides a stop (audit 10, owner,
+            # 2026-10-06; before, a fingerprint was required that nobody declared).
+            return ObjectiveConfig(SamplingObjective.NO_TARGET)
+        if setup.rare is None:
+            return ObjectiveConfig(SamplingObjective.DISTRIBUTION)
+        if setup.fingerprint:  # owner, 2026-10-06 (audit 8): no population component
+            return ObjectiveConfig(SamplingObjective.DISTRIBUTION_RARE, rare=setup.rare)
+        return ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=setup.rare)
+    if setup.rare is not None and setup.fingerprint:
+        return ObjectiveConfig(SamplingObjective.ALL, rare=setup.rare)
+    if setup.rare is not None:
+        return ObjectiveConfig(SamplingObjective.BALANCED, rare=setup.rare)
+    if setup.fingerprint:
+        return ObjectiveConfig(SamplingObjective.PHENOTYPE)
+    return ObjectiveConfig(SamplingObjective.POPULATION)
+
+
 __all__ = [
     "MANY_NOVELTY_FEATURES",
     "PositiveControl",
@@ -211,5 +241,6 @@ __all__ = [
     "check_presets",
     "check_scales",
     "default_novelty",
+    "setup_objective",
     "warn_novelty_dimension",
 ]

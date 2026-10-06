@@ -15,6 +15,7 @@ phenotypic fingerprint (the distribution component) and the rare phenotype.
 | `balanced` | population summary and rare phenotype |
 | `distribution_rare` | phenotypic fingerprint and rare phenotype (a Setup with no readout; owner, 2026-10-06) |
 | `all` | all three |
+| `no_target` | none: a Setup that declares no target; nothing decides a stop (audit 10, owner, 2026-10-06) |
 
 ## Population representation
 

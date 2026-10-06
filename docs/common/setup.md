@@ -155,7 +155,11 @@ projection (both read the readout), and it refuses a Setup with no target it can
 columns (a `FOVBootstrapStrategy`) or the label (a `RareIncidenceStrategy`); it refuses
 otherwise, saying so. With both the fingerprint and the rare phenotype the objective is those
 two, `distribution_rare`, with no population component, and the declaration lists only them
-(owner, 2026-10-06); `objective=` may still narrow it.
+(owner, 2026-10-06); `objective=` may still narrow it. A Setup that declares no target, no
+mean (no readout, or `tolerances=()`), no fingerprint and no rare phenotype, has the
+objective `no_target`, with no component: the declaration says "Live decision: no target:
+nothing decides a stop", and no rule's stop becomes the live decision (audit 10, owner,
+2026-10-06; before, it required a fingerprint nobody declared).
 
 ## Normalising to the control
 

@@ -169,7 +169,7 @@ the contrast table, or the one control.
 | Duplicated or derived features | every declared column, on all rows and within each experiment | column pair | none, a caution | none |
 | Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap, an engineering threshold for quality control, not a test, in the acquisition block of "What is in the dataset" | one control |
 | `optimise` | criteria on held-back fields, divided as the fingerprint, a fingerprint's components refitted on the fields not held back; the rules replayed raw | analysis group | none | no target it can judge |
-| `live_session` | the raw columns of each field | analysis group | none | none |
+| `live_session` | the raw columns of each field | analysis group | none | no target declared: "no target: nothing decides a stop" (audit 10, owner, 2026-10-06) |
 
 With the readout as the only explainable column, its own tests are corrected over its
 conditions per sub-experiment. With no `features` and other tables given, unusual
