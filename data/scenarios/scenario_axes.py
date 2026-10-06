@@ -255,7 +255,7 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
             reasons["unit"] = "no explainable features"
             (ran if control else absent).append("unusual")
             reasons["profile"] = "Fields against random" if control else "against the control"
-        reasons["conditions"] = "Per feature" if control else "no control declared"
+        reasons["conditions"] = "Per feature" if control else "no control is declared"
         reasons["enough"] = "Per feature" if target != "tol" else "no target declared"
     else:
         ran += ["sufficiency", "inspection"]
@@ -272,7 +272,8 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
                 ran += ["unusual", "object_rules", "clustering"]
         else:
             absent += ["contrast", "discovery", "unusual", "object_rules", "distribution"]
-            reasons["conditions"] = "needs a control"
+            # Plan v2 (owner, 2026-10-06): requested contrasts, not yet supported.
+            reasons["conditions"] = "no control is declared"
         if target == "positive":
             (ran if per_field else absent).append("controls")
             if per_field:  # 5 reference fields seen, as the definition of new needs

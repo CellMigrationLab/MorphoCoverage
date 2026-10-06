@@ -41,7 +41,8 @@ answers are known.
 
 **The control.**
 
-- None: `control=None`.
+- None: `control=None`; comparisons then need explicitly requested contrasts, not yet
+  supported by the report ([below](#d-no-control-declared)).
 - One: `control={"condition": "MOCK"}`.
 - Several: `control={"condition": {control: {treatment: condition} or [conditions]}}`, with
   `control_parents` and `master_control`; they generate the contrast table, or
@@ -330,3 +331,9 @@ given to `report`.
   separation.
 - No condition test, no whole-table test, no unusual observations, no normalisation: a
   Setup with `normalize` and no control is refused.
+- "Do the conditions differ?" reads, once: "not applicable: no control is declared:
+  comparisons are available only for explicitly requested contrasts estimable from the
+  repeat design, which the report does not support yet" (plan v2, owner, 2026-10-06; before,
+  "described, not tested"): two conditions in shared repeats are a legitimate direct
+  contrast, which the contrast layer will estimate once validated (module P2 of the
+  [validation protocol](validation.md)); the guided session says the same sentence.

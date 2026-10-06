@@ -54,7 +54,7 @@
    "whole_table"
   ],
   "not_applicable": {
-   "conditions": "needs a control"
+   "conditions": "no control is declared"
   },
   "table_column": false,
   "headlines": {

@@ -16,6 +16,7 @@ from test_feature_tables_wide import _wide
 from test_guided import Script as GuidedScript
 from test_guided import _cells as guided_cells
 
+from morphocoverage._control import NO_CONTROL
 from morphocoverage._wording import WITHIN_FAMILY
 from morphocoverage.embedding import robust_components
 from morphocoverage.multivariate_outcomes import ComponentsError, CovarianceError, QuantileError
@@ -34,6 +35,7 @@ from morphocoverage.workflows._exploratory import (
 )
 from morphocoverage.workflows._fingerprint_space import fingerprint_space, noun
 from morphocoverage.workflows._guided_ask import ask_scales, ask_tolerance
+from morphocoverage.workflows._guided_controls import contrast_lines
 from morphocoverage.workflows._html_across import _across, across_frame
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -361,3 +363,22 @@ def test_the_page_says_it_where_the_section_text_is_not_printed():
     assert exploratory_line(["the rare target", "novelty"]).startswith(
         "The rare target and novelty are exploratory"
     )
+
+
+# --- 6. Without a control -------------------------------------------------------------------
+
+
+def test_without_a_control_requested_contrasts_are_said_not_yet_supported():
+    objects, fovs = _discovery_tables(n_repeats=3)
+    result = report(objects, fovs, Setup(readout="area", observation_unit="cell"))
+    said = " ".join(result.summary().split())
+    sentence = (
+        "not applicable: no control is declared: comparisons are available only for explicitly "
+        "requested contrasts estimable from the repeat design, which the report does not "
+        "support yet"
+    )
+    assert sentence in said
+    section = " ".join(result.document.sections["conditions"].split())
+    assert section.count("explicitly requested contrasts") == 1  # one sentence, its section
+    assert "descriptive only" not in said and "described, not tested" not in said
+    assert contrast_lines(None, None, None) == [f"{NO_CONTROL[:1].upper()}{NO_CONTROL[1:]}."]

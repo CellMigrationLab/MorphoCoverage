@@ -44,7 +44,7 @@
    "whole_table"
   ],
   "not_applicable": {
-   "conditions": "needs a control",
+   "conditions": "no control is declared",
    "profile": "one image per field",
    "unit": "each field holds one"
   },

@@ -181,7 +181,8 @@ def test_seed3_seed18_b12_embedding_only_gives_the_real_reason():
             feature_tables={"T": table},
         )
     short = " ".join(alone.summary().split())
-    assert "9. Do the conditions differ? — not applicable: no control declared" in short
+    # Plan v2 (owner, 2026-10-06): requested contrasts only, not yet supported by the report.
+    assert "9. Do the conditions differ? — not applicable: no control is declared" in short
     assert "2. Did I image enough? — not applicable: no target declared; declare the" in short
     assert "fingerprint) or a labelled phenotype (rare with rare_label)" in short
     assert "unusual images not assessed without a control" in short

@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
+from .._control import NO_CONTROL
 from .._integrity_tables import integrity_by_table
 from .._style import DASH
 from .._wording import count
@@ -103,10 +104,7 @@ def _other_reasons(setup: Setup, fovs: pd.DataFrame | None, per_field: bool) -> 
             "(fingerprint) or a labelled phenotype (rare with rare_label)"
         )
     if setup.reference_control is None:
-        found["conditions"] = (
-            "not applicable: no control declared, so no condition is compared with one "
-            "(control={'condition': ...})"
-        )
+        found["conditions"] = f"not applicable: {NO_CONTROL}"  # plan v2 (owner, 2026-10-06)
         found["profile"] = (
             f"not applicable: unusual {units} are judged against the control, and none is declared"
         )

@@ -68,7 +68,7 @@
    "whole_table"
   ],
   "not_applicable": {
-   "conditions": "no control declared",
+   "conditions": "no control is declared",
    "controls": "no explainable features",
    "enough": "Per feature",
    "inspect": "no explainable features",

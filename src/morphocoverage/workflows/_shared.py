@@ -28,7 +28,7 @@ from typing import Any
 
 import pandas as pd
 
-from .._control import not_found
+from .._control import NO_CONTROL, not_found
 from .._former_repeat import renamed_tables
 from .._wording import count
 from ..benchmark import AcquisitionOrder
@@ -498,6 +498,8 @@ def conditions(
             f"not applicable: the FOV table holds one condition, {only}, so no other "
             "condition is compared with the control"
         )
+    if not setup.compares and setup.control is None and held > 1:
+        reasons["conditions"] = f"not applicable: {NO_CONTROL}"  # plan v2 (owner, 2026-10-06)
     if not (setup.compares and held > 1):
         return {}
     pooled = pooled_columns(objects, fovs, setup, [CONDITION_COLUMN, REPEAT_COLUMN])
