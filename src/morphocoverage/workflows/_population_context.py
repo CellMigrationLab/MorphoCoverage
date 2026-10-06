@@ -42,7 +42,8 @@ if TYPE_CHECKING:
 
 # One condition holding this share of a group's cells: its shift, not a subpopulation.
 MOSTLY = 0.9
-# The page suggests a group as the rare phenotype at most at this share of the cells.
+# The page suggests a group as the rare phenotype at most at this share of the cells: an
+# engineering threshold, not calibrated (kept, owner, 2026-10-06).
 RARE_SHARE = 0.1
 # Under the table when the groups are described against their compared controls.
 AGAINST_WORDS = (

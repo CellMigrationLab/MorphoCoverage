@@ -267,7 +267,10 @@ trend only from 6 repeats, as for the features, and with fewer than 3 repeats "n
 ("higher in both repeats, not tested"). A rule that thresholds a feature with few distinct
 values says so. "What to do next" names a few of the group's fields with how many of its
 cells they hold, and suggests declaring the group as the rare phenotype only when it holds
-at most 10% of the cells and is not mostly one condition.
+at most 10% of the cells, an engineering threshold, not a calibrated one, and is not mostly
+one condition. Both defaults are kept: this 10% suggestion, and with several controls and
+no `normalize` the groups found on values normalised to each own control (owner,
+2026-10-06).
 
 ### Do the conditions differ?
 
