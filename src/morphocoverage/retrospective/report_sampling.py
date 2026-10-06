@@ -39,6 +39,7 @@ from ..sampling_unit._state_text import (
     scored_shares,
     single_feature,
     state_words,
+    tested,
     unusual_full,
     unusual_parts,
 )
@@ -196,12 +197,13 @@ def skipped_strata(controls: Any) -> str:
 
 
 def clustered_states(clustering: Sequence[Any]) -> tuple[list[str], int, int]:
-    """The clustered states in words, and in how many groups where seen they cluster."""
+    """The clustered states in words, and in how many groups where tested they cluster (seen,
+    with a smallest possible p that can reach 0.05; audit 10)."""
     names, clustered, seen = [], 0, 0
     for result in clustering:
         if result is None:
             continue
-        rows = result.table[result.table["state_objects"] > 0]
+        rows = result.table[(result.table["state_objects"] > 0) & tested(result.table)]
         words = observation_words(result.settings)[1]
         for state, block in rows.groupby("state", sort=False):
             hits = int(clustered_rows(block).sum())
@@ -339,10 +341,15 @@ def states_lines(clustering: Any, unusual: Any, words: str) -> list[str]:
         hits = seen[clustered_rows(seen)]
         named = [group_label({k: r[k] for k in keys}) for r in hits.to_dict("records")]
         where = f" ({listing(named, limit=3)})" if named else ""
+        run = int(tested(seen).sum())
         text = (
             f"clustered in a few fields (q ≤ {CLUSTER_ALPHA:g}) in {len(hits)} of the "
-            f"{len(seen)} groups where seen{where}"
+            f"{run} groups where tested{where}"
+            if run
+            else "not tested: too few in any group for a p that can reach 0.05"
         )
+        if run and len(seen) > run:
+            text += f", {len(seen) - run} more where seen too few to reach 0.05"
         factor = (
             pd.to_numeric(hits["fovs_needed"], errors="coerce")
             / pd.to_numeric(hits["fovs_needed_if_random"], errors="coerce")
@@ -490,9 +497,10 @@ def profile_answer(profile: pd.DataFrame, clustering: Sequence[Any], unusual: An
     parts += [alone] if (alone := unusual_alone(unusual, clustering)) else []
     parts += names
     if seen and not clustered:
+        # Not "spread like random": a test that finds nothing shows no clustering (audit 10).
         words = _unit(clustering, unusual)
-        where = "the one group seen" if seen == 1 else f"all {seen} groups seen"
-        parts.append(f"{_seen_states(clustering, words)} spread like random {words} in {where}")
+        where = "the one group tested" if seen == 1 else f"the {seen} groups tested"
+        parts.append(f"no clustering shown for {_seen_states(clustering, words)} in {where}")
     # The main answer only: whether the largest share is established and whether the
     # unusual labels are stable are cautions of the section (and raise its status).
     largest, _ = largest_sources(profile)

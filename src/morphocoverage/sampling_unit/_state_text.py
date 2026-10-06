@@ -345,21 +345,35 @@ def _clustering_cautions(result: Any, words: str) -> list[str]:
     return cautions
 
 
+def tested(rows: pd.DataFrame) -> pd.Series:
+    """Which rows of a clustering table were tested: their smallest possible p can reach 0.05
+    (audit 10; a table from before has every row with a p tested)."""
+    return pd.to_numeric(rows["p_clustered"], errors="coerce").notna()
+
+
 def _state_answer(result: Any, state: Any, block: pd.DataFrame, words: str) -> str:
     keys = list(result.group_cols)
     seen = _seen(result, block)
-    hits = [r for r in seen if float(r["q_clustered"]) <= CLUSTER_ALPHA]
+    run = [r for r in seen if _present(r["p_clustered"])]
+    hits = [r for r in run if float(r["q_clustered"]) <= CLUSTER_ALPHA]
     name = state_words(result, state, words)
     text = f"Are the {name} spread over the fields? "
     if not seen:
         text += "Not seen in any group."
-    else:
+    elif run:
         tests = count(_family(result), "test")
         text += (
             f"Clustered in a few fields (q ≤ {CLUSTER_ALPHA:g} after Benjamini-Hochberg over the "
-            f"{tests} of every group and state) in {among(len(hits), len(seen))} where seen"
+            f"{tests} of every group and state) in {among(len(hits), len(run))} where tested"
         )
         text += f" ({listing([_group(r, keys) for r in hits], 3)})." if hits else "."
+        text += "" if hits else " No clustering shown."
+    if len(run) < len(seen):
+        left = [_group(r, keys) for r in seen if not _present(r["p_clustered"])]
+        text += (
+            f" Not tested in {listing(left, 3)}: too few {name} for a p that can reach "
+            f"{CLUSTER_ALPHA:g}, the tests that can be corrected over."
+        )
     unseen = [r for r in block.to_dict("records") if r["labelled"] and not r["state_objects"]]
     if unseen:
         where = [
@@ -406,7 +420,8 @@ def _state_cells(result: Any, row: Mapping[str, Any], keys: Sequence[str], full:
     cell += [f"{int(row['fovs_with_state'])} of {int(row['fovs'])}"]
     cell += [f"{float(row['expected_fovs_if_random']):.1f}"]
     cell += [f"{float(row['clustering_ratio']):.1f}"] if full else []
-    cell += [f"{float(row['p_clustered']):.2g}", f"{float(row['q_clustered']):.2g}"]
+    run = _present(row["p_clustered"])
+    cell += [f"{float(row[k]):.2g}" if run else "–" for k in ("p_clustered", "q_clustered")]
     if m > 1:
         holding = int(row.get("fovs_holding_state", row["fovs_with_state"]))
         cell += [f"{holding} of {int(row['fovs'])}"]
@@ -489,7 +504,8 @@ def clustering_parts(
             wrap(
                 f"In fields: the fields holding the state; if random: the fields as many random "
                 f"{words} would fill; p: how often shuffled labels reach as few fields; q: that "
-                f"p corrected over every group and state (Benjamini-Hochberg). To see: "
+                f"p corrected over every group and state tested (Benjamini-Hochberg; – not "
+                f"tested: its smallest possible p cannot reach {CLUSTER_ALPHA:g}). To see: "
                 f"the fields to see it from its field incidence (up to: from the low end of its "
                 f"interval), against the fields a count of random {words} asks for.",
                 indent,
@@ -509,6 +525,7 @@ __all__ = [
     "scored_shares",
     "single_feature",
     "state_words",
+    "tested",
     "unusual_full",
     "unusual_parts",
 ]

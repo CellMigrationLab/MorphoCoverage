@@ -273,7 +273,7 @@ without explainable features the combined map has a centred view instead (owner,
 | Ranking within repeats | wells, or fields | all its tests together | which features to plot |
 | Pairwise panels | observation | the pairs of one figure | descriptive |
 | Whole-table shuffle | wells, else fields | none | exploratory, CSV only |
-| Clustering in fields | field | groups and states | a state called clustered at q 0.05 or less |
+| Clustering in fields | field | groups and states that can reach 0.05: a group whose smallest possible p cannot is left out, "not tested", and a state not found clustered reads "no clustering shown" (owner, 2026-10-06, audit 10) | a state called clustered at q 0.05 or less |
 | Acquisition order | field | Bonferroni over its two tests | a caution beside a stop, never a veto |
 
 Exploratory until their module of [the validation protocol](validation.md) validates them

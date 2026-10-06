@@ -76,13 +76,14 @@ def test_p6_1_a_field_holds_an_unusual_state_only_with_m_objects():
     for j in (2, 7, 13, 19, 25):
         control[j] = [True] + [False] * 19
     objects, fovs = _concat(_fields(drug), _fields(control, condition="control"))
-    plain = fov_clustering(objects, fovs, label_col="state", states=[True], n_permutations=9)
+    # 99 shuffles: with 9, no p could reach 0.05 and the test is left out (audit 10).
+    plain = fov_clustering(objects, fovs, label_col="state", states=[True], n_permutations=99)
     held = fov_clustering(
         objects,
         fovs,
         label_col="state",
         states=[True],
-        n_permutations=9,
+        n_permutations=99,
         min_objects_per_fov=3,
         reference={"condition": "control"},
     )

@@ -356,7 +356,7 @@ def test_clustered_is_called_at_q_corrected_over_every_group_and_state():
     assert table.loc[table["condition"] == "c20", "q_clustered"].iloc[0] <= 0.05
     text = " ".join(result.summary().split())
     assert "q ≤ 0.05 after Benjamini-Hochberg over the 21 tests" in text
-    assert "in 1 of 21 groups where seen (c20 · repeat r1)" in text
+    assert "in 1 of 21 groups where tested (c20 · repeat r1)" in text
 
 
 @pytest.mark.parametrize(

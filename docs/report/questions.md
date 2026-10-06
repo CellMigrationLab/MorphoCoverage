@@ -80,7 +80,11 @@ differ more than random objects would (`sampling_unit.fov_variability`); the
 mean-precision rule and the JCS stabilisation, each run with random objects and with
 whole fields (`object_rule_check`, `descriptor_spread_check`; also P5);
 whether labelled rare or unusual states are spread over the fields or
-clustered in a few (`fov_clustering`, reported under R4); and, where stage
+clustered in a few (`fov_clustering`, reported under R4; a group whose smallest possible
+permutation p, the share of shuffles reaching the fewest fields its objects could fill,
+cannot reach 0.05 after Bonferroni over the tests kept is left out and named, so the q of
+the groups that can is not diluted, and a state not found clustered reads "no clustering
+shown", never "spread like random"; owner, 2026-10-06, audit 10); and, where stage
 coordinates exist, the distance over which neighbouring fields are alike
 (`redundancy_distance`, reported under P7; not yet run by the `report`
 workflow). Whether the imaged positions were the right ones is a separate
