@@ -480,30 +480,10 @@ What this acquisition was asked to preserve
       control goes from ×0.76 to ×0.72, the paired t-test's p from 0.11 to 0.16.
   None of these is called an error: look at the images to see whether it is biology, technique or
     simply a large field.
-  ⚠️ New states are not listed in siCCT8#5 · repeat 1: not informative with 25 fields in 10
-     features:
-     this definition of new calls 36% of the fields of a homogeneous population of this size new.
-  ⚠️ New states are not listed in siCCT8#5 · repeat 2: not informative with 21 fields in 10
-     features:
-     this definition of new calls 52% of the fields of a homogeneous population of this size new.
-  ⚠️ New states are not listed in siCCT8#5 · repeat 3: not informative with 17 fields in 10
-     features:
-     this definition of new calls 66% of the fields of a homogeneous population of this size new.
-  ⚠️ New states are not listed in siCCT8#8 · repeat 1: not informative with 27 fields in 10
-     features:
-     this definition of new calls 32% of the fields of a homogeneous population of this size new.
-  ⚠️ New states are not listed in siCCT8#8 · repeat 2: not informative with 16 fields in 10
-     features:
-     this definition of new calls 48% of the fields of a homogeneous population of this size new.
-  ⚠️ New states are not listed in siCCT8#8 · repeat 3: not informative with 15 fields in 10
-     features:
-     this definition of new calls 57% of the fields of a homogeneous population of this size new.
-  ⚠️ New states are not listed in siCTRL · repeat 1: not informative with 18 fields in 10 features:
-     this definition of new calls 50% of the fields of a homogeneous population of this size new.
-  ⚠️ New states are not listed in siCTRL · repeat 2: not informative with 24 fields in 10 features:
-     this definition of new calls 38% of the fields of a homogeneous population of this size new.
-  ⚠️ New states are not listed in siCTRL · repeat 3: not informative with 11 fields in 10 features:
-     this definition of new calls 60% of the fields of a homogeneous population of this size new.
+  ⚠️ New states are not listed in 9 groups (siCCT8#5 · repeat 1, siCCT8#5 · repeat 2,
+     siCCT8#5 · repeat 3 and 6 more): not informative with 11 to 27 fields in 10 features each,
+     where this definition of new calls 32% to 66% of the fields of a homogeneous population of
+     these sizes new.
 
   The data-integrity checks (in the overview) name 2 fields in 1 finding (fields that hold another
     field's observations, or their own twice); every answer here counts them as independent fields,
