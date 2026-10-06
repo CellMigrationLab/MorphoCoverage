@@ -368,8 +368,11 @@ def embeddings(
         if CONDITION_COLUMN in points
         else [len(points)]
     )
-    # The populations counted the PCs of the declared values: said on their set only.
-    declared = "normalised" if setup.normalize is not None else "raw"
+    # The populations counted the PCs of the declared values: said on their set only. An
+    # embedding-only report has no normalised set: with normalize, its tables are centred.
+    declared = "raw"
+    if setup.normalize is not None:
+        declared = next((v for v in ("normalised", "centred") if v in maps), "raw")
     held = _held(result)
 
     def built(values: str, space: str) -> dict[str, Any]:

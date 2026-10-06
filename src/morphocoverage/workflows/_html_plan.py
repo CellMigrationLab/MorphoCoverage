@@ -32,6 +32,7 @@ from ..sampling_unit.reading_text import CONFIRMED, condition_readings
 from ..sampling_unit.repeat_plan import MAX_REPEATS, POWER
 from ..sampling_unit.repeat_plan_text import field_words
 from ._enough_targets import held_back_note
+from ._feature_space import table_columns
 from ._html_next import (
     _GUARD,
     RESERVOIR,
@@ -130,8 +131,10 @@ def _incidence(
     holds it. Every acquired field counts, a field without observations as one without it; a
     missing label is unknown (owner, 2026-10-05), so a field whose observations all lack one
     was not looked at and is left out, as ``fov_clustering`` does."""
+    # Validated by one column; an embedding-only report has no explainable one.
+    columns = list(result.setup.columns) or table_columns(result.setup)
     data = validate_input_tables(
-        objects, fovs=fovs, feature_cols=list(result.setup.columns)[:1], **result.setup.common
+        objects, fovs=fovs, feature_cols=columns[:1], **result.setup.common
     )
     key = [c for c in data.fov_key if c in data.objects]
     if "condition" not in key:
