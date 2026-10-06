@@ -336,7 +336,8 @@ def embeddings(
     tables, unnormalisable = _tables(setup, objects, fovs)
     maps = _maps(setup, tables, fovs, top, carry)
     left = centred_left_out(objects, fovs, setup) if "centred" in maps else ""
-    line = centring_line(objects, fovs, setup) if "centred" in maps else ""
+    ran = "unusual" in result.results
+    line = centring_line(objects, fovs, setup, ran) if "centred" in maps else ""
     centred = centred_note(setup.unit_word, setup.unit_words, left, line)
     spaces = list(maps["raw"])
     several = len(spaces) > 1

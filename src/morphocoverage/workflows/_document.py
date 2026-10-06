@@ -42,7 +42,7 @@ from ..retrospective.report_status import (
 from ..sampling_unit._state_text import clustering_parts
 from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import observation_words
-from ._declaration import declaration_short
+from ._declaration import declaration, declaration_short
 from ._distribution import with_distribution
 from ._enough_features import default_precision, with_features
 from ._enough_targets import with_targets
@@ -106,7 +106,9 @@ def with_reasons(document: MicroscopistReport, reasons: Mapping[str, str]) -> Mi
     )
 
 
-def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
+def assemble(
+    results: Mapping[str, Any], setup: Setup, per_field: bool = True
+) -> MicroscopistReport:
     """The microscopist's report of ``results`` under the setup's declaration and presets.
 
     ``microscopist_report`` with ``Setup.minimum_detection``, then what it has
@@ -118,10 +120,12 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
     """
     document = microscopist_report(
         **{k: v for k, v in results.items() if k not in _EXTRA_RESULTS},
-        declaration=setup.declaration(),
+        # One observation per field: what does not run is not declared (audit 8B).
+        declaration=declaration(setup, per_field),
         minimum_detection=setup.minimum_detection,
     )
-    document = replace(document, short={**document.short, "declaration": declaration_short(setup)})
+    short = declaration_short(setup, per_field=per_field)
+    document = replace(document, short={**document.short, "declaration": short})
     integrity = results.get("integrity")
     if integrity is not None:
         # What the tables hold includes structure to inspect before reading the answers.

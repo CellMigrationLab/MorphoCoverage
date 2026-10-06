@@ -30,6 +30,7 @@ from .._integrity_tables import integrity_by_table
 from .._style import DASH
 from .._wording import count
 from ..data_check import check_tables
+from ..metadata import REPEAT_COLUMN
 from ..retrospective import dataset_overview
 from ._document import assemble, with_reasons
 from ._enough_targets import fingerprint_precision
@@ -44,13 +45,16 @@ from ._feature_space import (
 from ._populations import populations_in_report
 from ._rare_share import unlabelled_note
 from ._results import PLAN_TITLE, Plan, Report
-from ._shared import control_checks, one_per_field, rare_clustering
+from ._shared import control_checks, one_per_field, one_per_field_reasons, rare_clustering
 from ._whole_table import whole_table_in_report
 
 if TYPE_CHECKING:
     from .setup import Setup
 
 NOT_APPLICABLE = "not applicable: no explainable features"
+CENTRED_VALUES = (
+    "the other feature tables centred per biological repeat (Batch, below), never divided"
+)
 # The parts of a question that need explainable features, by question.
 _PARTS = {
     "unit": "",
@@ -62,19 +66,58 @@ _PARTS = {
 }
 
 
-def embedding_reasons(results: dict[str, Any]) -> dict[str, str]:
+def embedding_reasons(
+    results: dict[str, Any],
+    setup: Setup | None = None,
+    fovs: pd.DataFrame | None = None,
+    per_field: bool = True,
+) -> dict[str, str]:
     """By question, what needs explainable features, once each (see the module); a question
-    without any answer on the tables is ``NOT_APPLICABLE`` as a whole."""
+    without any answer on the tables is ``NOT_APPLICABLE`` as a whole, or says the real
+    reason when another one keeps it from running (``_other_reasons``, audit 8B)."""
     answered = {
         "enough": results.get("fingerprint_precision") is not None
         or results.get("rare_clustering") is not None,
         "conditions": results.get("whole_table") is not None,
         "profile": results.get("clustering") is not None or "rare_clustering" in results,
     }
+    other = _other_reasons(setup, fovs, per_field) if setup is not None else {}
     reasons = {}
     for key, part in _PARTS.items():
-        reasons[key] = f"{part}{NOT_APPLICABLE}" if part and answered.get(key) else NOT_APPLICABLE
+        whole = other.get(key, NOT_APPLICABLE)
+        reasons[key] = f"{part}{NOT_APPLICABLE}" if part and answered.get(key) else whole
+    # One observation per field: the reason, whatever else was answered, as in any report.
+    reasons.update({k: v for k, v in other.items() if k in ("unit", "profile") and not per_field})
     return reasons
+
+
+def _other_reasons(setup: Setup, fovs: pd.DataFrame | None, per_field: bool) -> dict[str, str]:
+    """By question, why it has no answer on the tables when the lack of explainable features
+    is not the reason: no control, no repeat column, no target declared, one observation per
+    field."""
+    units = setup.unit_words
+    found: dict[str, str] = {}
+    if not setup.fingerprint and setup.rare_label is None:
+        found["enough"] = (
+            "not applicable: no target declared; declare the fingerprint of a table "
+            "(fingerprint) or a labelled phenotype (rare with rare_label)"
+        )
+    if setup.reference_control is None:
+        found["conditions"] = (
+            "not applicable: no control declared, so no condition is compared with one "
+            "(control={'condition': ...})"
+        )
+        found["profile"] = (
+            f"not applicable: unusual {units} are judged against the control, and none is declared"
+        )
+    elif fovs is not None and REPEAT_COLUMN not in fovs:
+        found["conditions"] = (
+            "not applicable: no biological repeat column, and the whole-table test compares "
+            "the repeats"
+        )
+    if not per_field:
+        found.update({k: v for k, v in one_per_field_reasons(setup).items() if k != "enough"})
+    return found
 
 
 def embedding_report(
@@ -102,13 +145,18 @@ def embedding_report(
             **common,
         )
     per_field = not one_per_field(objects, fovs, setup)
+    unusual = per_field and setup.reference_control is not None  # whether they run
     overview = dataset_overview(
         objects,
         fovs,
         feature_cols=table_columns(setup)[:1],  # validated by one; no explainable feature
+        # normalize centres the tables, never divides them (owner, 2026-10-06).
+        normalized=CENTRED_VALUES if setup.normalize is not None else None,
         control=setup.single_control,
         data_check=data_check,
-        feature_tables=table_lines(setup, tables, centring_line(objects, fovs, setup)),
+        feature_tables=table_lines(
+            setup, tables, centring_line(objects, fovs, setup, unusual), unusual
+        ),
         **common,
     )
     counts = {**overview.counts, "features": 0}
@@ -132,9 +180,9 @@ def embedding_report(
         results["fingerprint_precision"] = fingerprint_precision(objects, fovs, setup)
     results["populations"] = populations_in_report(analysed, fovs, setup)
     results["separation"] = separation_in_report(analysed, fovs, setup)
-    reasons = embedding_reasons(results)
+    reasons = embedding_reasons(results, setup, fovs, per_field)
     reasons.update({k: v for k, v in side.items() if k not in reasons})
-    document = with_reasons(assemble(results, setup), reasons)
+    document = with_reasons(assemble(results, setup, per_field), reasons)
     unlabelled = unlabelled_note(objects, setup)
     if unlabelled:
         document = replace(document, notes=(*document.notes, unlabelled))

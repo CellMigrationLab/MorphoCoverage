@@ -275,9 +275,12 @@ def explainable_line(setup: Setup) -> str:
     )
 
 
-def table_lines(setup: Setup, tables: FeatureTables | None = None, centring: str = "") -> list[str]:
+def table_lines(
+    setup: Setup, tables: FeatureTables | None = None, centring: str = "", unusual: bool = True
+) -> list[str]:
     """The overview's sentences on the feature tables (what ``tables`` checked, when given),
-    none without them."""
+    none without them; ``unusual=False`` when unusual observations do not run (no control,
+    one observation per field)."""
     if not setup.feature_tables and not setup.explainable_tables:
         return []
     declared = {**(setup.explainable_tables or {}), **(setup.feature_tables or {})}
@@ -291,11 +294,11 @@ def table_lines(setup: Setup, tables: FeatureTables | None = None, centring: str
     if not setup.feature_tables:
         return lines
     if not setup.columns:  # an embedding-only report (owner, 2026-10-06)
+        read = "the copy checks, unusual observations" if unusual else "the copy checks"
         lines.append(
             f"{features_words(setup)}. With no explainable features, each table is tested "
-            "whole (the whole-table test of question 9) and read by the maps, the populations, "
-            "the copy checks, unusual observations and its own fingerprint; never feature by "
-            "feature."
+            f"whole (the whole-table test of question 9) and read by the maps, the populations, "
+            f"{read} and its own fingerprint; never feature by feature."
         )
         return [*lines, *([centring] if centring else [])]
     others = "non-explainable" if setup.explainable_tables else "other"
@@ -508,9 +511,12 @@ def centred_left_out(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) ->
     )
 
 
-def centring_line(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> str:
+def centring_line(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, unusual: bool = True
+) -> str:
     """Which centring the tables had, in one line (owner, 2026-10-06), and what reads it;
-    empty without one."""
+    empty without one. Unusual observations read the tables only without explainable
+    features, and when they run (``unusual``)."""
     found = _centring(objects, fovs, setup)
     if found is None:
         return ""
@@ -527,11 +533,11 @@ def centring_line(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> st
             f"not all hold the same conditions, a control of fewer than {CENTRED_MIN_CONTROL} "
             f"{units} leaving its repeat out"
         )
-    reads = (
-        "the centred map, the populations, unusual observations and the separation read them"
-        if setup.normalize is not None
-        else "the centred map reads them"
-    )
+    unusual = unusual and not setup.columns
+    readers = ["the centred map", "the populations", "unusual observations", "the separation"]
+    readers = [r for r in readers if unusual or r != "unusual observations"]
+    reads = f"{listing(readers)} read them" if setup.normalize is not None else ""
+    reads = reads or "the centred map reads them"
     return f"Batch: the other tables centred {how}; {reads}, never a test."
 
 

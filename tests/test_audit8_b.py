@@ -5,6 +5,7 @@ import json
 import re
 import warnings
 
+import numpy as np
 import pandas as pd
 import pytest
 from test_embedding_only import _cells
@@ -12,7 +13,9 @@ from test_embedding_only import _cells
 from morphocoverage.objectives import RareTarget
 from morphocoverage.workflows import (
     Answers,
+    PositiveControl,
     Setup,
+    default_novelty,
     html_report,
     load_answers,
     report,
@@ -107,3 +110,101 @@ def test_b11_the_scan_accepts_several_controls_as_setup_declares_them():
     assert "Several conditions" not in text  # one condition besides the controls
     setup = scan.setup("mitotic", control_parents={"b": "ctrl"})
     assert setup.own_references == {"a": "ctrl", "b": "ctrl", "ctrl": "ctrl"}
+
+
+FEATURES = ("f1", "f2", "f3")
+
+
+def _one_per_field(seed: int = 0):
+    """3 conditions in 3 repeats, 6 fields of one image each; features f1, f2, f3 with
+    ``a`` shifted, and a table of 6 other columns."""
+    rng = np.random.default_rng(seed)
+    rows = [
+        {"condition": c, "biological_repeat": f"R{r}", "image_file": f"{c}_{r}_{f}.tif"}
+        for c in ("ctrl", "a", "b")
+        for r in range(3)
+        for f in range(6)
+    ]
+    objects = pd.DataFrame(rows)
+    fovs = objects.copy()
+    shift = objects["condition"].eq("a").to_numpy() * 1.0
+    for name in FEATURES:
+        objects[name] = 10 + rng.normal(size=len(objects)) + shift
+    table = objects[["condition", "biological_repeat", "image_file"]].assign(
+        **{f"e{j}": rng.normal(size=len(objects)) for j in range(6)}
+    )
+    return objects, fovs, table
+
+
+def test_seed3_b4_one_image_per_field_says_why_and_declares_only_what_runs():
+    objects, fovs, _ = _one_per_field()
+    setup = Setup(
+        readout="f1",
+        features=FEATURES,
+        control={"condition": "ctrl"},
+        novelty=default_novelty(FEATURES),
+        positive=PositiveControl({"condition": "a"}, fovs_seen=3),
+        observation_unit="image",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup)
+    full = " ".join(result.summary(detail="full").split())
+    short = " ".join(result.summary().split())
+    assert "no check could be made" not in full and "controls" not in result.results
+    assert "the positive control is judged by the definition of new" in short
+    for text in (full, short):
+        assert "for unusual images" not in text and "Report-only rule" not in text
+        assert "Positive control: fields of" not in text
+        assert "unusual images are not assessed, as each field holds one image" in text
+
+
+def test_seed3_seed18_b12_embedding_only_gives_the_real_reason():
+    objects, fovs, table = _one_per_field()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        alone = report(objects, fovs, Setup(observation_unit="image"), feature_tables={"T": table})
+        single = report(
+            objects,
+            fovs,
+            Setup(control={"condition": "ctrl"}, observation_unit="image"),
+            feature_tables={"T": table},
+        )
+    short = " ".join(alone.summary().split())
+    assert "9. Do the conditions differ? — not applicable: no control declared" in short
+    assert "2. Did I image enough? — not applicable: no target declared; declare the" in short
+    assert "fingerprint) or a labelled phenotype (rare with rare_label)" in short
+    assert "unusual images not assessed without a control" in short
+    # One image per field: the reason, in question 3 and the Foundation, as in any report.
+    short = " ".join(single.summary().split())
+    assert "3. What limits my sampling? — not applicable: with one image per field" in short
+    assert "Foundation. Why count fields? — not applicable: each field holds one image" in short
+    assert "unusual images not assessed, as each field holds one image" in short
+    assert "the copy checks, unusual observations" not in short
+
+
+def test_b8_b9_embedding_only_values_and_space_are_said_as_they_are():
+    *_, result = _embedding_only(normalize="control_mean")
+    full = " ".join(result.summary(detail="full").split())
+    assert "Values: as given (not normalised)" not in full
+    assert "Values: the other feature tables centred per biological repeat" in full
+    # One table: its columns, not a weighted combined space.
+    assert "unusual cells on the 12 columns of DINO, no definition of new" in full
+    assert "weighted combined space" not in full
+
+
+def test_seed6_the_batch_line_says_unusual_observations_read_the_explainable_features():
+    objects, fovs, table = _cells()
+    objects["area"] = np.random.default_rng(1).normal(10, 1, len(objects))
+    setup = Setup(
+        readout="area",
+        features=("area", "mitotic"),
+        control={"condition": "ctrl"},
+        normalize="control_mean",
+        observation_unit="cell",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup, feature_tables={"DINO": table})
+    full = " ".join(result.summary(detail="full").split())
+    assert "the centred map, the populations and the separation read them, never a test" in full
