@@ -5,7 +5,8 @@ axes of what a user provides (tables, controls, normalisation, unit, wells, targ
 pair of values covered), designs at the edges, and the mistakes users make. Each folder's
 ``scenario.json`` holds the Setup as plain JSON and the truth. The test builds the Setup,
 runs ``report`` (and ``html_report`` for a covering subset: every kind of table, several
-controls, normalisation and a rare label) and checks the truth: no crash, each refusal with
+controls, normalisation and a rare label; ``test_scenarios_pages.py`` builds the page of every
+other scenario that runs) and checks the truth: no crash, each refusal with
 its message, the analyses that must run and those that must not, the reason each question
 not applicable gives, the ``table`` column of the CSVs with explainable tables, and the
 planted effects where the design makes the answer near-certain. It checks structure and
@@ -201,6 +202,19 @@ def test_the_whole_distribution_alone_runs_when_its_fingerprint_is_not_assessabl
     with pytest.raises(ValueError, match="No declared target can be judged") as error:
         optimise(merged, loaded.fovs, setup, fov_counts=[2], reservoir_fraction=0.5)
     assert "not assessable: its median group holds 4 images" in str(error.value)
+
+
+def test_the_page_says_nothing_was_compared_when_no_repeat_holds_a_condition_and_its_control(
+    tmp_path: Path,
+) -> None:
+    # e02: the discovery compares nothing, so its ranking is empty; the page was refused a
+    # KeyError on its missing score column. It builds and says what was not compared.
+    loaded = make_scenarios.load("e02_control_in_other_repeats")
+    result = _report(loaded, Setup(**loaded.setup))
+    assert result.discovery.top() == []
+    _page(result, loaded, {"table_column": False}, tmp_path)
+    page = (tmp_path / "report.html").read_text()
+    assert "Not compared: a (no " in page
 
 
 def test_the_committed_scenarios_are_what_the_generator_writes(tmp_path: Path) -> None:

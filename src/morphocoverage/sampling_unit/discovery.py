@@ -117,6 +117,27 @@ TEST_COLUMNS = [
 ]
 
 
+# The ranking's columns, also those of an empty ranking when nothing was compared.
+RANKING_COLUMNS = [
+    "feature",
+    "score",
+    "d",
+    "condition",
+    "q_cells",
+    "q_paired",
+    "change",
+    "ci_low",
+    "ci_high",
+    "repeat_contrasts",
+    "repeats",
+    "paired_values",
+    "confirmed",
+    "direction",
+    "passing",
+    "tests",
+]
+
+
 def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
     """One row per feature, best first: the score and the passing contrast it comes from."""
     rows = []
@@ -162,7 +183,7 @@ def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
                 direction=f"{same} of {int(best['repeats'])} {word}",
             )
         rows.append(row)
-    ranking = pd.DataFrame(rows)
+    ranking = pd.DataFrame(rows, columns=[*RANKING_COLUMNS, "order"])
     ranking = ranking.sort_values(["score", "order"], ascending=[False, True], na_position="last")
     return ranking.drop(columns="order").reset_index(drop=True)
 
@@ -496,7 +517,8 @@ def feature_discovery(
     ]
     if not rows:
         settings["reason"] = f"No condition to compare with the control {control_text(control)}."
-        return FeatureDiscovery(pd.DataFrame(columns=TEST_COLUMNS), pd.DataFrame(), settings)
+        empty = pd.DataFrame(columns=RANKING_COLUMNS)  # its columns, for top and the page
+        return FeatureDiscovery(pd.DataFrame(columns=TEST_COLUMNS), empty, settings)
     tests = pd.DataFrame(rows).reindex(columns=TEST_COLUMNS)
     tests["experiment"] = tests["condition"].map(experiments(held))
     # The tests at p <= alpha rerun with the shuffles their family needs (contrast_cells).

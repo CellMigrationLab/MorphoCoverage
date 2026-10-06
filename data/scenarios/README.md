@@ -93,10 +93,11 @@ the effect. Each table is a few hundred rows at most.
 
 `tests/test_scenarios_matrix.py` loads each folder (`make_scenarios.load`), builds the
 `Setup`, runs `report`, and `html_report` for a few scenarios that between them hold every
-kind of table, several controls, normalisation and a rare label, then checks the truth. It
-checks structure and reasons, not numbers; the planted effects only where the design makes
-the answer near-certain (a strong effect, six repeats). Another test checks that the
-generator writes the committed files byte for byte.
+kind of table, several controls, normalisation and a rare label, then checks the truth;
+`tests/test_scenarios_pages.py` (marked `slow`) builds the page of every other scenario that
+runs. It checks structure and reasons, not numbers; the planted effects only where the
+design makes the answer near-certain (a strong effect, six repeats). Another test checks that
+the generator writes the committed files byte for byte.
 
 To regenerate the folders and the table above, run this from the repository root:
 
