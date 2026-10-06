@@ -18,7 +18,6 @@ Shared-private: ``_control_rate``, ``_detection_adjusted_bounds`` and ``_false_a
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -507,16 +506,13 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     ]
 
 
-def _chance_clause(
-    controls: ControlResult | None, inspection: InspectionResult, found: int = 0
-) -> str:
+def _chance_clause(controls: ControlResult | None, inspection: InspectionResult, n: int) -> str:
     """How many new-state fields the declared reference's false alarms expect, or why not.
 
-    The rate is judged the same way (each field against the other fields of
-    its analysis group) and only for the fields of the groups where new states
-    were looked for. It is the count of reference fields called new over those
-    judged, so the expected count is given from the point estimate to the
-    one-sided upper bound of the rate.
+    The rate is judged the same way (each field against the other fields of its analysis
+    group), only for the fields of the groups where new states were looked for: reference
+    fields called new over those judged, from its point estimate to its one-sided upper bound;
+    ``n`` new-state fields were found, said beside it (audit 10, A20).
     """
     rate = _false_alarm_rate(controls)
     if rate is None:
@@ -542,12 +538,10 @@ def _chance_clause(
         )
     new, total = int(row["judged_new"]), int(row["candidates"])
     high = upper_bound(new, total, _CONFIDENCE)
-    # "false alarms alone would give about 8, up to 25": never "8 to 24.5 ... expected by
-    # chance" (audit 10, A20); whether the fields found exceed that, said.
-    verdict = "so these are compatible with chance" if found <= high * judged else "more were found"
+    verdict = "so these are compatible with chance" if n <= high * judged else "more were found"
     return (
         f"; false alarms alone would give about {round(rate * judged)}, up to "
-        f"{math.ceil(high * judged)}, of the {judged} fields judged, {verdict}: the declared "
+        f"{int(np.ceil(high * judged))}, of the {judged} fields judged, {verdict}: the declared "
         f"reference's false-alarm rate{pooled} each field judged against the other fields of "
         f"its group, was {new} of {total} fields, {percent(rate)}, at most {percent(high)} at "
         f"{percent(_CONFIDENCE)} confidence"

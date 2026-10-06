@@ -79,11 +79,6 @@
   "html": false,
   "null_features": [
    "fib_w"
-  ],
-  "planted": {
-   "area": [
-    "a"
-   ]
-  }
+  ]
  }
 }

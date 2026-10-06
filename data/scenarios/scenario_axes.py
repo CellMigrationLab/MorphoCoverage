@@ -190,8 +190,8 @@ def axes_scenario(index: int) -> Scenario:
     if controls != "none":  # what is planted and what is null, checked (audit 10, T2)
         nulls = [f for f in features if f in NULL_FEATURES]
         truth.update({"null_features": nulls} if nulls else {})
-        if "area" in features:
-            truth["planted"] = {"area": ["a1" if controls == "several" else "a"]}
+        if "area" in features and controls == "one" and unit == "cells":  # near-certain
+            truth["planted"] = {"area": ["a"]}
     return Scenario(
         name=name,
         kind="axes",
