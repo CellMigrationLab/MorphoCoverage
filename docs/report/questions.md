@@ -124,7 +124,7 @@ more (`sampling_unit.acquisition`). A feature is read on the scale its tests rea
 of the field medians when every value is positive, else the medians, or the scale declared
 in `Setup(scales=...)`; the SD is one robust scale per feature, pooled over the groups:
 1.4826 times the median absolute deviation of every judged field's difference from the
-median of its group's other fields, their SD where that is under a quarter of the SD. Each
+median of its group's other fields, their SD only where that is 0 (most of them tied). Each
 flag gives its relative difference (a fold from twice or half), and the line says how many
 flags chance alone would give, were the differences Gaussian; with one observation per
 field, that it reads single observations, a field it names then not listed again as a new
@@ -138,9 +138,15 @@ declaration in short lines) and the declaration in full are under "Show more".
 
 ### Fields to check
 
-"Fields to check" lists each field to open and why: the fields the integrity
-checks name, then those that sway the result, have an unusual count or show a
-state no other field shows. A field sways the result when leaving it out moves its
+"Fields to check (quality control)" lists each field to open and why: the fields the
+integrity checks name, those far from the other fields of their condition and repeat (the
+acquisition anomalies), then those that sway the result or have an unusual count. Its code
+runs the report again without the fields the images show to be artefacts, every field
+listed commented out, to uncomment: removing a field is opt-in. The fields that show a
+state no other field shows are a card of their own, "Fields to look at (new states,
+exploratory)", to look at and never among the fields to remove (owner, 2026-10-06, audit
+10; before, one card listed them with the others and its code removed every listed field
+unless its line was deleted). A field sways the result when leaving it out moves its
 condition's mean in its repeat, every cell weighing one as in the paired t-test, by
 10% or more, and that change stands out from the other fields' of its group: more than
 3 robust SDs (1.4826 times the median absolute deviation) from the group's median

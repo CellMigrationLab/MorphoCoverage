@@ -287,16 +287,19 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
 def fields_next(fields: Sequence[Sequence[Any]], key: Sequence[str]) -> str:
     """What to do after "Fields to check": once the images confirm a field is an artefact,
     the report again without it (``fields``: the flagged fields' values of ``key``, the
-    field's identity, one copy of each pair the integrity checks name; the code lists them
-    all, to delete the line of each one to keep)."""
+    field's identity, one copy of each pair the integrity checks name). The code lists them
+    all commented out, to uncomment the line of each one the images show to be an artefact:
+    removing a field is opt-in (owner, 2026-10-06, audit 10), and the new states, listed
+    apart, are never among them."""
     if not fields or not key:
         return ""
     shown = list(dict.fromkeys(tuple(str(v) for v in field) for field in fields))
-    listed = "".join(f"    {f!r},\n" for f in shown)
+    listed = "".join(f"    # {f!r},\n" for f in shown)
     code = (
         _GUARD + "from morphocoverage.workflows import report\n\n"
         f"key = {list(key)!r}\n"
-        "# Every field flagged above (one copy of each pair): delete the line of any to keep.\n"
+        "# Every field flagged above (one copy of each pair), commented out: uncomment the\n"
+        "# line of each field the images show to be an artefact.\n"
         f"artefacts = [\n{listed}]\n"
         "keep = ~fovs[key].astype(str).apply(tuple, axis=1).isin(artefacts)\n"
         "inside = objects[key].astype(str).apply(tuple, axis=1).isin(artefacts)\n"
@@ -304,8 +307,8 @@ def fields_next(fields: Sequence[Sequence[Any]], key: Sequence[str]) -> str:
     )
     line = (
         "Open the images of the fields above: keep those that show biology. If you confirm "
-        "that some should be excluded (out of focus, debris, a field exported twice), run the "
-        "report again without them."
+        "that some should be excluded (out of focus, debris, a field exported twice), "
+        "uncomment them in the code below and run the report again without them."
     )
     return _block([(line, code)])
 

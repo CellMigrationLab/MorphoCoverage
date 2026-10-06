@@ -17,13 +17,14 @@ audit 10: on raw skewed values a null log-normal flagged about 5 of 174 fields, 
 scale none). The difference ``r`` of a field from the median of its group's other fields is
 divided by one robust scale per feature, pooled over every judged group: the robust SD
 (1.4826 times the median absolute deviation) of the ``r`` of all their fields, or their SD
-where the median absolute deviation is under a quarter of it, as the robust standardisation
-of the maps (owner, 2026-10-06, audit 10; before, the larger of the robust SD and SD of the
-7 other fields, which read a null field at 14.9 SDs: the ratio of a difference to the SD of
-7 values is about a t with 6 degrees of freedom, above 5 in about 0.3% of fields and
-features). A field is an anomaly when ``|r| / scale`` reaches ``ANOMALY_Z`` on some feature,
-the feature of the largest named with its relative difference (its difference on a feature
-that is not on the log scale), so a flag of a 1% difference reads as one. Leaving the field
+where the median absolute deviation is 0, most of them tied: never the SD otherwise, which a
+far field among a few would widen enough to hide itself (owner, 2026-10-06, audit 10;
+before, the larger of the robust SD and SD of the 7 other fields, which read a null field at
+14.9 SDs: the ratio of a difference to the SD of 7 values is about a t with 6 degrees of
+freedom, above 5 in about 0.3% of fields and features). A field is an anomaly when
+``|r| / scale`` reaches ``ANOMALY_Z`` on some feature, the feature of the largest named with
+its relative difference (its difference on a feature that is not on the log scale), so a
+flag of a 1% difference reads as one. Leaving the field
 out of its own centre keeps one far field from moving the centre that judges it, and the
 pooled scale is robust to the few far fields among it. A group needs ``MIN_OTHER_FIELDS``
 other fields with a value to judge a field; smaller groups are counted, not judged. With one
@@ -63,8 +64,6 @@ MIN_OTHER_FIELDS = 7
 EXPECTED_RATE = float(2 * stats.norm.sf(ANOMALY_Z))
 # 1.4826 times the median absolute deviation estimates the SD of Gaussian data.
 _MAD_SD = 1.4826
-# Below this share of the SD, the median absolute deviation is not the scale (mostly ties).
-_MAD_FLOOR = 0.25
 # Fields named in the short form; the rest are counted.
 _NAMED = 4
 TITLE = "Acquisition anomalies"
@@ -173,7 +172,7 @@ class AcquisitionAnomalies:
                 row["feature"],
                 f"{row['value']:.3g}",
                 f"{row['others']:.3g}",
-                _difference(row),
+                difference_words(row),
                 f"{row['z']:+.1f}",
             ]
             for row in self.fields.to_dict("records")
@@ -182,7 +181,7 @@ class AcquisitionAnomalies:
         return table(cells, columns, indent=indent, align="llrrrr")
 
 
-def _difference(row: Mapping[str, Any]) -> str:
+def difference_words(row: Mapping[str, Any]) -> str:
     """``+25%`` (relative, a feature on the log scale) or ``+0.31`` (the difference)."""
     relative = row.get("relative")
     if relative is not None and not pd.isna(relative):
@@ -197,18 +196,17 @@ def _field_words(row: dict[str, Any]) -> str:
     """``siCTRL · repeat 1 · 7 (intensity, 9.3 SDs above, +25%)``."""
     side = "above" if row["z"] > 0 else "below"
     sds = f"{number(abs(row['z']))} SDs {side}"
-    return f"{row['field']} ({row['feature']}, {sds}, {_difference(row)})"
+    return f"{row['field']} ({row['feature']}, {sds}, {difference_words(row)})"
 
 
 def _scale(residuals: np.ndarray) -> float:
     """The robust SD of the pooled differences, or their SD where the median absolute
-    deviation is under a quarter of it (see the module); 0 when undefined."""
+    deviation is 0 (most differences tied, see the module); 0 when undefined."""
     residuals = residuals[~np.isnan(residuals)]
     if len(residuals) < 2:
         return 0.0
-    spread = float(np.std(residuals, ddof=1))
     mad = _MAD_SD * float(np.median(np.abs(residuals - np.median(residuals))))
-    return mad if mad >= _MAD_FLOOR * spread else spread
+    return mad if mad > 0 else float(np.std(residuals, ddof=1))
 
 
 def _residuals(medians: np.ndarray) -> np.ndarray:
@@ -349,4 +347,5 @@ __all__ = [
     "TITLE",
     "AcquisitionAnomalies",
     "acquisition_anomalies",
+    "difference_words",
 ]
