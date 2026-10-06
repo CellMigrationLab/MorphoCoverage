@@ -215,7 +215,9 @@ def test_normalised_figures_show_each_condition_over_its_own_control(ecm):
     assert np.allclose(means, 1.0)  # a control without a parent reads 1
     sentence = setup.normalized_sentence(fovs)
     assert "levels across experiments are read" in sentence and "VEC_SiNC in R4" in sentence
-    assert setup.compared_values(objects, fovs) is objects  # the tests read raw values
+    # The fingerprint and the held-back outcomes read normalised values with several
+    # controls too (owner, 2026-10-06, audit 8, seed 8); the tests read raw values.
+    pd.testing.assert_frame_equal(setup.compared_values(objects, fovs), prepared)
     figures = plots(objects, fovs, _setup(), pairwise=False)
     shown = {c for part in figures["area"] for c in part.cluster_summaries["condition"]}
     assert shown == set(CONDITIONS)

@@ -378,8 +378,10 @@ class Setup:
         )
 
     def compared_values(self, objects: pd.DataFrame, fovs: pd.DataFrame) -> pd.DataFrame:
-        """What the tests read: ``prepared``, or raw values with a contrast table."""
-        return objects if self.comparisons is not None else self.prepared(objects, fovs)
+        """What the fingerprint and the outcomes judged on held-back fields read:
+        ``prepared``, normalised whenever ``normalize`` is declared, whatever the number of
+        controls (owner, 2026-10-06, audit 8, seed 8; ``_contrasts.normalised_readers``)."""
+        return self.prepared(objects, fovs)
 
     @property
     def contrast_table(self) -> pd.DataFrame | None:

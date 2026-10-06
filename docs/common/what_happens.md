@@ -131,7 +131,7 @@ the contrast table, or the one control.
 | SuperPlots and pairwise panels | divided by the own control with `normalize`, else raw; pairwise d with 1999 shuffles | points per observation, intervals over wells and fields | the pairs of one figure | normalised: pairs under different controls are not compared |
 | "Did I image enough?" per feature | per repeat, the bootstrap interval of d over wells then fields; the mean-precision rules on raw values | repeat and condition; each analysis group | none | fewer than 2 explainable columns: the readout's answer only; no control |
 | Mean-precision stopping rules | the raw readout, upper 95% bound at the first tolerance | analysis group, per object and per field | none | no readout |
-| Fingerprint | as declared, or on the first k principal components when wider than a fifth of the median judged group; divided by the control with one control and `normalize`, raw with several | analysis group of at least 4 fields | none | groups of fewer than 4 fields: not judged; on components, groups of fewer than 5 k observations: not assessable, named |
+| Fingerprint | as declared, or on the first k principal components when wider than a fifth of the median judged group; divided by the own control with `normalize`, whatever the number of controls | analysis group of at least 4 fields | none | groups of fewer than 4 fields: not judged; on components, groups of fewer than 5 k observations: not assessable, named |
 | Beyond the mean | per repeat against the own control: SD ratio, 10%, 50% and 90% quantile shifts | biological repeat | its own family per sub-experiment | no fingerprint, of any table; no control |
 | Rare label | its share compared like a feature; the label check on the nearest cell of another field; clustering in fields | observation, field | the features' family; clustering over groups and states | label check with a positive control declared; without explainable features, clustering only |
 | Populations | the readout and `features` as the figures read them, MFA across two or more explainable tables | observation; enrichment per repeat | groups and conditions per sub-experiment | fewer than 2 columns; enrichment without a control or with fewer than 3 repeats |
@@ -185,7 +185,8 @@ there and named once. With one control a repeat without control observations, or
 mean that is zero, negative or undefined, stops the report. What reads these values is
 listed once, in `_contrasts.normalised_readers`, which the overview and the declaration
 print: with `normalize`, the figures, the normalised maps, the populations, the separation
-scores and, with one control, the fingerprint and `optimise`'s criteria. The maps show
+scores, the fingerprint and `optimise`'s criteria, whatever the number of controls (owner,
+2026-10-06, audit 8). The maps show
 them whenever a control is declared. The tests read raw values and normalise each
 comparison to its own control themselves; the stopping rules, the fields to check, unusual
 observations, novelty, the Foundation and the live session read raw values. The rules are

@@ -22,6 +22,7 @@ from morphocoverage.schema import validate_input_tables
 from morphocoverage.separation import separation
 from morphocoverage.transforms import BlockWeights
 from morphocoverage.workflows import Setup, default_novelty, html_report, optimise, report
+from morphocoverage.workflows._contrasts import normalised_readers
 from morphocoverage.workflows._enough_targets import fingerprint_lines, fingerprint_precision
 from morphocoverage.workflows._feature_space import (
     analysed_tables,
@@ -304,3 +305,46 @@ def test_without_a_group_of_four_fields_a_tables_fingerprint_is_not_assessable_a
     with pytest.raises(ValueError, match="no group holds 4 fields"):
         optimise(objects, fovs, setup, fov_counts=(1, 2), reservoir_fraction=0.35)
 
+
+# --- 9. The fingerprint and optimise read normalised values whenever normalize is declared --
+
+
+def test_the_fingerprint_reads_normalised_values_with_several_controls_too():
+    objects, fovs, _ = _several()
+    for control in (SEVERAL, {"condition": "cA"}):
+        setup = Setup(readout="area", control=control, normalize="control_mean")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            values = setup.compared_values(objects, fovs)
+            expected = setup.prepared(objects, fovs)
+        pd.testing.assert_frame_equal(values, expected)
+        assert not values["area"].equals(objects["area"])
+    plain = Setup(readout="area", control=SEVERAL)
+    assert plain.compared_values(objects, fovs) is objects
+    several = normalised_readers(several=True)
+    assert "the fingerprint and the outcomes judged on held-back fields read the normalised" in (
+        several
+    )
+
+
+def test_with_several_controls_the_fingerprint_names_the_cells_without_their_own_control():
+    objects, fovs, tables = _several()
+    criterion = OutcomeCriterion(
+        CovarianceError(("area", "fib_len"), True), 0.5, "lower_is_better", "shape"
+    )
+    setup = Setup(
+        readout="area",
+        features=("area", "fib_len", "fib_w"),
+        control=SEVERAL,
+        normalize="control_mean",
+        fingerprint=(criterion,),
+        observation_unit="cell",
+    )
+    merged, setup, _ = attached(objects, fovs, setup, {"fiber": tables["fiber"]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        rows = fingerprint_precision(merged, fovs, setup)
+    assert int(rows["left_out"].sum()) == 0 and int(rows["no_own_control"].sum()) == 18
+    text = " ".join(" ".join(fingerprint_lines(rows, "group", "fields", unit="cell")).split())
+    assert "18 cells of b1 in R1 left out: no own control." in text
+    assert "missing value" not in text

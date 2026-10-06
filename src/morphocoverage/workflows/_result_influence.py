@@ -224,7 +224,7 @@ def with_result_influence(
 ) -> InspectionResult:
     """``inspection`` (run without summaries) with the influence of each field on the result
     (see the module); unchanged without a contrast across repeats. ``objects`` holds the
-    values the contrast compared (``Setup.compared_values``). ``spread=None``: the threshold
+    raw values the contrast compared. ``spread=None``: the threshold
     alone, every group judged."""
     if not influence_on_result(contrast):
         return inspection

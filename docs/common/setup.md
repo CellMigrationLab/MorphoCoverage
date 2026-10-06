@@ -163,11 +163,13 @@ normalised maps, the populations, the separation, the fingerprint and the outcom
 on held-back fields read the normalised values; the condition contrast, the feature
 ranking and the discovery read the raw values and normalise them themselves; the stopping
 rules and every other analysis read the raw values. With several controls, the figures,
-the normalised maps, the populations and the separation read the normalised values; the
-condition contrast, the feature ranking and the discovery read the raw values, each
-normalising to its own control; the fingerprint, the outcomes judged on held-back fields,
-the stopping rules and every other analysis read the raw values, where levels across
-experiments are read. The condition contrast reads the raw values and normalises them
+the normalised maps, the populations, the separation, the fingerprint and the outcomes
+judged on held-back fields read the normalised values; the condition contrast, the feature
+ranking and the discovery read the raw values, each normalising to its own control; the
+stopping rules and every other analysis read the raw values, where levels across
+experiments are read. The fingerprint and the held-back outcomes read the normalised values
+whatever the number of controls (owner, 2026-10-06, audit 8; before, the raw values with
+several controls, so their scale changed with the number of controls). The condition contrast reads the raw values and normalises them
 itself, so its raw columns hold raw values and its normalised ones the values divided by
 the control mean of the same repeat (owner, 2026-10-05; before, it read the normalised
 values, so its "raw" d and paired t were the normalised ones).
