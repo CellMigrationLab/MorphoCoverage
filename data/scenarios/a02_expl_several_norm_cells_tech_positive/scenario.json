@@ -38,7 +38,7 @@
    "selector": {
     "condition": "a1"
    },
-   "fovs_seen": 2,
+   "fovs_seen": 5,
    "draws": 5
   },
   "novelty": "default"
@@ -71,6 +71,7 @@
   ],
   "not_applicable": {},
   "table_column": false,
+  "controls_status": "assessed",
   "contrast_kinds": [
    "across_normalised",
    "own_control"

@@ -26,8 +26,9 @@ The truth (``scenario.json``'s ``truth``) holds:
   that must not;
 - ``not_applicable``: by question, a part of the reason ``Report.not_assessed`` or the
   question's headline gives; ``headlines``: a part of a question's headline;
-- ``contrast_kinds``, ``separation_spaces``: the kinds of comparison of the contrast table,
-  the feature spaces scored for separation;
+- ``contrast_kinds``, ``separation_spaces``, ``controls_status``: the kinds of comparison
+  of the contrast table, the feature spaces scored for separation, the status of the
+  positive control's check;
 - ``untested_across``, ``untested_whole`` (a part of the status), ``left_out``,
   ``compared``, ``tested_features``, ``balanced``: what the tests across repeats, the
   whole-table test, the discovery and the cell-level screen did;

@@ -29,7 +29,7 @@ the effect. Each table is a few hundred rows at most.
   features; a fingerprint on an embedding; a labelled rare phenotype; a positive control).
   Every pair of values is in at least one scenario, every value in two or more.
 - **edge** (`e01` to `e13`): designs the axes do not reach.
-- **mistake** (`m01` to `m06`): what users get wrong, and what the package does now.
+- **mistake** (`m01` to `m07`): what users get wrong, and what the package does now.
 
 ## The scenarios
 
@@ -80,6 +80,7 @@ the effect. Each table is a few hundred rows at most.
 | `m04_several_controls_no_members` | mistake | 4 conditions, 4 repeats, 48 fields, 240 rows | several controls with no condition under them: refused at the Setup |
 | `m05_normalize_without_control` | mistake | 2 conditions, 4 repeats, 24 fields, 120 rows | normalisation without a control: refused at the Setup |
 | `m06_planes_given_as_rows` | mistake | 2 conditions, 4 repeats, 24 fields, 360 rows | one row per cell and plane given as is: refused, naming planes_as_features |
+| `m07_positive_control_seen_too_few_fields` | mistake | 2 conditions, 3 repeats, 36 fields, 180 rows | a positive control after 2 reference fields, where the definition of new needs 5: runs, the control never judged |
 <!-- /scenarios -->
 
 ## How it is used

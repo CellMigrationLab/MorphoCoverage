@@ -429,6 +429,26 @@ def planes_as_rows() -> Scenario:
     return scenario
 
 
+def positive_seen_too_few() -> Scenario:
+    """A positive control judged after fewer reference fields than the definition of new
+    needs before any estimate (5): never judged."""
+    setup = {
+        **READOUT,
+        **CTRL,
+        "positive": {"selector": {"condition": "a"}, "fovs_seen": 2, "draws": 5},
+        "novelty": "default",
+    }
+    return _scenario(
+        "m07_positive_control_seen_too_few_fields",
+        "mistake",
+        "a positive control after 2 reference fields, where the definition of new needs 5: "
+        "runs, the control never judged",
+        Design(("ctrl", "a"), repeats=3, shifts={"a": 0.8}, fields=6, seed=3007),
+        setup,
+        {"results": ["controls"], "controls_status": "not assessed"},
+    )
+
+
 SCENARIOS = [
     two_repeats,
     control_elsewhere,
@@ -449,4 +469,5 @@ SCENARIOS = [
     controls_without_members,
     normalise_without_control,
     planes_as_rows,
+    positive_seen_too_few,
 ]

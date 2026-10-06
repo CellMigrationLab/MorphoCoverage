@@ -37,7 +37,7 @@
    "selector": {
     "condition": "a1"
    },
-   "fovs_seen": 2,
+   "fovs_seen": 5,
    "draws": 5
   },
   "novelty": "default"

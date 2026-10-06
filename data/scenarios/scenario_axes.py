@@ -152,7 +152,7 @@ def _target(
     if target == "positive":
         selector = {"condition": "a1" if "a1" in conditions else "a"}
         return {
-            "positive": {"selector": selector, "fovs_seen": 2, "draws": 5},
+            "positive": {"selector": selector, "fovs_seen": 5, "draws": 5},
             "novelty": "default",
         }
     return {}
@@ -237,6 +237,7 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
     ran = ["overview", "populations", "separation"]
     absent: list[str] = []
     reasons: dict[str, str] = {}
+    controls_status = None
     (ran if target.startswith("fp") else absent).append("fingerprint_precision")
     (ran if target == "rare" else absent).append("rare_clustering")
     (ran if other_tables and control else absent).append("whole_table")
@@ -268,6 +269,8 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
             reasons["conditions"] = "needs a control"
         if target == "positive":
             (ran if per_field else absent).append("controls")
+            if per_field:  # 5 reference fields seen, as the definition of new needs
+                controls_status = "assessed"
             if not per_field:
                 reasons["controls"] = "judged by the definition of new"
                 reasons["enough"] = "is not asked"
@@ -280,6 +283,8 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
     }
     if target.startswith("fp"):
         truth["headlines"] = {"enough": "fingerprint"}
+    if controls_status is not None:
+        truth["controls_status"] = controls_status
     if axes["controls"] == "several" and not embedding:
         truth["contrast_kinds"] = ["across_normalised", "own_control"]
     return truth
