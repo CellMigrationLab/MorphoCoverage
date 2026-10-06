@@ -465,9 +465,8 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
 
 
 def _design(contrast: Any, control: str) -> str:
-    """The design in one sentence: the sub-experiments when the conditions were imaged in
-    separate biological repeats, each with its own control, and a condition that joins
-    sets of repeats into one; empty when neither applies."""
+    """The design in one sentence: the sub-experiments (or the declared experiments) and a
+    condition that joins sets of repeats into one; empty when neither applies."""
     across = getattr(contrast, "repeats", None)
     if across is None or "experiment" not in across or not len(across):
         return ""
@@ -480,10 +479,11 @@ def _design(contrast: Any, control: str) -> str:
         ]
         sizes = sorted({int(n) for n in across["repeats"]})
         held = count(sizes[0], word) if len(sizes) == 1 else f"{sizes[0]} to {sizes[-1]} {word}s"
-        text = (
-            f"Design: {len(groups)} sub-experiments, each with its own {control} in its own "
-            f"{held} ({'; '.join(groups[:6])}{'; ...' if len(groups) > 6 else ''}). "
-        )
+        declared = contrast.settings.get("families")  # one may hold several controls
+        kind = "experiments as declared, in" if declared else "sub-experiments, each with its own"
+        own = f"{held}" if declared else f"{control} in its own {held}"
+        text = f"Design: {len(groups)} {kind} {own} ({'; '.join(groups[:6])}"
+        text += f"{'; ...' if len(groups) > 6 else ''}). "
     return text + _bridged(contrast, across, word)
 
 

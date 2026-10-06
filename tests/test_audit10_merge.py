@@ -101,3 +101,46 @@ def test_a_long_line_is_wrapped_with_its_continuation_lines() -> None:
     assert all(len(line) <= 100 for line in lines)
     assert " ".join(fitted(text).split()) == " ".join(text.split())
     assert "    - next item" in lines and "    feature   a    b" in lines
+
+
+def test_the_design_sentence_follows_declared_experiments() -> None:
+    """With ``Setup(experiment=...)`` an experiment may hold several controls (the ECM siRNA
+    set): the design says the declared experiments, never "each with its own control"."""
+    import numpy as np
+    import pandas as pd
+
+    layout = {
+        "VEC": ["R1", "R2", "R3"],
+        "THBS5": ["R1", "R2", "R3"],
+        "V_SiNC": ["R4", "R5", "R6"],
+        "V_SiA": ["R4", "R5", "R6"],
+        "T_SiNC": ["R7", "R8", "R9"],
+        "T_SiA": ["R7", "R8", "R9"],
+    }
+    rng = np.random.default_rng(5)
+    rows = [
+        {
+            "condition": condition,
+            "biological_repeat": repeat,
+            "image_file": f"{condition}_{repeat}_{field}.tif",
+            "label_id": label,
+            "area": 10 * np.exp(rng.normal(0, 0.3)),
+        }
+        for condition, repeats in layout.items()
+        for repeat in repeats
+        for field in range(3)
+        for label in range(10)
+    ]
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    control = {"condition": {"VEC": ["THBS5"], "V_SiNC": ["V_SiA"], "T_SiNC": ["T_SiA"]}}
+    sets = {c: "untransfected" if c in ("VEC", "THBS5") else "siRNA" for c in layout}
+    texts = {}
+    for name, extra in (("derived", {}), ("declared", {"experiment": sets})):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            setup = Setup(readout="area", control=control, observation_unit="cell", **extra)
+            texts[name] = " ".join(report(objects, fovs, setup).summary("full").split())
+    assert "Design: 3 sub-experiments, each with its own control in its own 3" in texts["derived"]
+    assert "Design: 2 experiments as declared, in 3 biological repeats" in texts["declared"]
+    assert "each with its own control" not in texts["declared"]
