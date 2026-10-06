@@ -216,6 +216,80 @@ def test_seed17_an_embedding_only_fingerprint_and_label_need_no_population():
     assert session.objective.objective is SamplingObjective.DISTRIBUTION_RARE
 
 
+def _fields_design(seed: int = 0):
+    """3 repeats; the control one field of 60 cells, the condition three fields of 20 cells
+    shifted -3, 0 and +3 cell SDs: no effect beyond the field design."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for r in range(3):
+        for condition, shifts, cells in (("ctrl", [0.0], 60), ("a", [-3.0, 0.0, 3.0], 20)):
+            for f, shift in enumerate(shifts):
+                rows += [
+                    {
+                        "condition": condition,
+                        "biological_repeat": f"R{r}",
+                        "image_file": f"{condition}{r}_{f}.tif",
+                        "area": 10 + shift + value,
+                    }
+                    for value in rng.normal(size=cells)
+                ]
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    return objects, fovs.reset_index(drop=True)
+
+
+def test_a5_beyond_the_mean_reads_field_balanced_subsamples():
+    from morphocoverage.sampling_unit.distribution import distribution_contrast
+
+    objects, fovs = _fields_design()
+    kwargs = {"features": ["area"], "control": {"condition": "ctrl"}, "fov_col": "image_file"}
+    tests = distribution_contrast(objects, fovs, random_state=3, **kwargs).tests
+    spread = tests.set_index("statistic").loc["spread"]
+    # Pooled, the condition's SD would be sqrt(7) times the control's (log 0.97).
+    assert abs(spread["mean"]) < 0.25 and spread["high"] < 0.4
+    again = distribution_contrast(objects, fovs, random_state=3, **kwargs).tests
+    np.testing.assert_allclose(again["mean"], tests["mean"])
+
+
+def test_a5_seed10_beyond_the_mean_reads_the_features_the_fingerprint_reads():
+    from morphocoverage.multivariate_outcomes import CovarianceError
+    from morphocoverage.retrospective.criteria import OutcomeCriterion
+    from morphocoverage.workflows import Setup
+    from morphocoverage.workflows._distribution import (
+        NOT_RUN,
+        distribution_by_feature,
+        with_distribution,
+    )
+
+    objects, fovs = _signed(offset_b=3.0)
+    objects = objects.assign(d0=objects["area"] * 2, d1=objects["positive"] / 3)
+
+    def setup(columns):
+        criterion = OutcomeCriterion(CovarianceError(columns, True), 0.2, "lower_is_better")
+        return Setup(
+            readout="area",
+            features=["area", "positive"],
+            control={"condition": "ctrl"},
+            feature_tables={"DINO": ("d0", "d1")},
+            fingerprint=(criterion,),
+            fov_col="image_file",
+        )
+
+    one = distribution_by_feature(objects, fovs, setup(("positive", "d0")))
+    assert one.settings["features"] == ["positive"]
+    dino = setup(("d0", "d1"))
+    assert distribution_by_feature(objects, fovs, dino) is None
+
+    @dataclass(frozen=True)
+    class Report:  # the two texts with_distribution writes into
+        short: dict
+        sections: dict
+
+    empty = Report({"conditions": "Do they differ?"}, {"conditions": "Do they differ?"})
+    said = with_distribution(empty, None, "cells", dino)
+    assert " ".join(NOT_RUN.split()) in " ".join(said.short["conditions"].split())
+
+
 def test_seed19_the_whole_distribution_declares_no_mean_target():
     import sys
     from pathlib import Path
@@ -306,75 +380,24 @@ def test_a9_conditions_significant_together_against_a_small_control_are_named_on
     assert line(3) == (None, None)
 
 
-def _fields_design(seed: int = 0):
-    """3 repeats; the control one field of 60 cells, the condition three fields of 20 cells
-    shifted -3, 0 and +3 cell SDs: no effect beyond the field design."""
-    rng = np.random.default_rng(seed)
-    rows = []
-    for r in range(3):
-        for condition, shifts, cells in (("ctrl", [0.0], 60), ("a", [-3.0, 0.0, 3.0], 20)):
-            for f, shift in enumerate(shifts):
-                rows += [
-                    {
-                        "condition": condition,
-                        "biological_repeat": f"R{r}",
-                        "image_file": f"{condition}{r}_{f}.tif",
-                        "area": 10 + shift + value,
-                    }
-                    for value in rng.normal(size=cells)
-                ]
-    objects = pd.DataFrame(rows)
-    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
-    return objects, fovs.reset_index(drop=True)
+def test_item10_one_image_per_field_leaves_the_rare_clustering_out_of_question_3():
+    import sys
+    import warnings
+    from pathlib import Path
 
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_audit8_b import FEATURES, MITOTIC, _one_per_field
 
-def test_a5_beyond_the_mean_reads_field_balanced_subsamples():
-    from morphocoverage.sampling_unit.distribution import distribution_contrast
+    from morphocoverage.workflows import Setup, report
 
-    objects, fovs = _fields_design()
-    kwargs = {"features": ["area"], "control": {"condition": "ctrl"}, "fov_col": "image_file"}
-    tests = distribution_contrast(objects, fovs, random_state=3, **kwargs).tests
-    spread = tests.set_index("statistic").loc["spread"]
-    # Pooled, the condition's SD would be sqrt(7) times the control's (log 0.97).
-    assert abs(spread["mean"]) < 0.25 and spread["high"] < 0.4
-    again = distribution_contrast(objects, fovs, random_state=3, **kwargs).tests
-    np.testing.assert_allclose(again["mean"], tests["mean"])
-
-
-def test_a5_seed10_beyond_the_mean_reads_the_features_the_fingerprint_reads():
-    from morphocoverage.multivariate_outcomes import CovarianceError
-    from morphocoverage.retrospective.criteria import OutcomeCriterion
-    from morphocoverage.workflows import Setup
-    from morphocoverage.workflows._distribution import (
-        NOT_RUN,
-        distribution_by_feature,
-        with_distribution,
-    )
-
-    objects, fovs = _signed(offset_b=3.0)
-    objects = objects.assign(d0=objects["area"] * 2, d1=objects["positive"] / 3)
-
-    def setup(columns):
-        criterion = OutcomeCriterion(CovarianceError(columns, True), 0.2, "lower_is_better")
-        return Setup(
-            readout="area",
-            features=["area", "positive"],
-            control={"condition": "ctrl"},
-            feature_tables={"DINO": ("d0", "d1")},
-            fingerprint=(criterion,),
-            fov_col="image_file",
-        )
-
-    one = distribution_by_feature(objects, fovs, setup(("positive", "d0")))
-    assert one.settings["features"] == ["positive"]
-    dino = setup(("d0", "d1"))
-    assert distribution_by_feature(objects, fovs, dino) is None
-
-    @dataclass(frozen=True)
-    class Report:  # the two texts with_distribution writes into
-        short: dict
-        sections: dict
-
-    empty = Report({"conditions": "Do they differ?"}, {"conditions": "Do they differ?"})
-    said = with_distribution(empty, None, "cells", dino)
-    assert " ".join(NOT_RUN.split()) in " ".join(said.short["conditions"].split())
+    objects, fovs, table = _one_per_field()
+    objects["mitotic"] = (np.random.default_rng(2).random(len(objects)) < 0.3).astype(int)
+    common = {"control": {"condition": "ctrl"}, "observation_unit": "image"}
+    rare = {"rare": MITOTIC, "rare_label": "mitotic"}
+    explainable = Setup(readout="f1", features=FEATURES, **common, **rare)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for setup, tables in ((explainable, None), (Setup(**common, **rare), {"T": table})):
+            short = " ".join(report(objects, fovs, setup, feature_tables=tables).summary().split())
+            assert "3. What limits my sampling? — not applicable: with one image per field" in short
+            assert "spread like random images" not in short

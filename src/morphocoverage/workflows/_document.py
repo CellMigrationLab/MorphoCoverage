@@ -137,8 +137,8 @@ def assemble(
             text = "\n\n".join(p for p in (document.overview, full) if p)
             document = replace(document, overview=text)
         document = _with_integrity(document, integrity)
-    rare = results.get("rare_clustering")
-    if rare is not None:
+    rare = results.get("rare_clustering")  # clustering in fields needs several a field
+    if rare is not None and per_field:
         rows = sampling_profile(None, None, None, None, clustering=rare)
         lines = "\n".join(f"{r.statement} [{r.where}; {r.source}]" for r in rows.itertuples())
         text = "\n\n".join(part for part in (lines, rare.summary(detail="full")) if part)
