@@ -1,21 +1,19 @@
 """The sampling profile of the microscopist's report, and the detection-adjusted bound.
 
-Kept apart from the assembly of the report (``report``). The profile lists
-only measured quantities, each with its numbers and its source; one helper
-per source keeps each rule readable.
+Kept apart from the assembly of the report (``report``). The profile lists only measured
+quantities, each with its numbers and its source; one helper per source keeps each rule
+readable.
 
-Rates that compare with ``inspect_fovs`` or with the unseen-state bound of the
-sufficiency report are the control's leave-one-field-out rates
-(``reference_lofo``, ``positive_lofo``), measured within the same analysis
-groups: those analyses judge each field against the other fields of its
-group, and a rate measured after only ``fovs_seen`` reference fields can be
-many times larger (41% against 0% on one plate). A rate is combined with
-another analysis only when both used the same definition of new, on the
-same features, within the same analysis groups; otherwise the report says
-why it was not.
+Rates that compare with ``inspect_fovs`` or with the unseen-state bound of the sufficiency
+report are the control's leave-one-field-out rates (``reference_lofo``, ``positive_lofo``),
+measured within the same analysis groups: those analyses judge each field against the other
+fields of its group, and a rate measured after only ``fovs_seen`` reference fields can be many
+times larger (41% against 0% on one plate). A rate is combined with another analysis only when
+both used the same definition of new, on the same features, within the same analysis groups;
+otherwise the report says why it was not.
 
-Shared-private: ``_control_rate``, ``_detection_adjusted_bounds`` and
-``_false_alarm_rate`` (used by ``report``).
+Shared-private: ``_control_rate``, ``_detection_adjusted_bounds`` and ``_false_alarm_rate``
+(used by ``report``).
 """
 
 from __future__ import annotations
@@ -30,6 +28,7 @@ from .._wording import count, number, percent
 from ..bounds import lower_bound, upper_bound
 from ..sampling_unit._state_text import CLUSTER_ALPHA
 from ..sampling_unit._state_text import clustered as clustered_rows
+from ..sampling_unit._unit_text import one_per_field_rows
 from ..schema import observation_words
 from ..sufficiency import SufficiencyReport
 from .controls import ControlResult
@@ -208,8 +207,8 @@ def _variability_rows(variability: FOVVariability | None, observations: str) -> 
     if variability is None:
         return []
     ok = variability.groups[variability.groups["status"] == "ok"]
-    if not len(ok):
-        return []
+    if not len(ok):  # one observation per field: the fields are the observations
+        return one_per_field_rows(variability, observations)
     effect = ok["design_effect"]
     shares = pd.to_numeric(ok["unusual_fov_share"], errors="coerce").dropna()
     unusual = (

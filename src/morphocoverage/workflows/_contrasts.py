@@ -426,6 +426,11 @@ def normalisation_problem(setup: Setup, objects: pd.DataFrame, fovs: pd.DataFram
     return None
 
 
+# Biological unusualness and the definition of new where it judges the positive control and
+# the fields to check read the normalised values (owner, 2026-10-06, plan v2).
+_BIOLOGY = "unusual observations, new states for the positive control and the fields to check"
+
+
 def normalised_readers(several: bool = False) -> str:
     """What reads the normalised values and what reads the raw ones, the one list the overview,
     the declaration, ``docs/common/setup.md`` and the docstrings refer to (audit 8B): with one
@@ -434,18 +439,18 @@ def normalised_readers(several: bool = False) -> str:
     owner, 2026-10-06, audit 8, seed 8)."""
     if not several:
         return (
-            "the figures, the normalised maps, the populations, the separation, the "
-            "fingerprint and the outcomes judged on held-back fields read the normalised "
+            f"the figures, the normalised maps, the populations, the separation, {_BIOLOGY}, "
+            "the fingerprint and the outcomes judged on held-back fields read the normalised "
             "values; the condition contrast, the feature ranking and the discovery read the raw "
-            "values and normalise them themselves; the stopping rules and every other analysis "
-            "read the raw values"
+            "values and normalise them themselves; the stopping rules, the acquisition "
+            "anomalies and every other analysis read the raw values"
         )
     return (
-        "the figures, the normalised maps, the populations, the separation, the fingerprint "
-        "and the outcomes judged on held-back fields read the normalised values; the condition "
-        "contrast, the feature ranking and the discovery read the raw values, each normalising "
-        "to its own control; the stopping rules and every other analysis read the raw values, "
-        "where levels across experiments are read"
+        f"the figures, the normalised maps, the populations, the separation, {_BIOLOGY}, the "
+        "fingerprint and the outcomes judged on held-back fields read the normalised values; "
+        "the condition contrast, the feature ranking and the discovery read the raw values, "
+        "each normalising to its own control; the stopping rules, the acquisition anomalies "
+        "and every other analysis read the raw values, where levels across experiments are read"
     )
 
 

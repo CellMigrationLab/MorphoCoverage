@@ -161,15 +161,19 @@ values are still divided, with a warning that they are then not multiples of
 the control, and the sentence on normalised values says so (`Caution: ...`). What reads
 the normalised values is listed once, in `_contrasts.normalised_readers`, which the
 overview and the declaration print (audit 8B). With one control, the figures, the
-normalised maps, the populations, the separation, the fingerprint and the outcomes judged
-on held-back fields read the normalised values; the condition contrast, the feature
-ranking and the discovery read the raw values and normalise them themselves; the stopping
-rules and every other analysis read the raw values. With several controls, the figures,
-the normalised maps, the populations, the separation, the fingerprint and the outcomes
-judged on held-back fields read the normalised values; the condition contrast, the feature
-ranking and the discovery read the raw values, each normalising to its own control; the
-stopping rules and every other analysis read the raw values, where levels across
-experiments are read. The fingerprint and the held-back outcomes read the normalised values
+normalised maps, the populations, the separation, unusual observations, new states for the positive control and the fields to check, the
+fingerprint and the outcomes judged on held-back fields read the normalised values; the
+condition contrast, the feature ranking and the discovery read the raw values and
+normalise them themselves; the stopping rules, the acquisition anomalies and every other
+analysis read the raw values. With several controls, the figures, the normalised maps, the
+populations, the separation, unusual observations, new states for the positive control and
+the fields to check, the fingerprint and the outcomes judged on held-back fields read the
+normalised values; the condition contrast, the feature ranking and the discovery read the
+raw values, each normalising to its own control; the stopping rules, the acquisition
+anomalies and every other analysis read the raw values, where levels across experiments
+are read. Unusual observations (biological unusualness) and the new states judged for the
+positive control and the fields to check read the normalised values, the acquisition
+anomalies the raw ones, as quality control (owner, 2026-10-06, plan v2). The fingerprint and the held-back outcomes read the normalised values
 whatever the number of controls (owner, 2026-10-06, audit 8; before, the raw values with
 several controls, so their scale changed with the number of controls). The condition
 contrast reads the raw values and normalises them itself, so its raw columns hold raw values and its normalised ones the values divided by

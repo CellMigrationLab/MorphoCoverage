@@ -42,10 +42,11 @@ from ._feature_space import (
     table_columns,
     table_lines,
 )
+from ._one_per_field import one_per_field, one_per_field_reasons
 from ._populations import populations_in_report
 from ._rare_share import unlabelled_note
 from ._results import PLAN_TITLE, Plan, Report
-from ._shared import control_checks, one_per_field, one_per_field_reasons, rare_clustering
+from ._shared import control_checks, rare_clustering
 from ._whole_table import whole_table_in_report
 
 if TYPE_CHECKING:
@@ -79,15 +80,17 @@ def embedding_reasons(
         "enough": results.get("fingerprint_precision") is not None
         or results.get("rare_clustering") is not None,
         "conditions": results.get("whole_table") is not None,
-        "profile": results.get("clustering") is not None or "rare_clustering" in results,
+        "profile": any(results.get(k) is not None for k in ("unusual", "clustering"))
+        or "rare_clustering" in results,
     }
     other = _other_reasons(setup, fovs, per_field) if setup is not None else {}
     reasons = {}
     for key, part in _PARTS.items():
         whole = other.get(key, NOT_APPLICABLE)
         reasons[key] = f"{part}{NOT_APPLICABLE}" if part and answered.get(key) else whole
-    # One observation per field: the reason, whatever else was answered, as in any report.
-    reasons.update({k: v for k, v in other.items() if k in ("unit", "profile") and not per_field})
+    # One observation per field: what does not apply within a field, beside the rest.
+    if not per_field and "profile" in other:
+        reasons["profile"] = "; ".join(dict.fromkeys([reasons["profile"], other["profile"]]))
     return reasons
 
 
@@ -115,8 +118,8 @@ def _other_reasons(setup: Setup, fovs: pd.DataFrame | None, per_field: bool) -> 
             "not applicable: no biological repeat column, and the whole-table test compares "
             "the repeats"
         )
-    if not per_field:
-        found.update({k: v for k, v in one_per_field_reasons(setup).items() if k != "enough"})
+    for key, reason in ({} if per_field else one_per_field_reasons(setup)).items():
+        found[key] = "; ".join(r for r in (found.get(key), reason) if r)  # within a field
     return found
 
 
@@ -145,7 +148,7 @@ def embedding_report(
             **common,
         )
     per_field = not one_per_field(objects, fovs, setup)
-    unusual = per_field and setup.reference_control is not None  # whether they run
+    unusual = setup.reference_control is not None  # whether they run (plan v2: per field too)
     overview = dataset_overview(
         objects,
         fovs,

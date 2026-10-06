@@ -30,20 +30,19 @@ The rules, question by question:
   data-integrity checks ✅ with no finding, ❌ with a finding (every answer
   counts those fields as independent), ➖ not run or not applicable. The
   worse of the two.
-- **Foundation** (``unit_status``): ⚠️ when the mean-precision object-count rule missed
-  its target with whole fields in some group, when whole-field samples never
-  stayed within the random-object descriptor spread in some group, or when a
-  group's variability could not be estimated; ✅ otherwise. Headline: how
-  much more a mean from whole fields varies (the median design effect), and
-  in how many groups the mean-precision rule held with whole fields; groups
-  that could not be checked are counted apart (owner, 2026-10-05).
-- **1. Controls** (``controls_status``): ❌ when the declared positive
-  control (the planted objects when declared) was recognized in fewer than
-  ``minimum_detection`` of checks (weak representation); ⚠️ when a stratum
-  could not be judged (named, with the reason), the false-alarm rate was not
-  assessed or is above ``FALSE_ALARM_CAUTION``; ➖ without a control; ✅
-  otherwise. The rates are pooled over the control's strata, and the headline
-  says so (owner, 2026-10-05).
+- **Foundation** (``unit_status``): ⚠️ when the mean-precision object-count rule missed its
+  target with whole fields in some group, when whole-field samples never stayed within the
+  random-object descriptor spread in some group, or when a group's variability could not be
+  estimated (one observation per field is estimated: fields and observations coincide, owner
+  2026-10-06); ✅ otherwise. Headline: how much more a mean from whole fields varies (the
+  median design effect), and in how many groups the mean-precision rule held with whole
+  fields; groups that could not be checked are counted apart (owner, 2026-10-05).
+- **1. Controls** (``controls_status``): ❌ when the declared positive control (the planted
+  objects when declared) was recognized in fewer than ``minimum_detection`` of checks (weak
+  representation); ⚠️ when a stratum could not be judged (named, with the reason), the
+  false-alarm rate was not assessed or is above ``FALSE_ALARM_CAUTION``; ➖ without a control; ✅
+  otherwise. The rates are pooled over the control's strata, and the headline says so (owner,
+  2026-10-05).
 - **2. Did I image enough?** (``enough_status``): over the rules that judge
   the data (not the fixed amounts of effort), each by its own threshold: ❌
   when none was met in any group; ✅ when every one was met in every group,
@@ -63,14 +62,13 @@ The rules, question by question:
   With a weak representation (question 1 ❌), ❌ whatever the rules say
   (``weak_status``), as for questions 4 and 5: a "nothing new" or an
   "enough" cannot exclude a phenotype like the control.
-- **3. What is limiting my sampling?** (``profile_status``): ⚠️ when a
-  labelled state is clustered in a few fields (q <= 0.05) in some group,
-  when the unusual-object labels are unstable (refits agree on fewer than
-  90% of them) in some group, or when the largest source of the variance of
-  the mean is not established (few samples, an interval including zero) in
-  some stratum; ✅ when something was measured and none of these holds.
-  Headline: the design effect of whole fields, the clustered states, and
-  where most of the variance of the mean lies.
+- **3. What is limiting my sampling?** (``profile_status``): ⚠️ when a labelled state is
+  clustered in a few fields (q <= 0.05) in some group, when the unusual-object labels are
+  unstable (refits agree on fewer than 90% of them) in some group, or when the largest source
+  of the variance of the mean is not established (few samples, an interval including zero) in
+  some stratum; ✅ when something was measured and none of these holds. Headline: the design
+  effect of whole fields, the clustered states, and where most of the variance of the mean
+  lies.
 - **4. Next time** (``next_time_status``): per declared criterion, the
   fewest listed fields from which every sample that could be judged was
   adequately represented at every larger count, in every stratum
@@ -85,16 +83,14 @@ The rules, question by question:
   random acquisitions were enough in every group, per criterion; ❌ when no
   criterion reached it, ⚠️ otherwise, since nothing was checked across
   samples (a count that served these samples is not yet a protocol).
-- **5. What did the extra fields buy?** (``bought_status``): over the
-  replayed acquisitions that could be judged, ⚠️ when some never had
-  everything wanted reliably confirmed by held-back fields, ✅ otherwise;
-  the headline gives the median field from which it was, and the field by
-  which 90% of runs had it.
-- **6. Which fields should I look at?** (``inspect_status``): ⚠️ when fields
-  are listed (the headline counts them, their groups and each reason), or
-  when none is but some reason could not be judged in some group; ➖ when no
-  reason could be judged anywhere; ✅ when none is listed and every reason
-  turned on was judged.
+- **5. What did the extra fields buy?** (``bought_status``): over the replayed acquisitions
+  that could be judged, ⚠️ when some never had everything wanted reliably confirmed by
+  held-back fields, ✅ otherwise; the headline gives the median field from which it was, and the
+  field by which 90% of runs had it.
+- **6. Which fields should I look at?** (``inspect_status``): ⚠️ when fields are listed (the
+  headline counts them, their groups and each reason), or when none is but some reason could
+  not be judged in some group; ➖ when no reason could be judged anywhere; ✅ when none is listed
+  and every reason turned on was judged.
 - **7. More fields or more samples?** (``effort_status``): ⚠️ when the
   comparison cannot tell in some stratum although ``FEW_UNITS`` (5) or more
   samples stand behind it, ✅ when a better split of the same total of
@@ -102,11 +98,10 @@ The rules, question by question:
   leave it not established, said in the headline. The headline names the
   samples per stratum and in how many strata most of the variance of the
   mean lies between samples.
-- **8. Could I have sampled more efficiently?** (``order_status``): ⚠️ when
-  the orders differ by more than one field in some group, or some replayed
-  runs never reached the criterion; ✅ otherwise. The headline says whether
-  another order than the recorded one needed fewer fields, and in how many
-  groups (``order_text.group_comparison``).
+- **8. Could I have sampled more efficiently?** (``order_status``): ⚠️ when the orders differ
+  by more than one field in some group, or some replayed runs never reached the criterion; ✅
+  otherwise. The headline says whether another order than the recorded one needed fewer fields,
+  and in how many groups (``order_text.group_comparison``).
 - **9. Do the conditions differ?** (``conditions_status``): with biological
   repeats kept apart, the headline leads with the answer across them (the
   repeat is the replicate, ``contrast_repeats``): the conditions compared, how
@@ -156,6 +151,7 @@ from .._integrity_text import rows_only
 from .._style import Status, among, worst
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
+from ..sampling_unit.variability import ONE_PER_FIELD
 from ..schema import observation_words
 from ..sufficiency_short import rule_tallies
 from ._text import rule_names
@@ -174,6 +170,7 @@ from .report_sampling import (
     skipped_strata,
     spread_headline,
     unstable_labels,
+    unusual_alone,
 )
 from .report_status_conditions import conditions_status
 from .report_status_plan import (
@@ -270,18 +267,21 @@ def unit_status(variability: Any, object_rules: Any, descriptor_spread: Any) -> 
         return Status.NOT_ASSESSED, "not assessed"
     status, parts = Status.OK, []
     if variability is not None:
-        groups = variability.groups
-        ok = groups[groups["status"] == "ok"]
+        groups, words = variability.groups, observation_words(variability.settings)[1]
+        ok, single = (groups[groups["status"] == s] for s in ("ok", ONE_PER_FIELD))
         if len(ok):
-            words = observation_words(variability.settings)[1]
             effect = statistics.median(ok["design_effect"].astype(float))
             parts.append(
                 f"a mean from whole fields varies {effect:.1f}x as much as from random "
                 f"{words} (median)"
             )
-        if len(ok) < len(groups):
+        elif len(single):  # one observation per field: the fields are the observations
+            parts.append(f"each field holds one of the {words}, so fields and {words} coincide")
+        if len(ok) + len(single) < len(groups):
             status = Status.CAUTION
-            missing = among(len(groups) - len(ok), len(groups), group_word(variability))
+            missing = among(
+                len(groups) - len(ok) - len(single), len(groups), group_word(variability)
+            )
             parts.append(f"variability not estimated in {missing}")
     if object_rules is not None:
         kept, total = rule_held(object_rules)
@@ -486,7 +486,7 @@ def profile_status(
 ) -> Answer:
     """3. What is limiting my sampling? (see the module)."""
     _, clustered, seen = clustered_states(clustering)
-    if not len(profile) and not seen:
+    if not len(profile) and not seen and not unusual_alone(unusual, clustering):
         return Status.NOT_ASSESSED, "not assessed"
     parts = profile_answer(profile, clustering, unusual)
     _, uncertain = largest_sources(profile)
