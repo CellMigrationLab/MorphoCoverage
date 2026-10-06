@@ -97,6 +97,14 @@ def _sections(result: Any, truth: dict[str, Any]) -> None:
         assert spaces == set(truth["separation_spaces"])
 
 
+def _said_once(result: Any) -> None:
+    """What the report says once is said once: the acquisition block's line and the gap
+    between controls (audit 10, A2 and B12)."""
+    full = " ".join(result.summary("full").split())
+    assert full.count("never a biological verdict: open their images") <= 1
+    assert full.count("may have been imaged or processed differently") <= 1
+
+
 def _tests(result: Any, truth: dict[str, Any]) -> None:
     """The tests across repeats: what is tested, what is found, what is not."""
     across = across_frame(result)
@@ -177,6 +185,7 @@ def test_the_scenario_gives_its_truth(name: str, tmp_path: Path) -> None:
         return
     result = _report(loaded, Setup(**loaded.setup))
     _sections(result, truth)
+    _said_once(result)
     _tests(result, truth)
     if truth.get("order_free"):
         tables = dict(reversed(loaded.feature_tables.items()))

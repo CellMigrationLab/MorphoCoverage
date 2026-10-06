@@ -166,7 +166,7 @@ the contrast table, or the one control.
 | Separation scores | by condition as the figures read them; by repeat always raw; one line with one well per condition and repeat, no within-repeat technical replication | neighbours outside the field, per repeat | none, descriptive | one condition; a space of fewer than 3 columns, which has no map |
 | Copy checks | each explainable table apart, or the features as one table | field | none, exact | `integrity=True` not given; the guided session gives it |
 | Duplicated or derived features | every declared column, on all rows and within each experiment | column pair | none, a caution | none |
-| Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap, an engineering threshold for quality control, not a test, in the acquisition block of "What is in the dataset" | one control |
+| Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap, an engineering threshold for quality control, not a test, in the acquisition block of "What is in the dataset", once; "Do the conditions differ?" points to it (owner, 2026-10-06) | one control |
 | `optimise` | criteria on held-back fields, divided as the fingerprint, a fingerprint's components refitted on the fields not held back; the rules replayed raw | analysis group | none | no target it can judge |
 | `live_session` | the raw columns of each field | analysis group | none | none |
 

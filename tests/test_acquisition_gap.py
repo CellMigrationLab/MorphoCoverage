@@ -17,6 +17,7 @@ from ecm_design import CONTROLS, MASTER, PARENTS, tables
 
 from morphocoverage.workflows import Setup, report
 from morphocoverage.workflows._acquisition_gap import (
+    POINTER,
     acquisition_gaps,
     gap_caution,
     gap_features,
@@ -114,9 +115,10 @@ def test_the_report_says_the_gap_where_the_data_and_the_comparisons_are(gap_repo
         "acquisition: " in glance and ", controls apart in intensity" in glance
     )
     section = _flat(short[short.index("9. Do the conditions differ, and") :])
-    assert f"⚠️ {gap_caution(gap_report.results['contrast'].settings['acquisition_gaps'])}" in (
-        section
-    )
+    # Said once, in the acquisition block; the comparisons point to it (audit 10).
+    caution = gap_caution(gap_report.results["contrast"].settings["acquisition_gaps"])
+    assert caution not in section and f"⚠️ {POINTER}" in section
+    assert _flat(gap_report.summary(detail="full")).count(caution) == 1
     # Beside the row across experiments that joins dim and bright controls, not the others.
     assert "transfection effect: THBS5_SiNC/THBS5 vs VEC_SiNC/VEC: joins controls apart" in section
     assert "THBS5_SiNC vs VEC_SiNC (raw): join" not in section

@@ -118,10 +118,10 @@ maps on raw values, assume the experiments were imaged and processed alike. So t
 are compared with each other on every declared column whose name contains "intensity" (any
 case) and on those listed in `Setup(intensity_features=...)`: when two controls' medians, over
 all their observations, differ 2-fold or more (`_acquisition_gap.GAP_FOLD`), the report says
-so with one ⚠️ caution among the checks of the values ("Controls apart in intensity: VEC_SiNC
-and VEC differ 13-fold in median Intensity (mean); ... 2-fold is an engineering threshold for
-quality control, not a test.") and in "Do the conditions differ?",
-and names each `across_normalised` or `vs_master_raw` row that joins two such controls under
+so once, with one ⚠️ caution in the acquisition block of "What is in the dataset" ("Controls
+apart in intensity: VEC_SiNC and VEC differ 13-fold in median Intensity (mean); ... 2-fold is an
+engineering threshold for quality control, not a test."); "Do the conditions differ?" points to
+it in one ⚠️ line (audit 10, owner, 2026-10-06), and names each `across_normalised` or `vs_master_raw` row that joins two such controls under
 its table, and each main verdict that does, a control against its parent, under the
 readings (owner, 2026-10-05). The 2-fold mark is an engineering threshold for quality
 control, not a statistical test: it has no error rate, and a smaller gap is not evidence
