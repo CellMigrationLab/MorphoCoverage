@@ -488,13 +488,14 @@ def html_report(
                 next_steps=after,
             )
         )
-    limits = doc.limits(list(REPORT_QUESTIONS), "short")
+    # The page leaves out the sections it cannot answer: their reasons stay here.
+    limits = doc.limits(list(REPORT_QUESTIONS), "short", pointers=False)
     cards.append(
         _section(
             "limits",
             None,
             limits,
-            doc.limits(list(REPORT_QUESTIONS), "full"),
+            doc.limits(list(REPORT_QUESTIONS), "full", pointers=False),
             None,
             title=LIMITS_TITLE,
         )

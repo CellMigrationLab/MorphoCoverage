@@ -213,7 +213,10 @@ def test_the_report_prints_the_short_forms_and_its_caveats_once():
     assert "Assumptions: Every answer holds for the stated features" in _flat(closing)
     assert f"{CAUTION} Every answer holds" not in closing
     limits = report.limits(detail="full")
-    assert "4. How many fields should I image next time?: not assessed; needs: run" in limits
+    # One line per limit pointing to its section, where its need is (owner, 2026-10-06).
+    assert "4. How many fields should I image next time?: not assessed, see question 4." in limits
+    reasons = report.limits(detail="full", pointers=False)
+    assert "4. How many fields should I image next time?: not assessed; needs: run" in reasons
     assert report.limits() == limits
 
 

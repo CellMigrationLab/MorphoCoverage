@@ -172,9 +172,10 @@ fields and empty fields, what one row is, the feature columns (the first 12
 names, then how many more), the conditions and repeats with a table of fields
 by condition and repeat (and of technical repeats, when the column exists),
 and whether the values are normalised. It closes
-with **what this dataset cannot tell me**: every question not assessed, with
-what it would need (a control, a positive control, stage coordinates, a
-hierarchy, a replay), and the notes to read the answers with. Missing
+with **what this dataset cannot tell me**: one line per question not assessed or
+answered in part, pointing to its section, which says what it would need (a control, a
+positive control, stage coordinates, a hierarchy, a replay; owner, 2026-10-06), and the
+notes to read the answers with. Missing
 columns never stop the report: without `condition` or `biological_repeat` every field is
 one group and the sections that need them say so.
 

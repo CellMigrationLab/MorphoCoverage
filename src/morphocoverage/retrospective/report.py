@@ -260,10 +260,12 @@ class MicroscopistReport:
             lines.append(wrap(note, "  ", hang=4))
         return "\n".join(lines)
 
-    def limits(self, questions: Sequence[str] | None = None, detail: str = "full") -> str:
-        """The questions not assessed (among ``questions``, or all), what each needs, the
-        notes (``report_answers.limits_text``; ``detail="short"`` names each need in a few
-        words and leaves out a note a section above already states)."""
+    def limits(
+        self, questions: Sequence[str] | None = None, detail: str = "full", pointers: bool = True
+    ) -> str:
+        """The limits (among ``questions``, or all): one line each pointing to its section,
+        then the notes (``report_answers.limits_text``); ``pointers=False`` gives the reasons
+        instead, for a page that leaves the sections out."""
         return limits_text(
             self,
             questions,
@@ -271,6 +273,7 @@ class MicroscopistReport:
             titles=questions_for(self.units),
             needs=_NEEDS,
             short_titles=short_questions_for(self.units),
+            pointers=pointers,
         )
 
 
