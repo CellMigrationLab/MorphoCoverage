@@ -175,6 +175,14 @@ def d_per_repeat(row: Any) -> str:
     return f"{mean:+.2f}" if low == high else f"{mean:+.2f} ({low:+.2f} to {high:+.2f})"
 
 
+def _declared(result: Any) -> str:
+    """``; declared in the Setup: velocity, the difference``: the scales the Setup declares
+    (plan v2, owner, 2026-10-06), which replace the rule; empty without."""
+    scales = getattr(result.setup, "scales", None) or {}
+    named = [f"{feature}, the {scale}" for feature, scale in scales.items()]
+    return f"; declared in the Setup: {'; '.join(named[:6])}" if named else ""
+
+
 def _limited(row: Any) -> list[str]:
     """Each repeat's change and the 95% t interval of a row on exactly 3 repeats; dashes on
     another row of the same table."""
@@ -227,8 +235,9 @@ def _across(result: Any, folder: Path) -> tuple[str, int]:
         "repeat means divided by that control's mean. Change: the condition's mean over the "
         "control's, a fold change (the geometric mean over the repeats; the difference of the "
         "means for a feature with a value that is not positive, the same scale for every "
-        "condition), so a significant change can be read for its size. Significant: adjusted "
-        "p ≤ 0.05.</p>" + (f"<p>{html.escape(LIMITED_REPLICATION)}</p>" if three else "")
+        f"condition{html.escape(_declared(result))}), so a significant change can be read for "
+        "its size. Significant: adjusted p ≤ 0.05.</p>"
+        + (f"<p>{html.escape(LIMITED_REPLICATION)}</p>" if three else "")
     )
     return caption + _table(
         columns, rows, "rows"

@@ -214,6 +214,7 @@ def across_features(
     random_state: int,
     condition_col: str = CONDITION_COLUMN,
     repeat_col: str = REPEAT_COLUMN,
+    scales: Mapping[str, str] | None = None,
     **common: Any,
 ) -> pd.DataFrame:
     """The secondary rows of a contrast table tested for every feature (owner, 2026-10-05:
@@ -221,7 +222,8 @@ def across_features(
     column first), each ``family`` one Benjamini-Hochberg family over every feature and its
     rows, as the main verdicts are corrected over the features and conditions of their
     sub-experiment. The repeat means are those of every observation of a condition in a
-    repeat. Empty without secondary rows or repeats."""
+    repeat. ``scales``: each feature's declared scale (``Setup.scales``), else the automatic
+    rule. Empty without secondary rows or repeats."""
     columns = ["feature", *ACROSS_COLUMNS]
     secondary = rows[rows["kind"].isin([MASTER_RAW, ACROSS])]
     data = validate_input_tables(objects, fovs=fovs, feature_cols=list(features), **common)
@@ -234,7 +236,7 @@ def across_features(
     for feature in features:
         values = pd.Series(data.feature_values(feature), index=keys)
         means = values.groupby(level=[0, 1], sort=False).mean().to_dict()
-        log = log_scale(values.to_numpy())
+        log = log_scale(values.to_numpy(), (scales or {}).get(feature), repr(feature))
         tested += [
             {"feature": feature, **_row(entry, means, order, random_state, feature, log)}
             for entry in secondary.to_dict("records")
@@ -246,9 +248,11 @@ def across_table(
     sides: tuple[list, Sequence[Mapping[str, Any]], str, str | None],
     rows: pd.DataFrame | None,
     random_state: int,
+    log: bool | None = None,
 ) -> pd.DataFrame:
     """``condition_contrast``'s secondary rows tested; ``sides`` is its ``(all_groups,
-    described, feature, technical_col)``. Empty without such rows or repeats. ``attrs`` holds
+    described, feature, technical_col)``, ``log`` the feature's scale (``None``: the
+    automatic rule on all its observations). Empty without such rows or repeats. ``attrs`` holds
     the contrast table (``contrasts``) and, with ``vs_master_raw`` rows, the master control's
     repeats and the repeats of the data (``master_repeats``)."""
     all_groups, described, feature, technical_col = sides
@@ -261,7 +265,8 @@ def across_table(
         conditions = {c for entry in secondary.to_dict("records") for c in _sides(entry)}
         means = condition_means(all_groups, described, feature, technical_col, conditions)
         every = [data.feature_values(feature) for _, data in all_groups]
-        table = across_rows(means, secondary, order, random_state, log_scale(np.concatenate(every)))
+        log = log_scale(np.concatenate(every)) if log is None else log
+        table = across_rows(means, secondary, order, random_state, log)
     table.attrs["contrasts"] = rows
     masters = secondary.loc[secondary["kind"] == MASTER_RAW, "reference"] if len(secondary) else []
     if len(masters):

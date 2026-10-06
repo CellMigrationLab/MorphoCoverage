@@ -154,6 +154,7 @@ def _add_pairwise(
                 control=control,
                 random_state=setup.random_state,
                 references=references,
+                scale=setup.scale_of(feature),
                 **setup.common,
             )
             figure.pairwise = table.reset_index(drop=True)

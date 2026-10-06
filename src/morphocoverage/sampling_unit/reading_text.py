@@ -67,6 +67,11 @@ NOT_SIGNIFICANT = "not significant across repeats"
 NOT_TESTED = "not tested across repeats"
 MIXED = "no consistent direction"
 ONE_REPEAT = "one repeat"
+_VALUES = {
+    None: "values normalised to each repeat's control",
+    "ratio": "values normalised to each repeat's control, as declared in the Setup",
+    "difference": "the differences from each repeat's control, as declared in the Setup",
+}
 # With exactly MIN_REPEATS repeats each verdict shows its repeats' contrasts and the t interval
 # of the effect, and its section says this once (plan v2, owner, 2026-10-06).
 LIMITED_REPLICATION = (
@@ -429,10 +434,12 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
             "exploratory: it finds candidates, not effects that repeat:"
         )
     else:
+        # What the test compares, with a scale declared in the Setup said (plan v2).
+        values = _VALUES.get(contrast.settings.get("scale"), _VALUES[None])
         head = (
             f"Reading, condition by condition, against {control}. Significant across repeats: "
-            "the paired t-test on the biological repeat means (as SuperPlots; values "
-            "normalised to each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg "
+            f"the paired t-test on the biological repeat means (as SuperPlots; {values}) gives "
+            "q ≤ 0.05 after Benjamini-Hochberg "
             f"{family_words(contrast.settings, own=True)}: this is the result to report. Same "
             "direction, not significant: on one side of the control in every repeat without "
             "reaching q ≤ 0.05, a consistent trend and not evidence of no effect (with 3 "

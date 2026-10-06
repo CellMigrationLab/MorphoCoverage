@@ -27,15 +27,31 @@ def paired_t(differences: np.ndarray) -> float:
     return float(stats.ttest_1samp(differences, 0.0).pvalue)
 
 
-def log_scale(values: np.ndarray) -> bool:
-    """Whether the paired test across repeats reads a feature as log ratios: every one of
-    its observations ``values`` positive (missing values aside), else differences. Chosen
-    once per feature from all its observations, the same for every condition (owner,
-    2026-10-06, audit 8: chosen per condition from its means, an offset of the feature
-    changed the test's power)."""
+# The scales a feature can be declared on (``Setup.scales``; plan v2, owner, 2026-10-06).
+SCALES = ("ratio", "difference")
+
+
+def log_scale(values: np.ndarray, declared: str | None = None, feature: str = "") -> bool:
+    """Whether the paired test across repeats reads a feature as log ratios. ``declared``,
+    the feature's scale in the Setup (``scales``; plan v2, owner, 2026-10-06): ``"ratio"``
+    (refused, ``ValueError``, when a value is not positive) or ``"difference"``. Undeclared,
+    the automatic rule: every one of its observations ``values`` positive (missing values
+    aside), else differences. Chosen once per feature from all its observations, the same
+    for every condition (owner, 2026-10-06, audit 8: chosen per condition from its means, an
+    offset of the feature changed the test's power)."""
+    if declared not in (None, *SCALES):
+        raise ValueError(f"a scale is one of {SCALES}, not {declared!r}")
     values = np.asarray(values, dtype=float)
     values = values[~np.isnan(values)]
-    return bool(len(values)) and bool((values > 0).all())
+    positive = bool(len(values)) and bool((values > 0).all())
+    if declared == "ratio" and not positive:
+        lowest = f"{values.min():g}" if len(values) else "no value"
+        raise ValueError(
+            f"{feature or 'a feature'} is declared on the ratio scale (scales), but holds a "
+            f"value that is not positive ({lowest}): a ratio to the control needs positive "
+            "values; declare it 'difference'"
+        )
+    return positive if declared is None else declared == "ratio"
 
 
 def repeat_values(
@@ -119,6 +135,7 @@ def excess_kurtosis(values: np.ndarray) -> float:
 
 __all__ = [
     "BIMODAL",
+    "SCALES",
     "bimodality_coefficient",
     "contrasts_text",
     "excess_kurtosis",

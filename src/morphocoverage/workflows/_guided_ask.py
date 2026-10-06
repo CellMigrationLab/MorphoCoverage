@@ -271,6 +271,39 @@ def ask_rare_label(ask: Ask, say: Say, candidates: Sequence[str]) -> str | None:
     return None if choice == none else choice
 
 
+# Feature names that say a quantity measured from zero, read as ratios to the control when
+# confirmed (plan v2, owner, 2026-10-06).
+RATIO_WORDS = ("intensity", "area")
+
+
+def ask_scales(ask: Ask, say: Say, objects: Any, features: Sequence[str]) -> dict[str, str]:
+    """The scale of each feature named like an intensity or an area (``RATIO_WORDS``) whose
+    values are all positive: ``"ratio"`` proposed and confirmed, else ``"difference"``; the
+    other features keep the automatic rule (``Setup.scales``). Empty when none is named so."""
+    named = [
+        f
+        for f in features
+        if any(w in f.lower() for w in RATIO_WORDS) and (objects[f].dropna() > 0).all()
+    ]
+    if not named:
+        return {}
+    prompt = (
+        f"Test the changes of {listing(named, 6)}, named like an intensity or an area, as "
+        "ratios to the control (fold changes)? No tests them as differences"
+    )
+    scale = "ratio" if yes_no(ask, say, prompt, True) else "difference"
+    return dict.fromkeys(named, scale)
+
+
+def scale_lines(scales: dict[str, str]) -> list[str]:
+    """``Tested as ratios to the control: area.``: the saved scales in sentences."""
+    lines = []
+    for scale in ("ratio", "difference"):
+        named = [f for f, s in scales.items() if s == scale]
+        lines += [f"Tested as {scale}s to the control: {', '.join(named)}."] if named else []
+    return lines
+
+
 def ask_run(ask: Ask, say: Say) -> bool:
     """Whether to run the report now (the default) or save the answers and stop."""
     options = ["run now", "save and stop"]
@@ -315,6 +348,7 @@ __all__ = [
     "AIM_LABELS",
     "AIM_QUESTION",
     "AIM_TEXT",
+    "RATIO_WORDS",
     "TABLE_AIMS",
     "Ask",
     "Say",
@@ -325,6 +359,7 @@ __all__ = [
     "ask_rare_label",
     "ask_readout",
     "ask_run",
+    "ask_scales",
     "ask_table_aim",
     "ask_tolerance",
     "ask_unit",
@@ -332,6 +367,7 @@ __all__ = [
     "choose_many",
     "label_columns",
     "number",
+    "scale_lines",
     "text",
     "yes_no",
 ]

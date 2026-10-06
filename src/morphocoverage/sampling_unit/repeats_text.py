@@ -128,8 +128,13 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
     if repeats["p_paired_t"].notna().any() and not full:
         # As ``reading_text._paired``: the normalised q, the raw q where there is none.
         raw = repeats["p_paired_t"].notna() & repeats["q_paired_t_normalised"].isna()
+        why = (
+            "the feature is declared on the difference scale (scales)"
+            if contrast.settings.get("scale") == "difference"
+            else "a value of the feature is not positive, so there is no ratio to the control"
+        )
         used = (
-            "the raw q: a value of the feature is not positive, so there is no ratio to the control"
+            f"the raw q: {why}"
             if raw[repeats["p_paired_t"].notna()].all()
             else "the normalised q"
             + (

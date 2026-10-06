@@ -19,6 +19,7 @@ from scipy import stats
 from ._checks import is_integer, is_number
 from ._repeat_statistics import (
     BIMODAL,
+    SCALES,
     bimodality_coefficient,
     contrasts_text,
     excess_kurtosis,
@@ -556,6 +557,7 @@ __all__ = [
     "BIMODAL",
     "PAPER_DESCRIPTORS",
     "RELATIVE_TOLERANCE",
+    "SCALES",
     "benjamini_hochberg",
     "bimodality_coefficient",
     "bootstrap_fields",

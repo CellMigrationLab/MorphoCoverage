@@ -34,14 +34,20 @@ NO_SPREAD = "no spread within the condition and the control"
 
 
 def _pooled(
-    all_groups: list, described: list, contrasts: list, feature: str, technical_col: str | None
+    all_groups: list,
+    described: list,
+    contrasts: list,
+    feature: str,
+    technical_col: str | None,
+    scale: str | None = None,
 ) -> dict[Any, dict[str, Any]]:
     """Per condition (or comparison), its observations and its own control's per repeat,
     every observation of that control (a comparison's reference) per repeat, as
-    ``condition_contrast`` pools them, and the feature's scale (``log``, from all its
-    observations, ``statistics.log_scale``)."""
+    ``condition_contrast`` pools them, and the feature's scale (``log``: ``scale`` when
+    declared, else from all its observations, ``statistics.log_scale``)."""
     pooled: dict[Any, dict[str, Any]] = {}
-    log = log_scale(np.concatenate([data.feature_values(feature) for _, data in all_groups]))
+    values = np.concatenate([data.feature_values(feature) for _, data in all_groups])
+    log = log_scale(values, scale, repr(feature))
     every: dict[Any, dict[Any, np.ndarray]] = {}
     pairs = getattr(described, "comparisons", None) or {}
     for repeat, condition in contrasts:
@@ -190,15 +196,15 @@ def _feature_tests(
 
 
 def tested_rows(
-    data: tuple[list, Any, list, str | None],
+    data: tuple[list, Any, list, str | None, dict[str, str]],
     features: list[str],
     settings: tuple[int, int, float],
     workers: int,
 ) -> tuple[list[dict[str, Any]], dict[int, Any], dict[Any, set]]:
     """Every feature's rows, in ``workers`` processes: ``data`` is the groups, their
-    description, the contrasts and the technical-repeat column; ``settings`` the shuffles,
-    the random state and alpha. Also what ``refined`` may rerun, by row, and the repeats
-    each condition is compared in."""
+    description, the contrasts, the technical-repeat column and the declared scales;
+    ``settings`` the shuffles, the random state and alpha. Also what ``refined`` may rerun,
+    by row, and the repeats each condition is compared in."""
     rows: list[dict[str, Any]] = []
     retests: dict[int, Any] = {}
     held: dict[Any, set] = {}
@@ -206,7 +212,7 @@ def tested_rows(
         # A few features a worker at a time, so the values of every feature are never held.
         for first in range(0, len(features), workers * UNITS_PER_WORKER):
             jobs = [
-                (feature, _pooled(*data[:3], feature, data[3]))
+                (feature, _pooled(*data[:3], feature, data[3], data[4].get(feature)))
                 for feature in features[first : first + workers * UNITS_PER_WORKER]
             ]
             tested = map_units(_feature_tests, [(*job, *settings) for job in jobs], workers, pool)

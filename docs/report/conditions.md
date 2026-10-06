@@ -336,7 +336,8 @@ the paired test kept as the second gate):
   the version the readings trust most (normalised, balanced when unbalanced),
   Benjamini-Hochberg over all of them within each sub-experiment, a feature passing at q ≤ 0.05; passing
   features are ranked by |d| and the plots draw the best-ranked.
-- **The second gate**: the paired t on the repeat means (log ratios when every
+- **The second gate**: the paired t on the repeat means (the scale declared in
+  `Setup(scales=...)`, plan v2, owner, 2026-10-06; undeclared, log ratios when every
   observation of the feature is positive, else differences: the scale is chosen once per
   feature from all its observations, the same for every condition, and the test's
   description says so; owner, 2026-10-06, after audit 8 found that choosing it per

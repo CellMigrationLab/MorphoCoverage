@@ -54,6 +54,7 @@ from ..sampling_unit import (
     unusual_objects,
 )
 from ..schema import ValidatedInput
+from ..statistics import log_scale
 from ..strategies import FixedFOVStrategy
 from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
@@ -144,6 +145,9 @@ def check_workflow_inputs(
                 f"rare_label {setup.rare_label!r} must hold booleans or 0/1, got "
                 f"{sorted(map(str, labels.unique()))[:5]}"
             )
+    for feature, scale in (setup.scales or {}).items():  # a ratio needs positive values
+        if feature in objects.columns:
+            log_scale(objects[feature].to_numpy(dtype=float), scale, repr(feature))
     columns = setup.columns
     if not check:
         return objects, fovs, None
@@ -509,6 +513,7 @@ def conditions(
             feature=setup.readout,
             random_state=setup.random_state,
             fields_independent=setup.fields_independent,
+            scale=setup.scale_of(setup.readout),
             # One control, or the contrast table: its main verdicts and its secondary rows.
             **(
                 {"control": setup.control}
@@ -527,6 +532,7 @@ def conditions(
             features=compared,
             random_state=setup.random_state,
             n_jobs=setup.n_jobs,
+            scales=setup.scales,
             **setup.contrast_arguments,
             **setup.common,
         )

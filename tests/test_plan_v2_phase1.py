@@ -12,6 +12,8 @@ import pandas as pd
 import pytest
 from test_discovery import _tables as _discovery_tables
 from test_feature_tables_wide import _wide
+from test_guided import Script as GuidedScript
+from test_guided import _cells as guided_cells
 
 from morphocoverage._wording import WITHIN_FAMILY
 from morphocoverage.embedding import robust_components
@@ -21,10 +23,10 @@ from morphocoverage.sampling_unit.contrast import condition_contrast
 from morphocoverage.sampling_unit.discovery import feature_discovery
 from morphocoverage.sampling_unit.reading_text import LIMITED_REPLICATION
 from morphocoverage.statistics import repeat_effect
-from morphocoverage.workflows import Setup, optimise
+from morphocoverage.workflows import Setup, guide, load_answers, optimise, report
 from morphocoverage.workflows._acquisition_gap import gap_caution
 from morphocoverage.workflows._fingerprint_space import fingerprint_space, noun
-from morphocoverage.workflows._guided_ask import ask_tolerance
+from morphocoverage.workflows._guided_ask import ask_scales, ask_tolerance
 from morphocoverage.workflows._html_across import _across, across_frame
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -220,3 +222,81 @@ def test_the_page_table_and_its_csv_carry_each_repeats_change_and_the_interval(t
     assert html.escape(LIMITED_REPLICATION) in markup
     saved = pd.read_csv(tmp_path / "tests_across_repeats.csv")
     assert {"repeat_contrasts", "ci_low", "ci_high"} <= set(saved.columns)
+
+
+# --- 4. The scale declared per feature ------------------------------------------------------
+
+
+def test_the_setup_declares_a_scale_per_feature_and_refuses_what_it_cannot_use():
+    setup = Setup(
+        readout="area",
+        features=("area", "velocity"),
+        scales={"area": "ratio", "velocity": "difference"},
+    )
+    assert setup.scale_of("area") == "ratio" and setup.scale_of("velocity") == "difference"
+    assert setup.scale_of("shape") is None  # undeclared: the automatic rule
+    with pytest.raises(ValueError, match="'ratio' or 'difference'"):
+        Setup(readout="area", features=("area",), scales={"area": "log"})
+    with pytest.raises(ValueError, match="not declared explainable features"):
+        Setup(readout="area", features=("area",), scales={"speed": "ratio"})
+
+
+def test_a_declared_ratio_on_a_value_that_is_not_positive_is_refused():
+    objects, fovs = _discovery_tables(n_repeats=3)
+    objects.loc[0, "area"] = -1.0
+    with pytest.raises(ValueError, match="declared on the ratio scale.*not positive"):
+        condition_contrast(
+            objects, fovs, feature="area", control={"condition": "ctrl"}, scale="ratio"
+        )
+    setup = Setup(readout="area", control={"condition": "ctrl"}, scales={"area": "ratio"})
+    with pytest.raises(ValueError, match="'area' is declared on the ratio scale"):
+        report(objects, fovs, setup)
+
+
+def test_a_declared_difference_replaces_the_automatic_ratio():
+    objects, fovs = _discovery_tables(n_repeats=3)
+    automatic = condition_contrast(objects, fovs, feature="area", control={"condition": "ctrl"})
+    declared = condition_contrast(
+        objects, fovs, feature="area", control={"condition": "ctrl"}, scale="difference"
+    )
+    assert automatic.repeats["fold_change"].notna().all()
+    assert declared.repeats["fold_change"].isna().all()
+    assert declared.repeats["q_paired_t_normalised"].isna().all()
+    joined = " ".join(declared.summary().split())
+    assert "the differences from each repeat's control, as declared in the Setup" in joined
+    assert "the raw q: the feature is declared on the difference scale" in joined
+    discovery = feature_discovery(
+        objects,
+        fovs,
+        features=["area", "noise"],
+        control={"condition": "ctrl"},
+        n_permutations=999,
+        observation_unit="cell",
+        scales={"area": "difference"},
+    )
+    tests = discovery.tests.set_index("feature")
+    assert tests.loc["area", "paired_values"] == "raw"
+    assert tests.loc["noise", "paired_values"] == "normalised"  # the automatic rule
+    assert "declared in the Setup: area, the difference" in " ".join(discovery.summary().split())
+
+
+def test_the_guided_session_proposes_ratios_for_intensities_and_areas_and_saves_them(tmp_path):
+    objects = pd.DataFrame(
+        {"area": [1.0, 2.0], "Mean intensity": [3.0, 4.0], "shift": [-1.0, 2.0], "len": [1, 2]}
+    )
+    said = []
+    yes = ask_scales(lambda _: "", said.append, objects, ["area", "Mean intensity", "shift"])
+    assert yes == {"area": "ratio", "Mean intensity": "ratio"}  # shift can be negative
+    no = ask_scales(lambda _: "n", said.append, objects, ["area", "len"])
+    assert no == {"area": "difference"}
+    assert ask_scales(lambda _: "", said.append, objects, ["len"]) == {}
+    script = GuidedScript(["y", "", "", "", "", "", "1,3", "area"], scales=False)
+    script.answers.insert(8, "n")  # the scale question, after the readout
+    result = guide(
+        guided_cells(), folder=tmp_path, ask=script.ask, say=script.say, run_report=False
+    )
+    assert any(p.startswith("Test the changes of area") for p in script.prompts)
+    assert result.answers.scales == {"area": "difference"}
+    assert result.setup.scales == {"area": "difference"}
+    assert load_answers(tmp_path).scales == {"area": "difference"}
+    assert "Tested as differences to the control: area." in result.answers.lines()
