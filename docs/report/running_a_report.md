@@ -114,7 +114,8 @@ them; an optional column that marks a phenotype you care about (true/false or 0/
 such as mitotic: `Setup.rare_label`, its share taken as the rare target's prevalence, to be
 seen in 3 fields with 95% chance); and, for the whole distribution, its tolerance (the
 covariance of the standardised features within a share you state; 10% is offered, with no
-published meaning). When the observation table holds no numeric feature (a 0/1 column
+published meaning). The whole distribution alone declares no mean target, so no
+mean-precision rule; both keeps the mean (owner, 2026-10-06). When the observation table holds no numeric feature (a 0/1 column
 marking a phenotype aside) and other feature tables are given, it skips the feature and
 readout questions (owner, 2026-10-06): it asks for the phenotype column, then offers the
 aim among the whole distribution of each table (its fingerprint), the labelled phenotype and

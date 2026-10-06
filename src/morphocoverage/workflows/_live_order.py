@@ -66,18 +66,22 @@ def _order_check(session: OnlineSession, results: list[StrategyResult]) -> Order
     return session.order_check(results[0].group)
 
 
-def embedding_columns(setup: Any, rules: tuple[Any, ...] | None) -> list[str]:
+def embedding_columns(setup: Any, rules: tuple[Any, ...] | None) -> list[str] | None:
     """The columns a live session of an embedding-only Setup reads (owner, 2026-10-06): its
-    tables' columns, with the rules it is given; refused, with what to do, without rules or
-    the tables' columns. With the fingerprint and the rare phenotype the default objective
-    is those two (``Setup.objective``, audit 8), so none need be given."""
-    if not rules:
+    tables' columns, with the rules it is given (``None`` for another Setup: its own
+    columns); refused, with what to do, without rules (neither given nor the Setup's: no
+    readout, or ``tolerances=()``) or the tables' columns. With the fingerprint and the rare
+    phenotype the default objective is those two (``Setup.objective``, audit 8)."""
+    if not rules and not setup.stopping_rules():
+        why = "without a readout" if setup.readout is None else "with tolerances=()"
         raise ValueError(
-            "live_session needs stopping rules, and a Setup without a readout has no default "
-            "(the mean-precision rules read the readout): pass rules=(...), for example a "
-            "FOVBootstrapStrategy on a table's columns for the fingerprint or a "
-            "RareIncidenceStrategy on the labelled phenotype, or declare a readout"
+            f"live_session needs stopping rules, and a Setup {why} has no default (the "
+            "mean-precision rules read the readout's tolerance): pass rules=(...), for example "
+            "a FOVBootstrapStrategy on the columns for the fingerprint or a "
+            "RareIncidenceStrategy on the labelled phenotype, or declare the mean target"
         )
+    if not setup.embedding_only:
+        return None
     columns = table_columns(setup)
     if not columns:
         raise ValueError(

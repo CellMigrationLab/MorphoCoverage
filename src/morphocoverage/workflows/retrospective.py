@@ -268,30 +268,32 @@ def report(
     rules, novelty_target = sufficiency_rules(setup)
     if novelty is None:
         novelty_target = None
-    sufficiency = sufficiency_report(
-        objects,
-        fovs,
-        # The rules read the same columns, and the same raw values, in report,
-        # optimise, benchmark and live.
-        feature_cols=list(dict.fromkeys([*setup.columns, *(novelty_cols if novelty else [])])),
-        strategies=rules,
-        objective=setup.objective(),
-        # sufficiency_report seeds a permutation by its order's seed alone.
-        orders=_orders(setup, permuted=REPORT_ORDERS, dispersed=0, seed_permuted=True),
-        novelty=combined if novelty is not None else None,
-        novelty_target=novelty_target,
-        few_fovs=setup.resolved_few_fovs if novelty is not None else None,
-        acquisition_order_col=setup.acquisition_order_col,
-        # "New" is judged on the declared features only, as in the controls and the
-        # inspection; the rules read the readout.
-        novelty_cols=novelty_cols if novelty is not None else None,
-        # The order check beside every stop: the readout against order and stage.
-        readout=setup.readout,
-        stage_cols=setup.stage_cols,
-        n_jobs=setup.n_jobs,
-        **common,
-    )
-    results["sufficiency"] = report_only(sufficiency, setup)
+    # No rule and no definition of new (tolerances=() without novelty): nothing to judge.
+    if rules or novelty is not None:
+        sufficiency = sufficiency_report(
+            objects,
+            fovs,
+            # The rules read the same columns, and the same raw values, in report,
+            # optimise, benchmark and live.
+            feature_cols=list(dict.fromkeys([*setup.columns, *(novelty_cols if novelty else [])])),
+            strategies=rules,
+            objective=setup.objective(),
+            # sufficiency_report seeds a permutation by its order's seed alone.
+            orders=_orders(setup, permuted=REPORT_ORDERS, dispersed=0, seed_permuted=True),
+            novelty=combined if novelty is not None else None,
+            novelty_target=novelty_target,
+            few_fovs=setup.resolved_few_fovs if novelty is not None else None,
+            acquisition_order_col=setup.acquisition_order_col,
+            # "New" is judged on the declared features only, as in the controls and the
+            # inspection; the rules read the readout.
+            novelty_cols=novelty_cols if novelty is not None else None,
+            # The order check beside every stop: the readout against order and stage.
+            readout=setup.readout,
+            stage_cols=setup.stage_cols,
+            n_jobs=setup.n_jobs,
+            **common,
+        )
+        results["sufficiency"] = report_only(sufficiency, setup)
     # Every reason at once: new states on the declared features, influence, empty
     # or crowded fields and stage neighbours on the readout.
     novel = novelty is not None and bool(setup.features)

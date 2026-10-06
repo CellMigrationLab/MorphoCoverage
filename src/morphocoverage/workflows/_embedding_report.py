@@ -201,10 +201,11 @@ def embedding_plan(
     fingerprint of each table, the labelled phenotype) judged on held-back fields, across
     samples when a hierarchy allows; no stopping rule to replay (no readout), and no effort
     projection (it reads the readout)."""
-    no_rule = "not applicable: no stopping rule, as there is no readout"
+    why = "there is no readout" if setup.readout is None else "no mean target (tolerances=())"
+    no_rule = f"not applicable: no stopping rule, as {why}"
     for key in ("bought", "order"):
         reasons.setdefault(key, no_rule)
-    reasons.setdefault("effort", NOT_APPLICABLE)
+    reasons.setdefault("effort", NOT_APPLICABLE if setup.readout is None else no_rule)
     document = assemble(results, setup)
     unit = setup.unit_word
     title = (

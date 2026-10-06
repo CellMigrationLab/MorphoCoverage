@@ -38,6 +38,7 @@ from ._html_next import (
     RESERVOIR,
     _chosen_population,
     _labelled,
+    _mean_tolerances,
     _optimise_code,
     _repeats_line,
     fov_counts,
@@ -175,7 +176,8 @@ def _panel(sentence: str, code: str = "", extra: str = "") -> str:
 
 
 def _tolerances(result: Any) -> str:
-    return listing([rate(t) for t in result.setup.tolerances], 4).replace(", and ", " and ")
+    planned = _mean_tolerances(result.setup)[0]
+    return listing([rate(t) for t in planned], 4).replace(", and ", " and ")
 
 
 def _mean_goal(result: Any, feature: str, counts: list[int], extra: str) -> tuple[str, str]:
@@ -195,7 +197,8 @@ def _mean_goal(result: Any, feature: str, counts: list[int], extra: str) -> tupl
         "fields next time?”, and how reliable each stopping rule was, which says the rule "
         "to run live."
     )
-    return option, _panel(sentence, _optimise_code(feature, counts, readout), extra)
+    declared = _mean_tolerances(result.setup)[1]
+    return option, _panel(sentence, _optimise_code(feature, counts, readout, declared), extra)
 
 
 def _plans(result: Any) -> list[tuple[str, Any]]:
@@ -511,7 +514,8 @@ def _declared_goals(
 def _live_mean(result: Any, feature: str, fovs: pd.DataFrame) -> tuple[str, str]:
     setup = result.setup
     readout = "" if feature == setup.readout else f", readout={feature!r}"
-    cleared = _cleared(setup)
+    tolerances, declared = _mean_tolerances(setup)
+    cleared = _cleared(setup) + declared
     head = "from dataclasses import replace\n" if readout or cleared else ""
     made = (
         f"setup = replace(result.setup{readout}{cleared})\n"
@@ -531,7 +535,7 @@ def _live_mean(result: Any, feature: str, fovs: pd.DataFrame) -> tuple[str, str]
     )
     sentence = (
         f"Each well stops once its stopping rules say the mean of {feature} is known within "
-        f"{rate(setup.tolerances[0])}. Optimise, above, says how reliable each rule was on "
+        f"{rate(tolerances[0])}. Optimise, above, says how reliable each rule was on "
         "these data."
     )
     return f"…the mean of {feature} is known", _panel(sentence, code)

@@ -212,3 +212,47 @@ def test_seed17_an_embedding_only_fingerprint_and_label_need_no_population():
     rule = FOVBootstrapStrategy("covariance", 0.5, Standardize(), 20, 0, 3)
     session = live_session(setup, rules=(rule,))
     assert session.objective.objective is SamplingObjective.DISTRIBUTION_RARE
+
+
+def test_seed19_the_whole_distribution_declares_no_mean_target():
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_guided import _cells as guided_cells
+
+    from morphocoverage.objectives import SamplingObjective
+    from morphocoverage.workflows import Answers, scan_design
+    from morphocoverage.workflows._declaration import NO_MEAN
+
+    objects = guided_cells()
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    scan = scan_design(objects, fovs)
+
+    def setup(aim):
+        answers = Answers(
+            loaded_correctly=True,
+            control={"condition": "siCTRL"},
+            aim=aim,
+            features=["area", "aspect"],
+            readout="area",
+            observation_unit="cell",
+            fingerprint_tolerance=0.2,
+        )
+        return answers.setup(scan)
+
+    whole, both = setup("fingerprint"), setup("both")
+    assert whole.tolerances == () and whole.stopping_rules() == ()
+    assert whole.objective().objective is SamplingObjective.DISTRIBUTION
+    assert whole.novelty is not None and whole.fingerprint  # novelty as before
+    said = NO_MEAN.format(readout="area")
+    assert [line for line in whole.declaration() if line == said] == [said]
+    assert both.tolerances == (0.05, 0.025) and both.stopping_rules()
+    assert both.objective().objective is SamplingObjective.PHENOTYPE
+    # Without a definition of new nothing judges sampling: the report still runs.
+    from dataclasses import replace
+
+    from morphocoverage.workflows import report
+
+    text = report(objects, fovs, replace(whole, novelty=None)).summary()
+    assert "Population summary: not declared (tolerances=())" in " ".join(text.split())

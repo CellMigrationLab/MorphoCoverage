@@ -66,9 +66,11 @@ between the controls besides every declared column whose name contains "intensit
   target is stated and planned for, not judged.
 - In the guided session, the aim sets the fingerprint: "averages" declares none; "the whole
   distribution" or "both" declares a covariance criterion on the features and one per table
-  at one tolerance, and the default definition of new on the features. The mean stays a
-  target whenever there is a readout. Without explainable features the aims are the whole
-  distribution, the labelled phenotype, or both.
+  at one tolerance, and the default definition of new on the features. "The whole
+  distribution" declares no mean target (`tolerances=()`), so no mean-precision rule, and
+  the declaration says so once; "averages" and "both" keep the mean target (owner,
+  2026-10-06). Without explainable features the aims are the whole distribution, the
+  labelled phenotype, or both.
 
 **Repeats and wells.**
 

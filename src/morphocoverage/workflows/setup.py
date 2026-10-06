@@ -1,25 +1,22 @@
 """What a dataset is, declared once for every workflow (``report``, ``optimise``, ``live``,
 ``benchmark``).
 
-Every scientific choice the workflows make is a field here or an explicit
-argument of a workflow, visible and recorded; the workflows add the
-computational settings (draws, splits, orders, resamples) and provisional
-presets (``minimum_detection`` here, ``optimise``'s ``protocol_threshold``,
-``benchmark``'s ``alphas``), which the declaration and the summaries print,
-and run the package's analyses in the order of ``docs/report/questions.md``.
-A field left at ``None`` switches off the analyses that need it, and the
-report then says "Not assessed" with what it would need.
+Every scientific choice the workflows make is a field here or an explicit argument of a
+workflow, visible and recorded; the workflows add the computational settings (draws, splits,
+orders, resamples) and provisional presets (``minimum_detection`` here, ``optimise``'s
+``protocol_threshold``, ``benchmark``'s ``alphas``), which the declaration and the summaries
+print, and run the package's analyses in the order of ``docs/report/questions.md``. A field left
+at ``None`` switches off the analyses that need it, and the report then says "Not assessed" with
+what it would need.
 
-The declaration also says what the acquisition must preserve (the front door
-of ``docs/common/setup.md``): a population summary (the mean of ``readout``
-within ``tolerances``), a phenotypic fingerprint (``fingerprint``: outcome
-criteria on the declared features), and a rare phenotype (``rare``: a
-``RareTarget``, with ``rare_label`` naming the objects that carry it when a
-label exists). ``Setup.criteria()`` turns the declaration into the outcome
-criteria every planning analysis judges on held-back fields,
-``Setup.objective()`` into the objective the live decision runs under (its
-components are the declared targets), and ``Setup.declaration()`` states it
-in sentences, which the report prints first.
+The declaration also says what the acquisition must preserve (the front door of
+``docs/common/setup.md``): a population summary (the mean of ``readout`` within ``tolerances``),
+a phenotypic fingerprint (``fingerprint``: outcome criteria on the declared features), and a
+rare phenotype (``rare``: a ``RareTarget``, with ``rare_label`` naming the objects that carry it
+when a label exists). ``Setup.criteria()`` turns the declaration into the outcome criteria every
+planning analysis judges on held-back fields, ``Setup.objective()`` into the objective the live
+decision runs under (its components are the declared targets), and ``Setup.declaration()``
+states it in sentences, which the report prints first.
 """
 
 from __future__ import annotations
@@ -129,15 +126,15 @@ class Setup:
       representation must recognize before the adequacy answers are read
       without a warning (default 0.9, a provisional preset, printed in the
       declaration).
-    - ``tolerances``: the readout's mean within these fractions, the outcomes
-      judged on held-back FOVs and the JCB targets; default the paper's 5% and
-      2.5%. This is the population-summary target.
-    - ``fingerprint``: the phenotypic-fingerprint target: outcome criteria on
-      the declared features (for example an ``OutcomeCriterion`` on
-      ``CovarianceError`` or ``QuantileError`` within a tolerance), judged on
-      held-back FOVs beside the mean. Their features must be declared in
-      ``features`` (or be the readout). Empty means the fingerprint is not
-      declared and the planning answers speak of the mean only.
+    - ``tolerances``: the readout's mean within these fractions, the outcomes judged on
+      held-back FOVs and the JCB targets; default the paper's 5% and 2.5%. This is the
+      population-summary target; ``()`` declares none and no mean-precision rule, beside a
+      fingerprint or a rare target (the guided "whole distribution", owner 2026-10-06).
+    - ``fingerprint``: the phenotypic-fingerprint target: outcome criteria on the declared
+      features (for example an ``OutcomeCriterion`` on ``CovarianceError`` or
+      ``QuantileError`` within a tolerance), judged on held-back FOVs beside the mean. Their
+      features must be declared in ``features`` (or be the readout). Empty means the
+      fingerprint is not declared and the planning answers speak of the mean only.
     - ``rare`` and ``rare_label``: the rare-phenotype target, a ``RareTarget``
       (its definition, prevalence and/or field incidence, detection
       probability, fields it must be seen in), and the observation column
@@ -259,8 +256,10 @@ class Setup:
                 raise TypeError("rare_label must be one object column name")
             if self.rare is None:
                 raise ValueError("rare_label labels a declared rare target: declare rare too")
-        if not self.tolerances or any(not 0 < t < 1 for t in self.tolerances):
+        if any(not 0 < t < 1 for t in self.tolerances):
             raise ValueError("tolerances must be fractions between 0 and 1, such as 0.05")
+        if not self.tolerances and not (self.fingerprint or self.rare is not None):
+            raise ValueError("tolerances=() declares no mean target: declare the fingerprint")
         if self.control is not None and (not isinstance(self.control, Mapping) or not self.control):
             raise TypeError("control must map FOV-table columns to values")
         check_controls(self)
@@ -327,6 +326,11 @@ class Setup:
         """Whether no explainable feature is declared (no readout): the other feature tables
         are then all the report reads (owner, 2026-10-06)."""
         return self.readout is None
+
+    @property
+    def mean_target(self) -> bool:
+        """Whether the readout's mean is a declared target (a readout and ``tolerances``)."""
+        return self.readout is not None and bool(self.tolerances)
 
     @property
     def criterion_columns(self) -> list[str]:
@@ -481,7 +485,7 @@ class Setup:
         decides stays ``unsupported`` in the decision view rather than being
         assumed adequate.
         """
-        if self.readout is None:  # no mean: the fingerprint and the rare phenotype only
+        if not self.mean_target:  # no mean: the fingerprint and the rare phenotype only
             if self.rare is None:
                 return ObjectiveConfig(SamplingObjective.DISTRIBUTION)
             if self.fingerprint:  # owner, 2026-10-06 (audit 8): no population component
@@ -509,7 +513,7 @@ class Setup:
                 "lower_is_better",
                 f"the mean of {self.readout} within {rate(tolerance)}",
             )
-            for tolerance in (self.tolerances if self.readout is not None else ())
+            for tolerance in (self.tolerances if self.mean_target else ())
         ]
         criteria += list(self.fingerprint)
         if self.rare is not None and self.rare_label is not None:
@@ -584,7 +588,7 @@ class Setup:
         or tracks of one image are far from independent draws (owner, 2026-10-02)."""
         if self.rules is not None:
             return self.rules
-        if self.readout is None:  # the mean-precision rules read the readout
+        if not self.mean_target:  # the mean-precision rules read the readout's tolerance
             return ()
         target = self.tolerances[0]
         per_fov = ScalarPrecisionStrategy(self.readout, target, "fov", "upper_95")

@@ -409,7 +409,7 @@ def control_checks(
             )
         return {}
     results: dict[str, Any] = {}
-    if setup.readout is not None:
+    if setup.mean_target:  # the mean-precision rules at the readout's tolerances
         results["object_rules"] = object_rule_check(
             objects,
             fovs,

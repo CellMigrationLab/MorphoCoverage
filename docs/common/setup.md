@@ -194,7 +194,10 @@ what". Three targets can be declared, and each becomes an outcome criterion
 that `optimise` and `benchmark` judge on held-back fields (`setup.criteria()`):
 
 - **a population summary**: the mean of `readout` within each of
-  `tolerances` (always declared with a readout; none in an
+  `tolerances` (declared with a readout unless `tolerances=()`, which declares no mean
+  target and so no default mean-precision rule, beside a fingerprint or a rare target: the
+  guided "whole distribution", owner 2026-10-06; the declaration says so once, `optimise`
+  then judges the other targets and `live_session` needs `rules=`; none in an
   [embedding-only Setup](#embedding-only-reports-no-explainable-features));
 - **a phenotypic fingerprint**: `fingerprint=(OutcomeCriterion(...), ...)`,
   distribution criteria on the declared features, for example
