@@ -254,7 +254,9 @@ Descriptive, with no p-value: Cohen's d per repeat, the separation scores, the p
 and their rules, unusual observations, novelty and the positive control, the label check,
 the bimodality line, reagent agreement, the copy and duplicated-feature checks and the
 acquisition gap. The tests and their assumptions are in
-[Do the conditions differ?](../report/conditions.md).
+[Do the conditions differ?](../report/conditions.md). How each test and rule is chosen and
+validated, before any of them changes, is the [validation protocol](validation.md) (owner,
+2026-10-06).
 
 ## Four worked paths
 
