@@ -144,10 +144,13 @@ def _unusual_cautions(result: Any, words: str) -> list[str]:
         )
     single = [r for r in ok if r.get("calibration") == LEAVE_ONE_FIELD_OUT]
     if single:
+        # The reference named as the reference, the groups scored as scored (audit 10, A24).
+        refs = [group_label(g) for r in single for g in r.get("reference_groups") or []]
+        named = listing(list(dict.fromkeys(refs))) if refs else "the reference"
         cautions.append(
-            "with a single reference group the threshold comes from its fields scored against "
-            f"its other fields (in {listing([_group(r, keys) for r in single])}), so a shift "
-            "between that group and the one scored raises the share"
+            f"against a single reference group, {named}, the threshold comes from its fields "
+            "scored against its other fields, so a shift between it and "
+            f"{listing([_group(r, keys) for r in single])} raises the share"
         )
     return cautions
 

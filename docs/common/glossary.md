@@ -141,9 +141,13 @@ Every test, rule and term the report uses, in plain words, with where it appears
 
 *Where:* The data, the fields to check, the design scan.
 
-**Unusual cells and 'nothing new'.** Cells far from the control's, and whether later fields still showed states earlier fields did not (the definition of new is declared in the setup).
+**Unusual cells.** Cells far from those of their own control in the same repeat, on values relative to that control; exploratory, never an error or a new state.
 
-*Where:* Did I image enough?, What limits the sampling?.
+*Where:* What limits the sampling?.
+
+**'Nothing new'.** Whether later fields still showed states earlier fields did not, by the definition of new declared in the setup; not the same as unusual cells.
+
+*Where:* Did I image enough?.
 
 **Positive control (representation).** A condition known to differ, used to check that the features can see the phenotype at all before 'nothing new' is trusted.
 

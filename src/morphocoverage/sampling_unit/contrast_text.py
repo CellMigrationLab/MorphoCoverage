@@ -213,9 +213,8 @@ def _untested(contrast: Any) -> list[str]:
             if not across_tested(contrast):
                 lines.append(assumption(f"{text[0].upper()}{text[1:]}."))
             continue
-        lines.append(text)
-        if status == NOT_INDEPENDENT:
-            lines.append(UNKNOWN_WELLS_ADVICE)
+        # Unknown wells: the advice says it once, with what to do (audit 10, C23).
+        lines.append(UNKNOWN_WELLS_ADVICE if status == NOT_INDEPENDENT else text)
     return lines
 
 

@@ -98,6 +98,11 @@ are in [Objects or fields?](objects_or_fields.md).
 
 ## The page, section by section
 
+The closing section, "What this dataset cannot tell me", lists the same limits in the short
+and the full forms; a stratum where the positive control was not imaged says so, apart from
+one where it was imaged empty, and a single reference group is named as the reference, the
+groups it scores as scored (audit 10, owner, 2026-10-06).
+
 Every prose line of the text report is wrapped at 100 columns, tables apart, and each
 assumption is said once per section, so the "Shown" note of question 2 comes once, not once
 per feature; a field the inspection lists for a new state alone is not said to be "simply a

@@ -108,7 +108,7 @@ class AcquisitionAnomalies:
             f"{count(self.found, 'field')} {far} {'its' if self.found == 1 else 'their'} "
             "condition and repeat on the raw values: "
             f"{listed}; an engineering quality-control threshold, never a biological verdict: "
-            f"open their images, {scope}"
+            f"open {'its image' if self.found == 1 else 'their images'}, {scope}"
         )
 
     def summary(self, detail: str = "short") -> str:

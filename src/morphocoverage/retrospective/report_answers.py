@@ -111,9 +111,8 @@ def limits_text(
     if not missing:
         lines.append(wrap(ASSESSED, 2, hang=4))
     # A reason added to an assessed answer is printed in its section and among the notes.
-    shown = tuple(title for _, title in chosen)
-    notes = [n for n in report.notes if full or not n.startswith(shown)]
-    return "\n".join([*lines, *_notes(notes, detail)])
+    # In the short form too, so the two forms list the same limits (audit 10, A24).
+    return "\n".join([*lines, *_notes(list(report.notes), detail)])
 
 
 __all__ = [

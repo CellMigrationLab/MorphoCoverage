@@ -121,7 +121,7 @@ def test_controls_on_different_plates_are_declared_but_not_judged():
     text = " ".join(result.summary().split())
     assert "a control was declared, but no stratum could be judged" in text
     assert "repeat P1: no positive-control" not in text  # P1 has positives, no reference
-    assert "repeat P2: no positive-control field with cells" in text
+    assert "repeat P2: the positive control was not imaged here" in text  # A24
 
 
 def test_missing_values_leave_checks_unjudged_instead_of_crashing():

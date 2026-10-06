@@ -26,6 +26,8 @@ SEVERAL_CONTROL = {"condition": {"cA": {"k1": "a1"}, "cB": {"k1": "b1"}}}
 # a and a1 strongly shifted, b1 null; cB a little away from cA.
 SHIFTS = {"a": 0.8, "a1": 0.8, "cB": 0.2}
 EXPLAINABLE = ("area", "length", "ecc")
+# The features no condition shifts (``make_scenarios``: they never depend on the effect).
+NULL_FEATURES = ("ecc", "fib_w", "prof_1")
 
 # A pairwise covering design (audit 8B's, with the fingerprint on explainable features
 # moved to an embedding where there are none, and two cases added for the pairs it then
@@ -185,6 +187,11 @@ def axes_scenario(index: int) -> Scenario:
     )
     truth = axes_truth(axes, tables)
     truth["html"] = index in HTML
+    if controls != "none":  # what is planted and what is null, checked (audit 10, T2)
+        nulls = [f for f in features if f in NULL_FEATURES]
+        truth.update({"null_features": nulls} if nulls else {})
+        if "area" in features:
+            truth["planted"] = {"area": ["a1" if controls == "several" else "a"]}
     return Scenario(
         name=name,
         kind="axes",

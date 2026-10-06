@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
+from morphocoverage.glossary import GLOSSARY
 from morphocoverage.order_check import OrderCheck
 from morphocoverage.sampling_unit._units import NOT_INDEPENDENT
 from morphocoverage.sampling_unit.acquisition import AcquisitionAnomalies
@@ -66,3 +67,9 @@ def test_the_fields_not_judged_for_quality_control_are_counted_beside_those_judg
         "9 fields judged in 1 group; 11 fields in 2 groups of fewer than 8 fields counted, "
         "not judged"
     )
+
+
+def test_the_glossary_says_unusual_apart_from_nothing_new_a24():
+    terms = {term.name: term for term in GLOSSARY}
+    assert "definition of new" not in terms["Unusual cells"].meaning
+    assert "definition of new" in terms["'Nothing new'"].meaning

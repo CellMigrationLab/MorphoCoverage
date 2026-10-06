@@ -283,9 +283,9 @@ def questions(scan: DesignScan) -> list[Question]:
             GOALS,
             "averages",
             "averages: the readout's mean per condition across biological repeats (the "
-            "default); fingerprint: the distribution of phenotypes over several features, "
-            "declared as fingerprint=(OutcomeCriterion(...), ...); rare: whether a rare "
-            "population was sampled enough, declared as rare=RareTarget(...).",
+            "default); fingerprint: how several features vary together, the covariance "
+            "fingerprint, declared as fingerprint=(OutcomeCriterion(...), ...); rare: whether "
+            "a rare population was sampled enough, declared as rare=RareTarget(...).",
         ),
         Question(
             "readout",

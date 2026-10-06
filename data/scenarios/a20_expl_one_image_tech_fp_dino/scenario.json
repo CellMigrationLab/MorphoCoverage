@@ -97,6 +97,14 @@
   "full": [
    "Beyond the mean: not compared, as the fingerprint reads no"
   ],
-  "html": false
+  "html": false,
+  "null_features": [
+   "ecc"
+  ],
+  "planted": {
+   "area": [
+    "a"
+   ]
+  }
  }
 }

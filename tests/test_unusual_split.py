@@ -202,7 +202,7 @@ def test_a_field_far_from_its_condition_and_repeat_is_an_acquisition_anomaly():
     assert (row["condition"], row["biological_repeat"], row["position_id"]) == ("a", "R1", 3)
     assert row["feature"] == "intensity_mean" and row["z"] > 5
     line = found.line()
-    assert line.startswith("1 field 5 SDs or more from the other fields of their condition")
+    assert line.startswith("1 field 5 SDs or more from the other fields of its condition")  # A22
     assert "an engineering quality-control threshold, never a biological verdict" in line
     clean = acquisition_anomalies(*_tables(("ctrl",), fields=10), feature_cols=FEATURES)
     assert clean.found == 0 and clean.line().startswith("none: no field 5 SDs or more")

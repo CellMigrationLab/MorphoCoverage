@@ -248,7 +248,9 @@ def test_a_stratum_not_judged_is_named_by_its_column_and_value():
     result = _control(objects, fovs)
     status, headline = controls_status(result, minimum_detection=0.01)
     assert status is Status.CAUTION
-    assert "not judged in biological repeat P2 (no positive-control field with cells)" in headline
+    assert (
+        "not judged in biological repeat P2 (the positive control was not imaged here)" in headline
+    )
     assert "Not judged after 6 reference fields in biological repeat P2" in _flat(result.summary())
 
 

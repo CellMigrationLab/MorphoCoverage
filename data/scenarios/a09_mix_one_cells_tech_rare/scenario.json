@@ -71,6 +71,11 @@
    "DINO1",
    "Explainable"
   ],
-  "html": true
+  "html": true,
+  "planted": {
+   "area": [
+    "a"
+   ]
+  }
  }
 }
