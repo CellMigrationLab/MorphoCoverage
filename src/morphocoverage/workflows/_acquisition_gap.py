@@ -9,9 +9,13 @@ on the owner's ECM data the untransfected controls were about 10 times dimmer th
 controls. So the controls are compared with each other on every declared column whose name
 contains "intensity" (any case) and those listed in ``Setup.intensity_features``: when two
 controls' medians, over every observation of each, differ ``GAP_FOLD``-fold or more, the
-report says so once where the data are described (a check of the values) and in "Do the
-conditions differ?", and beside each secondary row that joins two such controls (the gaps
-in ``contrast.settings["acquisition_gaps"]``, ``across_text``). A median
+report says so once where the data are described (the acquisition block), points to it in
+"Do the conditions differ?", and beside each secondary row that joins two such controls (the
+gaps in ``contrast.settings["acquisition_gaps"]``, ``across_text``): a caution for raw rows,
+a softer note for rows normalised to their own controls. Centring per repeat leaves a gap
+between experiments within a repeat, so the caution names the centred maps, the separation
+of the conditions and the populations too, and the page says it under the maps (owner,
+2026-10-06, audit 10). A median
 that is not positive has no fold and is not compared. With one control nothing changes.
 """
 
@@ -26,7 +30,7 @@ import pandas as pd
 
 from .._caveats import caveat_lines
 from .._style import Status
-from .._wording import number
+from .._wording import listing, number
 from ..data_check import validate_input_tables
 from ..metadata import CONDITION_COLUMN
 from ..retrospective.report import MicroscopistReport
@@ -42,6 +46,19 @@ if TYPE_CHECKING:
 GAP_FOLD = 2.0
 NAME = "Controls apart in intensity"
 _PAIRS = 4  # the pairs named; the rest are counted
+# What a gap may sway beyond the raw comparisons (owner, 2026-10-06, audit 10: centring per
+# repeat leaves a gap between experiments within a repeat; the neighbours of an
+# untransfected image were untransfected at 0.70 against 0.42 by chance).
+_SCOPE = (
+    "the maps on raw values or centred per repeat, the separation of the conditions and the "
+    "populations"
+)
+# In "Do the conditions differ?", a pointer: the gap itself is said once, in the acquisition
+# block of "What is in the dataset" (audit 10, owner, 2026-10-06).
+POINTER = (
+    f'{NAME} (see "What is in the dataset"): raw comparisons across experiments may show '
+    "acquisition rather than biology."
+)
 
 
 def gap_features(setup: Setup) -> list[str]:
@@ -105,9 +122,26 @@ def gap_caution(gaps: list[dict]) -> str | None:
         parts.append(f"{len(gaps) - _PAIRS} more pairs of controls")
     return (
         f"{'; '.join(parts)}: the experiments may have been imaged or processed differently, "
-        "so raw comparisons across them, and maps on raw values, may show acquisition rather "
-        f"than biology. {_fold(GAP_FOLD)} is an engineering threshold for quality control, "
-        "not a test."
+        f"so raw comparisons across them, {_SCOPE}, may show acquisition rather than biology. "
+        f"{_fold(GAP_FOLD)} is an engineering threshold for quality control, not a test."
+    )
+
+
+def gap_maps_line(gaps: list[dict], centred: bool = True) -> str:
+    """Under the maps when controls are apart: centring per repeat keeps the experiments'
+    difference within a repeat (owner, 2026-10-06, audit 10); empty without a gap."""
+    if not gaps:
+        return ""
+    pairs = listing([" and ".join(map(str, g["controls"])) for g in gaps], _PAIRS)
+    views = (
+        "centring per repeat leaves the difference between experiments within a repeat, so "
+        "the centred view,"
+        if centred
+        else "the maps,"
+    )
+    return (
+        f"Controls apart in intensity ({pairs}): {views} the separation of the conditions and "
+        "the populations may show acquisition rather than biology."
     )
 
 
@@ -132,21 +166,23 @@ def with_gaps(
 
 
 def with_gap_caution(document: MicroscopistReport, gaps: list[dict]) -> MicroscopistReport:
-    """The report with the gaps' caution in "Do the conditions differ?" (unchanged without
-    a gap, or without that answer)."""
-    caution = gap_caution(gaps)
-    if caution is None or "conditions" not in document.sections:
+    """The report with a pointer to the gaps in "Do the conditions differ?" (``POINTER``;
+    unchanged without a gap, or without that answer)."""
+    if gap_caution(gaps) is None or "conditions" not in document.sections:
         return document
-    short = "\n".join(caveat_lines([caution], indent=2))
-    return with_text(document, "conditions", caution, status=Status.CAUTION, short_text=short)
+    full = "\n".join(caveat_lines([POINTER], indent=0))
+    short = "\n".join(caveat_lines([POINTER], indent=2))
+    return with_text(document, "conditions", full, status=Status.CAUTION, short_text=short)
 
 
 __all__ = [
     "GAP_FOLD",
     "NAME",
+    "POINTER",
     "acquisition_gaps",
     "gap_caution",
     "gap_features",
+    "gap_maps_line",
     "with_gap_caution",
     "with_gaps",
 ]

@@ -26,7 +26,9 @@ more than 1.5x (a batch shift or a change of units). The rule's number of object
 the group; with hundreds of objects the paper's point and upper-95 estimates
 agree, so the point estimate is used. Whole FOVs are then drawn at random
 until at least that many objects, ``n_draws`` times, **with replacement**, as
-from a well with many FOVs like the acquired ones; the SD of their mean over
+from a well with many FOVs like the acquired ones (a group of fewer than ``MIN_FIELDS``
+fields with objects is not assessable: its draws would mostly repeat its own few fields;
+audit 10, owner, 2026-10-06); the SD of their mean over
 the draws, in units of the reference mean, is the real averaging error. With
 few acquired FOVs this is still optimistic, by about ``(F - 1) / F`` in
 variance. The rule's own prediction for the objects obtained is
@@ -65,7 +67,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count, check_seed
-from .._control import control_text
+from .._control import control_name
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_key, group_rng
 from .._style import check_detail, group_label
@@ -89,6 +91,7 @@ from ._unit_text import (
     object_rule_full,
     object_rule_parts,
 )
+from .contrast_sampling import MIN_FIELDS
 
 DESCRIPTORS = ("mean", "median", "SD", "IQR")
 RANDOM_OBJECTS = "random objects"
@@ -184,7 +187,7 @@ def _reference_means(
         means[group_key(group)] = float(values.mean()) if len(values) else None
         negative[group_key(group)] = bool((values < 0).any())
     within = f" of the same {column_word(repeat_col)}" if repeat_col else ""
-    label = f"mean of all objects of the control groups {control_text(control)}{within}"
+    label = f"mean of all objects of the control groups, {control_name(control)}{within}"
     names = {repr(r): str(r) for _, d in all_groups for r in repeats_of(d)}
     # Control means are compared within a sub-experiment only: two sets of a screen, each
     # with its own control and repeats, are not one control drifting (owner, 2026-10-02).
@@ -264,6 +267,7 @@ def object_rule_check(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     repeat_col: str | None = REPEAT_COLUMN,
+    min_fields: int = MIN_FIELDS,
 ) -> ObjectRuleCheck:
     """The JCB number of objects, and the averaging error it really gives from whole FOVs.
 
@@ -274,13 +278,17 @@ def object_rule_check(
     control objects of every repeat), for example ``{"condition": "MOCK"}``;
     ``None`` uses each group's own mean. ``fovs``
     lists every acquired FOV; FOVs without observations can be drawn and add
-    no objects. Other arguments are those of ``validate_input_tables``.
+    no objects. A group of fewer than ``min_fields`` fields with objects is not assessable
+    (audit 10, owner, 2026-10-06; ``min_fields=2``, the rule before, reproduces
+    ``docs/preliminary_findings.md`` entry 9 on idr0139's wells of 4 fields). Other arguments
+    are those of ``validate_input_tables``.
     """
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     targets = [float(t) for t in targets]
     if not targets or any(not 0 < t < 1 for t in targets):
         raise ValueError("targets must be fractions between 0 and 1, such as 0.05")
     n_draws = as_count(n_draws, "n_draws", 2)
+    min_fields = as_count(min_fields, "min_fields", 2)
     random_state = check_seed(random_state)
     data = validated(objects, fovs, [feature], fov_col, group_cols, observation_unit)
     words = observation_words(data)[1]
@@ -316,8 +324,10 @@ def object_rule_check(
             if negative:
                 rows.append({**base, "target": target, "status": _NEGATIVE})
                 continue
-            if len(filled) < 2:
-                status = f"fewer than 2 fields with {words}"
+            if len(filled) < min_fields:
+                # Drawn with replacement, a few fields repeat themselves: below MIN_FIELDS the
+                # check reads its own resampling (audit 10, owner, 2026-10-06; before, 2).
+                status = f"fewer than {min_fields} fields with {words}"
                 rows.append({**base, "target": target, "status": status})
                 continue
             if reference == 0:

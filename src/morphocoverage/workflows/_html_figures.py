@@ -24,6 +24,7 @@ from ..plots_pairwise import (
     PAIRED_NOTE,
     PANEL_KEYS,
     PANEL_TITLES,
+    verdict_note,
 )
 from ._contrasts import normalisation_problem
 from ._html_data import data_buttons, download, feature_data
@@ -50,6 +51,13 @@ def save(figure: Any, folder: Path, name: str) -> str:
     figure.savefig(folder / f"{name}.png", dpi=min(150, PNG_PIXELS / width))
     figure.savefig(folder / f"{name}.pdf")
     return f"figures/{name}.png"
+
+
+def _verdict_paragraph(figure: Any) -> str:
+    """Under panel C, each condition's verdict q on the figure's feature (audit 10, owner,
+    2026-10-06): panel C's q is adjusted over the figure only."""
+    note = verdict_note(getattr(figure, "pairwise_verdicts", None) or {})
+    return f"<p>{html.escape(note)}</p>" if note else ""
 
 
 def figure_block(uri: str, name: str, caption: str) -> str:
@@ -162,6 +170,7 @@ def feature_figures(
                     if explained
                     else f"<p>(B) {html.escape(pair_note)}</p><p>(C) {html.escape(PAIRED_NOTE)}</p>"
                 )
+                + _verdict_paragraph(figure)
                 if paired
                 else f"<p>{caption}</p>"
             )

@@ -7,14 +7,14 @@
 - ``conditions_sections``: question 9's full parts and short section: the contrast, the
   features the discovery ranks, and the ranking over whole technical repeats only when it
   could test something (with the discovery, its "not ranked" would repeat it);
-- ``limits_text``: "What this dataset cannot tell me". Every question not
-  assessed with what it needs (short: its "At a glance" line; full: the whole
-  need), then the notes, each once, marked by what they are: ❌ a weak
-  representation or fields the integrity checks name (every answer counts
-  them as independent), ⚠️ a caution about these data (a missing control, no
-  stage coordinates), the standing assumptions under "Assumptions:", and the
-  run's settings as plain lines. The short form leaves out a note that repeats the reason printed in
-  a section shown above it.
+- ``limits_text``: "What this dataset cannot tell me". One line per limit, in the short
+  and the full forms alike: each question not answered and each question answered in part
+  points to its section, where the reason is stated, once (owner, 2026-10-06); then the
+  other notes, each once, marked by what they are: ❌ a weak representation or fields the
+  integrity checks name (every answer counts them as independent), ⚠️ a caution about
+  these data (a missing control, no stage coordinates), the standing assumptions under
+  "Assumptions:", and the run's settings as plain lines. ``pointers=False`` gives the
+  reasons instead, for the page, which leaves out the sections it cannot answer.
 """
 
 from __future__ import annotations
@@ -76,6 +76,35 @@ def _notes(notes: Sequence[str], detail: str = "short") -> list[str]:
     return lines
 
 
+def _where(title: str) -> str:
+    """``question 3``, or ``the Foundation``: where a limit's reason is stated."""
+    number = title.split(".", 1)[0]
+    return f"question {number}" if number.isdigit() else f"the {title.split(':', 1)[0]}"
+
+
+def _pointer(title: str, headline_text: str, assessed: bool) -> str:
+    """``not assessed, see question 1``: the state of an answer, its reason left to its
+    section (owner, 2026-10-06); run without a conclusion, the marker's words."""
+    if not assessed or headline_text.startswith("not assessed"):
+        state = "not assessed"
+    elif headline_text.startswith("not applicable"):
+        state = "not applicable"
+    else:
+        state = "no conclusion possible here"
+    return f"{state}, see {_where(title)}"
+
+
+def _pointed(notes: Sequence[str], titles: Sequence[tuple[str, str]]) -> list[str]:
+    """The notes, a reason added to a question answered in part replaced by a pointer to its
+    section, where the reason is (``workflows._document.with_reasons``)."""
+    named = [title for _, title in titles]
+    out = []
+    for note in notes:
+        title = next((t for t in named if note.startswith(f"{t} ")), None)
+        out.append(note if title is None else f"{title} Answered in part: see {_where(title)}.")
+    return out
+
+
 def limits_text(
     report: Any,
     questions: Sequence[str] | None,
@@ -84,6 +113,7 @@ def limits_text(
     titles: Sequence[tuple[str, str]],
     needs: Mapping[str, str],
     short_titles: Mapping[str, str],
+    pointers: bool = True,
 ) -> str:
     """The closing section of ``report`` (see the module), among ``questions`` or all."""
     full = check_detail(detail) == "full"
@@ -96,8 +126,15 @@ def limits_text(
     lines = []
     for key, title in missing:
         answer = report.headlines.get(key, "")
-        if full and answer.startswith("not applicable"):
-            # This design cannot answer it: its reason, never what to run (audit, 2026-10-02).
+        if pointers:  # one line per limit, its reason in its section (owner, 2026-10-06)
+            pointer = _pointer(title, answer, report.inputs.get(key) != "not assessed")
+            line = (
+                f"{NOT_ASSESSED} {title}: {pointer}."
+                if full
+                else headline(Status.NOT_ASSESSED, short_titles[key], pointer)
+            )
+        elif full and answer and not answer.startswith("not assessed"):
+            # Its own reason, never what to run (audit, 2026-10-02; audit 10, C13).
             line = f"{NOT_ASSESSED} {title}: {answer}."
         elif full and report.inputs.get(key) == "not assessed":
             line = f"{NOT_ASSESSED} {title}: not assessed; needs: {needs[key]}."
@@ -110,9 +147,9 @@ def limits_text(
         lines.append(wrap(line, 2, hang=5))
     if not missing:
         lines.append(wrap(ASSESSED, 2, hang=4))
-    # A reason added to an assessed answer is printed in its section and among the notes.
-    shown = tuple(title for _, title in chosen)
-    notes = [n for n in report.notes if full or not n.startswith(shown)]
+    # A reason added to an answer given in part is printed in its section; here a pointer to
+    # it, in the short and the full forms alike (owner, 2026-10-06).
+    notes = _pointed(report.notes, titles) if pointers else list(report.notes)
     return "\n".join([*lines, *_notes(notes, detail)])
 
 

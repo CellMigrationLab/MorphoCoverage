@@ -1,0 +1,52 @@
+{
+ "name": "e15_trend_six_repeats",
+ "kind": "edge",
+ "checks": "a condition higher in each of 6 repeats by very unequal amounts: a trend, not significant; a strong condition beside it significant",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery",
+   "whole_table"
+  ],
+  "planted": {
+   "area": [
+    "strong"
+   ],
+   "length": [
+    "strong"
+   ]
+  },
+  "trend": {
+   "area": [
+    "trend"
+   ],
+   "length": [
+    "trend"
+   ]
+  },
+  "null_features": [
+   "ecc"
+  ]
+ }
+}

@@ -123,7 +123,7 @@ def test_a_narrower_distribution_with_the_same_mean_is_found_beyond_the_mean(scr
     assert "Beyond the mean (the fingerprint is declared)" in short
     assert "- narrow — differs beyond the mean:" in short
     headline = result.document.headlines["conditions"]
-    assert "beyond the mean, the distribution differs for" in headline
+    assert "beyond the mean (exploratory), the distribution differs for" in headline  # C27
     assert "narrow (area, dna and ratio)" in headline
     assert result.document.statuses["conditions"] is Status.OK
 
@@ -236,7 +236,9 @@ def test_issue_145_a_comparison_not_tested_is_not_called_not_significant():
     assert result.tests.query("condition == 'narrow'")["q"].isna().all()
     paragraph = distribution_text(result)
     line = " ".join(paragraph.split("- narrow — ")[1].split("\n    condition")[0].split())
-    assert line.startswith("the same way in every repeat, not tested (fewer than 3 repeats): ")
+    # With 2 repeats, the direction in both, never trend words (audit 10, owner, 2026-10-06).
+    assert line.startswith("not tested (fewer than 3 repeats): ")
+    assert "in both repeats" in line and "the same way in every repeat" not in line
     assert "not significant" not in line and "q –" not in line
     assert "    narrow  " in paragraph  # its values are in the table
     assert "not significant" not in distribution_headline(result)
@@ -386,3 +388,49 @@ def test_the_assessed_denominator_is_given_with_the_answer():
     assert not check.reason and check.assessed == check.labelled == 10
     assert check.recognized == pytest.approx(1.0)
     assert label_answer(check)[0] is Status.OK
+
+
+def test_the_label_check_reads_within_each_condition():
+    """Audit 10 (C26; owner, 2026-10-06): a label 25% in a condition that shifts area and 5%
+    in its control, the label itself unrelated to the features: the check compares a labelled
+    cell with the nearest cell of another field and the same condition, against the share
+    labelled within the conditions, so the condition's shift is not read as the features
+    seeing the state, nor area named as what separates it."""
+    rng = np.random.default_rng(3)
+    rows = []
+    for condition, shift, share in (("ctrl", 0.0, 0.05), ("a", 1.5, 0.25)):
+        for repeat in ("R1", "R2", "R3"):
+            for field in range(8):
+                for _ in range(25):
+                    rows.append(
+                        {
+                            "condition": condition,
+                            "biological_repeat": repeat,
+                            "image_file": f"{condition}_{repeat}_{field}",
+                            "area": 10 * np.exp(shift + rng.normal(0, 0.3)),
+                            "ecc": rng.normal(0.5, 0.05),
+                            "lab": bool(rng.random() < share),
+                        }
+                    )
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    rare = RareTarget(
+        object_prevalence=0.1, detection_probability=0.95, min_fov_occurrences=1, phenotype="p"
+    )
+    setup = Setup(
+        readout="area",
+        features=("area", "ecc"),
+        control={"condition": "ctrl"},
+        rare=rare,
+        rare_label="lab",
+        observation_unit="cell",
+    )
+    check = label_control(objects, fovs, setup)
+    # Within conditions the chance is the labelled share of the labelled cells' conditions.
+    assert 0.2 < check.chance < 0.25
+    assert abs(check.recognized - check.chance) < 0.1
+    # Area separates the conditions (d about 5), not the label within a condition.
+    assert abs(check.separation["area"]) < 0.3
+    _, _, text = label_answer(check)
+    assert "nearest cell of another field and the same condition" in text
+    assert "labelled within their conditions" in text

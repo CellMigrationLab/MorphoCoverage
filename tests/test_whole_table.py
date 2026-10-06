@@ -98,7 +98,9 @@ def test_a_shift_in_every_repeat_is_found_and_said():
     lines = " ".join(" ".join(whole_table_lines(result)).split())
     assert "DINO (20 columns):" in lines
     assert "- a vs ctrl: shifted the same way in 5 of 5 repeats, p " in lines
-    assert "across repeats; the centres " in lines and "p_shuffle" not in lines
+    # The exact sign-flip floor beside the verdict (audit 10, owner, 2026-10-06).
+    assert "across repeats (an exact sign-flip test could give no p below 0.0625 with 5" in lines
+    assert "repeats); the centres " in lines and "p_shuffle" not in lines
     assert "exploratory p with the labels of the fields shuffled" in lines
     assert "never part of the verdict" in lines
     _status, answer = whole_headline(result)

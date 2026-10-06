@@ -1,8 +1,8 @@
 dataset: cct7_cct8_glioma_cdm_tracks
-morphocoverage: unversioned at commit c5bb4c1
+morphocoverage: unversioned at commit ba91fb1
 readout: Mean Speed; features: 13; control: {'condition': 'siCTRL'}
 novelty: default_novelty(features); rules: the defaults; random_state 0
-run time: 41 s
+run time: 46 s
 warnings:
   UserWarning: novelty is judged on 13 standardized features at distance 3.60555, but two observations of a state varying by one SD per feature sit about 5.1 apart, so small, ordinarily variable states are often missed: reduce the dimension (Chain([RobustStandardize(), PCA(k)])) or declare fewer features
   ImportWarning: Tensorflow not installed; ParametricUMAP will be unavailable

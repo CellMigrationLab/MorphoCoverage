@@ -68,7 +68,9 @@ then answers "Do the conditions differ?" with the
 [whole-table test](conditions.md#the-whole-table-test-other-feature-tables) of each table,
 "Did I image enough?" with the fingerprint of each table and the labelled phenotype, and
 says once per section what needs explainable features ("not applicable: no explainable
-features", ➖). In every report with other feature tables, each table is also tested whole
+features", ➖); a question with several reasons gives them in one sentence, "not applicable"
+once and no second ➖, and the closing section repeats that reason, never a list of functions
+to run (audit 10, owner, 2026-10-06). In every report with other feature tables, each table is also tested whole
 beside the per-feature tests, and the page saves the tests as `tests_whole_table.csv`.
 
 ### A guided session
@@ -170,9 +172,10 @@ fields and empty fields, what one row is, the feature columns (the first 12
 names, then how many more), the conditions and repeats with a table of fields
 by condition and repeat (and of technical repeats, when the column exists),
 and whether the values are normalised. It closes
-with **what this dataset cannot tell me**: every question not assessed, with
-what it would need (a control, a positive control, stage coordinates, a
-hierarchy, a replay), and the notes to read the answers with. Missing
+with **what this dataset cannot tell me**: one line per question not assessed or
+answered in part, pointing to its section, which says what it would need (a control, a
+positive control, stage coordinates, a hierarchy, a replay; owner, 2026-10-06), and the
+notes to read the answers with. Missing
 columns never stop the report: without `condition` or `biological_repeat` every field is
 one group and the sections that need them say so.
 

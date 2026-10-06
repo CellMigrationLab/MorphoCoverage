@@ -71,6 +71,9 @@
   "separation_spaces": [
    "Features"
   ],
-  "html": false
+  "html": false,
+  "null_features": [
+   "ecc"
+  ]
  }
 }

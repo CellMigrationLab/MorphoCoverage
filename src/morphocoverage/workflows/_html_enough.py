@@ -33,23 +33,35 @@ from ..retrospective.report_resolved import (
     SHORT_ROWS,
     _needing,
     _table,
+    _unassessed,
     between_wells,
     has_resolution,
     resolved_parts,
 )
 from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
-from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
+from ..sampling_unit.contrast_sampling import MIN_FIELDS, MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
-from ..sufficiency_short import field_bound_assumption, rule_tallies, uniformity_assumption
-from ._enough_features import ENOUGH, NOT_YET, PARTLY, FeatureEnough
-from ._enough_targets import assessable_reason, fingerprint_lines, rare_lines
+from ..sufficiency_short import (
+    field_bound_assumption,
+    met_count,
+    rule_tallies,
+    uniformity_assumption,
+)
+from ._enough_features import ENOUGH, NOT_ASSESSABLE, NOT_YET, PARTLY, FeatureEnough
+from ._enough_targets import (
+    NO_TARGET,
+    assessable_reason,
+    fingerprint_lines,
+    no_target_judged,
+    rare_lines,
+)
 from ._feature_space import table_of
 from ._html_render import text_html
 from ._html_sections import _resolution
 from ._html_tabs import tabs_html
 
-_MARKS = {ENOUGH: "✅", PARTLY: "⚠️", NOT_YET: "⚠️"}
+_MARKS = {ENOUGH: "✅", PARTLY: "⚠️", NOT_YET: "⚠️", NOT_ASSESSABLE: NOT_ASSESSED}
 # The summary table's rows shown before "Show all" (the style hides the others).
 _FIRST_ROWS = 20
 # Named in full up to this many; beyond, the first few and how many more.
@@ -103,10 +115,12 @@ def _rest(rows: pd.DataFrame, fields: str) -> str:
     beyond = f"too small to show even with {PRACTICAL} times the {fields}"
     if not unshown:
         return ""
+    unassessed = int(rows["unassessed"].sum()) if "unassessed" in rows else 0
     said_of = (
         (small, f"are {beyond}"),
         (need, f"would show with more {fields}"),
         (wells, f"need {MORE_WELLS}, not more {fields}"),
+        (unassessed, f"are not assessable, with fewer than {MIN_FIELDS} {fields} a side"),
     )
     for part, said in said_of:
         if part == unshown:
@@ -166,14 +180,14 @@ def answer_lines(features: FeatureEnough, fields: str, repeats: int) -> list[str
     return [line for line in (few_repeats(repeats), f"{head}{body}.") if line]
 
 
-def _needs(contrast: Any, fields: str, repeats: int = 0) -> str:
+def _needs(contrast: Any, fields: str, repeats: int = 0, project: bool = True) -> str:
     """``1 needs about 31 cells a side in its repeat; 1 too small even with 4 times the
     cells``, how many comparisons each count covers (with one biological repeat, no repeat
     to name); ``–`` when every one is shown."""
     rows = _rows(contrast)
     needing = _needing(rows)
     parts = []
-    if len(needing):
+    if len(needing) and project:
         counts = sorted(Counter(int(v) for v in needing["fields_to_resolve"]).items())
         (first, n), more = counts[0], counts[1:]
         verb = "needs" if n == 1 else "need"
@@ -190,7 +204,9 @@ def _needs(contrast: Any, fields: str, repeats: int = 0) -> str:
         parts.append(f"{small} too small even with {PRACTICAL} times the {fields}")
     wells = int(between_wells(rows).sum())
     if wells:
-        parts.append(f"{wells} {MORE_WELLS}")
+        parts.append(f"{wells} {'needs' if wells == 1 else 'need'} {MORE_WELLS}")
+    if _unassessed(rows):
+        parts.append(f"{_unassessed(rows)} not assessable: fewer than {MIN_FIELDS} {fields} a side")
     return "; ".join(parts) or "–"
 
 
@@ -205,7 +221,8 @@ def compact_table(features: FeatureEnough, fields: str, repeats: int = 0) -> str
         [
             r["feature"],
             str(r["shown"]) if same else f"{r['shown']} of {r['comparisons']}",
-            _needs(features.contrasts[r["feature"]], fields, repeats),
+            # No projection for a feature no test flags (audit 10, C25).
+            _needs(features.contrasts[r["feature"]], fields, repeats, r.get("flagged", True)),
         ]
         for r in rows.to_dict("records")
     ]
@@ -219,7 +236,7 @@ def own_mean_line(feature: str, tally: dict[str, Any] | None, word: str) -> str:
     met, groups = tally["met"], tally["groups"]
     line = (
         f"Enough to pin down each {word}'s own mean of {feature}? The {tally['label']} was met "
-        f"in {met} of {count(groups, word)}"
+        f"in {met_count(tally, word)}"
     )
     return line + (": enough." if met == groups else ".")
 
@@ -293,6 +310,8 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
                 else f"in {met} of {count(len(own), word)}" + ("" if every else " judged")
             )
             lines.append(f"The {what}{named} is within its tolerance {within}.")
+        if no_target_judged(precision, setup):
+            lines.append(NO_TARGET)
         text = "\n".join(
             fingerprint_lines(precision, word, plural(field), held_back=False, unit=setup.unit_word)
         )
@@ -409,6 +428,10 @@ def _single_answer(contrast: Any, fields: str, repeats: int) -> str:
     wells = int(between_wells(rows).sum())
     if wells:
         parts.append(f"{wells} that more {fields} will not resolve: {MORE_WELLS}")
+    if _unassessed(rows):
+        parts.append(
+            f"{_unassessed(rows)} not assessable, with fewer than {MIN_FIELDS} {fields} a side"
+        )
     return "; ".join(parts) + "."
 
 

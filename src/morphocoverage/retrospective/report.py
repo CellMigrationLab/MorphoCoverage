@@ -61,6 +61,7 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import assumption, caveat_lines, pool_assumptions
+from .._fitted import fitted
 from .._style import DASH, PROBLEM, Status, check_detail, headline, wrap
 from .._wording import count, listing
 from ..sampling_unit import (
@@ -120,6 +121,13 @@ GLANCE_KEY = (
     "Key: ✅ yes, or a clear answer · ⚠️ partly, a trend only, or something to look at · ❌ "
     "check the data first · ➖ no conclusion possible here. The word beside each marker says "
     "which."
+)
+
+
+# Said only where a definition of new ran (audit 10, C24).
+_NO_CONTROL_NOTE = (
+    "No representation control: a 'nothing new' answer says nothing about phenotypes these "
+    "features and this definition of new cannot see."
 )
 
 
@@ -219,7 +227,7 @@ class MicroscopistReport:
             text = self.short.get(key, self.sections[key]) if short else self.sections[key]
             blocks.append(f"{self._header(key, title)}\n{text}")
         blocks.append(f"{LIMITS_TITLE}\n{self.limits(questions, detail)}")
-        return "\n\n".join(blocks)
+        return fitted("\n\n".join(blocks))
 
     def _header(self, key: str, title: str) -> str:
         """A section's title with its marker, when the answer has a status."""
@@ -253,10 +261,12 @@ class MicroscopistReport:
             lines.append(wrap(note, "  ", hang=4))
         return "\n".join(lines)
 
-    def limits(self, questions: Sequence[str] | None = None, detail: str = "full") -> str:
-        """The questions not assessed (among ``questions``, or all), what each needs, the
-        notes (``report_answers.limits_text``; ``detail="short"`` names each need in a few
-        words and leaves out a note a section above already states)."""
+    def limits(
+        self, questions: Sequence[str] | None = None, detail: str = "full", pointers: bool = True
+    ) -> str:
+        """The limits (among ``questions``, or all): one line each pointing to its section,
+        then the notes (``report_answers.limits_text``); ``pointers=False`` gives the reasons
+        instead, for a page that leaves the sections out."""
         return limits_text(
             self,
             questions,
@@ -264,6 +274,7 @@ class MicroscopistReport:
             titles=questions_for(self.units),
             needs=_NEEDS,
             short_titles=short_questions_for(self.units),
+            pointers=pointers,
         )
 
 
@@ -383,8 +394,13 @@ def microscopist_report(
         "Whether these were the right positions needs every candidate position from an "
         "overview (not available: sampling-frame bias is not assessed)."
     )
+    # Only what was stated: no tolerance or definition of new where none ran (C24, B21).
+    novel = sufficiency is not None and len(sufficiency.next_fov) > 0
+    stated = ["features"]
+    stated += ["tolerances"] if sufficiency is not None and len(sufficiency.enough) else []
+    stated += ["definition of new"] if novel else []
     notes = [
-        assumption("Every answer holds for the stated features, tolerances and definition of new."),
+        assumption(f"Every answer holds for the stated {listing(stated)}."),
         assumption(
             "Replays, draws and hold-outs describe these samples; they are not independent "
             "experiments. Statements across samples count samples or repeats."
@@ -397,12 +413,7 @@ def microscopist_report(
     weakened: list[str] = []
     weak = False
     if controls is None or controls.status == "not assessed":
-        notes.append(
-            assumption(
-                "No representation control: a 'nothing new' answer says nothing about "
-                "phenotypes these features and this definition of new cannot see."
-            )
-        )
+        notes += [assumption(_NO_CONTROL_NOTE)] if novel else []
     else:
         # With planted objects declared, the rare-state rate gates the warning (P6-4); none
         # planted, the gate is not assessed, never read from the whole fields (#270).

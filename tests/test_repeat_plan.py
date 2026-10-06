@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from morphocoverage.sampling_unit.contrast import condition_contrast
+from morphocoverage.sampling_unit.contrast_repeats import MIN_REPEATS
 from morphocoverage.sampling_unit.repeat_plan import (
     paired_power,
     repeat_plan,
@@ -35,6 +36,13 @@ def test_the_repeats_needed_follow_the_effect_and_are_bounded():
     assert repeats_needed(2.0, 0.5, 0.05) < repeats_needed(1.0, 0.5, 0.05)
     assert repeats_needed(0.01, 1.0, 0.05) == np.inf
     assert repeats_needed(-2.0, 0.5, 0.05) == repeats_needed(2.0, 0.5, 0.05)
+
+
+def test_the_repeats_needed_start_at_the_paired_tests_minimum():
+    # Audit 10 (C14): two repeats reached the power of a huge effect, but the paired test
+    # needs three, so the plan never says 2 (owner, 2026-10-06).
+    assert paired_power(50.0, 1.0, 2, 0.05) >= 0.8
+    assert repeats_needed(50.0, 1.0, 0.05) == MIN_REPEATS == 3
 
 
 def _table(d, width, repeats):

@@ -45,6 +45,12 @@ which changes none of the statistics below, so it is not applied.
   observations around their own group's centre (a side in a repeat), the typical distance of
   an observation from its group's centre. One column of a single feature gives a Cohen's d.
 
+Beside the verdict (audit 10, owner, 2026-10-06): the smallest p an exact sign-flip test of
+the ``n`` repeats could give, ``2^(1-n)`` (``sign_floor``: 0.25 with 3 repeats, 0.0625 with
+5), so a t-test p below it is read as resting on the normality of the projections; and the
+repeats whose control holds fewer than ``FEW_CONTROL`` fields (``few_control``), whose
+shift one field can carry.
+
 Benjamini-Hochberg: the repeat-level tests of one table form one family per
 sub-experiment (the conditions linked by the repeats they were compared in, ``_experiments``),
 as the per-feature main rows do, and never join the per-feature families.
@@ -69,7 +75,7 @@ from .._seeds import group_rng
 from ..embedding import robust_scale
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, empty_values
 from ..schema import ValidatedInput, validate_input_tables
-from ._experiments import corrected, experiments
+from ._experiments import corrected, declared, experiments
 
 MIN_REPEATS = 3
 # The distinct label assignments a shuffle needs for a p of 0.05: the distance is the same
@@ -99,8 +105,19 @@ COLUMNS = (
     "fields",
     "observations",
     "left_out",
+    "sign_floor",
+    "few_control",
     "status",
 )
+# A repeat whose control holds fewer fields than this is named beside the verdict (audit 10,
+# owner, 2026-10-06): one field of the control can carry the whole shift.
+FEW_CONTROL = 3
+
+
+def sign_floor(repeats: int) -> float:
+    """The smallest p an exact sign-flip test of ``repeats`` projections can give, ``2^(1-n)``:
+    a labelling and its negation give the same projections (audit 10, owner, 2026-10-06)."""
+    return float(2.0 ** (1 - repeats)) if repeats >= 1 else float("nan")
 
 
 def projections(deltas: np.ndarray) -> np.ndarray:
@@ -258,6 +275,9 @@ def _table_rows(
         shift = float(np.linalg.norm(deltas.mean(axis=0)))
         effect = shift / float(np.sqrt(spread)) if spread > 0 else float("nan")
         tested = len(both) >= MIN_REPEATS and np.isfinite(p)
+        # The control's fields in each repeat: few of them carry the repeat's shift alone.
+        control_fields = {r: int(((repeat[chosen] == r) & (side == 0)).sum()) for r in both}
+        few = "; ".join(f"{r} ({n})" for r, n in control_fields.items() if n < FEW_CONTROL)
         rows.append(
             {
                 **row,
@@ -273,6 +293,8 @@ def _table_rows(
                 "permutations": permutations,
                 "fields": int(chosen.sum()),
                 "observations": int(observed.sum()),
+                "sign_floor": sign_floor(len(both)),
+                "few_control": few,
                 "status": "tested" if tested else f"not tested: {len(both)} repeats",
             }
         )
@@ -304,9 +326,11 @@ def whole_table_tests(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    families: Mapping[Any, Any] | None = None,
 ) -> WholeTable:
     """The whole-table tests of every table (``tables``: each name and its columns) for each
-    ``(condition, control)`` of ``pairs`` (see the module)."""
+    ``(condition, control)`` of ``pairs`` (see the module); ``families``, each condition's
+    declared experiment (``Setup.experiment``), sets the correction families."""
     rows: list[dict[str, Any]] = []
     left: dict[str, int] = {}
     for name, columns in tables.items():
@@ -344,6 +368,7 @@ def whole_table_tests(
         # The sub-experiments: the conditions linked by the repeats they were compared in.
         held = fovs.groupby(CONDITION_COLUMN)[REPEAT_COLUMN].agg(set).to_dict()
         numbers = experiments({c: held.get(c, set()) & held.get(k, set()) for c, k in pairs})
+        numbers = declared(numbers, families)
         tests["experiment"] = tests["condition"].map(numbers)
         family = tests["table"].astype(str) + "\x1f" + tests["experiment"].astype(str)
         tests["q_repeats"] = corrected(tests["p_repeats"], family)
@@ -355,11 +380,14 @@ def whole_table_tests(
         "left_out": left,
         "min_repeats": MIN_REPEATS,
         "min_assignments": MIN_ASSIGNMENTS,
+        "few_control": FEW_CONTROL,
+        "declared_experiments": bool(families),
     }
     return WholeTable(tests, settings)
 
 
 __all__ = [
+    "FEW_CONTROL",
     "MIN_ASSIGNMENTS",
     "MIN_REPEATS",
     "ONE_EACH",
@@ -369,5 +397,6 @@ __all__ = [
     "projections",
     "repeat_test",
     "shuffle_test",
+    "sign_floor",
     "whole_table_tests",
 ]

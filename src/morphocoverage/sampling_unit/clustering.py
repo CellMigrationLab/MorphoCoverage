@@ -21,7 +21,12 @@ features. Per analysis group and state it reports:
 - a permutation p-value: how often labels shuffled across the group's objects
   reach as few fields as observed, and its q, Benjamini-Hochberg over every
   group and state of the analysis (the tests shown); a state is called
-  clustered at q <= 0.05 (owner, 2026-10-05);
+  clustered at q <= 0.05 (owner, 2026-10-05). A group and state whose smallest possible p
+  (``p_floor``: the share of shuffles reaching the fewest fields its objects could fill)
+  cannot reach 0.05 after Bonferroni over the tests kept is left out, its p and q missing
+  and ``tested`` false, as every test the design cannot make informative (``_reach``; owner,
+  2026-10-06, audit 10: 14 of 18 groups that could not reach 0.05 diluted a planted
+  clustered state's q from 0.048 to 0.22, read "spread like random");
 - the fields needed to see the state in at least ``min_fov_occurrences``
   fields with ``detection_probability``, from the incidence of the fields
   holding it (``statistics.fovs_to_detect``), with a bound from the low end
@@ -74,6 +79,7 @@ from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..schema import ValidatedInput, fov_positions
 from ..statistics import benjamini_hochberg, fovs_to_detect
 from ._common import canonical_fields, groups, matching_groups, validated
+from ._reach import reachable
 from ._state_text import clustering_parts
 from .unusual import UnusualObjects, unusual_objects
 
@@ -134,7 +140,8 @@ def fov_clustering(
     observations carry no label), ``fovs_acquired``, ``fovs_unlabelled``,
     ``fovs_with_state``, ``fov_incidence``,
     ``expected_fovs_if_random``, ``clustering_ratio``, ``p_clustered``,
-    ``q_clustered`` (Benjamini-Hochberg over every group and state of the table),
+    ``q_clustered`` (Benjamini-Hochberg over every group and state of the table that can
+    reach 0.05), ``p_floor`` (its smallest possible p) and ``tested``,
     ``largest_fov_share`` (the share of the state's objects in its fullest
     field), ``fovs_holding_state`` (fields with at least
     ``min_objects_per_fov`` of its objects) and ``holding_incidence``,
@@ -221,7 +228,11 @@ def fov_clustering(
             )
     table = pd.DataFrame(rows)
     if len(table):
-        # The tests shown are one family: every group and state of this analysis.
+        # Only the tests that can reach 0.05 are run (audit 10); the tests kept are one
+        # family: every group and state of this analysis.
+        floors = pd.to_numeric(table["p_floor"], errors="coerce")
+        table["tested"] = reachable(floors).to_numpy()
+        table.loc[~table["tested"], "p_clustered"] = None
         p_values = pd.to_numeric(table["p_clustered"], errors="coerce").to_numpy(dtype=float)
         table.insert(
             table.columns.get_loc("p_clustered") + 1, "q_clustered", benjamini_hochberg(p_values)
@@ -298,7 +309,13 @@ def _state_row(
         "fovs_holding_state": holding,
         "holding_incidence": holding / n_fovs if n_fovs else None,
     }
-    empty = ["expected_fovs_if_random", "clustering_ratio", "p_clustered", "largest_fov_share"]
+    empty = [
+        "expected_fovs_if_random",
+        "clustering_ratio",
+        "p_clustered",
+        "p_floor",
+        "largest_fov_share",
+    ]
     row.update(dict.fromkeys(empty))
     if c == 0 or labelled == 0:
         return row
@@ -309,11 +326,14 @@ def _state_row(
     for i in range(n_permutations):
         shuffled = rng.permutation(is_state)
         null[i] = np.count_nonzero(np.bincount(positions[shuffled], minlength=len(sizes)))
+    # The fewest fields its objects could fill: the largest fields first.
+    fewest = int(np.searchsorted(np.cumsum(np.sort(sizes)[::-1]), c) + 1)
     row.update(
         {
             "expected_fovs_if_random": expected,
             "clustering_ratio": expected / observed,
             "p_clustered": float((1 + np.sum(null <= observed)) / (1 + n_permutations)),
+            "p_floor": float((1 + np.sum(null <= fewest)) / (1 + n_permutations)),
             "largest_fov_share": float(per_fov.max() / c),
         }
     )

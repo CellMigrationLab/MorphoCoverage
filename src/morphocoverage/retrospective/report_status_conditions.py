@@ -12,12 +12,18 @@ from .._style import Status, span
 from .._wording import column_word, count, listing
 from ..sampling_unit._units import opposite_signs
 from ..sampling_unit.across_text import secondary_headline
+from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.contrast_text import (
     P_ALPHA,
     across_tested,
     design_limited,
 )
-from ..sampling_unit.reading_text import CONFIRMED, condition_readings, readings_headline
+from ..sampling_unit.reading_text import (
+    CONFIRMED,
+    NO_CONTROL,
+    condition_readings,
+    readings_headline,
+)
 from ..sampling_unit.reagents_text import reagents_headline
 from ..schema import observation_words
 
@@ -55,7 +61,7 @@ def across_headline(across: pd.DataFrame, repeat_col: str | None) -> str:
 
 
 _UNTESTED = {
-    "only one technical repeat": "one well per condition in a repeat",
+    "only one technical repeat": "one well on a side",
     "too few technical repeats": "too few technical repeats on a side",
     "fewer than 2 fields": "too few fields on a side",
     "fields of one dish or well": "the fields' wells unknown",
@@ -72,11 +78,41 @@ def _untested_words(statuses: Sequence[str]) -> str:
     return words.pop() if len(words) == 1 else "too few units on a side"
 
 
+# The answer when no repeat holds a condition and its own control.
+NOTHING_COMPARED = "nothing compared: no biological repeat holds both a condition and its control"
+
+
+def _none_compared(table: Any) -> bool:
+    """Whether every contrast lacks its control in its repeat (``NO_CONTROL``)."""
+    return bool(table["status"].astype(str).str.startswith(NO_CONTROL).all())
+
+
+def _trends(tests: pd.DataFrame) -> str:
+    """``trend: b higher in every repeat, not significant (area and length)``: the conditions
+    on one side of the control in every one of 6 repeats or more without q ≤ 0.05, which the
+    glance names (audit 10, C15); empty without."""
+    needed = {"repeats", "lower", "higher", "q_paired", "condition", "feature"}
+    if not len(tests) or not needed <= set(tests.columns):
+        return ""
+    held = tests[(tests["repeats"] >= TREND_REPEATS) & ~(tests["q_paired"] <= 0.05)]
+    parts = []
+    for side in ("higher", "lower"):
+        rows = held[held[side] == held["repeats"]]
+        for condition, mine in rows.groupby("condition", sort=False):
+            features = listing([str(f) for f in mine["feature"]], 3)
+            parts.append(f"{condition} {side} in every repeat ({features})")
+    return f"trend: {'; '.join(parts)}, not significant" if parts else ""
+
+
 def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Answer:
     """9. Do the conditions differ, and how confidently? (see the module)."""
     if contrast is None and ranking is None and discovery is None:
         return Status.NOT_ASSESSED, "not assessed"
     status, parts, limited, trend = Status.OK, [], False, False
+    if contrast is not None and len(contrast.table) and _none_compared(contrast.table):
+        # No repeat holds a condition and its control: nothing was compared, no difference
+        # sought (audit 10, F12): ➖, never "no consistent difference".
+        return Status.NOT_ASSESSED, NOTHING_COMPARED
     if contrast is not None and len(contrast.table):
         table = contrast.table
         across = getattr(contrast, "repeats", None)
@@ -150,10 +186,22 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
             else f"{passing} of {what} candidates in the exploratory {one}-level "
             f"screen, hypotheses for another repeat (no test across repeats: n = {held})",
         )
+        parts[1:1] = [trend] if (trend := _trends(discovery.tests)) else []
         # The secondary rows, when one is significant (owner, 2026-10-05).
         secondary = secondary_headline(contrast)
         parts[1:1] = [secondary] if secondary else []
-        if across and not significant:
+        # A verdict on 3 near-identical repeats (audit 10, owner, 2026-10-06): said, and ⚠️
+        # when every verdict rests on such repeats.
+        tests = discovery.tests
+        verdicts = tests[tests["confirmed"].fillna(False).astype(bool)]
+        flags = verdicts.get("near_identical", pd.Series(False, index=verdicts.index))
+        resting = verdicts[flags.fillna(False).astype(bool)]
+        if len(resting):
+            named = listing([f"{r.feature} for {r.condition}" for r in resting.itertuples()], 3)
+            rest = "rests" if len(resting) == 1 else "rest"
+            parts.insert(1, f"{named} {rest} on {MIN_REPEATS} near-identical repeats")
+        every = bool(len(verdicts)) and len(resting) == len(verdicts)
+        if across and (not significant or every):
             status = Status.CAUTION
         elif not across and contrast is None:
             # The cell-level screen's candidates alone are hypotheses, no answer yet.
@@ -181,4 +229,4 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
     return status, "; ".join(parts)
 
 
-__all__ = ["conditions_status"]
+__all__ = ["NOTHING_COMPARED", "conditions_status"]

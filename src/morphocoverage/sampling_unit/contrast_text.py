@@ -53,8 +53,7 @@ P_ALPHA = 0.05  # the p-value at which contrasts of opposite signs are flagged
 SHORT_CONTRASTS = 12
 _MEANS_ONLY = (
     "The test and the effect sizes compare means: a difference confined to a subpopulation of "
-    "{words} or to the shape of the distribution is not tested (see the unusual {words} and "
-    "the rare label)."
+    "{words} or to the shape of the distribution is not tested (see the unusual {words}{rare})."
 )
 _DECLARED = (
     "whole fields, treated as independent draws as declared (fields_independent; if they came "
@@ -147,6 +146,11 @@ def _contrast_rows(contrast: Any, full: bool) -> tuple[list[list[str]], list[str
     columns += [f"over control SD, every {unit}"] if full else ["p (Bonferroni)"]
     rows = []
     for row in contrast.table.to_dict("records"):
+        if str(row["status"]).startswith(NO_CONTROL):
+            # Nothing was counted without a control: never "0 vs 0" (audit 10, B6 and C7).
+            blank = ["–"] * (len(columns) - 2)
+            rows.append([_name(row, repeat_col), "no own control in this repeat", *blank])
+            continue
         cells = [
             _name(row, repeat_col),
             f"{int(row['fields'])} vs {int(row['control_fields'])}",
@@ -209,9 +213,8 @@ def _untested(contrast: Any) -> list[str]:
             if not across_tested(contrast):
                 lines.append(assumption(f"{text[0].upper()}{text[1:]}."))
             continue
-        lines.append(text)
-        if status == NOT_INDEPENDENT:
-            lines.append(UNKNOWN_WELLS_ADVICE)
+        # Unknown wells: the advice says it once, with what to do (audit 10, C23).
+        lines.append(UNKNOWN_WELLS_ADVICE if status == NOT_INDEPENDENT else text)
     return lines
 
 
@@ -235,7 +238,9 @@ def _cautions(contrast: Any) -> list[str]:
         settings["repeat_col"],
         lambda key: f"{key[0]} differs from the control at p <= {P_ALPHA:g}",
     )
-    cautions.append(assumption(_MEANS_ONLY.format(words=words)))
+    # The rare label named only when one is declared (audit 10, C24).
+    rare = " and the rare label" if contrast.settings.get("family_share") else ""
+    cautions.append(assumption(_MEANS_ONLY.format(words=words, rare=rare)))
     if not contrast.effects.empty:
         whole = contrast.effects[contrast.effects["sampling"] == WHOLE_FOVS]["resampled"]
         resampled = whole.dropna().unique().tolist()
@@ -274,7 +279,9 @@ def _draws_short(contrast: Any, indent: int) -> list[str]:
         return []
     n = len(contrast.table)
     head = (
-        f"JCS effect size (treated mean minus control mean, over the control SD) from every "
+        # Named for its paper, so said what it is (audit 10, A22).
+        f"JCS effect size (Marcotti et al. 2026: treated mean minus control mean, over the "
+        "control SD) from every "
         f"{observation_words(contrast.settings)[0]}: {_range(full)}"
         + (f" over the {n} contrasts" if n > 1 else "")
     )
@@ -296,6 +303,38 @@ def _draws_short(contrast: Any, indent: int) -> list[str]:
         rows.append(cells)
     columns = [words, f"random {words}", "whole fields", "whole fields took"]
     return [wrap(head, indent, hang=indent + 2), table(rows, columns, indent=indent + 2)]
+
+
+def _no_within_test(contrast: Any) -> str:
+    """Why no contrast within a repeat has a test, from their statuses (audit 10: never "each
+    condition has one well" when only the control has one, or when wells are not recorded)."""
+    table_ = contrast.table
+    reasons = []
+    one = table_[table_["status"].astype(str).str.startswith(ONE_UNIT)]
+    if len(one):
+        lone_control = (one["control_technical"] == 1).all()
+        lone_treated = (one["technical"] == 1).all()
+        reasons.append(
+            "each condition and its control have one well in each repeat"
+            if lone_control and lone_treated
+            else "the control has one well in each repeat"
+            if lone_control
+            else "each condition has one well in each repeat"
+            if lone_treated
+            else "one side has one well in each repeat"
+        )
+        reasons[-1] += ", no within-repeat technical replication"
+    others = table_.loc[~table_.index.isin(one.index), "status"].astype(str)
+    for status in dict.fromkeys(others):
+        if status == NOT_INDEPENDENT:
+            reasons.append("no well recorded, so treated as one well per condition and repeat")
+        elif status.startswith("too few technical repeats"):
+            reasons.append("too few wells a side for the test to reach p ≤ 0.05")
+        elif not status.startswith(NO_CONTROL):
+            reasons.append(status)
+    if any(s.startswith(NO_CONTROL) for s in others):
+        reasons.append("some repeats hold no own control")
+    return "; ".join(reasons)
 
 
 def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]]:
@@ -325,11 +364,10 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
         # across-repeat table, so the table would repeat them.
         unit, units = observation_words(contrast.settings)
         lines[-1] = wrap(
-            "No test within a single repeat: each condition has one well there, no "
-            "within-repeat technical replication, and the "
-            f"{units} of one well are not independent replicates (the {unit}-level screen "
-            "above treats them as such, and is exploratory). The per-repeat d are in question 2, "
-            "and every number in the full report (report_full.txt).",
+            f"No test within a single repeat: {_no_within_test(contrast)}. The {units} of one "
+            f"well are not independent replicates (the {unit}-level screen above treats them "
+            "as such, and is exploratory). The per-repeat d are in question 2, and every "
+            "number in the full report (report_full.txt).",
             indent,
             hang=indent + 2,
         )
@@ -476,7 +514,8 @@ def _full(contrast: Any) -> str:
         words = observation_words(contrast.settings)[1]
         lines.append(
             wrap(
-                "JCS effect size (treated mean minus control mean, over the control SD) from "
+                "JCS effect size (Marcotti et al. 2026: treated mean minus control mean, over "
+                "the control SD) from "
                 f"draws of {words}: median (IQR), and the share of draws with the sign of the "
                 f"effect from every {observation_words(contrast.settings)[0]}; fields: the mean "
                 "number of acquired fields the whole-field draws took on the treated side.",

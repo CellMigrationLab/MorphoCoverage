@@ -26,7 +26,16 @@ which more fields of the same wells do not reduce, and a part within wells, whic
 shrinks as 1/fields. When the part between wells alone is as wide as the difference,
 the answer is that more fields will not resolve it: more wells or biological repeats.
 With one well a side the interval holds no variation between wells, and the
-projection is from its fields alone. The plan's repeats needed with twice the fields halve
+projection is from its fields alone. With one observation per field and no wells the
+observations are independent draws, and the interval of d is the exact one, from the
+noncentral t distribution, instead of the bootstrap's; with fewer than 5 fields with
+observations on either side a comparison is "not assessable", never shown: a percentile
+bootstrap of 3 fields a side called 22% of null differences shown (audit 10, owner,
+2026-10-06). Its interval is still kept for the plan of the next experiment. The fields are
+projected only for a feature that differs, a candidate of the screen or significant across
+repeats, and the answer's line says "needs the most if its difference is real": a feature no
+test flags gets no projection (audit 10, owner, 2026-10-06). The plan's repeats needed with
+twice the fields halve
 only that part within wells too. Then one feature at a time,
 as tabs: its comparisons, the precision of each well's own mean and its table within
 each repeat; the rare phenotype and the fingerprint have their own tabs after the
@@ -59,7 +68,13 @@ the guide. On the page each target has its own tab, after the features, and a
 line at the top of the card. A covariance criterion, the one the guided session declares,
 is named the covariance fingerprint ("The covariance fingerprint of DINOv2 (...)"): it
 reads how the features vary together, not their whole distribution (plan v2, owner,
-2026-10-06).
+2026-10-06). When every declared target is not assessable, an embedding alone with "the whole
+distribution" (`tolerances=()`) on groups too small for its components, the answer gives
+each reason and says that no declared target can be judged on these data; `optimise` refuses
+with the same words. The declaration then says the fingerprint is "not assessable here", not
+that optimise judges it, names a covariance criterion "Covariance fingerprint", and a
+criterion without a description is said in words ("the covariance of d0, d1, d2 and 5 more
+within 0.2"), never by its metric's code name (audit 10, owner, 2026-10-06).
 
 ## The stopping rules and the next field: `sufficiency_report`
 
@@ -68,7 +83,7 @@ Novelty, the chance that one more field shows something new, is exploratory (pla
 
 `sufficiency_report(objects, fovs, feature_cols=..., strategies=..., objective=..., orders=..., novelty=..., novelty_target=..., calibration=...)` answers two questions per analysis group of an analysed dataset:
 
-1. **Did each criterion say enough?** (`enough`) For each criterion, judged by its own threshold and not by held-out FOVs: `sampled_enough` (`yes`, `no` or `undefined` on the acquired FOVs; a fixed-effort rule, an `EffortPolicy` or a strategy flagged `effort_rule`, reports `target reached`, since reaching a fixed effort says nothing about the data), after how many FOVs it was first met across the declared acquisition orders (median and 10-90% range), and the FOVs imaged beyond that point. The recorded and the permuted orders are kept apart (`order_kind` in the stops table; the answer gives each kind in its own clause, for example "in 2 of 9 random orders, first met after ..."), never pooled into one median. A rule that cannot be judged yet gives the reason (`insufficient_reason`), and a rule's caveats (the FOV-size warning of the per-field mean-precision rule, the object-unit JCS assumption of random objects) are carried into its sentence (`warnings`, printed as `Caution:`). Verdicts hold only for each criterion and threshold, so compare several.
+1. **Did each criterion say enough?** (`enough`) For each criterion, judged by its own threshold and not by held-out FOVs: `sampled_enough` (`yes`, `no` or `undefined` on the acquired FOVs; a fixed-effort rule, an `EffortPolicy` or a strategy flagged `effort_rule`, reports `target reached`, since reaching a fixed effort says nothing about the data), after how many FOVs it was first met across the declared acquisition orders (median and 10-90% range), and the FOVs imaged beyond that point. The recorded and the permuted orders are kept apart (`order_kind` in the stops table; the answer gives each kind in its own clause, for example "in 2 of 9 random orders, first met after ..."), never pooled into one median. A rule that cannot be judged yet gives the reason (`insufficient_reason`); the table across groups counts the groups it judged apart from those with too few fields and those where it is undefined, "0 of 27 judged; 12 too few fields; 1 undefined", never "0 of 40" (audit 10, owner, 2026-10-06); and a rule's caveats (the FOV-size warning of the per-field mean-precision rule, the object-unit JCS assumption of random objects) are carried into its sentence (`warnings`, printed as `Caution:`). Verdicts hold only for each criterion and threshold, so compare several.
 2. **Would one more FOV show something new?** (`next_fov`, given a `SupportNoveltyEstimator` that defines "new") The chance, its nominal upper bound (Clopper–Pearson on leave-one-FOV-out outcomes, which are not independent, so its coverage is approximate and is checked by the calibration below), and, for a `novelty_target`, the extra FOVs needed before the bound can fall below it: at least this many if none of them shows anything new, and this many if new FOVs keep appearing at the current rate. The target is also added as a criterion to question 1. `new_observations` lists the observations counted as new so they can be inspected in the images: debris or segmentation errors count as new too.
 
 With `few_fovs`, it also counts the FOVs holding a state that fewer than `few_fovs` other FOVs show: a state recurring in two neighbouring FOVs is not new to the next FOV, yet not established either. It also states what the FOVs rule out: a state that no FOV has shown yet is present in at most `1 - (1 - confidence) ** (1 / k)` of FOVs (about `3 / k` at 95%; `unseen_state_max_frequency`), with the extra FOVs needed to rule out states above `novelty_target`. A small chance for the next FOV is not evidence that no rare state remains (preliminary findings, entry 3). `summary()` states both answers in short (the rules in one table across the groups, each caveat once); `summary(detail="full")` gives every number group by group, and the `answer` columns keep one sentence per group and rule. `final` and `stops` keep the full evidence and stop distributions.

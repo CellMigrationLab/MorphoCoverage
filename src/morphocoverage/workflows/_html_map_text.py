@@ -28,6 +28,12 @@ NEIGHBOURS = (
     "description, not a test."
 )
 
+# With one condition, instead of ``NEIGHBOURS``: no line under the maps (audit 10, C29).
+ONE_CONDITION = (
+    "No separation of the conditions under the maps: the data hold one condition, so there "
+    "is nothing to separate."
+)
+
 # What the centred view removes, said once (owner, 2026-10-06).
 CENTRED = (
     "Centred: each column of an other feature table minus a median of its biological repeat, "
@@ -95,9 +101,8 @@ def comparison_table(found: Separation | None) -> str:
         _row(r, f"{r.space}: all the tables at once, not ranked") for r in apart.itertuples()
     )
     batch = [str(name) for name in found.spaces["space"] if found.repeats_first(str(name))]
-    raw = "On the raw values, the" if found.settings.get("repeat_raw") else "The"
     said = (
-        f"<p>{raw} repeats separate more than the conditions in "
+        "<p>The repeats separate more than the conditions in "
         f"{html.escape(', '.join(batch))}: there, a batch between repeats is larger than the "
         "difference between conditions.</p>"
         if batch

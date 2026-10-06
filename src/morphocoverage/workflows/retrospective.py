@@ -84,7 +84,7 @@ from ._document import (
 )
 from ._embedding_report import embedding_plan, embedding_report
 from ._enough_features import enough_by_feature
-from ._enough_targets import fingerprint_precision
+from ._enough_targets import NO_TARGET, fingerprint_precision
 from ._feature_space import (
     analysed_tables,
     attached,
@@ -97,7 +97,7 @@ from ._feature_space import (
 )
 from ._fingerprint_space import fingerprint_space
 from ._label_control import label_control
-from ._one_per_field import field_setup, one_per_field, one_per_field_reasons
+from ._one_per_field import field_setup, listed_once, one_per_field, one_per_field_reasons
 from ._populations import populations_in_report
 from ._rare_share import unlabelled_note
 from ._result_influence import influence_on_result, with_result_influence
@@ -321,6 +321,8 @@ def report(
         results["inspection"] = with_result_influence(
             results["inspection"], compared, fovs, results["contrast"], setup
         )
+    if not per_field:  # one per field: a field the acquisition names is not listed again
+        results["inspection"] = listed_once(results["inspection"], results["acquisition"], setup)
     settings = {
         "recorded_order": setup.acquisition_order_col is not None,
         "permuted_orders": REPORT_ORDERS,
@@ -384,11 +386,16 @@ def optimise(
     space = fingerprint_space(prepared, fovs, setup)
     criteria = space.setup.criteria()
     if not criteria:  # an embedding-only Setup whose targets cannot be judged
-        unread = "; ".join(f"{c}: {r}" for c, r in space.not_assessable.items())
+        unread = space.unread()
+        if unread:  # declared, as the report says it (tolerances=() or no readout)
+            raise ValueError(
+                f"optimise judges the declared targets on held-back fields. {NO_TARGET} "
+                + " ".join(unread)
+            )
         raise ValueError(
             "optimise judges the declared targets on held-back fields, and this Setup has "
             "none it can judge: without a readout, declare the fingerprint of a table or a "
-            "labelled phenotype (rare, rare_label)" + (f" ({unread})" if unread else "")
+            "labelled phenotype (rare, rare_label)"
         )
     reasons: dict[str, str] = {}
     results: dict[str, Any] = {}
@@ -484,10 +491,7 @@ def optimise(
         f"{PLAN_TITLE} {DASH} {count(len(objects), unit, setup.unit_words)} in "
         f"{count(len(fovs), 'field')}"
     )
-    unread = [
-        f"The {space.nouns.get(c, 'fingerprint')}, {c}, is not assessable: {r}."
-        for c, r in space.not_assessable.items()
-    ]
+    unread = space.unread()
     unread += space.small_groups(setup.unit_word, setup.unit_words)  # audit 8
     document = replace(
         with_reasons(document, reasons), title=title, notes=(*document.notes, *unread)

@@ -356,7 +356,7 @@ def test_clustered_is_called_at_q_corrected_over_every_group_and_state():
     assert table.loc[table["condition"] == "c20", "q_clustered"].iloc[0] <= 0.05
     text = " ".join(result.summary().split())
     assert "q ≤ 0.05 after Benjamini-Hochberg over the 21 tests" in text
-    assert "in 1 of 21 groups where seen (c20 · repeat r1)" in text
+    assert "in 1 of 21 groups where tested (c20 · repeat r1)" in text
 
 
 @pytest.mark.parametrize(
@@ -514,10 +514,23 @@ def test_idr0139_fovs_are_not_random_objects(idr0139):
         control={"condition": "Untreated"},
         n_draws=1000,
         group_cols=groups,
+        # Wells of 4 fields: below the 5 the check asks by default since audit 10 (owner,
+        # 2026-10-06), so the entry is reproduced with the rule before, 2 fields.
+        min_fields=2,
     ).table.set_index("technical_repeat")
     assert check.loc["J05", "fovs_used"] == pytest.approx(1.0)
     assert 0.03 < check.loc["J05", "real_error"] < 0.055
     assert not check.loc["J05", "meets_target"]
+    default = object_rule_check(
+        objects,
+        fovs,
+        feature=ratio,
+        targets=[0.025],
+        control={"condition": "Untreated"},
+        n_draws=10,
+        group_cols=groups,
+    ).table
+    assert default["status"].eq("fewer than 5 fields with cells").all()
 
 
 # -- the report places the checks ---------------------------------------------------------
@@ -817,12 +830,13 @@ def test_feature_ranking_gates_by_q_value_and_ranks_by_effect_size():
     assert ranking.loc[0, "score"] > 1 and np.isnan(ranking.loc[1, "score"])
     assert result.top() == ["x"] and result.top(0) == []
     text = result.summary(detail="full")
-    assert "Which features separate the conditions? Each of the 2 declared features" in text
+    assert "Ranking within repeats (wells as the unit): each of the 2 declared features" in text
     assert re.search(r"^ +1 +x +\d+\.\d\d .* 2 of 2$", text, re.MULTILINE)
     assert "No contrast passes the gate for 1 feature: y." in text
-    assert "Plotted by default: up to 5 best-ranked features (the readout when none ranks)" in text
+    # The discovery says what is plotted, not this ranking (audit 10, A9).
+    assert "Plotted by default" not in text
     short = result.summary()
-    assert "1 of 2 features pass the gate" in short and "Plotted by default" in short
+    assert "1 of 2 features pass the gate" in short and "Plotted by default" not in short
     # Deterministic, and the same numbers as the contrast for the readout.
     again = feature_ranking(
         objects, fovs, features=["y", "x"], control={"condition": "control"}, n_permutations=400

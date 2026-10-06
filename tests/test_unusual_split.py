@@ -20,6 +20,7 @@ FEATURES = ("area", "intensity_mean", "ecc")
 # The share of the control's observations called unusual (``unusual_objects``' quantile):
 # the null rate of biological unusualness.
 NULL_RATE = 0.01
+CTRL = {"condition": "ctrl"}
 
 
 def _tables(
@@ -102,7 +103,7 @@ def test_a_ten_fold_gap_between_experiments_is_acquisition_not_biology(two_exper
     short = result.summary()
     overview = _flat(short[: short.index("What this acquisition was asked to preserve")])
     # The acquisition block names the gap, apart from the checks of the values.
-    block = overview[overview.index("Acquisition anomalies (raw values, quality control)") :]
+    block = overview[overview.index("Acquisition anomalies (quality control)") :]
     assert "➖ Acquisition anomalies" in overview  # 6 fields a group: none judged
     assert "Controls apart in intensity: cA and cB differ 9.9-fold in median intensity_mean" in (
         block
@@ -202,7 +203,133 @@ def test_a_field_far_from_its_condition_and_repeat_is_an_acquisition_anomaly():
     assert (row["condition"], row["biological_repeat"], row["position_id"]) == ("a", "R1", 3)
     assert row["feature"] == "intensity_mean" and row["z"] > 5
     line = found.line()
-    assert line.startswith("1 field 5 SDs or more from the other fields of their condition")
+    assert line.startswith("1 field 5 SDs or more from the other fields of its condition")
     assert "an engineering quality-control threshold, never a biological verdict" in line
     clean = acquisition_anomalies(*_tables(("ctrl",), fields=10), feature_cols=FEATURES)
     assert clean.found == 0 and clean.line().startswith("none: no field 5 SDs or more")
+
+
+def _scenario(name: str):
+    """A scenario of ``data/scenarios`` (``make_scenarios.load``), its Setup built and its
+    tables attached as the report attaches them."""
+    import sys
+    from pathlib import Path
+
+    from morphocoverage.workflows._feature_space import attached
+
+    folder = Path(__file__).resolve().parents[1] / "data" / "scenarios"
+    sys.path.insert(0, str(folder))
+    try:
+        import make_scenarios
+    finally:
+        sys.path.remove(str(folder))
+    loaded = make_scenarios.load(name)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        objects, setup, _ = attached(
+            loaded.objects, loaded.fovs, Setup(**loaded.setup), loaded.feature_tables
+        )
+    return objects, loaded.fovs, setup
+
+
+def test_acquisition_qc_reads_the_test_scale_and_one_scale_pooled_over_groups():
+    """Audit 10 (A1, B13, C17; owner, 2026-10-06): positive features on the log scale, one
+    robust scale per feature pooled over the groups' within-group differences, each flag's
+    relative difference and the count expected by chance said."""
+    from morphocoverage.workflows._acquisition_block import acquisition_in_report
+
+    # a18: no field planted; the SD of 7 other fields read one at 14.9 and one at 6.5 SDs.
+    null = acquisition_in_report(*_scenario("a18_tagged_none_image_tech_fp_expl"))
+    assert null.found == 0 and null.judged == 48
+    assert set(null.settings["scales"].values()) == {"log"}
+    # One image per field: the check reads single images, and says so.
+    assert "each field holds one image, so this reads single images" in null.line()
+    # e16: one field's areas are 4 times its group's; it alone is flagged, as a fold.
+    planted = acquisition_in_report(*_scenario("e16_acquisition_block"))
+    assert planted.found == 1
+    row = planted.fields.iloc[0]
+    assert row["feature"] == "area" and row["field"].startswith("a1 · repeat 2026_01_05")
+    assert 3.5 < row["fold"] < 4.5 and row["log_scale"]
+    line = _flat(planted.line())
+    assert "(area, 9.3 SDs above, ×3.9)" in line
+    assert "about 0.00017 expected by chance in the 288 values of a field and feature" in line
+    # A null log-normal, field medians of skewed cells: none on the log scale.
+    rng = np.random.default_rng(3)
+    rows = [
+        {"condition": "c", "biological_repeat": r, "position_id": f, "x": 10 * np.exp(v)}
+        for r in range(6)
+        for f in range(10)
+        for v in rng.normal(rng.normal(0, 0.15), 0.8, 20)
+    ]
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "position_id"]].drop_duplicates()
+    assert acquisition_anomalies(objects, fovs, feature_cols=["x"]).found == 0
+    # A declared difference scale is read on the values, its flag a difference.
+    objects.loc[objects["position_id"].eq(4) & objects["biological_repeat"].eq(2), "x"] += 400
+    declared = acquisition_anomalies(objects, fovs, feature_cols=["x"], scales={"x": "difference"})
+    assert declared.settings["scales"] == {"x": "values"}
+    assert declared.found == 1 and declared.fields.iloc[0]["relative"] is None
+
+
+def test_one_image_per_field_lists_a_qc_field_once_not_again_as_a_new_state():
+    """Audit 10 (A1c): with one observation per field the acquisition anomalies read single
+    observations, so a field they name is not listed again as a new state in question 6."""
+    from morphocoverage.workflows import default_novelty
+
+    # 30 fields a group: novelty on 3 features is informative there (null rate 5%).
+    objects, fovs = _tables(("ctrl", "a"), repeats=3, fields=30, cells=1, seed=4)
+    far = objects["condition"].eq("a") & objects["biological_repeat"].eq("R2")
+    far &= objects["position_id"].eq(5)
+    objects.loc[far, "area"] *= 1000.0
+    setup = Setup(
+        readout="area",
+        features=FEATURES,
+        control={"condition": "ctrl"},
+        novelty=default_novelty(FEATURES),
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup)
+    named = result.results["acquisition"].fields
+    assert list(named["position_id"]) == [5]
+    inspection = result.results["inspection"].fovs
+    again = inspection["reason"].eq("new state") & inspection["position_id"].eq(5)
+    again &= inspection["condition"].eq("a") & inspection["biological_repeat"].eq("R2")
+    assert not again.any()
+    full = _flat(result.summary(detail="full"))
+    assert "1 field named among the acquisition anomalies is not listed again" in full
+
+
+def test_unusual_shares_read_against_the_controls_and_say_when_they_restate_a_shift():
+    """Audit 10 (A5, B8, C32, A15/B9; owner, 2026-10-06): the controls' own share flagged is
+    always printed as the background; the shares are of each scored group; one feature is
+    "not informative beyond the mean shift in question 9", with no table of shares; a group
+    with no unusual observation reads "– (none unusual; refits flag k)", never 0% agreement."""
+    objects, fovs = _tables(("ctrl", "a"), repeats=3, fields=6, cells=15, planted="a")
+    found = unusual_objects(objects, fovs, feature_cols=list(FEATURES), reference=CTRL)
+    short = _flat(found.summary())
+    assert "Background: the controls' own cells, scored the same way against the other " in short
+    controls = found.groups[found.groups["reference_group"]]
+    flagged, scored = int(controls["unusual"].sum()), int(controls["scored"].sum())
+    assert f"unusual, {flagged} of {scored}; a condition's share reads against it" in short
+    assert "Background" in _flat(found.summary(detail="full"))
+    # A group with no unusual observation: no agreement, the refits' count instead.
+    none = found.groups[(found.groups["status"] == "ok") & (found.groups["unusual"] == 0)]
+    assert len(none) and none["seed_agreement"].isna().all()
+    assert "– (none unusual" in short and "agree on only 0%" not in short
+    # One feature: the shares restate the shift; no table, no stability caution.
+    one = unusual_objects(objects, fovs, feature_cols=["area"], reference=CTRL)
+    text = _flat(one.summary())
+    assert "not informative beyond the mean shift in question 9, so no share is given" in text
+    assert "refits agree" not in text and "unstable" not in text and "Background" not in text
+
+
+def test_the_glance_reads_each_scored_group_and_one_feature_says_nothing():
+    from morphocoverage.retrospective.report_sampling import states_lines, unusual_alone
+
+    objects, fovs = _tables(("ctrl", "a"), repeats=3, fields=6, cells=1, planted=None)
+    found = unusual_objects(objects, fovs, feature_cols=list(FEATURES), reference=CTRL)
+    assert "of each scored group (exploratory)" in unusual_alone(found)
+    one = unusual_objects(objects, fovs, feature_cols=["area"], reference=CTRL)
+    assert unusual_alone(one) == ""
+    assert "not informative beyond the mean shift" in states_lines(None, one, "cells")[0]

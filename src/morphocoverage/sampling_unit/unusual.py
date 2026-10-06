@@ -98,7 +98,9 @@ class UnusualObjects:
       or leave-one-field-out with a single reference group), the scored and
       unusual observations, and, when ``seed_checks`` were asked for, the
       agreement (Jaccard index of the unusual objects) of refits with other
-      seeds, with how many failed (``seed_failures``) and why (``seed_failure``).
+      seeds, with how many failed (``seed_failures``) and why (``seed_failure``); with no
+      unusual observation, no agreement but the most the refits flag (``refit_unusual``);
+      ``reference_group`` marks the control groups, whose share is the background.
     """
 
     labels: pd.Series
@@ -182,6 +184,7 @@ def unusual_objects(
         fov_group[members] = g_index
     observation_group = fov_group[observation_fov]
     rows = []
+    reference_keys = {group_key(g) for g in reference_groups}
     block = (
         repeat_experiments(
             [g for g, _ in all_groups],
@@ -202,6 +205,8 @@ def unusual_objects(
             and (own is None or g.get(CONDITION_COLUMN) == target)
         ]
         row: dict[str, Any] = {**group, "reference_groups": [dict(g) for g in others]}
+        # A control group, scored against the other control groups: the background share.
+        row["reference_group"] = group_key(group) in reference_keys
         mine = positions_all[observation_group == g_index]
         if not others:
             elsewhere = any(group_key(g) != group_key(group) for g in reference_groups)
@@ -235,27 +240,32 @@ def unusual_objects(
             continue
         scores, threshold, state, calibration = results[0]
         if np.isnan(scores).all():
-            words = observation_words(data)[1]
-            rows.append(
-                {
-                    **row,
-                    "status": f"not assessed: none of its {len(scores)} {words} has a value of "
-                    "every feature",
-                }
-            )
+            # Values relative to the own control are missing where the repeat has none: that
+            # is the reason, not a missing feature (audit 10, B4 and C9).
+            repeat = group.get(REPEAT_COLUMN)
+            if repeat is not None and all(g.get(REPEAT_COLUMN) != repeat for g in others):
+                reason = "its repeat holds no own control"
+            else:
+                words = observation_words(data)[1]
+                reason = f"none of its {len(scores)} {words} has a value of every feature"
+            rows.append({**row, "status": f"not assessed: {reason}"})
             continue
         flagged = scores > threshold
         distances[mine] = scores
         labels[mine] = np.where(np.isnan(scores), np.nan, flagged)
-        agreement, failed = [], []
+        agreement, failed, refits = [], [], []
         for other in results[1:]:
             if isinstance(other, str):
                 # A refit that fails is a sign of instability too: counted, never dropped.
                 failed.append(other)
                 continue
             other_flagged = other[0] > other[1]
+            refits.append(int(np.sum(other_flagged)))
             union = np.sum(flagged | other_flagged)
             agreement.append(float(np.sum(flagged & other_flagged) / union) if union else 1.0)
+        # None unusual: no labels to agree on (a Jaccard index with an empty set read 0%);
+        # the refits' own count is kept instead (owner, 2026-10-06, audit 10).
+        none = not np.nansum(flagged)
         rows.append(
             {
                 **row,
@@ -265,7 +275,8 @@ def unusual_objects(
                 "scored": int((~np.isnan(scores)).sum()),
                 "unusual": int(np.nansum(flagged)),
                 "unusual_share": float(np.nanmean(np.where(np.isnan(scores), np.nan, flagged))),
-                "seed_agreement": min(agreement) if agreement else None,
+                "seed_agreement": min(agreement) if agreement and not none else None,
+                "refit_unusual": max(refits) if refits and none else None,
                 "seed_failures": len(failed),
                 "seed_failure": failed[0] if failed else None,
                 "standardize_state": state,

@@ -46,6 +46,7 @@ replicate. Like the per-repeat contrast, this compares means.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from itertools import product
 from typing import Any
 
@@ -55,7 +56,7 @@ import pandas as pd
 from .._seeds import group_rng
 from ..metadata import REPEAT_COLUMN as REPEAT
 from ..statistics import contrasts_text, paired_t, repeat_effect, repeat_values
-from ._experiments import corrected, experiments
+from ._experiments import corrected, declared, experiments, screen_wide
 from ._reach import reachable
 
 # The fewest biological repeats holding both sides for a test across repeats.
@@ -91,6 +92,7 @@ REPEAT_COLUMNS = [
     "repeat_contrasts",
     "ci_low",
     "ci_high",
+    "q_screen",
 ]
 
 
@@ -127,12 +129,18 @@ def _log_ratios(block: pd.DataFrame, log: bool | None = None) -> np.ndarray:
 
 
 def across_repeats(
-    table: pd.DataFrame, repeat_col: str | None, random_state: int, log: bool | None = None
+    table: pd.DataFrame,
+    repeat_col: str | None,
+    random_state: int,
+    log: bool | None = None,
+    families: Mapping[Any, Any] | None = None,
 ) -> pd.DataFrame:
     """One row per condition and control across the repeats of the per-repeat ``table``
     (``condition_contrast``'s, with ``mean`` and ``control_mean``); see the module. ``log``:
     the feature's scale, from all its observations (``statistics.log_scale``), the same for
     every condition (owner, 2026-10-06); ``None`` reads it from each condition's means.
+    ``families``: each condition's declared experiment (``_experiments.declared``); the
+    screen-wide q when families share a control label (``q_screen``, audit 10).
 
     Empty when the repeats are not kept apart or no condition is compared in two repeats.
     """
@@ -201,7 +209,7 @@ def across_repeats(
         condition: list(block[named]) if named else [0]
         for condition, block in paired.groupby("condition", sort=False)
     }
-    family = experiments(held)
+    family = declared(experiments(held), families)
     result["experiment"] = result["condition"].map(family)
     floors = result["p_sign_flip_floor"].where(result["p_sign_flip"].notna())
     helpful = pd.Series(False, index=result.index)
@@ -210,6 +218,8 @@ def across_repeats(
     result.loc[result["p_sign_flip"].notna() & ~helpful, "p_sign_flip"] = np.nan
     for column in ("p_sign_flip", "p_paired_t", "p_paired_t_normalised"):
         result[column.replace("p_", "q_", 1)] = corrected(result[column], result["experiment"])
+    verdict = result["p_paired_t_normalised"].fillna(result["p_paired_t"])
+    result["q_screen"] = screen_wide(verdict, result["control_condition"], result["experiment"])
     return result
 
 

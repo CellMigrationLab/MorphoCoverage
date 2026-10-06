@@ -1,0 +1,71 @@
+{
+ "name": "e17_whole_distribution_not_assessable",
+ "kind": "edge",
+ "checks": "an embedding alone, the whole distribution the only target (tolerances=()), groups of 5 images: the fingerprint not assessable, with why, and no target judged",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": null,
+  "observation_unit": "image",
+  "control": {
+   "condition": "ctrl"
+  },
+  "tolerances": [],
+  "fingerprint": [
+   {
+    "metric": "covariance",
+    "columns": [
+     "d0",
+     "d1",
+     "d2",
+     "d3",
+     "d4",
+     "d5",
+     "d6",
+     "d7"
+    ],
+    "tolerance": 0.2
+   }
+  ],
+  "feature_tables": {
+   "DINO1": [
+    "d0",
+    "d1",
+    "d2",
+    "d3",
+    "d4",
+    "d5",
+    "d6",
+    "d7"
+   ]
+  }
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "fingerprint_precision",
+   "whole_table",
+   "populations"
+  ],
+  "absent": [
+   "contrast",
+   "discovery",
+   "sufficiency"
+  ],
+  "headlines": {
+   "enough": "the covariance fingerprint of DINO1 not assessable"
+  },
+  "full": [
+   "not assessable: its median group holds 5 images",
+   "No declared target can be judged on these data."
+  ],
+  "html": true,
+  "table_column": false
+ }
+}

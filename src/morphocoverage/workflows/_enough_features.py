@@ -32,18 +32,21 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
+from .._caveats import pool_assumptions
 from .._parallel import check_n_jobs, map_units
 from .._style import Status, table, wrap
 from .._wording import count, listing
 from ..retrospective.report_resolved import (
     _needing,
     _table,
+    _unassessed,
     between_wells,
     has_resolution,
     resolved_full,
+    resolved_notes,
 )
 from ..sampling_unit.contrast import condition_contrast
-from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
+from ..sampling_unit.contrast_sampling import MIN_FIELDS, MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency import sufficiency_report
 from ..sufficiency_short import rule_tallies
@@ -53,6 +56,9 @@ if TYPE_CHECKING:
     from .setup import Setup
 
 ENOUGH, PARTLY, NOT_YET = "enough", "partly", "not yet"
+# Every comparison of a feature with fewer than MIN_FIELDS fields a side (audit 10, owner,
+# 2026-10-06).
+NOT_ASSESSABLE = "not assessable"
 # Where the readout's own resolution ends in the short form and its rules begin.
 _RULES_HEAD = "The precision of each group's own mean:"
 # Fewest features a worker replays on its own: below it, one replay over them all.
@@ -143,7 +149,10 @@ def _row(feature: str, contrast: Any, tally: dict[str, Any] | None) -> dict[str,
     wells = int(between_wells(rows).sum()) if len(rows) else 0
     needing = _needing(rows) if len(rows) else rows
     counts = needing["fields_to_resolve"].astype(float) if len(needing) else pd.Series([])
+    unassessed = _unassessed(rows) if len(rows) else 0
     verdict = ENOUGH if len(rows) and shown == len(rows) else PARTLY if shown else NOT_YET
+    if len(rows) and unassessed == len(rows):
+        verdict = NOT_ASSESSABLE
     return {
         "feature": feature,
         "comparisons": len(rows),
@@ -154,6 +163,7 @@ def _row(feature: str, contrast: Any, tally: dict[str, Any] | None) -> dict[str,
         "fields_high": float(counts.max()) if len(counts) else np.nan,
         "too_small": small,
         "between_wells": wells,
+        "unassessed": unassessed,
         "precision_rule": tally["label"] if tally else None,
         "precision_met": tally["met"] if tally else np.nan,
         "precision_groups": tally["groups"] if tally else np.nan,
@@ -203,6 +213,10 @@ def enough_by_feature(
     contrasts = {f: shared_family(c, discovery, f) for f, c in contrasts.items()}
     precision = _precision(objects, fovs, setup, list(contrasts))
     rows = [_row(f, c, precision.get(f)) for f, c in contrasts.items()]
+    # The fields to show a difference are projected only for a feature that differs, a
+    # candidate or significant: never for a null one (audit 10, owner, 2026-10-06, C25).
+    flagged = set(discovery.top(len(features))) if discovery is not None else set(contrasts)
+    rows = [{**r, "flagged": r["feature"] in flagged} for r in rows]
     return FeatureEnough(pd.DataFrame(rows), contrasts, precision)
 
 
@@ -213,14 +227,19 @@ def _fields(features: FeatureEnough) -> str:
 def _needed(row: dict[str, Any], fields: str) -> str:
     """``about 42-56 cells a side`` (and those too small), ``–`` when nothing is needed."""
     parts = []
-    if row["needing"]:
+    if row["needing"] and row.get("flagged", True):
         low, high = int(row["fields_low"]), int(row["fields_high"])
         about = f"{low}" if low == high else f"{low}-{high}"
         parts.append(f"about {about} {fields} a side")
     if row["too_small"]:
         parts.append(f"{row['too_small']} too small to show")
     if row.get("between_wells", 0):
-        parts.append(f"{row['between_wells']} {MORE_WELLS}")
+        wells = int(row["between_wells"])  # "1 needs more wells ..." (audit 10, A19)
+        parts.append(f"{wells} {'needs' if wells == 1 else 'need'} {MORE_WELLS}")
+    if row.get("unassessed", 0):
+        parts.append(
+            f"{row['unassessed']} not assessable (fewer than {MIN_FIELDS} {fields} a side)"
+        )
     return "; ".join(parts) or "–"
 
 
@@ -238,7 +257,11 @@ def features_table(features: FeatureEnough, word: str = "well", indent: int = 2)
     rows = [
         [
             r["feature"],
-            f"{r['verdict']}: shown in {r['shown']} of {r['comparisons']}",
+            (
+                f"{NOT_ASSESSABLE}: fewer than {MIN_FIELDS} {fields} a side"
+                if r["verdict"] == NOT_ASSESSABLE
+                else f"{r['verdict']}: shown in {r['shown']} of {r['comparisons']}"
+            ),
             _needed(r, fields),
             *([_precision_cell(r, word)] if rule else []),
         ]
@@ -285,14 +308,15 @@ def features_status(
     rows = features.table
     fields = _fields(features)
     parts = []
-    for verdict in (ENOUGH, PARTLY, NOT_YET):
+    for verdict in (ENOUGH, PARTLY, NOT_YET, NOT_ASSESSABLE):
         names = list(rows.loc[rows["verdict"] == verdict, "feature"].astype(str))
         if names:
             parts.append(f"{verdict} {_for(names, len(rows))}")
     head = "to compare with the control, within single repeats, of " + count(len(rows), "feature")
     text = f"{head}: {'; '.join(parts)}"
     small = rows[rows["too_small"] > 0]
-    open_ = rows[rows["needing"] > 0]
+    flagged = rows.get("flagged", True)
+    open_ = rows[(rows["needing"] > 0) & flagged]
     if len(small):
         # Beyond PRACTICAL times the fields: these need the most, said before any projection.
         many = count(int(small["too_small"].sum()), "comparison")
@@ -314,7 +338,10 @@ def features_status(
         worst = open_.loc[open_["fields_high"].idxmax()]
         most = int(worst["fields_high"])
         which = "of the rest, " if len(small) else ""
-        text += f"; {which}{worst['feature']} needs the most (about {most} {fields} a side)"
+        text += (
+            f"; {which}{worst['feature']} needs the most if its difference is real (about "
+            f"{most} {fields} a side)"
+        )
     precise = rows[rows["precision_met"].notna()]
     if len(precise):
         every = int((precise["precision_met"] == precise["precision_groups"]).sum())
@@ -374,8 +401,13 @@ def with_features(
     full = sections.get("enough", "")
     if has_resolution(contrast):
         full = full.replace(_indent(resolved_full(contrast)), "").lstrip("\n")
-    every = "\n\n".join(_indent(resolved_full(c)) for c in features.contrasts.values())
-    sections["enough"] = "\n\n".join(p for p in (summary, every, full) if p.strip())
+    # The notes once, after every feature's table, not once per feature (audit 10, A22).
+    blocks = [_indent(resolved_full(c, notes=False)) for c in features.contrasts.values()]
+    notes = "\n".join(resolved_notes(next(iter(features.contrasts.values()))))
+    every = "\n\n".join([*blocks, notes])
+    sections["enough"] = pool_assumptions(
+        "\n\n".join(p for p in (summary, every, full) if p.strip())
+    )
     statuses = {**document.statuses, "enough": status}
     headlines = {**document.headlines, "enough": headline}
     return replace(document, short=short, sections=sections, statuses=statuses, headlines=headlines)

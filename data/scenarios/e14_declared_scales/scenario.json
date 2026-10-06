@@ -1,0 +1,42 @@
+{
+ "name": "e14_declared_scales",
+ "kind": "edge",
+ "checks": "scales declared (area on differences, length on ratios), velocity on the automatic rule: each feature tested on its scale, the declaration said",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "velocity"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  },
+  "scales": {
+   "area": "difference",
+   "length": "ratio"
+  }
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery"
+  ],
+  "planted": {
+   "area": [
+    "a"
+   ],
+   "length": [
+    "a"
+   ]
+  },
+  "full": [
+   "declared in the Setup: area, the difference; length, the ratio"
+  ]
+ }
+}

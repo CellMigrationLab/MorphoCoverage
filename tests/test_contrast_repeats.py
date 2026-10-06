@@ -139,7 +139,7 @@ def test_question_9_leads_with_the_answer_across_repeats(screen):
     assert "lower in 3 of 3" in short and "higher in 3 of 3" in short
     # 36 per-repeat contrasts go to the full form, with the sign-flip test.
     # Nothing is tested within a repeat: the per-repeat table goes to the full form.
-    assert "No test within a single repeat: each condition has one well there" in joined
+    assert "No test within a single repeat: each condition and its control have one well" in joined
     assert "sign-flip p" not in short.split("Within each repeat")[0]
     full = screen.summary(detail="full")
     assert "sign-flip" not in full and "siCCT8#5 vs siCTRL, repeat siCCT8_1" in full
@@ -168,6 +168,6 @@ def test_two_repeats_and_one_coverslip_are_described_not_flagged(screen):
     status, headline = conditions_status(two, None)
     assert status.name == "NOT_ASSESSED"
     assert "each in 2 biological repeats (12 in all): not tested across repeats" in headline
-    assert "within repeats: no test (one well per condition in a" in headline
+    assert "within repeats: no test (one well on a side)" in headline
     assert "⚠️" not in two.summary()
     assert "the paired test across repeats needs 3" in " ".join(two.summary().split())

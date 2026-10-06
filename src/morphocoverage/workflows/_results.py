@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .._caveats import caveat_lines
+from .._fitted import fitted
 from .._style import check_detail, headline, wrap
 from ..retrospective.calibration import calibration_short_parts
 from ..retrospective.report import LIMITS_TITLE
@@ -56,7 +57,7 @@ class Report:
         parts = [self.document.summary(REPORT_QUESTIONS, detail=detail)]
         if self.settings:
             parts.append(report_settings(self.settings))
-        return "\n\n".join(parts)
+        return fitted("\n\n".join(parts))
 
     @property
     def ranking(self) -> FeatureRanking | None:

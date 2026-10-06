@@ -451,9 +451,8 @@ def representation_control(
     observed = np.bincount(subsets.positions[subsets.positions >= 0], minlength=len(data.fovs)) > 0
     rows, skipped, planted_skipped = [], [], []
     positive_empty = 0
-    # Every random choice is made here, in stratum and draw order; only the
-    # novelty checks, which use none, go to worker processes. One stratum's
-    # draws at a time keeps memory to one stratum.
+    # Every random choice is made here, in stratum and draw order; only the novelty checks,
+    # which use none, go to worker processes. One stratum's draws at a time keeps memory low.
     with worker_pool(n_jobs) as pool:
         for stratum in strata:
             # One generator per stratum, so adding a plate never changes another plate's rates.
@@ -492,8 +491,10 @@ def representation_control(
             # The seen fields hold observations: an empty field adds nothing to the reference.
             seeing = base[observed[base]]
             if len(positive) == 0 or len(seeing) <= fovs_seen:
-                reason = (
-                    f"no positive-control field with {_observations(data)}"
+                reason = (  # not imaged there, or imaged empty: apart (audit 10, A24)
+                    "the positive control was not imaged here"
+                    if len(declared) == 0
+                    else f"no positive-control field with {_observations(data)}"
                     if len(positive) == 0
                     else f"{len(seeing)} reference fields with {_observations(data)}, not more "
                     f"than the {fovs_seen} seen"

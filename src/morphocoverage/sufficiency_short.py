@@ -111,8 +111,10 @@ def rule_tallies(report: Any) -> list[dict[str, Any]]:
         effort = bool(own["effort_rule"].any()) if "effort_rule" in own else False
         first = rows.iloc[0]
         met = rows["sampled_enough"].isin(_MET)
-        warned = flagged = lost = 0
+        warned = flagged = lost = waiting = 0
         for _, row in own.iterrows():
+            reason = row.get("insufficient_reason")
+            waiting += bool(row["verdict"] == "continue" and isinstance(reason, str) and reason)
             stopped = row["verdict"] == "stop"
             warned += bool(stopped and _data_warnings(row))
             flagged += bool(stopped and _flagged(row))
@@ -125,6 +127,7 @@ def rule_tallies(report: Any) -> list[dict[str, Any]]:
                 "groups": len(rows),
                 "met": int(met.sum()),
                 "undefined": int(rows["sampled_enough"].eq("undefined").sum()),
+                "waiting": waiting,
                 "lost": lost,
                 "warned": warned,
                 "flagged": flagged,
@@ -167,6 +170,25 @@ def _stops_cell(stops: pd.DataFrame, config: str, kind: str, groups: int) -> str
     return f"never in {total - stopped} of {total} orders; {text} in {that} that met it"
 
 
+def met_count(tally: Mapping[str, Any], word: str | None = None) -> str:
+    """In how many groups a rule was met, of the groups it could judge: "0 of 27 judged; 12
+    too few fields; 1 undefined" (audit 10, owner, 2026-10-06), so the groups too small to
+    judge are never read as groups where the rule was not met; "3 of 40" when every group
+    was judged; "none judged; 4 too few fields" when no group could be. ``word`` names the
+    groups ("0 of 27 wells judged")."""
+    waiting, undefined = int(tally.get("waiting", 0)), int(tally["undefined"])
+    judged = tally["groups"] - waiting - undefined
+    of = str(judged) if word is None else count(judged, word)
+    if not waiting and not undefined:
+        return f"{tally['met']} of {of}"
+    parts = [f"{tally['met']} of {of} judged" if judged else "none judged"]
+    if waiting:
+        parts.append(f"{waiting} too few fields")
+    if undefined:
+        parts.append(f"{undefined} undefined")
+    return "; ".join(parts)
+
+
 def _rules_table(report: Any, tallies: list[dict[str, Any]], indent: int) -> list[str]:
     """The rules across groups: met in, first met after (recorded; random orders)."""
     groups = max(t["groups"] for t in tallies)
@@ -186,9 +208,7 @@ def _rules_table(report: Any, tallies: list[dict[str, Any]], indent: int) -> lis
         elif tally["undefined"] == tally["groups"]:
             met = "not defined here"
         else:
-            met = f"{tally['met']} of {tally['groups']}" + (
-                f" ({tally['undefined']} not defined)" if tally["undefined"] else ""
-            )
+            met = met_count(tally)
         cells = [tally["label"], met]
         cells += [_stops_cell(report.stops, tally["config_id"], k, tally["groups"]) for k in kinds]
         rows.append(cells)
@@ -510,6 +530,7 @@ def short_summary(report: Any, target: float | None = None) -> str:
 
 __all__ = [
     "field_bound_assumption",
+    "met_count",
     "rule_tallies",
     "short_parts",
     "short_summary",

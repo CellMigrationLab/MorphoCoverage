@@ -22,8 +22,8 @@ Loaded correctly?
   ✅ The data check found nothing to fix.
   ❌ 6 copy findings in 12 fields (siCCT7#3 · repeat CCT7_2 · B5 · B5_04, siCCT7#6 · repeat
      CCT7_3 · B6 · B6_01-1, siCCT7#6 · repeat CCT7_3 · B6 · B6_04-1, siCTRL · repeat
-     CCT7_1 · B4 · B4_05 and 8 more): structure to inspect, not a judgment; scan.integrity.summary()
-     names each.
+     CCT7_1 · B4 · B4_05 and 8 more): structure to inspect, not a judgment;
+     scan.integrity.summary() names each.
   ✅ The tracks per biological repeat differ by more than 25% in 3 conditions of 5 (up to 1.8× in
      siCTRL); the report tests the tracks both as provided and balanced over the repeats.
 
@@ -35,7 +35,7 @@ Before the analysis
   1. What should the analysis answer: compare the population averages of the conditions, compare
      their phenotypic fingerprints, or check a rare population? Suggested: averages.
      averages: the readout's mean per condition across biological repeats (the default);
-     fingerprint: the distribution of phenotypes over several features, declared as
+     fingerprint: how several features vary together, the covariance fingerprint, declared as
      fingerprint=(OutcomeCriterion(...), ...); rare: whether a rare population was sampled enough,
      declared as rare=RareTarget(...).
   2. Which feature is the readout you report? Options: Mean Speed, Median Speed, Speed Standard

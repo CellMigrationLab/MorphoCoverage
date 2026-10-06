@@ -25,6 +25,7 @@ from .._control import versus
 from .._style import span, table, wrap
 from .._wording import column_word, count, features_counted, listing, p_value, percent
 from ..schema import observation_words
+from ._experiments import family_noun
 from .contrast_cells import (
     ALPHA,
     BALANCED_DRAWS,
@@ -105,16 +106,26 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
     # with other repeats' level.
     shifted = (
         f" The control means differ up to {shift:.1f}x between {word}s, so a raw test pooling "
-        "them would compare each condition with other repeats' level: read the normalised or "
-        "balanced columns."
+        "them would compare each condition with other repeats' level: read the normalised"
+        + (" or balanced" if cells["p_balanced"].notna().any() else "")
+        + " columns."
         if pd.notna(shift) and shift > IMBALANCE
         else ""
     )
-    return (
-        f"Balance: {'; and '.join(reasons)}; so the test is also given balanced (each "
+    # "Also given balanced" only when some condition got that test (audit 10, C6).
+    also = (
+        f"so the test is also given balanced (each "
         f"condition against the control of its own {word}s, the same number of {words} from "
         f"each {word}; the median d over {BALANCED_DRAWS} draws, labels shuffled within each "
         f"{word} for p), and as provided only "
+        if cells["p_balanced"].notna().any()
+        else f"no balanced test could be drawn, every {word} holding fewer than {MIN_BALANCED} "
+        f"{words}, so the test is given as provided only "
+        if (cells["sparse_repeats"].map(len) >= cells["repeats"]).all()
+        else "no balanced test could be drawn, so the test is given as provided only "
+    )
+    return (
+        f"Balance: {'; and '.join(reasons)}; {also}"
         f"where the control comes from the condition's own {word}s."
         + shifted
         + _control_only(contrast, cells)
@@ -140,16 +151,28 @@ def _sparse(contrast: Any, cells: pd.DataFrame) -> list[str]:
     flagged = cells[cells["sparse_repeats"].map(len) > 0]
     groups: dict[tuple[tuple[str, ...], int], list[str]] = {}
     for row in flagged.to_dict("records"):
-        key = (tuple(str(r) for r in row["sparse_repeats"]), int(row["balanced_repeats"]))
+        left = int(row["repeats"]) - len(row["sparse_repeats"])
+        provided = not row["other_control_repeats"] > 0
+        key = (
+            tuple(str(r) for r in row["sparse_repeats"]),
+            int(row["balanced_repeats"]),
+            left,
+            provided,
+        )
         groups.setdefault(key, []).append(str(row["condition"]))
     lines = []
-    for (names, kept), conditions in groups.items():
+    for (names, kept, left, provided), conditions in groups.items():
+        # One repeat alone is not balanced over the repeats: no balanced test, the test as
+        # provided is read (audit 10, owner, 2026-10-06).
+        if not kept and not left:  # every repeat few: said once, in the balance sentence (C6)
+            continue
         rest = (
-            f"the balanced test balances the other {word}"
-            if kept == 1
-            else f"the balanced test balances the other {count(kept, word)}"
+            f"the balanced test balances the other {count(kept, word)}"
             if kept
-            else "no other repeat is left to balance"
+            else f"one {word} alone would be left, so there is no balanced test"
+            + (" and the test as provided is read" if provided else "")
+            if left == 1
+            else f"no other {word} is left to balance"
         )
         one = len(names) == 1
         lines.append(
@@ -226,11 +249,20 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
         lines.append(table(as_provided, columns, indent=indent + 2))
     if pooled:
         word = column_word(contrast.settings["repeat_col"])
+        # Neither test for a condition: said, with why (audit 10, C6).
+        none = set(cells.loc[cells["p_balanced"].isna(), "condition"].astype(str))
+        neither = [c for c in pooled if c in none]
         lines.append(
             wrap(
                 f"Not given as provided for {listing(pooled, 3)}: "
                 f"{'its' if len(pooled) == 1 else 'their'} control would include "
-                f"{word}s the condition was not imaged in.",
+                f"{word}s the condition was not imaged in"
+                + (
+                    f"; so no {_unit(contrast)}-level test for {listing(neither, 3)}, which "
+                    f"{'has' if len(neither) == 1 else 'have'} no balanced test either."
+                    if neither
+                    else "."
+                ),
                 indent + 2,
                 hang=indent + 4,
             )
@@ -268,7 +300,8 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
                 "normalised) is corrected over the "
                 f"{features_counted(int(features), settings.get('family_share'), ', ')} and "
                 "their conditions "
-                "of each sub-experiment, as the feature ranking; the other columns over this "
+                f"of each {family_noun(settings)}, as the feature ranking; the other columns over "
+                "this "
                 "feature's conditions only.",
                 indent + 2,
                 hang=indent + 4,

@@ -46,6 +46,13 @@ def exploratory_names(results: dict[str, Any], setup: Setup) -> dict[str, list[s
     if setup.novelty is not None and next_fov is not None and len(next_fov):
         enough.append("novelty")
     names = {"enough": enough}
+    inspection = results.get("inspection")
+    looked = getattr(inspection, "settings", {}).get("novelty") is not None
+    if looked:  # question 6's new states (audit 10, B3)
+        names["inspect"] = ["novelty"]
+    controls = results.get("controls")
+    if setup.positive is not None and getattr(controls, "status", "not assessed") != "not assessed":
+        names["controls"] = ["the positive control's check, on the definition of new"]
     if results.get("distribution") is not None:
         names["conditions"] = ["beyond the mean"]
     if results.get("populations") is not None:
@@ -67,6 +74,7 @@ def with_exploratory(
     """The report with one exploratory line at the end of each section answered by an analysis
     not yet validated (see the module), in the short and the full forms."""
     short, sections = dict(document.short), dict(document.sections)
+    headlines = dict(document.headlines)
     for key, names in exploratory_names(results, setup).items():
         if key not in sections or document.inputs.get(key) == "not assessed":
             continue
@@ -74,7 +82,19 @@ def with_exploratory(
         sections[key] = f"{sections[key]}\n\n{line}"
         if key in short:
             short[key] = f"{short[key]}\n\n{line}"
-    return replace(document, short=short, sections=sections)
+        headlines[key] = _tagged(key, headlines.get(key, ""))
+    return replace(document, short=short, sections=sections, headlines=headlines)
+
+
+def _tagged(key: str, headline: str) -> str:
+    """The glance line with its exploratory part marked (audit 10, C27): the positive
+    control's whole answer, the "beyond the mean" part of question 9."""
+    if key == "controls" and headline and "exploratory" not in headline:
+        return f"{headline} (exploratory)"
+    part = "beyond the mean"
+    if key == "conditions" and part in headline and f"{part} (exploratory)" not in headline:
+        return headline.replace(part, f"{part} (exploratory)", 1)
+    return headline
 
 
 __all__ = [

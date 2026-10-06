@@ -120,14 +120,30 @@ and changed only that one thing.
   directly on raw values, as below, `unusual_objects` reads acquisition too: a repeat
   imaged brighter widens its threshold. The report reads each value relative to its own
   control in its repeat (normalised with `normalize`, else the log ratio or the difference
-  to that control's mean), calls the result exploratory, and lists fields far from the rest
-  of their condition and repeat on the raw values apart, as quality control in "What is in
-  the dataset" (owner, 2026-10-06, plan v2).
+  to that control's mean; an embedding alone with `normalize` reads its columns centred per
+  biological repeat, against each condition's own control, and says so, never "as
+  normalised": audit 10, owner, 2026-10-06), calls the result exploratory, and lists fields
+  far from the rest of their condition and repeat apart, as quality control in "What is in the dataset"
+  (owner, 2026-10-06, plan v2).
+- **Every share reads against the controls' own.** The controls' own share flagged by the
+  same rule is always printed beside the shares, as their background (the "all but 1%"
+  threshold flagged 16-21% of the controls' own images in one screen), the shares are those
+  of each scored group, and a group with no unusual observation reads "– (none unusual;
+  refits flag k)" rather than an agreement of 0%. On one feature, unusual observations
+  restate its shift from the control, so the report says "not informative beyond the mean
+  shift in question 9" and gives no share (owner, 2026-10-06, audit 10).
 - **One picture per object.** When every picture holds one object (manual single-cell
   imaging), pictures and objects coincide: the variability check gives the spread over
   pictures with a design effect of 1, the unusual objects are unusual pictures, and whether
   objects cluster in a few pictures, or a count rule holds with whole pictures, has no
   meaning; the report says so once (owner, 2026-10-06).
+- **Few pictures.** The count-rule check draws whole pictures at random, with
+  replacement, as from a well with many pictures like these, so the pictures it takes can
+  outnumber those acquired, and the report says so; a group of fewer than 5 pictures with
+  objects is not assessable, its draws mostly repeating its own few pictures (audit 10,
+  owner, 2026-10-06). The minimum of 5 stays; the idr0139 finding of
+  `docs/preliminary_findings.md` entry 9, on wells of 4 fields, was made with the earlier
+  minimum of 2 and is labelled so (owner, 2026-10-06).
 - **Some measures shift between runs.** The JCS stability measure varies from
   run to run, so only its direction is reliable: pictures are less stable
   than random objects.

@@ -81,7 +81,7 @@ from .._control import (
     check_comparisons,
     check_contrast_table,
     comparison_pairs,
-    control_text,
+    control_name,
     own_pairs,
 )
 from .._former_repeat import one_warning, read_former
@@ -113,7 +113,7 @@ from ._units import (
 from .contrast_across import ACROSS_COLUMNS, across_table
 from .contrast_cells import CELL_COLUMNS, cell_table
 from .contrast_repeats import REPEAT_COLUMNS, TARGET_COLUMNS, across_repeats, reagent_agreement
-from .contrast_sampling import SAMPLING_COLUMNS, sampling_row
+from .contrast_sampling import NOT_SAMPLED, SAMPLING_COLUMNS, sampling_row
 from .contrast_text import FEW_UNITS_D, NO_CONTROL, contrast_summary
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
 from .repeat_plan import PLAN_COLUMNS, repeat_plan
@@ -317,6 +317,7 @@ def condition_contrast(
     comparisons: Sequence[tuple[Any, Any]] | None = None,
     contrasts: pd.DataFrame | None = None,
     scale: str | None = None,
+    families: Mapping[Any, Any] | None = None,
 ) -> ConditionContrast:
     """Each condition against the control condition, per repeat, with objects and with fields.
 
@@ -343,7 +344,8 @@ def condition_contrast(
     comparisons (its ``own_control`` rows) and the secondary rows, tested on the repeat means
     (``contrast_across``, the table ``across``). ``scale``, the feature's declared scale
     (``Setup.scales``: ``"ratio"`` or ``"difference"``; plan v2, owner, 2026-10-06), replaces the
-    automatic rule (``statistics.log_scale``) for the paired test across repeats.
+    automatic rule (``statistics.log_scale``) for the paired test across repeats. ``families``,
+    each condition's declared experiment (``Setup.experiment``), sets the correction families.
     """
     declared = None if contrasts is None else check_contrast_table(contrasts)
     comparisons = comparisons if declared is None else own_pairs(declared)
@@ -382,6 +384,7 @@ def condition_contrast(
         "observation_unit_declared": data.observation_unit_declared,
         "log_scale": log_scale(data.feature_values(feature), scale, repr(feature)),
         "scale": scale,  # declared in the Setup, else None (the automatic rule)
+        "declared_experiments": bool(families),  # Setup.experiment (audit 10)
     }
     contrasts = contrasts_of(described)
     # Repeats holding only the control: in no comparison, so not in the pooled control.
@@ -393,7 +396,7 @@ def condition_contrast(
     )
     if not contrasts:
         settings["reason"] = (
-            f"Every analysis group is the control {control_text(control)}: no other condition "
+            f"Every analysis group is the control, {control_name(control)}: no other condition "
             "to compare."
         )
         return ConditionContrast(pd.DataFrame(), pd.DataFrame(), settings)
@@ -473,7 +476,7 @@ def condition_contrast(
         tested, np.minimum(1.0, table["p_value"] * int(tested.sum())), np.nan
     )
     log = settings["log_scale"]
-    repeats = across_repeats(table, repeat_col, random_state, log)
+    repeats = across_repeats(table, repeat_col, random_state, log, families)
     held = (all_groups, described, feature, technical_col)
     between = across_table(held, declared, random_state, log)
     settings.update(between.attrs)  # the contrast table and the master's repeats
@@ -496,6 +499,7 @@ def condition_contrast(
             lambda condition, values: group_rng(
                 random_state, {"condition": condition, "test": "cells", "values": values}
             ),
+            families,
         )
         if pooled and cell_test
         else pd.DataFrame(columns=CELL_COLUMNS)
@@ -584,15 +588,7 @@ _NO_TEST = {
     "p_exact": False,
     "p_floor": np.nan,
     "effect_full": np.nan,
-    "d_low": np.nan,
-    "d_high": np.nan,
-    "resolved": False,
-    "fields_to_resolve": np.nan,
-    "too_small": False,
-    "between_wells": False,
-    "between_share": np.nan,
-    "difference_se": np.nan,
-    "log_ratio_se": np.nan,
+    **NOT_SAMPLED,
 }
 
 

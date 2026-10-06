@@ -152,7 +152,7 @@ def _paired_panel(lookup: dict, names: list[Any]) -> dict[str, Any]:
             what = (
                 "p, uncorrected"
                 if i > j
-                else "adjusted p, Benjamini-Hochberg over the pairs tested"
+                else "adjusted over this figure only (Benjamini-Hochberg over its pairs)"
             )
             hover[i][j] = (
                 f"{row} and {column}: paired t-test on {pair.shared_repeats} repeats' means "

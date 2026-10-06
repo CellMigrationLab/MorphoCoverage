@@ -368,6 +368,23 @@ def rule_label(rule: Any, unit: str | None = None, *, detail: str = "short") -> 
     return f"{label} ({extra})" if extra != label else label
 
 
+# A rule's provenance as the full report prints it: ``[fixed_fov (target_fovs=8)]`` in the
+# declaration, ``(scalar_precision_fov_upper95: averaging_cv <= 0.05; config 8d1f...)`` beside a
+# rule (``rule_label(detail="full")``).
+_PROVENANCE = re.compile(
+    r" \[[a-z][a-z0-9]*_[a-z0-9_]*(?:\s+\(.*?\))?\]"
+    r"| \([a-z][a-z0-9]*_[a-z0-9_]*(?::[^()]*?)?[;,]\s*config [0-9a-f]{16}\)"
+    r"| \([a-z][a-z0-9]*_[a-z0-9_]*:[^()]*?(?:<=|>=|==|<|>)[^()]*?\)",
+    re.DOTALL,
+)
+
+
+def without_provenance(text: str) -> str:
+    """``text`` without the rules' provenance brackets, which the full text report keeps and
+    the short report and the page never show (owner, 2026-10-06)."""
+    return _PROVENANCE.sub("", text)
+
+
 # --- Layout -------------------------------------------------------------------
 
 
@@ -436,11 +453,19 @@ def wrap(text: str, indent: int | str = 0, *, hang: int | str | None = None) -> 
             lines.append("")
             continue
         # An emoji in the indent takes two columns but counts one character; a group label
-        # ("MOCK · 1A · B6") is never broken, its separators held by no-break spaces.
+        # ("MOCK · 1A · B6") is never broken, its separators held by no-break spaces. A marker
+        # opening the text is moved into the indent, so its two columns are counted too (no
+        # line one column too wide, audit 10).
+        start = first
+        marker = next(
+            (m for m in (OK, CAUTION, PROBLEM, NOT_ASSESSED) if line.startswith(f"{m} ")), ""
+        )
+        if marker:
+            start, line = f"{first}{marker} ", line[len(marker) + 1 :]
         filled = textwrap.fill(
             line.replace(SEPARATOR, _KEPT),
-            WIDTH - (width(first) - len(first)),
-            initial_indent=first,
+            WIDTH - (width(start) - len(start)),
+            initial_indent=start,
             subsequent_indent=later,
             break_long_words=False,
             break_on_hyphens=False,
@@ -500,6 +525,9 @@ def varying_numbers(texts: Sequence[str]) -> list[str]:
         ", ".join(f"{label} {values[i]}".strip() for label, i in zip(labels, varying, strict=True))
         for values in numbers
     ]
+
+
+_TABLE_GAP = re.compile(r"\S {2,}\S")  # a table row: columns apart by two spaces or more
 
 
 def number_pattern(text: str) -> str:

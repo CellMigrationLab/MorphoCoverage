@@ -22,6 +22,7 @@ from typing import Any
 
 import pandas as pd
 
+from .._control import control_name
 from .._data_rules import _loose
 from .._former_repeat import one_warning, read_former
 from .._style import Status, check_detail, group_columns, wrap
@@ -476,7 +477,8 @@ def dataset_overview(
 def normalized_sentence(control: Mapping[str, Any], repeat_col: str | None) -> str:
     """How the values were normalised, for the overview and the declaration."""
     where = f"the same {column_word(repeat_col)}" if repeat_col else "the whole table"
-    return f"every feature divided by the mean of the control {dict(control)} objects of {where}"
+    named = control_name(control)
+    return f"every feature divided by the mean of the control {named} objects of {where}"
 
 
 __all__ = ["DatasetOverview", "dataset_overview", "normalized_sentence"]

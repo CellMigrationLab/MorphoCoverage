@@ -26,7 +26,9 @@ def test_an_empty_report_says_what_each_question_needs():
     for _, title in QUESTIONS:
         assert title in text
     assert text.count("Not assessed:") == len(QUESTIONS)
-    assert "No representation control" in " ".join(text.split())
+    # No definition of new ran: no "nothing new" answer to qualify (audit 10, C24).
+    assert "No representation control" not in " ".join(text.split())
+    assert "Every answer holds for the stated features." in " ".join(text.split())
     assert report.profile.empty
 
 
@@ -51,8 +53,13 @@ def test_the_overview_opens_and_the_limits_close_the_report():
     assert f"\n\n{marker} {OVERVIEW_TITLE}\n" in short
     assert short.rstrip().split("\n\n")[-1].startswith(LIMITS_TITLE)
     limits = report.limits()
-    assert "1. Can these features detect what I care about?: not assessed; needs:" in limits
-    assert "No representation control" in limits  # the notes close the report
+    # A line pointing to the section, which states the need (owner, 2026-10-06).
+    assert "1. Can these features detect what I care about?: not assessed, see question 1." in (
+        limits
+    )
+    reasons = report.limits(pointers=False)
+    assert "1. Can these features detect what I care about?: not assessed; needs:" in reasons
+    assert "Every answer holds for the stated features" in limits  # the notes close it
     assert "Read with care" not in text
     # An overview with many features lists the first twelve and counts the rest.
     many = built.objects.assign(**{f"f{i}": 0.0 for i in range(15)})

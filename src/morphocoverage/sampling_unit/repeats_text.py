@@ -119,8 +119,8 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
             else f"{span(held)} {word}s"
         )
         notes.append(
-            assumption(
-                f"{names}, with {numbers} holding both sides, "
+            assumption(  # never a condition's name first, capitalised (audit 10, C21)
+                f"With {numbers} holding both sides, {names} "
                 f"{'is' if len(untested) == 1 else 'are'} described by direction and effect "
                 f"size; the paired test across repeats needs {MIN_REPEATS}."
             )
@@ -144,11 +144,17 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
                 else ""
             )
         )
+        # "with 3 repeats only large effects" only where 3 is the most held (audit 10, C24).
+        few = (
+            f", but with 3 {word}s only large, consistent effects reach q ≤ 0.05"
+            if repeats["repeats"].max() <= MIN_REPEATS
+            else ""
+        )
         notes.append(
             assumption(
                 f"The paired t-test on the repeat means treats each {word} as one replicate: "
-                f"it keeps false positives at 5%, but with 3 {word}s only large, consistent "
-                f"effects reach q ≤ 0.05. q: Benjamini-Hochberg {family_words(contrast.settings)}; "
+                f"it keeps false positives at 5%{few}. "
+                f"q: Benjamini-Hochberg {family_words(contrast.settings)}; "
                 f"'significant across repeats' uses {used}. {WITHIN_FAMILY}"
             )
         )
@@ -173,7 +179,11 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
                     else ""
                 )
                 + ". p uncorrected, q corrected (Benjamini-Hochberg within each "
-                "sub-experiment: the conditions sharing their repeats and control). "
+                + (
+                    "experiment, as declared). "
+                    if contrast.settings.get("declared_experiments")
+                    else "sub-experiment: the conditions sharing their repeats and control). "
+                )
                 + WITHIN_FAMILY
             )
         )

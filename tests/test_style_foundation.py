@@ -448,8 +448,8 @@ def test_the_short_report_opens_with_a_title_and_one_line_per_question():
     assert f"{NOT_ASSESSED} 5. What did the extra fields buy? — not assessed" in glance
     full = report.summary(detail="full")
     assert GLANCE_TITLE not in full and f"{CAUTION} 2. Did I image enough?\n" in full
-    # The full form keeps the old full text of every answer.
-    assert report.sections["enough"] in full
+    # The full form keeps the old full text of every answer, its long lines wrapped (A22).
+    assert " ".join(report.sections["enough"].split()) in " ".join(full.split())
     with pytest.raises(ValueError, match="detail"):
         report.summary(detail="medium")
 

@@ -4,7 +4,9 @@ the rest under "Show more" (owner, 2026-10-02):
 - ``help_icon``: what a section is for, beside its title, shown on hover or a tap.
 - ``check_rows``: "The data" as one row per check (the data checks, the integrity), each
   with its chip and its finding in a few words.
-- ``flagged_fields``: the fields to check and why, the integrity's and the inspection's.
+- ``flagged_fields``: the fields to check and why, the integrity's, the acquisition
+  anomalies' and the inspection's but its new states, which ``new_state_fields`` lists apart
+  (owner, 2026-10-06, audit 10).
 - ``significant_summary``: "Do the conditions differ?" in bullets, condition by condition:
   the features significant across repeats; with fewer than 3 biological repeats, the
   candidates of the exploratory cell-level screen, said as such; ``readout_summary`` with
@@ -25,9 +27,11 @@ from .._style import Status, group_label, span
 from .._wording import change, count, listing, p_value
 from ..retrospective.inspection_text import _fields, _keys
 from ..sampling_unit._experiments import not_compared
+from ..sampling_unit.acquisition import difference_words
 from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.reading_text import VERDICTS, condition_readings, unpaired_conditions
 from ..schema import observation_words
+from ..strategies.novelty_null import uninformative_line
 from ._distribution import split_words
 from ._enough_features import NOT_YET
 from ._populations import only_labelled
@@ -89,7 +93,7 @@ def check_rows(text: str, annotate: Callable[[str], str], fields_named: bool) ->
         if (
             fields_named
             and status in (Status.PROBLEM, Status.CAUTION)
-            and "integrity" in (name.lower())
+            and ("integrity" in name.lower() or "acquisition anomalies" in name.lower())
         ):
             short += " (listed under “Fields to check”)"
         rows.append(
@@ -101,8 +105,10 @@ def check_rows(text: str, annotate: Callable[[str], str], fields_named: bool) ->
 
 
 def flagged_fields(result: Any) -> tuple[list[tuple[str, str]], list[tuple[Any, ...]], list[str]]:
-    """The fields to check: ``(field, why)`` rows (the integrity's first), the fields'
-    identities (their values of the key) and the key's columns."""
+    """The fields to check, quality control: ``(field, why)`` rows (the integrity's first,
+    then the acquisition anomalies, then the inspection's reasons but its new states), the
+    fields' identities (their values of the key) and the key's columns. The new states are
+    exploratory and listed apart (``new_state_fields``), never among the fields to remove."""
     results = getattr(result, "results", {}) or {}
     rows: list[tuple[str, str]] = []
     identities: list[tuple[Any, ...]] = []
@@ -122,10 +128,24 @@ def flagged_fields(result: Any) -> tuple[list[tuple[str, str]], list[tuple[Any, 
             why = f"{finding.check}: {detail}" + (f" (with {other})" if same else "")
             rows.append((str(field), why))
     inspection = results.get("inspection")
+    anomalies = results.get("acquisition")
+    if anomalies is not None and anomalies.found:
+        key = list(anomalies.settings["fov_key"])
+        for row in anomalies.fields.to_dict("records"):
+            side = "above" if row["z"] > 0 else "below"
+            why = (
+                f"far from its condition and repeat: {row['feature']}, "
+                f"{abs(row['z']):.1f} SDs {side}, {difference_words(row)}"
+            )
+            rows.append((str(row["field"]), why))
+            identities.append(tuple(row[c] for c in key))
     if inspection is not None and not inspection.fovs.empty:
         groups, fov_key, _ = _keys(inspection)
         key = [*groups, *fov_key]
         for group, name, own in _fields(inspection):
+            own = own[own["reason"] != "new state"]
+            if own.empty:
+                continue
             label = " · ".join(p for p in (group_label(group) if groups else "", name) if p)
             rows.append((label, "; ".join(own["detail"])))
             # Flagged only for cells of the declared rare label: biology, never an artefact.
@@ -140,6 +160,25 @@ def flagged_fields(result: Any) -> tuple[list[tuple[str, str]], list[tuple[Any, 
         found = [_field_values(name, key) for name in dict.fromkeys(named)]
         identities = [f for f in found if f is not None] + identities
     return rows, identities, key
+
+
+def new_state_fields(result: Any) -> tuple[list[tuple[str, str]], list[str]]:
+    """The fields holding a new state, ``(field, why)``, and why a group lists none (the
+    definition not informative at its size): exploratory, to look at, never to remove
+    (owner, 2026-10-06, audit 10)."""
+    inspection = (getattr(result, "results", {}) or {}).get("inspection")
+    if inspection is None:
+        return [], []
+    rows = []
+    if not inspection.fovs.empty:
+        groups, _, _ = _keys(inspection)
+        for group, name, own in _fields(inspection):
+            own = own[own["reason"] == "new state"]
+            if len(own):
+                label = " · ".join(p for p in (group_label(group) if groups else "", name) if p)
+                rows.append((label, "; ".join(own["detail"])))
+    line = uninformative_line(inspection.settings.get("uninformative_novelty", []))
+    return rows, [line] if line else []
 
 
 def _field_values(name: str, key: list[str]) -> tuple[str, ...] | None:
@@ -191,6 +230,9 @@ def _change(row: Any) -> str:
 
 def _significant(row: Any, unit: str) -> str:
     q = f"adjusted p {p_value(row.q_paired)}" if np.isfinite(row.q_paired) else ""
+    # Beside it, over every test against a control label several families share (audit 10).
+    screen = getattr(row, "q_screen", np.nan)
+    q += f" (screen-wide {p_value(screen)})" if q and pd.notna(screen) else ""
     size = ", ".join(x for x in (_change(row), q) if x)
     # The direction and its count from the repeats, as the test across repeats reads them.
     word = "higher" if row.higher >= row.lower else "lower"
@@ -386,6 +428,7 @@ __all__ = [
     "fields_table",
     "flagged_fields",
     "help_icon",
+    "new_state_fields",
     "readout_summary",
     "significant_summary",
 ]

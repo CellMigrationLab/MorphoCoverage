@@ -241,7 +241,12 @@ def signed_normalised() -> Scenario:
             **CTRL,
             "normalize": "control_mean",
         },
-        {"outcome": "refused", "at": "report", "error": "ValueError", "match": "negative"},
+        {
+            "outcome": "refused",
+            "at": "report",
+            "error": "ValueError",
+            "match": "negative.*remove 'velocity' from the features",
+        },
         columns=("area", "velocity"),
     )
 

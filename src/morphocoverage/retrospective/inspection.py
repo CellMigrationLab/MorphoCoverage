@@ -46,7 +46,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy.spatial.distance import cdist
 
 from .._checks import is_integer, is_number
 from .._style import group_label
@@ -56,14 +55,15 @@ from ..evaluator import iter_analysis_groups
 from ..metadata import column_names
 from ..objectives import ObjectiveConfig, SamplingObjective
 from ..schema import ValidatedInput, fov_positions, observation_words
+from ..strategies.novelty_null import not_informative
 from ..strategies.support_novelty import FOV_QUANTITY, SupportNoveltyEstimator
 from ..sufficiency_text import novelty_definition
 from ..transforms import MAD_TO_SD
+from ._stage_neighbours import neighbour_rows, stage_skipped
 from ._text import where
 from .inspection_text import inspection_summary
 
 REASONS = ("new state", "influence", "count", "neighbours")
-_TIED = "; fields tied in distance taken by field name"
 _TRACE = ("image_file", "position_id", "mask_file")
 _POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 # The influence scales with the group (owner, 2026-10-05; see stands_out): a field's change
@@ -72,6 +72,8 @@ _POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 INFLUENCE_SPREAD = 3.0
 INFLUENCE_MIN_FIELDS = 4
 SMALL_GROUP = f"fewer than {INFLUENCE_MIN_FIELDS} fields"
+# The settings naming the groups where a reason could not be judged.
+SKIPPED_KEYS = ("skipped_summaries", "skipped_neighbours", "skipped_novelty")
 
 
 @dataclass(frozen=True)
@@ -260,109 +262,33 @@ def _counts(data: ValidatedInput, ratio: float) -> list[dict]:
     return rows
 
 
-def _neighbours_skipped(fovs: pd.DataFrame, x_col: str, y_col: str, k: int) -> str | None:
-    """Why stage neighbours cannot be compared in this group, or None."""
-    if len(fovs) <= k:
-        return f"{len(fovs)} fields, not more than the {k} neighbours compared"
-    if fovs[[x_col, y_col]].isna().any().any():
-        return "stage coordinates are missing"
-    return None
-
-
-def _neighbour_words(valued: np.ndarray, k: int) -> str:
-    """``its 4 nearest fields``, or ``3 of its 4 nearest fields (1 without a value)``."""
-    used = int(valued.sum())
-    if used == k:
-        return f"its {k} nearest fields"
-    return f"{used} of its {k} nearest fields ({count(k - used, 'field')} without a value)"
-
-
-def _nearest(
-    fovs: pd.DataFrame, xy: np.ndarray, fov_key: Sequence[str], k: int
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Each field's ``k`` nearest other fields, ties in distance broken by field identity.
-
-    On a regular grid several fields sit at the same distance; taking them in
-    row order made which were compared depend on the order of the FOV table.
-    Distances equal to 1e-9 of the largest are ties, broken by the canonical
-    order of the FOV key. Returns the distances and positions of the
-    neighbours, and whether a tie at the k-th distance was broken.
-    """
-    n = len(fovs)
-    keys = fovs[list(fov_key)].astype(str).reset_index(drop=True)
-    rank = np.empty(n, dtype=np.int64)
-    rank[keys.sort_values(list(keys.columns), kind="stable").index.to_numpy()] = np.arange(n)
-    distance = cdist(xy, xy)
-    scale = float(distance.max()) or 1.0
-    rounded = np.round(distance / scale, 9)
-    near = np.empty((n, k), dtype=np.int64)
-    tied = np.zeros(n, dtype=bool)
-    for fov in range(n):
-        # Never the FOV itself, even when another field shares its stage position.
-        others = np.delete(np.arange(n), fov)
-        order = others[np.lexsort((rank[others], rounded[fov, others]))]
-        near[fov] = order[:k]
-        tied[fov] = len(order) > k and rounded[fov, order[k]] == rounded[fov, order[k - 1]]
-    return np.take_along_axis(distance, near, axis=1), near, tied
-
-
-def _neighbours(
-    data: ValidatedInput, x_col: str, y_col: str, k: int, threshold: float, unit: str
-) -> list[dict]:
-    fovs = data.fovs
-    xy = fovs[[x_col, y_col]].to_numpy(dtype=float)
-    if _neighbours_skipped(fovs, x_col, y_col, k) is not None:
-        return []
-    positions = fov_positions(data, fovs)
-    frame = pd.DataFrame(data.feature_matrix(), columns=list(data.feature_cols))
-    means = frame.groupby(positions).mean().reindex(range(len(fovs)))
-    distances, near, tied = _nearest(fovs, xy, data.fov_key, k)
-    rows = []
-    for feature in data.feature_cols:
-        column = means[feature].to_numpy(dtype=float)
-        for fov in range(len(fovs)):
-            others = column[near[fov]]
-            if np.isnan(column[fov]) or np.isnan(others).all():
-                continue
-            # An empty neighbour has no mean: the comparison is with the others only.
-            valued = ~np.isnan(others)
-            reach = distances[fov][valued].max()
-            # Spread of the other FOVs' means: including the FOV itself would cap
-            # its own z at sqrt(n) and hide a lone deviant field in a small group.
-            spread = np.nanstd(np.delete(column, fov), ddof=1)
-            if not np.isfinite(spread) or spread == 0:
-                continue
-            z = (column[fov] - np.nanmean(others)) / spread
-            if abs(z) >= threshold:
-                rows.append(
-                    {
-                        "position": fov,
-                        "reason": "neighbours",
-                        "value": float(z),
-                        "detail": (
-                            f"its mean {feature} is {abs(z):.1f} SD "
-                            f"{'above' if z > 0 else 'below'} {_neighbour_words(valued, k)} "
-                            f"(within {reach:.0f} {unit}{_TIED if tied[fov] else ''})"
-                        ),
-                    }
-                )
-    return rows
-
-
 def _novel(
     data: ValidatedInput,
     novelty: SupportNoveltyEstimator,
     group: str,
     skipped: list[dict],
-    label_col: str | None = None,
+    label_col: str | None,
+    uninformative: list[dict],
+    null: list[dict],
 ) -> list[dict]:
     """FOVs holding a new state, with how many of its observations carry ``label_col``; when
-    novelty is not estimable, the reason goes in ``skipped``."""
+    novelty is not estimable, the reason goes in ``skipped``, and when the definition is not
+    informative at this group's size (its own null rate above 20%, ``novelty_null``; owner,
+    2026-10-06, audit 10) in ``uninformative``, no field listed. ``null`` gathers each
+    judged group's fields and null rate (the count chance alone would give)."""
+    sizes = np.bincount(fov_positions(data, data.fovs), minlength=len(data.fovs))
+    reason, rate = not_informative(novelty, sizes, data.feature_cols)
+    if reason is not None:
+        fields, features = int((sizes > 0).sum()), len(data.feature_cols)
+        entry = {"group": group, "reason": reason, "rate": rate, "fields": fields}
+        uninformative.append({**entry, "features": features})
+        return []
     flags = novelty.novel_observation_flags(data, new_states_only=True)
     if flags is None:
         quantity = novelty.estimate(data, objective=_POPULATION).quantities[FOV_QUANTITY]
         skipped.append({"group": group, "reason": quantity.reason or "novelty is not estimable"})
         return []
+    null.append({"fields": int((sizes > 0).sum()), "rate": rate})
     if not flags.any():
         return []
     positions = fov_positions(data, data.fovs)
@@ -518,6 +444,8 @@ def inspect_fovs(
             raise ValueError(f"stage columns missing from the FOV table: {absent}")
     trace = [c for c in (*_TRACE, *(stage_cols or ())) if c in data.fovs.columns]
     rows, skipped, neighbours_skipped, novelty_skipped, small = [], [], [], [], []
+    uninformative: list[dict] = []
+    null: list[dict] = []
     checked: set[str] = set()
     n_fovs = n_judged = 0
     for group, both in iter_analysis_groups(data):
@@ -526,9 +454,11 @@ def inspect_fovs(
         found = []
         if novelty is not None:
             judged = replace(both, feature_cols=tuple(novelty_cols))
-            before = len(novelty_skipped)
-            found += _novel(judged, novelty, where(group), novelty_skipped, label_col)
-            if len(novelty_skipped) == before:
+            before = len(novelty_skipped) + len(uninformative)
+            found += _novel(
+                judged, novelty, where(group), novelty_skipped, label_col, uninformative, null
+            )
+            if len(novelty_skipped) + len(uninformative) == before:
                 checked.add("new state")
                 n_judged += len(both.fovs)
         if summaries:
@@ -548,19 +478,19 @@ def inspect_fovs(
             found += _counts(group_data, float(count_ratio))
             checked.add("count")
         if stage_cols is not None:
-            why = _neighbours_skipped(group_data.fovs, *stage_cols, n_neighbours)
+            why = stage_skipped(group_data.fovs, *stage_cols, n_neighbours)
             if why is not None:
                 neighbours_skipped.append({"group": where(group), "reason": why})
             else:
                 checked.add("neighbours")
-            found += _neighbours(
+            found += neighbour_rows(
                 group_data,
                 *stage_cols,
                 n_neighbours,
                 float(neighbour_threshold),
                 stage_unit,
             )
-        for entry in (*skipped, *neighbours_skipped, *novelty_skipped, *small):
+        for entry in (*skipped, *neighbours_skipped, *novelty_skipped, *uninformative, *small):
             entry.setdefault("label", group_label(group))  # the group as the summaries name it
         rows += field_rows(group, group_data, found, trace)
     settings = {
@@ -581,6 +511,10 @@ def inspect_fovs(
         "skipped_summaries": skipped,
         "skipped_neighbours": neighbours_skipped,
         "skipped_novelty": novelty_skipped,
+        # Groups where the definition of new is not informative at their size, and each
+        # judged group's fields and null rate (owner, 2026-10-06, audit 10).
+        "uninformative_novelty": uninformative,
+        "novelty_null": null,
         # The groups too small to judge a field's influence in (owner, 2026-10-05).
         "skipped_small": small,
         # The reasons judged in at least one group, in the order of REASONS.
@@ -592,4 +526,11 @@ def inspect_fovs(
     return InspectionResult(pd.DataFrame(rows), tuple(data.group_cols), settings)
 
 
-__all__ = ["REASONS", "InspectionResult", "Summary", "inspect_fovs", "inspection_summary"]
+__all__ = [
+    "REASONS",
+    "SKIPPED_KEYS",
+    "InspectionResult",
+    "Summary",
+    "inspect_fovs",
+    "inspection_summary",
+]

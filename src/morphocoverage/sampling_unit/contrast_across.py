@@ -6,9 +6,12 @@ beside the main verdicts (each condition against its own control), two kinds of 
 row, each tested on the repeat means, one value per biological repeat (no cell-level test:
 the repeat is the replicate):
 
-- ``vs_master_raw``: a control against the master control on the raw values, paired across
-  the repeats holding both, each repeat's ``mean(control) - mean(master)``. It assumes the
-  experiments were imaged and processed alike. Labelled ``THBS5_SiNC vs VEC_SiNC (raw)``.
+- ``vs_master_raw``: a control against the master control on the raw values, not normalised,
+  paired across the repeats holding both, on the feature's scale as every test: each
+  repeat's ``log(mean(control) / mean(master))``, else ``mean(control) - mean(master)``
+  (audit 10, owner, 2026-10-06; before, always the difference, beside a fold change). It
+  assumes the experiments were imaged and processed alike. Labelled
+  ``THBS5_SiNC vs VEC_SiNC (raw)``.
 - ``across_normalised``: two conditions of different experiments sharing a treatment, each
   normalised to its own control, paired across the repeats holding all four: each repeat's
   ``log(mean(a) / mean(control of a)) - log(mean(b) / mean(control of b))``, the log ratio
@@ -103,10 +106,13 @@ def _effects(
     differences); the fold change on the log scale."""
     means = np.array(sides, dtype=float)
     positive = means.size > 0 and bool((means > 0).all()) if log is None else log
+    if kind == MASTER_RAW and positive:
+        # On the feature's scale, as the fold change printed beside it (audit 10, owner,
+        # 2026-10-06; before, the raw difference was tested beside a fold change).
+        effects = np.log(means[0] / means[1])
+        return NORMALISED, effects, float(np.exp(effects.mean()))
     if kind == MASTER_RAW:
-        effects = means[0] - means[1]
-        fold = float(np.exp(np.log(means[0] / means[1]).mean())) if positive else np.nan
-        return RAW, effects, fold
+        return RAW, means[0] - means[1], np.nan
     if positive:
         effects = np.log(means[0] / means[1]) - np.log(means[2] / means[3])
         return NORMALISED, effects, float(np.exp(effects.mean()))

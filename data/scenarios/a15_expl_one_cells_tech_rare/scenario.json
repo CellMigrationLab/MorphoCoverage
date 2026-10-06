@@ -1,7 +1,7 @@
 {
  "name": "a15_expl_one_cells_tech_rare",
  "kind": "axes",
- "checks": "features; each condition against the control; the rare label's share and clustering",
+ "checks": "features; each condition against the control; the rare label's share and clustering in fields",
  "axes": {
   "tables": "expl",
   "controls": "one",
@@ -60,6 +60,14 @@
   "separation_spaces": [
    "Features"
   ],
-  "html": false
+  "html": false,
+  "null_features": [
+   "ecc"
+  ],
+  "planted": {
+   "area": [
+    "a"
+   ]
+  }
  }
 }

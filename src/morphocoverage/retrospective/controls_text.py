@@ -185,6 +185,23 @@ def pooled_over(result: ControlResult) -> str:
     return f"pooled over all {' · '.join(column_word(c) for c in pair_cols)} strata"
 
 
+def cannot_tell(rate: float, alarms: float) -> str:
+    """The positive control recognized no more often than the reference's false alarms: the
+    definition of new tells them apart nowhere, so nothing is judged (owner, 2026-10-06,
+    audit 10; before, a weak representation of features that may show the phenotype)."""
+    return (
+        "Cannot tell the positive control from the reference with this definition of new: "
+        f"recognized in {percent(rate)} of checks, no more often than the false alarms "
+        f"({percent(alarms)}), so it is not judged"
+    )
+
+
+def _cannot_tell_line(result: ControlResult) -> str | None:
+    """``cannot_tell`` as the section's sentence, when the pooled rates call for it."""
+    gate, _ = representation_gate(result, 0.0)
+    return f"{gate}." if gate.startswith("Cannot tell") else None
+
+
 def representation_gate(result: ControlResult, minimum_detection: float) -> tuple[str, bool]:
     """The sentence that gates the report's questions 2, 4 and 5, and whether it is a weak
     representation; ``("", False)`` when the representation is strong enough.
@@ -199,6 +216,10 @@ def representation_gate(result: ControlResult, minimum_detection: float) -> tupl
     rate = rates.get("planted" if planted else "positive")
     if planted and (rate is None or pd.isna(rate)):
         return NOT_PLANTED, False
+    alarms = rates.get("reference")
+    both = not (rate is None or pd.isna(rate) or alarms is None or pd.isna(alarms))
+    if both and float(rate) <= float(alarms):  # nothing told apart: not judged (audit 10, C1)
+        return cannot_tell(float(rate), float(alarms)), False
     if rate is None or pd.isna(rate) or float(rate) >= minimum_detection:
         return "", False
     seen = (
@@ -267,7 +288,7 @@ def control_parts(result: ControlResult, indent: int = 0) -> tuple[list[str], li
     lines = [wrap(_lead(result), indent, hang=indent + 2)]
     lines.append(table(rows, _columns(result), indent=indent + 2))
     lines.append(wrap(_method_line(result, cells), indent, hang=indent + 2))
-    for line in (_by_stratum(result), _empty_line(result, cells)):
+    for line in (_cannot_tell_line(result), _by_stratum(result), _empty_line(result, cells)):
         if line:
             lines.append(wrap(line, indent, hang=indent + 2))
     return lines, _cautions(result, cells, unjudged)
@@ -315,6 +336,8 @@ def control_full(result: ControlResult, indent: int = 0) -> str:
         table(rows, _columns(result), indent=indent + 2),
     ]
     lines.append(wrap(_method_line(result, cells), indent, hang=indent + 2))
+    if _cannot_tell_line(result):
+        lines.append(wrap(_cannot_tell_line(result), indent, hang=indent + 2))
     strata = _strata_table(result, indent)
     if strata:
         per = f"Per {group_columns(result.pair_cols) or 'stratum'} (recognized/judged):"

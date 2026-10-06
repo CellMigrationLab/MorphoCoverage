@@ -25,6 +25,7 @@ from .._wording import change, count, features_counted, listing, p_value
 from ..data_check import validate_input_tables
 from ..schema import observation_words
 from ..statistics import repeat_values
+from ._experiments import family_noun
 from .contrast_cells import ALPHA
 from .contrast_repeats import MIN_REPEATS
 
@@ -176,7 +177,12 @@ def n_sentence(
     return f"{head}. " + "; ".join(entries) + (f"; {wells}" if wells else ""), True
 
 
-def _families(across: pd.DataFrame, features: int | None = None, share: str | None = None) -> str:
+def _families(
+    across: pd.DataFrame,
+    features: int | None = None,
+    share: str | None = None,
+    settings: Any = None,
+) -> str:
     """The correction family, counted: ``over 2 tests (siCCT8#5 and siCCT8#8 against
     siCTRL)``, or the tests in each sub-experiment; a labelled state's ``share`` among the
     ``features`` counted apart."""
@@ -197,6 +203,8 @@ def _families(across: pd.DataFrame, features: int | None = None, share: str | No
         against = f" against {controls[0]}" if len(controls) == 1 and not named else ""
         return f"over {count(len(block), 'test')} ({names}{against})"
     size = f"{sizes[0]}" if len(sizes) == 1 else f"{sizes[0]} to {sizes[-1]}"
+    if family_noun(settings) == "experiment":  # declared: one may hold several controls
+        return f"{size} tests in each of {len(groups)} experiments as declared"
     return f"{size} tests in each of {len(groups)} sub-experiments, each with its own control"
 
 
@@ -294,9 +302,12 @@ def figure_legend(
     across = getattr(contrast, "repeats", None)
     features = contrast.settings.get("family_features")
     share = contrast.settings.get("family_share")
-    families = _families(across, features, share) if across is not None and len(across) else ""
+    settings = contrast.settings
+    families = (
+        _families(across, features, share, settings) if across is not None and len(across) else ""
+    )
     many = across is not None and "experiment" in across and across["experiment"].nunique() > 1
-    within = " within each sub-experiment" if many else ""
+    within = f" within each {family_noun(settings)}" if many else ""
     if families.startswith("over "):
         family = f"{',' if within else ''} {families}"
     else:

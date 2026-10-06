@@ -29,6 +29,7 @@ from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import control_mean_problem, normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..sampling_unit.populations import MAX_COMPONENTS, VARIANCE
+from ._acquisition_gap import gap_maps_line
 from ._contrasts import left_out_sentence, normalisation_problem
 from ._feature_space import (
     analysed_tables,
@@ -42,6 +43,7 @@ from ._html_data import data_buttons, embedding_data, json_island, write_csv
 from ._html_figures import figure_block, file_stem, save
 from ._html_map_text import (
     NEIGHBOURS,
+    ONE_CONDITION,
     VALUE_WORDS,
     centred_note,
     combined_words,
@@ -345,7 +347,10 @@ def embeddings(
     maps = _maps(setup, tables, fovs, top, carry)
     ran = "unusual" in result.results
     line = centring_line(objects, fovs, setup, ran) if "centred" in maps else ""
-    centred = centred_note(line)
+    contrast = result.results.get("contrast")
+    gaps = contrast.settings.get("acquisition_gaps", []) if contrast is not None else []
+    centred = " ".join(p for p in (centred_note(line), gap_maps_line(gaps)) if p)
+    uncentred = gap_maps_line(gaps, centred=False)
     spaces = list(maps["raw"])
     several = len(spaces) > 1
     # How far the conditions separate in each space, under its map (owner, 2026-10-05).
@@ -361,6 +366,9 @@ def embeddings(
     raw_separation = separations.get("raw")
     wells = raw_separation.well_line() if raw_separation is not None else ""
     neighbours = f"{NEIGHBOURS} {wells}".rstrip()
+    one = CONDITION_COLUMN not in fovs or fovs[CONDITION_COLUMN].nunique() < 2
+    if raw_separation is None and one:
+        neighbours = ONE_CONDITION  # nothing to separate, said with why (audit 10, C29)
     ranked = list(top) + [f for f in setup.columns if f not in set(top)]
     first = maps["raw"][spaces[0]]
     features = [f for f in ranked if f"z:{f}" in first.points][:MAP_FEATURES]
@@ -503,6 +511,11 @@ def embeddings(
         + f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
         f'<p class="note">{html.escape(neighbours)}</p>'
         + (f'<p class="note">{html.escape(centred)}</p>' if "centred" in maps else "")
+        + (
+            f'<p class="note">{html.escape(uncentred)}</p>'
+            if uncentred and "centred" not in maps
+            else ""
+        )
         + '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "
         + _batch_words(setup, fovs, unnormalisable, "centred" in maps)
@@ -535,10 +548,11 @@ def maps_body(setup: Any, viz: str, static: list[str]) -> str:
 def _batch_words(setup: Any, fovs: pd.DataFrame, unnormalisable: str | None, centred: bool) -> str:
     """The end of the maps' note: which view takes a batch between repeats out."""
     if not setup.columns:  # an embedding-only report: the tables are never divided
+        # The map's view; the separation by condition compares within each repeat already.
         view = (
-            "the centred view takes out"
+            "the centred view takes out of the map"
             if centred
-            else "a control would let the centred view take out"
+            else "a control would let the centred view take out of the map"
         )
         return f"repeats, which {view}.</p></div>"
     if unnormalisable is None:

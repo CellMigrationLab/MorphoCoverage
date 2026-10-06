@@ -4,24 +4,25 @@ At a glance
   Key: ✅ yes, or a clear answer · ⚠️ partly, a trend only, or something to look at · ❌ check the
     data first · ➖ no conclusion possible here. The word beside each marker says which.
   ❌ The data — data checks: no warning; integrity: 1 finding in 2 fields; check them first;
-     acquisition: 9 fields far from their condition and repeat
+     acquisition: 4 fields far from their condition and repeat
   ✅ Foundation. Why count fields? — each field holds one of the cells, so fields and cells coincide
   ➖ 1. Can the features see the phenotype? — not assessed; needs a positive control: a condition
      known to change the phenotype
   ⚠️ 2. Did I image enough? — to compare with the control, within single repeats, of 10 features:
      enough for 4 (Round, AR, Major and 1 more); partly for 6 (Circ., Solidity, Minor and 3 more); 8
      comparisons over Circ., Solidity, Minor and 3 more too small to show even with 4 times the
-     cells; of the rest, MinFeret needs the most (about 60 cells a side); each well's own mean meets
-     the default mean-precision rule, per cell, 5% in every well for none of the 10 features, a
-     different goal from the comparison
-  ⚠️ 3. What limits my sampling? — whole fields 1.0x as variable as random cells; unusual images
-     0-13% of each group (exploratory)
-  ⚠️ 6. Which fields should I look at? — 28 fields to reopen in 9 wells (new state in 28, influence
-     in 4); integrity names 2 fields
-  ✅ 9. Do the conditions differ? — 4 of 10 features significant across repeats (Round, AR, Major and
-     Feret); 9 candidates in the exploratory cell-level screen
-  ✅ 10. Groups of cells? — 1 group of cells to validate on the images; G1 (20% of cells; high AR):
-     less common in siCCT8#5 (4.8% vs 55%, q 0.022) across repeats
+     cells; of the rest, Area needs the most if its difference is real (about 46 cells a side); each
+     well's own mean meets the default mean-precision rule, per cell, 5% in every well for none of
+     the 10 features, a different goal from the comparison
+  ⚠️ 3. What limits my sampling? — one of the cells per field; unusual images 0-13% of each scored
+     group (exploratory)
+  ⚠️ 6. Which fields should I look at? — 4 fields to reopen in 3 wells (influence in 4); integrity
+     names 2 fields
+  ✅ 9. Do the conditions differ? — 4 of 10 features significant across repeats (Round, AR, Major
+     and Feret); 9 candidates in the exploratory cell-level screen; Round for siCCT8#5 rests on 3
+     near-identical repeats
+  ⚠️ 10. Groups of cells? — 1 group of cells to validate on the images; G1 (20% of cells; low
+     Round): less common in siCCT8#5 (exploratory; 4.8% vs 55%, q 0.022)
   Questions 4, 5, 7 and 8, planning the next experiment, come from workflows.optimise.
 
 ❌ What is in the dataset
@@ -30,15 +31,16 @@ At a glance
   3 conditions (siCTRL, siCCT8#5, siCCT8#8), 3 biological repeats (1, 2, 3), one well per condition
     in each repeat (9 wells); each well analysed apart; 11 to 27 cells per condition and repeat.
   ✅ Data checks: no warning.
-  ❌ Integrity: 1 finding in 2 fields; check them first: siCCT8#5 · repeat 1 · siCCT8#5|1|cell007 and
-     siCCT8#5 · repeat 1 · siCCT8#5|1|cell008.
-  ⚠️ Acquisition anomalies (raw values, quality control): 9 fields 5 SDs or more from the other
-     fields of their condition and repeat on the raw values: siCCT8#8 · repeat
-     3 · siCCT8#8|3|cell007 (AR, 24 SDs above, 4.4 times), siCCT8#5 · repeat 2 · siCCT8#5|2|cell018
-     (Perim., 14 SDs above, 6.2 times), siCTRL · repeat 2 · siCTRL|2|cell001 (Minor, 10.2 SDs above,
-     3.5 times), siCCT8#8 · repeat 3 · siCCT8#8|3|cell012 (Area, 8 SDs above, 3.8 times) and 5 more;
-     an engineering quality-control threshold, never a biological verdict: open their images, 174
-     fields judged in 9 groups.
+  ❌ Integrity: 1 finding in 2 fields; check them first: siCCT8#5 · repeat 1 · siCCT8#5|1|cell007
+     and siCCT8#5 · repeat 1 · siCCT8#5|1|cell008.
+  ⚠️ Acquisition anomalies (quality control): 4 fields 5 SDs or more from the other fields of their
+     condition and repeat on the log scale: siCCT8#8 · repeat 2 · siCCT8#8|2|cell006 (MinFeret, 7.6
+     SDs below, ×0.18), siCTRL · repeat 2 · siCTRL|2|cell023 (Solidity, 6.2 SDs below, −43%),
+     siCCT8#5 · repeat 2 · siCCT8#5|2|cell018 (Circ., 5.9 SDs below, ×0.076) and siCTRL · repeat
+     2 · siCTRL|2|cell001 (MinFeret, 5.3 SDs above, ×3.3); about 0.001 expected by chance in the
+     1740 values of a field and feature judged, were the differences Gaussian on these scales; an
+     engineering quality-control threshold, never a biological verdict: open their images, 174
+     fields judged in 9 groups; each field holds one cell, so this reads single cells.
 
 What this acquisition was asked to preserve
   Population summary: the mean of Area over all cells, within 5% and 2.5% (judged on held-back
@@ -81,7 +83,9 @@ What this acquisition was asked to preserve
     random cells and whole fields are the same draws.
 
 ➖ 1. Can these features detect what I care about?
-  Not assessed: name a condition known to change the phenotype as the positive control (the guided session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again; it can be added after the acquisition, whenever such a condition was imaged.
+  Not assessed: name a condition known to change the phenotype as the positive control (the guided
+  session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again; it
+  can be added after the acquisition, whenever such a condition was imaged.
 
 ⚠️ 2. Did I image enough?
   Each feature alike, 10 features, ordered as in “Do the conditions differ?” (significant across
@@ -92,11 +96,11 @@ What this acquisition was asked to preserve
     Major     enough: shown in 6 of 6            –                                              0 of 9 wells
     Feret     enough: shown in 6 of 6            –                                              0 of 9 wells
     Circ.     partly: shown in 5 of 6            1 too small to show                            1 of 9 wells
-    Solidity  partly: shown in 4 of 6            about 31 cells a side; 1 too small to show     8 of 9 wells
-    Minor     partly: shown in 4 of 6            about 31 cells a side; 1 too small to show     0 of 9 wells
+    Solidity  partly: shown in 4 of 6            about 35 cells a side; 1 too small to show     8 of 9 wells
+    Minor     partly: shown in 3 of 6            about 17-36 cells a side; 1 too small to show  0 of 9 wells
     Perim.    partly: shown in 4 of 6            2 too small to show                            0 of 9 wells
-    Area      partly: shown in 2 of 6            about 42-56 cells a side; 1 too small to show  0 of 9 wells
-    MinFeret  partly: shown in 2 of 6            about 25-60 cells a side; 2 too small to show  1 of 9 wells
+    Area      partly: shown in 2 of 6            about 30-46 cells a side; 1 too small to show  0 of 9 wells
+    MinFeret  partly: shown in 2 of 6            2 too small to show                            1 of 9 wells
 
   The stopping rules, as optimise and live run them (on the readout):
   Analysis groups: condition · biological repeat · technical repeat.
@@ -119,11 +123,10 @@ What this acquisition was asked to preserve
     the full report (report_full.txt).
   'New': a cell that no other field shows; the exact definition is in the full report.
   The cautions on these rules are in the full report.
-  Assumptions: Shown: the 95% interval of d, from resampling the technical repeats and their fields
-    as acquired, empty fields included, excludes 0. The cells a side it would take are projected
-    from the part of the interval within wells (narrowing as 1/sqrt(cells)); the part between wells
-    does not shrink with more cells, and when it alone is as wide as the difference, more cells will
-    not resolve it: more wells or biological repeats. Beyond 4 times the cells acquired a difference
+  Assumptions: Shown: the 95% interval of d, exact from the noncentral t distribution, each field
+    holding one observation and each side one well, so the observations are independent draws,
+    excludes 0. With fewer than 5 cells a side, not assessable. The cells a side it would take are
+    projected from it (narrowing as 1/sqrt(cells)). Beyond 4 times the cells acquired a difference
     is called too small to show. Mean-precision rule, per cell, 5% treats cells as independent
     draws: it assumes a spatially uniform sample. Mean-precision rule, per field, 5%: in simulations
     its upper bound, a bootstrap of whole fields, covered the true averaging error about 85-95% of
@@ -139,12 +142,11 @@ What this acquisition was asked to preserve
 ⚠️ 3. What is limiting my sampling?
   - Fields: each field holds one of the cells, so a mean from whole fields is one of as many random
     cells (design effect 1).
-  - Unusual images (exploratory, farther from the siCTRL reference than all but 1% of its cells;
-    0-13% of each group).
-  - New states come from 28 fields.
-  ⚠️ Refits with other reference samples agree on only 0-67% of the unusual images in 4 of 9 groups
-     (siCCT8#5 · repeat 1, siCCT8#5 · repeat 3, siCCT8#8 · repeat 2 and 1 more; below 90%): treat
-     those labels as unstable.
+  - Unusual images (exploratory, farther from the siCTRL reference than all but 1% of its images;
+    0-13% of each scored group).
+  ⚠️ Refits with other reference samples agree on only 25-67% of the unusual images in 3 of 5 groups
+     (siCCT8#5 · repeat 3, siCCT8#8 · repeat 2 and siCTRL · repeat 2; below 90%): treat those labels
+     as unstable.
   Assumptions: A state the reference already holds, at any share, is not unusual: only its share can
     change, and the populations (“Are there groups of cells?”) compare each condition's share of
     such a state with its control's.
@@ -153,39 +155,44 @@ What this acquisition was asked to preserve
     field holds a state or not.
 
 ⚠️ 6. Which fields should I look at?
-  28 fields to reopen in 9 wells: a state no other field shows (28 fields); sways the result (4
-    fields).
-    group                field               why
-    siCCT8#5 · repeat 1  siCCT8#5|1|cell004  1 cell of a state no other field shows
-    siCCT8#5 · repeat 1  siCCT8#5|1|cell013  1 cell of a state no other field shows
-    siCCT8#5 · repeat 1  siCCT8#5|1|cell017  1 cell of a state no other field shows
-    siCCT8#5 · repeat 1  siCCT8#5|1|cell020  1 cell of a state no other field shows
-    siCCT8#5 · repeat 1  siCCT8#5|1|cell023  1 cell of a state no other field shows
-    siCCT8#5 · repeat 2  siCCT8#5|2|cell002  1 cell of a state no other field shows
-    siCCT8#5 · repeat 2  siCCT8#5|2|cell006  1 cell of a state no other field shows
-    siCCT8#5 · repeat 2  siCCT8#5|2|cell008  1 cell of a state no other field shows
-    and 20 fields more (report_full.txt).
+  4 fields to reopen in 3 wells: sways the result (4 fields).
+    siCCT8#5 · repeat 3 · siCCT8#5|3|cell015: removing it lowers siCCT8#5's mean of Area in this
+      repeat (every cell weighing one, as in the test across repeats) by 13%: its change against the
+      control goes from ×0.77 to ×0.73, the paired t-test's p from 0.21 to 0.24.
+    siCCT8#8 · repeat 2 · siCCT8#8|2|cell003: removing it lowers siCCT8#8's mean of Area in this
+      repeat (every cell weighing one, as in the test across repeats) by 11%: its change against the
+      control goes from ×0.76 to ×0.73, the paired t-test's p from 0.11 to 0.095.
+    siCCT8#8 · repeat 2 · siCCT8#8|2|cell009: removing it lowers siCCT8#8's mean of Area in this
+      repeat (every cell weighing one, as in the test across repeats) by 11%: its change against the
+      control goes from ×0.76 to ×0.73, the paired t-test's p from 0.11 to 0.095.
+    siCCT8#8 · repeat 3 · siCCT8#8|3|cell012: removing it lowers siCCT8#8's mean of Area in this
+      repeat (every cell weighing one, as in the test across repeats) by 15%: its change against the
+      control goes from ×0.76 to ×0.72, the paired t-test's p from 0.11 to 0.16.
   None of these is called an error: look at the images to see whether it is biology, technique or
     simply a large field.
+  ⚠️ New states are not listed in 9 groups (siCCT8#5 · repeat 1, siCCT8#5 · repeat 2,
+     siCCT8#5 · repeat 3 and 6 more): not informative with 11 to 27 fields in 10 features each,
+     where this definition of new calls 32% to 66% of the fields of a homogeneous population of
+     these sizes new.
 
   Look first at the 2 fields the integrity checks name in the overview: every answer here counts
     them as independent fields.
+
+  Novelty is exploratory: not yet validated by the benchmark of docs/common/validation.md.
 
 ✅ 9. Do the conditions differ, and how confidently?
   Reading, condition by condition, against siCTRL. Significant across repeats: the paired t-test on
     the biological repeat means (as SuperPlots; values normalised to each repeat's control) gives q
     ≤ 0.05 after Benjamini-Hochberg within the condition's sub-experiment, over its 10 features and
-    their conditions: this is the result to report. Same direction, not significant: on one side of
-    the control in every repeat without reaching q ≤ 0.05, a consistent trend and not evidence of no
-    effect (with 3 repeats only large, consistent effects reach it), said from 6 repeats: with
-    fewer, every repeat goes the same way by chance too often (1 experiment in 4 with 3 repeats).
-    Beside it, the cell-level screen (as Plot&Stats, every cell an independent draw) is exploratory:
-    it finds candidates, not effects that repeat:
+    their conditions: this is the result to report (with 3 repeats only large, consistent effects
+    reach it). No trend is called below 6 repeats: every repeat goes the same way by chance too
+    often (1 experiment in 4 with 3 repeats). Beside it, the cell-level screen (as Plot&Stats, every
+    cell an independent draw) is exploratory: it finds candidates, not effects that repeat:
     - siCCT8#5 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -0.57, mean 23% lower than the control); paired t-test on the 3 repeat means p
       0.21, q 0.26; change ×0.82, ×0.946 and ×0.58 in the 3 repeats, ×0.77 overall, 95% t interval
       ×0.41 to ×1.43; cell-level screen (exploratory) q 0.018 (balanced, normalised; with no real
-      effect it gives p ≤ 0.05 in about 14% of experiments like this one); siCCT8#8 (CCT8) agrees in
+      effect it gives p ≤ 0.05 in about 17% of experiments like this one); siCCT8#8 (CCT8) agrees in
       3 of 3 biological repeats.
     - siCCT8#8 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -0.59, mean 24% lower than the control); paired t-test on the 3 repeat means p
@@ -213,19 +220,19 @@ What this acquisition was asked to preserve
       provided only where the control comes from the condition's own biological repeats.
     As provided:
     condition           raw: d, p (q)          normalised: d, p (q)   gives p ≤ 0.05 with no effect
-    siCCT8#5 vs siCTRL  -0.44, 0.020 (0.020)   -0.44, 0.029 (0.029)   about 17%
+    siCCT8#5 vs siCTRL  -0.44, 0.020 (0.020)   -0.44, 0.029 (0.029)   about 22%
     siCCT8#8 vs siCTRL  -0.57, 0.0025 (0.005)  -0.51, 0.0055 (0.011)  about 5%
     Balanced over the repeats:
     condition           raw: d, p (q)         normalised: d, p (q)   gives p ≤ 0.05 with no effect
-    siCCT8#5 vs siCTRL  -0.43, 0.020 (0.020)  -0.47, 0.016 (0.018)   about 14%
+    siCCT8#5 vs siCTRL  -0.43, 0.020 (0.020)  -0.47, 0.016 (0.018)   about 17%
     siCCT8#8 vs siCTRL  -0.53, 0.011 (0.020)  -0.59, 0.005 (0.0063)  about 5%
     q: the version the reading uses (balanced and normalised when given, else normalised) is
       corrected over the 10 features and their conditions of each sub-experiment, as the feature
       ranking; the other columns over this feature's conditions only.
-  No test within a single repeat: each condition has one well there, no within-repeat technical
-    replication, and the cells of one well are not independent replicates (the cell-level screen
-    above treats them as such, and is exploratory). The per-repeat d are in question 2, and every
-    number in the full report (report_full.txt).
+  No test within a single repeat: each condition and its control have one well in each repeat, no
+    within-repeat technical replication. The cells of one well are not independent replicates (the
+    cell-level screen above treats them as such, and is exploratory). The per-repeat d are in
+    question 2, and every number in the full report (report_full.txt).
   Planning the next experiment on Area (for a new experiment, if the difference and the variation
     seen here recur; not what the current result needs): the biological repeats a paired t-test on
     the repeat means needs for 80% power, corrected over the conditions of its sub-experiment (a
@@ -233,7 +240,7 @@ What this acquisition was asked to preserve
     cells a side each of 3 repeats needs to show the difference on its own:
     condition           change across repeats  mean d per repeat (cells)  repeats needed  with twice the cells  cells a side per repeat
     siCCT8#5 vs siCTRL  ×0.77                  -0.57                      12              10                    more than 4 times the cells
-    siCCT8#8 vs siCTRL  ×0.76                  -0.59                      7               5                     about 56
+    siCCT8#8 vs siCTRL  ×0.76                  -0.59                      7               5                     about 46
   Which features separate the conditions? 9 of 10 features are candidates in the exploratory
     cell-level screen: they differ for at least one condition (each condition against the control,
     siCTRL: Cohen's d on the observations normalised to each repeat's control, randomization test, q
@@ -249,11 +256,17 @@ What this acquisition was asked to preserve
        4  Feret    -1.71  siCCT8#8    ×0.55  ×0.57, ×0.55 and ×0.54  ×0.51 to ×0.59         0.0015          0.0091  3 of 3 lower
        5  Circ.    +1.20  siCCT8#5    ×1.92  ×2.41, ×1.36 and ×2.14  ×0.906 to ×4.05        0.0015            0.14  3 of 3 higher
     and 4 more ranked features
-    Significant across repeats (paired t-test on the repeat means, q ≤ 0.05): 4 features (Round, for siCCT8#5 ×2.10 and siCCT8#8 ×2.25; AR, for siCCT8#5 ×0.42 and siCCT8#8 ×0.41; Major, for siCCT8#5 ×0.57 and siCCT8#8 ×0.56; Feret, for siCCT8#5 ×0.57 and siCCT8#8 ×0.55).
+    Significant across repeats (paired t-test on the repeat means, q ≤ 0.05): 4 features (Round, for
+      siCCT8#5 ×2.10 and siCCT8#8 ×2.25; AR, for siCCT8#5 ×0.42 and siCCT8#8 ×0.41; Major, for
+      siCCT8#5 ×0.57 and siCCT8#8 ×0.56; Feret, for siCCT8#5 ×0.57 and siCCT8#8 ×0.55).
   Not a candidate for any condition (1 feature): MinFeret.
   Plotted by default: up to 5 best-ranked features (the readout when none ranks).
   ⚠️ Candidates, but lower in some repeats and higher in others: Perim. (siCCT8#8) and Circ.
      (siCCT8#8); a shift between repeats, not a consistent effect.
+  ⚠️ Rests on 3 near-identical repeats: Round for siCCT8#5 (SD 0.02, median 0.13). The SD of the log
+     ratios across the repeats is under a fifth of its median over the sub-experiment's features and
+     conditions, so the small p comes from repeats that agree almost exactly, which 3 repeats cannot
+     show to be typical.
   Assumptions: The paired t-test on the repeat means treats each biological repeat as one replicate:
     it keeps false positives at 5%, but with 3 biological repeats only large, consistent effects
     reach q ≤ 0.05. q: Benjamini-Hochberg within each sub-experiment, over its 10 features and their
@@ -266,29 +279,30 @@ What this acquisition was asked to preserve
     each repeat, its p from labels shuffled within each repeat. Within a repeat the conditions are
     described by their effect sizes; they are tested across repeats (the first table). The test and
     the effect sizes compare means: a difference confined to a subpopulation of cells or to the
-    shape of the distribution is not tested (see the unusual cells and the rare label). Repeats
-    needed: for a paired t-test at p ≤ 0.05/m, m the conditions of the sub-experiment (what
-    Benjamini-Hochberg asks at most), on the values that test compares: each repeat's change (its
-    mean over its control's, a fold change; the difference of the means for a feature with a value
-    that is not positive; the table gives their geometric mean, as the verdict does), its spread
-    between the repeats and its sampling error within one. All projected from the repeats here, so
-    the plan is a guide. Candidates come from the cell-level test, which treats every observation as
-    an independent draw and so finds differences that may not repeat; only the paired t-test on the
-    repeat means (3 or more repeats) decides significance.
+    shape of the distribution is not tested (see the unusual cells). Repeats needed: for a paired
+    t-test at p ≤ 0.05/m, m the conditions of the sub-experiment (what Benjamini-Hochberg asks at
+    most), on the values that test compares: each repeat's change (its mean over its control's, a
+    fold change; the difference of the means for a feature with a value that is not positive; the
+    table gives their geometric mean, as the verdict does), its spread between the repeats and its
+    sampling error within one. All projected from the repeats here, so the plan is a guide.
+    Candidates come from the cell-level test, which treats every observation as an independent draw
+    and so finds differences that may not repeat; only the paired t-test on the repeat means (3 or
+    more repeats) decides significance.
 
-✅ 10. Are there groups of cells, and is a condition enriched in one?
+⚠️ 10. Are there groups of cells, and is a condition enriched in one?
   174 cells in all, every condition pooled, clustered on the 10 declared features (HDBSCAN on a
     5-dimensional UMAP of their robust standardisation; a cluster holds at least 15 cells), each
     cluster then judged on all the features: 1 group of cells to validate on the images (P1 80%, G1
     20%; 0% of the cells in none).
     population  kind             cells      defined by                            neighbours inside  rule (held-out fields: found, right)       fields  in largest field  repeats  most different (vs siCTRL)
-    P1          main (the rest)  139 (80%)  low AR (d -3.7), high Round (d +2.7)  –                  –                                          139     0.7%              3        the rest (not tested)
-    G1          group            35 (20%)   high AR (d +3.7), low Round (d -2.7)  95%                AR > 3.18 and MinFeret ≤ 17.7 (91%, 100%)  35      3%                3        siCCT8#5: lower in 3 of 3, 4.8% vs 55%, q 0.022
-    - G1, 20% of cells, high AR (d +3.7) and low Round (d -2.7): siCCT8#5 lower, significant across
-      repeats (4.8% vs 55%, q 0.022); siCCT8#8 lower in every repeat, not significant (5.2% vs 55%,
-      q 0.077). Picked by AR > 3.18 and MinFeret ≤ 17.7, fitted on all the cells; the procedure,
-      refitted with whole fields held out, finds 91% of the group's cells in them, 100% of those it
-      picks being in it.
+    P1          main (the rest)  139 (80%)  low AR (d -4.0), high Round (d +2.7)  –                  –                                          139     0.7%              3        the rest (not tested)
+    G1          group            35 (20%)   low Round (d -2.4), high AR (d +1.9)  95%                AR > 3.18 and MinFeret ≤ 17.7 (91%, 100%)  35      3%                3        siCCT8#5: lower in 3 of 3, 4.8% vs 55%, q 0.022
+    Defined by: each group's cells against those of the control they are compared with, a group
+      mostly of a control against every other cell.
+    - G1, 20% of cells, low Round (d -2.4) and high AR (d +1.9): less common in siCCT8#5
+      (exploratory; 4.8% vs 55%, q 0.022). Picked by AR > 3.18 and MinFeret ≤ 17.7, fitted on all
+      the cells; the procedure, refitted with whole fields held out, finds 91% of the group's cells
+      in them, 100% of those it picks being in it.
   Assumptions: The cells of every condition are clustered together, then each condition is compared
     with its own control on its share of cells in each, per biological repeat (paired t-test on the
     log odds of the repeat shares, Benjamini-Hochberg within each sub-experiment over every
@@ -309,10 +323,11 @@ What this acquisition was asked to preserve
     docs/common/validation.md.
 
 What this dataset cannot tell me
-  ➖ 1. Can the features see the phenotype? — not assessed; needs a positive control: a condition
-     known to change the phenotype
+  ➖ 1. Can the features see the phenotype? — not assessed, see question 1
   ❌ Data integrity: the checks in the overview name 2 fields in 1 finding (fields that hold another
      field's observations, or their own twice), and every answer counts them as independent fields.
+  ⚠️ Foundation: why count fields, and not only cells? Answered in part: see the Foundation.
+  ⚠️ 3. What is limiting my sampling? Answered in part: see question 3.
   Assumptions: Every answer holds for the stated features, tolerances and definition of new.
     Replays, draws and hold-outs describe these samples; they are not independent experiments.
     Statements across samples count samples or repeats. A field count that preserved this
@@ -331,4 +346,5 @@ What this dataset cannot tell me
     random orders treat the fields as exchangeable, so a drift or a raster along the acquisition is
     not seen.
 
-Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.
+Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state);
+  random_state 0.

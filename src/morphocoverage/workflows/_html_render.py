@@ -12,7 +12,7 @@ from __future__ import annotations
 import html
 import re
 
-from .._style import Status
+from .._style import Status, without_provenance
 from ..glossary import GLOSSARY, PHRASES, Term, slug
 
 STATUS_WORDS = {
@@ -108,7 +108,8 @@ RESULT_WORDS = {
     ("inspect", Status.CAUTION): "Fields to inspect",
     ("conditions", Status.OK): "Differs",
     ("conditions", Status.CAUTION): "Trend only",
-    ("populations", Status.OK): "Enriched",
+    # Population enrichment is exploratory: ⚠️, never "Enriched" (owner, 2026-10-06, audit 10).
+    ("populations", Status.OK): "Groups found",
     ("populations", Status.CAUTION): "Trend only",
     ("enough", Status.OK): "Enough",
     ("enough", Status.CAUTION): "Partly",
@@ -183,10 +184,18 @@ def chip(status: Status | None, key: str = "", answer: str = "", word: str | Non
     few = re.search(r"\bn = ([12])\b", answer) if key in ("conditions", "populations") else None
     if few:
         word = f"No conclusion (n = {few.group(1)})"
+    elif key == "conditions" and answer.startswith("nothing compared"):
+        word = "Nothing compared"
     elif key == "populations" and answer.startswith("no group:"):
         word = "No group"
+    elif key == "conditions" and answer.startswith("nothing compared"):
+        word = "Nothing compared"  # audit 10 (F12): never "No consistent difference"
     elif key == "conditions" and status is Status.OK and answer.startswith("beyond the mean"):
         word = "Differs beyond the mean"
+    elif key == "populations" and status is Status.CAUTION and "(exploratory;" in answer:
+        word = "More common (exploratory)"  # never "Enriched" (owner, 2026-10-06, audit 10)
+    elif key == "populations" and status is Status.CAUTION and "not a subpopulation" in answer:
+        word = "A condition's shift"
     elif key in ("conditions", "populations") and status is Status.CAUTION:
         consistent = "same direction" in answer or "in every repeat" in answer
         word = "Trend only" if consistent else "No consistent difference"
@@ -247,8 +256,9 @@ def _starts_own(lines: list[str], index: int, hang: int | None) -> bool:
 
 
 def text_html(text: str) -> str:
-    """The report's text as HTML (see the module)."""
-    lines = text.splitlines()
+    """The report's text as HTML (see the module), without the rules' provenance, which only
+    the full text report keeps (owner, 2026-10-06)."""
+    lines = without_provenance(text).splitlines()
     out: list[str] = []
     i = 0
     base = min((_indent(line) for line in lines if line.strip()), default=0)

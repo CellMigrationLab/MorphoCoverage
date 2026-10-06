@@ -28,15 +28,16 @@ the effect. Each table is a few hundred rows at most.
   technical repeats) x the target (the default tolerances; a fingerprint on explainable
   features; a fingerprint on an embedding; a labelled rare phenotype; a positive control).
   Every pair of values is in at least one scenario, every value in two or more.
-- **edge** (`e01` to `e13`): designs the axes do not reach.
-- **mistake** (`m01` to `m07`): what users get wrong, and what the package does now.
+- **edge** (`e01` to `e16`): designs and options the axes do not reach (from `e14`: declared
+  scales, a trend over six repeats, the acquisition block).
+- **mistake** (`m01` to `m08`): what users get wrong, and what the package does now.
 
 ## The scenarios
 
 <!-- scenarios -->
 | Scenario | Kind | Input | What it checks |
 | --- | --- | --- | --- |
-| `a01_tagged_several_image_none_rare` | axes | tables tagged, controls several, normalize False, unit image, wells none, target rare | features; own controls and the rows across experiments; the field questions on the images; the rare label's share and clustering |
+| `a01_tagged_several_image_none_rare` | axes | tables tagged, controls several, normalize False, unit image, wells none, target rare | features; own controls and the rows across experiments; the field questions on the images; the rare label's share |
 | `a02_expl_several_norm_cells_tech_positive` | axes | tables expl, controls several, normalize True, unit cells, wells tech, target positive | features; own controls and the rows across experiments; normalised and centred views; a positive control; the page |
 | `a03_mix_one_norm_image_none_fp_dino` | axes | tables mix, controls one, normalize True, unit image, wells none, target fp_dino | features; each condition against the control; normalised and centred views; the field questions on the images; a fingerprint on DINO1 |
 | `a04_embed1_none_cells_tech_fp_dino` | axes | tables embed1, controls none, normalize False, unit cells, wells tech, target fp_dino | embedding-only report; no condition test; a fingerprint on DINO1 |
@@ -44,13 +45,13 @@ the effect. Each table is a few hundred rows at most.
 | `a06_expl_none_image_none_tol` | axes | tables expl, controls none, normalize False, unit image, wells none, target tol | features; no condition test; the field questions on the images; the mean's tolerances |
 | `a07_tagged_one_norm_cells_tech_tol` | axes | tables tagged, controls one, normalize True, unit cells, wells tech, target tol | features; each condition against the control; normalised and centred views; the mean's tolerances; the page, its CSVs naming tables |
 | `a08_embed1_several_norm_image_tech_fp_dino` | axes | tables embed1, controls several, normalize True, unit image, wells tech, target fp_dino | embedding-only report; own controls and the rows across experiments; normalised and centred views; the field questions on the images; a fingerprint on DINO1 |
-| `a09_mix_one_cells_tech_rare` | axes | tables mix, controls one, normalize False, unit cells, wells tech, target rare | features; each condition against the control; the rare label's share and clustering; the page, its CSVs naming tables |
+| `a09_mix_one_cells_tech_rare` | axes | tables mix, controls one, normalize False, unit cells, wells tech, target rare | features; each condition against the control; the rare label's share and clustering in fields; the page, its CSVs naming tables |
 | `a10_embed2_several_norm_cells_none_tol` | axes | tables embed2, controls several, normalize True, unit cells, wells none, target tol | embedding-only report; own controls and the rows across experiments; normalised and centred views; the mean's tolerances; the page |
 | `a11_mix_several_image_none_positive` | axes | tables mix, controls several, normalize False, unit image, wells none, target positive | features; own controls and the rows across experiments; the field questions on the images; a positive control |
-| `a12_embed2_none_image_tech_rare` | axes | tables embed2, controls none, normalize False, unit image, wells tech, target rare | embedding-only report; no condition test; the field questions on the images; the rare label's share and clustering |
+| `a12_embed2_none_image_tech_rare` | axes | tables embed2, controls none, normalize False, unit image, wells tech, target rare | embedding-only report; no condition test; the field questions on the images; the rare label in "Did I image enough?" |
 | `a13_mix_none_cells_none_fp_expl` | axes | tables mix, controls none, normalize False, unit cells, wells none, target fp_expl | features; no condition test; a fingerprint on the explainable features |
-| `a14_embed1_one_norm_image_none_rare` | axes | tables embed1, controls one, normalize True, unit image, wells none, target rare | embedding-only report; each condition against the control; normalised and centred views; the field questions on the images; the rare label's share and clustering; the page |
-| `a15_expl_one_cells_tech_rare` | axes | tables expl, controls one, normalize False, unit cells, wells tech, target rare | features; each condition against the control; the rare label's share and clustering |
+| `a14_embed1_one_norm_image_none_rare` | axes | tables embed1, controls one, normalize True, unit image, wells none, target rare | embedding-only report; each condition against the control; normalised and centred views; the field questions on the images; the rare label in "Did I image enough?"; the page |
+| `a15_expl_one_cells_tech_rare` | axes | tables expl, controls one, normalize False, unit cells, wells tech, target rare | features; each condition against the control; the rare label's share and clustering in fields |
 | `a16_tagged_several_norm_cells_none_fp_dino` | axes | tables tagged, controls several, normalize True, unit cells, wells none, target fp_dino | features; own controls and the rows across experiments; normalised and centred views; a fingerprint on DINO1 |
 | `a17_tagged_one_norm_image_tech_positive` | axes | tables tagged, controls one, normalize True, unit image, wells tech, target positive | features; each condition against the control; normalised and centred views; the field questions on the images; a positive control |
 | `a18_tagged_none_image_tech_fp_expl` | axes | tables tagged, controls none, normalize False, unit image, wells tech, target fp_expl | features; no condition test; the field questions on the images; a fingerprint on the explainable features |
@@ -74,6 +75,10 @@ the effect. Each table is a few hundred rows at most.
 | `e11_unequal_fields_per_repeat` | edge | 2 conditions, 4 repeats, 46 fields, 230 rows | very unequal fields per repeat: the cell-level screen also given balanced |
 | `e12_missing_values_in_one_table` | edge | 2 conditions, 4 repeats, 24 fields, 120 rows; DINO1 (non-explainable) | missing values in one table only: counted and kept, each analysis says how many it leaves out |
 | `e13_known_effects_six_repeats` | edge | 3 conditions, 6 repeats, 54 fields, 270 rows; DINO1 (non-explainable) | a strong effect found on the features and the embedding, a null condition not |
+| `e14_declared_scales` | edge | 2 conditions, 4 repeats, 24 fields, 120 rows | scales declared (area on differences, length on ratios), velocity on the automatic rule: each feature tested on its scale, the declaration said |
+| `e15_trend_six_repeats` | edge | 3 conditions, 6 repeats, 54 fields, 270 rows; DINO1 (non-explainable) | a condition higher in each of 6 repeats by very unequal amounts: a trend, not significant; a strong condition beside it significant |
+| `e16_acquisition_block` | edge | 4 conditions, 3 repeats, 96 fields, 288 rows | a field whose areas are 4 times those of the other fields of its condition and repeat, and two controls more than 2-fold apart in intensity: both in the acquisition block |
+| `e17_whole_distribution_not_assessable` | edge | 2 conditions, 4 repeats, 40 fields, 40 rows; DINO1 (non-explainable) | an embedding alone, the whole distribution the only target (tolerances=()), groups of 5 images: the fingerprint not assessable, with why, and no target judged |
 | `m01_dino_tagged_explainable` | mistake | 2 conditions, 3 repeats, 18 fields, 90 rows; DINO1 (explainable) | an embedding tagged explainable: run, its columns tested one by one, as declared |
 | `m02_table_keyed_by_wrong_identity` | mistake | 2 conditions, 4 repeats, 24 fields, 120 rows; DINO1 (non-explainable) | a table keyed by the wrong identity (labels from 0): refused, unmatched observations |
 | `m03_unknown_tag` | mistake | 2 conditions, 4 repeats, 24 fields, 120 rows; fiber (explanable) | a misspelt tag: refused, naming the two tags |
@@ -81,16 +86,18 @@ the effect. Each table is a few hundred rows at most.
 | `m05_normalize_without_control` | mistake | 2 conditions, 4 repeats, 24 fields, 120 rows | normalisation without a control: refused at the Setup |
 | `m06_planes_given_as_rows` | mistake | 2 conditions, 4 repeats, 24 fields, 360 rows | one row per cell and plane given as is: refused, naming planes_as_features |
 | `m07_positive_control_seen_too_few_fields` | mistake | 2 conditions, 3 repeats, 36 fields, 180 rows | a positive control after 2 reference fields, where the definition of new needs 5: refused at the Setup, naming the minimum |
+| `m08_ratio_declared_on_signed_feature` | mistake | 2 conditions, 4 repeats, 24 fields, 120 rows | a ratio declared for a signed feature (a velocity): refused, naming the value that is not positive |
 <!-- /scenarios -->
 
 ## How it is used
 
 `tests/test_scenarios_matrix.py` loads each folder (`make_scenarios.load`), builds the
 `Setup`, runs `report`, and `html_report` for a few scenarios that between them hold every
-kind of table, several controls, normalisation and a rare label, then checks the truth. It
-checks structure and reasons, not numbers; the planted effects only where the design makes
-the answer near-certain (a strong effect, six repeats). Another test checks that the
-generator writes the committed files byte for byte.
+kind of table, several controls, normalisation and a rare label, then checks the truth;
+`tests/test_scenarios_pages.py` (marked `slow`) builds the page of every other scenario that
+runs. It checks structure and reasons, not numbers; the planted effects only where the
+design makes the answer near-certain (a strong effect, six repeats). Another test checks that
+the generator writes the committed files byte for byte.
 
 To regenerate the folders and the table above, run this from the repository root:
 

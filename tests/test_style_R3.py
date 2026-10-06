@@ -162,7 +162,7 @@ def test_a_contrast_the_design_cannot_test_is_left_out_said_once_not_flagged():
     result = condition_contrast(objects, fovs, feature="x", control=CONTROL, n_draws=5)
     status, headline = conditions_status(result, None)
     assert status is Status.NOT_ASSESSED
-    assert "no test (one well per condition in a repeat)" in headline
+    assert "no test (one well on a side)" in headline
     short = result.summary()
     assert " ".join(short.split()).count("only one technical repeat") == 1
     assert "no test" in short and CAUTION not in short
@@ -178,7 +178,7 @@ def test_the_ranking_is_a_table_of_the_best_features_with_its_caveats_once():
     assert re.search(r"rank\s+feature\s+\|d\|\s+best contrast\s+q\s+passes in", short)
     assert short.count("distinct assignments") == 1
     full = ranking.summary(detail="full")
-    assert "Which features separate the conditions? Each of the 2 declared features" in full
+    assert "Ranking within repeats (wells as the unit): each of the 2 declared features" in full
     best = ranking.ranking.iloc[0]
     assert f"{best['score']:.2f}" in full and f"{best['q_value']:.3g}" in full
     assert "No contrast passes the gate for 1 feature: y." in full
@@ -213,7 +213,10 @@ def test_the_report_prints_the_short_forms_and_its_caveats_once():
     assert "Assumptions: Every answer holds for the stated features" in _flat(closing)
     assert f"{CAUTION} Every answer holds" not in closing
     limits = report.limits(detail="full")
-    assert "4. How many fields should I image next time?: not assessed; needs: run" in limits
+    # One line per limit pointing to its section, where its need is (owner, 2026-10-06).
+    assert "4. How many fields should I image next time?: not assessed, see question 4." in limits
+    reasons = report.limits(detail="full", pointers=False)
+    assert "4. How many fields should I image next time?: not assessed; needs: run" in reasons
     assert report.limits() == limits
 
 

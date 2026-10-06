@@ -435,6 +435,20 @@ class SupportNoveltyEstimator(Estimator):
         novel, members = lofo
         return members if new_states_only else novel
 
+    def new_state_fields(
+        self, matrix: np.ndarray, positions: np.ndarray, names: tuple[str, ...]
+    ) -> np.ndarray | None:
+        """The fields (``positions`` values) of ``matrix`` holding a new state, judged as
+        ``novel_observation_flags`` judges them, or ``None`` when not estimable: for a
+        simulation of the definition itself (``novelty_null``)."""
+        counts = np.bincount(positions)
+        if self.min_novel_observations > 1 and int(counts.max()) == 1:
+            return per_field(self).new_state_fields(matrix, positions, names)
+        if len(np.unique(positions)) < self._minimum_fovs:
+            return None
+        lofo = self._lofo(matrix, positions, names, [str(p) for p in range(len(counts))])
+        return None if isinstance(lofo, str) else np.unique(positions[lofo[1]])
+
     def _lofo(
         self,
         matrix: np.ndarray,

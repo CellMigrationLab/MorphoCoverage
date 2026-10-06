@@ -53,15 +53,17 @@ def test_the_planted_population_is_found_on_every_condition_pooled():
 
 def test_a_condition_more_common_in_a_population_is_said_with_its_shares(screen):
     """With 3 repeats the arrest's mitoses (10% against 2% of the control's cells) are higher
-    in every repeat; their q is borderline, so the answer gives the trend with its numbers."""
+    in every repeat; their q is borderline, and every repeat on one side is a trend only from
+    6 repeats (owner, 2026-10-06, audit 10), so the answer gives their numbers in the table,
+    and no trend."""
     result = screen[3]
     status = result.document.statuses["populations"]
     headline = result.document.headlines["populations"]
-    found = (
-        r"G\d \(\d+(\.\d)?% of cells; high dna\): more common in arrest \(\d+(\.\d)?% vs \d\.\d%"
-    )
-    assert re.search(found, headline)
+    assert headline.endswith("no condition consistently enriched")
     short = result.document.short["populations"]
+    found = r"arrest: higher in 3 of 3, \d+(\.\d)?% vs \d\.\d%, q 0\.\d+"
+    assert re.search(found, " ".join(short.split()))
+    assert "in every repeat, not significant" not in short
     # "of every condition pooled" read as a number per condition (ChatGPT, 2026-10-05).
     assert "cells in all, every condition pooled, clustered on the 3 declared features (" in short
     assert "the rest (not tested)" in short and "to validate on the images" in short
@@ -72,9 +74,9 @@ def test_a_condition_more_common_in_a_population_is_said_with_its_shares(screen)
     flat = " ".join(short.split()).lower()
     assert "picked by dna >" in flat and "fitted on all the cells" in flat
     assert "refitted with whole fields held out" in flat
-    assert "arrest higher" in short
-    word = "Enriched" if status is Status.OK else "Trend only"
-    assert chip(status, "populations", headline).endswith(f"{word}</span>")
+    # Population enrichment is exploratory: ⚠️, never "Enriched" (audit 10).
+    assert status is Status.CAUTION
+    assert chip(status, "populations", headline).endswith("No consistent difference</span>")
 
 
 def test_the_enrichment_is_tested_on_the_log_odds_across_repeats():

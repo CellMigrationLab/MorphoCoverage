@@ -488,6 +488,7 @@ def conditions(
             random_state=setup.random_state,
             fields_independent=setup.fields_independent,
             scale=setup.scale_of(setup.readout),
+            families=setup.families(fovs),  # declared experiments (audit 10, 2026-10-06)
             # One control, or the contrast table: its main verdicts and its secondary rows.
             **(
                 {"control": setup.control}
@@ -507,6 +508,7 @@ def conditions(
             random_state=setup.random_state,
             n_jobs=setup.n_jobs,
             scales=setup.scales,
+            families=setup.families(fovs),
             **setup.contrast_arguments,
             **setup.common,
         )
@@ -533,6 +535,7 @@ def conditions(
             **setup.contrast_arguments,
             **setup.common,
         )
+        results["ranking"].settings["share"] = share_column(setup)  # counted apart (C20)
     return results
 
 

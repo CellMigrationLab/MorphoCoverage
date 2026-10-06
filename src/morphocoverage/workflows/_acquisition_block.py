@@ -1,7 +1,8 @@
 """The acquisition block of "What is in the dataset" (private; owner, 2026-10-06, plan v2).
 
-Quality control on the raw values, reported apart from the biology: the fields far from the
-other fields of their condition and repeat (``sampling_unit.acquisition``) and, with several
+Quality control, reported apart from the biology: the fields far from the other fields of
+their condition and repeat, on each feature's test scale (``sampling_unit.acquisition``,
+owner 2026-10-06, audit 10) and, with several
 controls, the controls apart in intensity (``_acquisition_gap``, moved here from the checks
 of the values so that the acquisition is said in one place). Neither is a biological claim;
 biological unusualness reads values relative to each own control (``_unusual_values``).
@@ -26,14 +27,15 @@ if TYPE_CHECKING:
     from .setup import Setup
 
 # The block's name in the text, the values it reads said once.
-HEADING = f"{TITLE} (raw values, quality control)"
+HEADING = f"{TITLE} (quality control)"
 
 
 def acquisition_in_report(
     objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
 ) -> AcquisitionAnomalies | None:
     """The acquisition anomalies on the declared explainable columns (the readout and the
-    features), raw; ``None`` without any (an embedding-only report)."""
+    features), each on its declared or automatic scale; ``None`` without any (an
+    embedding-only report)."""
     if not setup.columns:
         return None
     return acquisition_anomalies(
@@ -43,6 +45,7 @@ def acquisition_in_report(
         fov_col=setup.fov_col,
         group_cols=setup.group_cols,
         observation_unit=setup.observation_unit,
+        scales={column: setup.scale_of(column) for column in setup.columns},
     )
 
 
@@ -65,18 +68,17 @@ def with_acquisition(
     if anomalies is None and caution is None:
         return document
     found = (anomalies is not None and anomalies.found > 0) or caution is not None
-    lines = []
+    lines, rows = [], []
     if anomalies is not None:
         judged = Status.OK if anomalies.judged else Status.NOT_ASSESSED
         marker = (Status.CAUTION if anomalies.found else judged).marker
         lines.append(f"{marker} {HEADING}: {anomalies.line()}.")
+        if anomalies.found:  # only the table under its line, the line said once (audit 10)
+            rows = anomalies.table(indent=4).splitlines()
     if caution is not None:
         lines.append(f"{Status.CAUTION.marker} {NAME}: {caution}")
     short = "\n".join(wrap(line, 2, hang=5) for line in lines)
-    full = "\n".join(wrap(line, 2, hang=5) for line in lines)
-    if anomalies is not None and anomalies.found:
-        table = anomalies.summary(detail="full").split("\n", 1)[1:]
-        full = "\n".join([full, *(f"  {row}" for t in table for row in t.splitlines())])
+    full = "\n".join([wrap(lines[0], 2, hang=5), *rows, *(wrap(x, 2, hang=5) for x in lines[1:])])
     statuses, headlines = dict(document.statuses), dict(document.headlines)
     if found:
         statuses["overview"] = worst([statuses.get("overview", Status.OK), Status.CAUTION])

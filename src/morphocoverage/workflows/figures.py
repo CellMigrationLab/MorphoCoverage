@@ -103,7 +103,7 @@ def plots(
         )[share]
         figures = {f: figures[f] for f in chosen}
     if pairwise:
-        _add_pairwise(figures, prepared, fovs, setup)
+        _add_pairwise(figures, prepared, fovs, setup, ranking)
     if folder is not None:
         target = Path(folder)
         target.mkdir(parents=True, exist_ok=True)
@@ -129,14 +129,31 @@ def _file_name(name: str, taken: set[str]) -> str:
     return unique
 
 
+def verdicts(ranking: Any, feature: str, conditions: Sequence[Any]) -> dict[Any, float]:
+    """The verdict's q of each of ``conditions`` against its control on ``feature``: the
+    discovery's paired q, adjusted over the feature's family (audit 10, owner, 2026-10-06);
+    empty without a discovery, and only the q that exist."""
+    tests = getattr(ranking, "tests", None)
+    if not isinstance(ranking, FeatureDiscovery) or tests is None or not len(tests):
+        return {}
+    mine = tests[tests["feature"].eq(feature) & tests["q_paired"].notna()]
+    found = dict(zip(mine["condition"], mine["q_paired"].astype(float), strict=True))
+    return {c: found[c] for c in conditions if c in found}
+
+
 def _add_pairwise(
-    figures: dict[str, list[Figure]], prepared: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
+    figures: dict[str, list[Figure]],
+    prepared: pd.DataFrame,
+    fovs: pd.DataFrame,
+    setup: Setup,
+    ranking: Any = None,
 ) -> None:
     """Every pair of each figure's conditions under it (see ``plots``), tested on that
     figure's conditions alone, so the q-values are adjusted over the pairs it shows, as its
-    legend says, and a split figure costs its own pairs only. With several controls, the
-    normalised values compare only the conditions normalised to the same control (owner,
-    2026-10-05)."""
+    legend says, and a split figure costs its own pairs only; with the report's discovery
+    (``ranking``), the verdict's q beside them (``verdicts``, audit 10, owner, 2026-10-06).
+    With several controls, the normalised values compare only the conditions normalised to
+    the same control (owner, 2026-10-05)."""
     control = (setup.figure_control or {}).get(CONDITION_COLUMN)
     own = setup.own_references
     references = own if setup.normalize is not None else None
@@ -158,7 +175,14 @@ def _add_pairwise(
                 **setup.common,
             )
             figure.pairwise = table.reset_index(drop=True)
-            add_pairwise(figure, table, conditions, several=own is not None)
+            figure.pairwise_verdicts = verdicts(ranking, feature, conditions)
+            add_pairwise(
+                figure,
+                table,
+                conditions,
+                several=own is not None,
+                verdicts=figure.pairwise_verdicts,
+            )
 
 
 def highlighted(ranking: Any, most: int = len(COLOURS) - 1) -> tuple[list[Any], str]:

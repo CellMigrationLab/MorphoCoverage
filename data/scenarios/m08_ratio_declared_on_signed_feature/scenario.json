@@ -1,0 +1,29 @@
+{
+ "name": "m08_ratio_declared_on_signed_feature",
+ "kind": "mistake",
+ "checks": "a ratio declared for a signed feature (a velocity): refused, naming the value that is not positive",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "velocity"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  },
+  "scales": {
+   "velocity": "ratio"
+  }
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "refused",
+  "at": "report",
+  "error": "ValueError",
+  "match": "declared on the ratio scale"
+ }
+}

@@ -257,7 +257,9 @@ def test_h9_unusual_thresholds_leave_one_group_out_for_every_group():
     )
     row = one.groups.set_index("condition").loc["drug"]
     assert row["calibration"] == "leave-one-field-out (a single reference group)"
-    assert "With a single reference group the threshold comes from its fields" in one.summary()
+    # The reference named as the reference (audit 10, A24).
+    said = " ".join(one.summary().split())
+    assert "Against a single reference group, ctrl · repeat r0, the threshold comes from" in said
 
 
 def test_h10_whole_field_draws_count_acquired_empty_fields():
@@ -295,7 +297,8 @@ def test_h12_a_zero_control_mean_is_not_too_few_fields():
     result = object_rule_check(objects, fovs, feature="mitoses", control=CONTROL, n_draws=50)
     assert result.table["status"].str.contains("the reference mean is 0").all()
     few = object_rule_check(*_tables([("ctrl", "r1", "w", 1, 10.0, 0.1)]), feature="x")
-    assert few.table["status"].eq("fewer than 2 fields with cells").all()
+    # Audit 10 (A16): below 5 fields the count rule is not assessable (owner, 2026-10-06).
+    assert few.table["status"].eq("fewer than 5 fields with cells").all()
 
 
 def test_h13_a_sparse_group_does_not_read_zero_per_field():

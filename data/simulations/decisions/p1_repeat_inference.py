@@ -14,6 +14,10 @@ two conditions). Methods (the package's where it has them):
 - ``fixed_block``: the candidate engine on the per-repeat summaries (equal to the paired
   test in a complete two-condition design, by construction: a check of the engine);
 - ``sign_flip`` (reference): the package's exact sign-flip test on the same values;
+- ``moderated_t``: the moderated paired t across the dataset's features (limma-style
+  empirical Bayes, ``repeat_means.moderated_t``), x0's result; with one feature, the paired
+  t (amendment of 2026-10-06, audit 10, before any confirmatory run: a candidate for 3
+  near-identical repeats; the ``family`` points give it 20 features);
 - ``paired_t_field``, ``paired_t_well``: the field- and well-balanced estimands (their own
   questions);
 - ``mixed`` (comparator, statsmodels; at most ``COMPARATOR_REPLICATES`` replicates a point)
@@ -37,6 +41,8 @@ from .scalar import ScalarData, generate, scalar_from
 
 FEATURE, TREATED, CONTROL = "x0", "treated", "control"
 COMPARATOR_REPLICATES = 1_000
+# The features of a family point, for the moderated t (amendment, 2026-10-06, audit 10).
+FAMILY = 20
 CENTRE: dict[str, Any] = {"distribution": "lognormal", "cv": 0.3}
 
 
@@ -113,6 +119,23 @@ def sign_flip(data: ScalarData, context: dict[str, Any]) -> dict[str, float]:
     return {"p": p, "floor": floor}
 
 
+def moderated_t(data: ScalarData, context: dict[str, Any]) -> dict[str, float]:
+    """The moderated paired t across the dataset's features (empirical Bayes), x0's result,
+    each feature on its automatic scale (amendment, 2026-10-06)."""
+    family = {}
+    for feature in data.features:
+        log = log_scale(data.objects[feature].to_numpy(dtype=float))
+        table = repeat_means.summaries(data.objects, feature, "cell")
+        wide = table.pivot_table(index="repeat", columns="condition", values="value").dropna()
+        if TREATED in wide and CONTROL in wide:
+            _, values, _ = repeat_values(wide[TREATED].to_numpy(), wide[CONTROL].to_numpy(), log)
+            family[feature] = values
+    found = repeat_means.moderated_t(family, context["alpha"]).get(FEATURE)
+    if not found:
+        return {}
+    return {**found, "truth": _truth(data, "cell", _auto(data)), "log": float(_auto(data))}
+
+
 def mixed(data: ScalarData, context: dict[str, Any]) -> dict[str, float]:
     """The random-intercept comparator on field means (statsmodels)."""
     return repeat_means.mixed_model(data.objects, FEATURE, TREATED, CONTROL, _auto(data))
@@ -129,6 +152,7 @@ METHODS = (
     Method("paired_t_difference", paired_t_difference, simplicity=1),
     Method("fixed_block", fixed_block_model, simplicity=3),
     Method("sign_flip", sign_flip, role="reference", simplicity=4),
+    Method("moderated_t", moderated_t, simplicity=3),
     Method("paired_t_field", paired_t_field, question="field", simplicity=1),
     Method("paired_t_well", paired_t_well, question="well", simplicity=1),
     Method(
@@ -164,6 +188,8 @@ ALTERNATIVES = {
     "unbalanced": [
         {"scale": "ratio", "effect": 0.75, "field_imbalance": 0.5, "cell_dispersion": 1.0}
     ],
+    # A family of 20 features, a fifth carrying the effect (amendment, 2026-10-06).
+    "family": [{"scale": "ratio", "effect": 1.0, "features": FAMILY, "nonnull_share": 0.2}],
 }
 STRESS = {
     "extreme_repeat": {"extreme_repeat": 2.0},
@@ -205,6 +231,9 @@ def points() -> tuple[Point, ...]:
     for n in (3, 4, 6):
         for name, change in DEPARTURES.items():
             out.append(Point(f"core_null_n{n}_{name}", "core", {**CENTRE, "repeats": n, **change}))
+        # Amendment, 2026-10-06 (audit 10): a null family of features for the moderated t.
+        params = {**CENTRE, "repeats": n, "features": FAMILY}
+        out.append(Point(f"core_null_n{n}_family", "core", params))
     for label, settings in ALTERNATIVES.items():
         for n in (3, 4, 6):
             for i, change in enumerate(settings):

@@ -45,7 +45,7 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._checks import is_number
-from .._control import check_comparisons, compared_name, control_text
+from .._control import check_comparisons, compared_name, control_name
 from .._former_repeat import one_warning, read_former
 from .._parallel import check_n_jobs
 from .._seeds import group_rng
@@ -62,8 +62,8 @@ from .._wording import (
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
 from ._common import groups, validated
-from ._discovery_tests import tested_rows
-from ._experiments import corrected, experiments, not_compared
+from ._discovery_tests import near_identical, resting, resting_words, tested_rows
+from ._experiments import corrected, declared, experiments, family_noun, not_compared, screen_wide
 from ._units import (
     check_arguments,
     contrasts_of,
@@ -114,6 +114,31 @@ TEST_COLUMNS = [
     "repeat_contrasts",
     "ci_low",
     "ci_high",
+    "repeat_sd",
+    "family_sd",
+    "near_identical",
+    "q_screen",
+]
+
+
+# The ranking's columns, also those of an empty ranking when nothing was compared.
+RANKING_COLUMNS = [
+    "feature",
+    "score",
+    "d",
+    "condition",
+    "q_cells",
+    "q_paired",
+    "change",
+    "ci_low",
+    "ci_high",
+    "repeat_contrasts",
+    "repeats",
+    "paired_values",
+    "confirmed",
+    "direction",
+    "passing",
+    "tests",
 ]
 
 
@@ -162,7 +187,7 @@ def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
                 direction=f"{same} of {int(best['repeats'])} {word}",
             )
         rows.append(row)
-    ranking = pd.DataFrame(rows)
+    ranking = pd.DataFrame(rows, columns=[*RANKING_COLUMNS, "order"])
     ranking = ranking.sort_values(["score", "order"], ascending=[False, True], na_position="last")
     return ranking.drop(columns="order").reset_index(drop=True)
 
@@ -175,6 +200,13 @@ def _limited(row: Mapping[str, Any]) -> list[str]:
     low, high = row["ci_low"], row["ci_high"]
     interval = f"{change(low, values)} to {change(high, values)}" if np.isfinite(low) else "–"
     return [contrasts_words(row["repeat_contrasts"], values), interval]
+
+
+def _screen(row: Any) -> str:
+    """`` (screen-wide q 0.054)`` beside a verdict whose control label is shared by several
+    families (audit 10, owner, 2026-10-06); empty otherwise."""
+    q = getattr(row, "q_screen", np.nan)
+    return f" (screen-wide q {p_value(q)})" if pd.notna(q) else ""
 
 
 def _q(value: float) -> str:
@@ -205,7 +237,10 @@ class FeatureDiscovery:
         for feature in features[:5]:
             mine = tests[(tests["feature"] == feature) & tests["confirmed"]]
             conditions = listing(
-                [f"{r.condition} {change(r.change, r.paired_values)}" for r in mine.itertuples()],
+                [
+                    f"{r.condition} {change(r.change, r.paired_values)}{_screen(r)}"
+                    for r in mine.itertuples()
+                ],
                 3,
             )
             others = tests[(tests["feature"] == feature) & tests["passes"] & ~tests["confirmed"]]
@@ -220,6 +255,11 @@ class FeatureDiscovery:
         """The passing features the paired test on the repeat means also passes, best first."""
         ranked = self.ranking.dropna(subset=["score"])
         return ranked.loc[ranked["confirmed"], "feature"].tolist()
+
+    def resting(self) -> pd.DataFrame:
+        """The tests significant across repeats that rest on near-identical repeats
+        (``_discovery_tests.resting``; audit 10, owner, 2026-10-06)."""
+        return resting(self.tests, self.settings["alpha"])
 
     def _unit(self) -> str:
         """The word for one observation (``nucleus``; ``cell`` when none was declared)."""
@@ -240,21 +280,23 @@ class FeatureDiscovery:
         # The correction family, said as counted: the tests of each sub-experiment.
         tested = self.tests[self.tests["p_cells"].notna()]
         sizes = tested.groupby("experiment").size() if "experiment" in tested else []
+        noun = family_noun(self.settings, plural=True)
         family = (
-            f"{count(int(sizes.iloc[0]), 'test')} in each of {len(sizes)} sub-experiments"
+            f"{count(int(sizes.iloc[0]), 'test')} in each of {len(sizes)} {noun}"
             if len(sizes) > 1 and sizes.nunique() == 1
-            else f"{span(list(sizes))} tests in each of {len(sizes)} sub-experiments"
+            else f"{span(list(sizes))} tests in each of {len(sizes)} {noun}"
             if len(sizes) > 1
             else count(n_tests, "test")
         )
         return (
-            f"Which features separate the conditions? {passing} of {self._counted(n)} "
+            f"Which features separate the conditions? {passing} of {self._of(n)} "
             f"{'is a candidate' if passing == 1 else 'are candidates'} in the exploratory "
             f"{self._unit()}-level screen: they differ for at least one condition (each "
             f"condition against {against}: Cohen's d on the observations normalised to each "
             "repeat's control, "
             f"randomization test, q ≤ {alpha:g} after Benjamini-Hochberg within each "
-            f"sub-experiment: {family}{self._shuffles()}).{self._unpaired()} Ranked by the "
+            f"{family_noun(self.settings)}: {family}{self._shuffles()}).{self._unpaired()} "
+            "Ranked by the "
             "largest difference "
             "(|d|); change: the condition's mean over the control's, the fold change the "
             "paired t-test compares (the difference of the means for a feature with a value "
@@ -272,6 +314,12 @@ class FeatureDiscovery:
             return ""
         named = [f"{feature}, the {scale}" for feature, scale in scales.items()]
         return f"; declared in the Setup: {'; '.join(named[:6])}"
+
+    def _of(self, n: int) -> str:
+        """``4 features``, or ``4 (3 features and the rare share)``: never "4 of 3 features
+        and the rare share" (audit 10, C20)."""
+        counted = self._counted(n)
+        return counted if counted == count(n, "feature") else f"{n} ({counted})"
 
     def _counted(self, features: list[str] | int) -> str:
         """``features`` (names, or a number of all the features), the labelled state's share
@@ -396,7 +444,7 @@ class FeatureDiscovery:
                 f"Candidates, but lower in some repeats and higher in others: {names}; a shift "
                 "between repeats, not a consistent effect."
             )
-        return cautions
+        return cautions + resting_words(self.resting())
 
     def short_parts(
         self, indent: int = 0, max_rows: int = TOP_FEATURES, limit: int = 3
@@ -405,6 +453,8 @@ class FeatureDiscovery:
         list of unranked ones) and its caveats."""
         lines = [wrap(self._head(), indent, hang=indent + 2)]
         if self.tests.empty:
+            if self.settings.get("unpaired"):  # named once, "Not compared" (audit 10, C8)
+                return lines, []
             reason = self.settings.get("reason", "No condition to compare with the control.")
             return [*lines, wrap(reason, indent, hang=indent + 2)], []
         lines += self._table(max_rows, indent + 2)
@@ -446,11 +496,13 @@ def feature_discovery(
     comparisons: Sequence[tuple[Any, Any]] | None = None,
     n_jobs: int = 1,
     scales: Mapping[str, str] | None = None,
+    families: Mapping[Any, Any] | None = None,
 ) -> FeatureDiscovery:
     """Rank ``features`` by the cell-level gate, with the paired test beside it (see the
     module). Arguments follow ``condition_contrast``; ``n_jobs`` worker processes test the
     features, with the same results for every value (``_parallel``); ``scales``, each
-    feature's declared scale (``Setup.scales``), else the automatic rule."""
+    feature's declared scale (``Setup.scales``), else the automatic rule; ``families``, each
+    condition's declared experiment (``Setup.experiment``), else the sub-experiments."""
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     features = list(dict.fromkeys(features))
     if not features:
@@ -478,6 +530,7 @@ def feature_discovery(
         "n_permutations": n_permutations,
         "alpha": alpha,
         "random_state": random_state,
+        "declared_experiments": bool(families),
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
         "scales": dict(scales or {}),
@@ -495,10 +548,11 @@ def feature_discovery(
         c for c in dict.fromkeys(condition for _, condition in contrasts) if c not in held
     ]
     if not rows:
-        settings["reason"] = f"No condition to compare with the control {control_text(control)}."
-        return FeatureDiscovery(pd.DataFrame(columns=TEST_COLUMNS), pd.DataFrame(), settings)
+        settings["reason"] = f"No condition to compare with the control, {control_name(control)}."
+        empty = pd.DataFrame(columns=RANKING_COLUMNS)  # its columns, for top and the page
+        return FeatureDiscovery(pd.DataFrame(columns=TEST_COLUMNS), empty, settings)
     tests = pd.DataFrame(rows).reindex(columns=TEST_COLUMNS)
-    tests["experiment"] = tests["condition"].map(experiments(held))
+    tests["experiment"] = tests["condition"].map(declared(experiments(held), families))
     # The tests at p <= alpha rerun with the shuffles their family needs (contrast_cells).
     tests["p_cells"], tests["permutations"] = refined(
         tests["p_cells"],
@@ -522,6 +576,10 @@ def feature_discovery(
     tests["q_paired_raw"] = corrected(tests["p_paired_raw"], tests["experiment"])
     tests["passes"] = (tests["q_cells"] <= alpha).fillna(False) & tests["d"].notna()
     tests["confirmed"] = tests["passes"] & (tests["q_paired"] <= alpha).fillna(False)
+    tests["near_identical"], tests["family_sd"] = near_identical(tests)
+    tests["q_screen"] = screen_wide(
+        tests["p_paired"], tests["control_condition"], tests["experiment"]
+    )
     return FeatureDiscovery(tests, _rank(tests, features), settings)
 
 

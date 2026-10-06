@@ -82,6 +82,9 @@
    "across_normalised",
    "own_control"
   ],
-  "html": true
+  "html": true,
+  "null_features": [
+   "ecc"
+  ]
  }
 }

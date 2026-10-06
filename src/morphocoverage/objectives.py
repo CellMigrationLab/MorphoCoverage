@@ -17,7 +17,9 @@ class SamplingObjective(str, Enum):
     ``POPULATION``, ``DISTRIBUTION`` and ``RARE_DISCOVERY`` need one each;
     ``PHENOTYPE`` the summary and the fingerprint; ``BALANCED`` the summary
     and the rare state; ``DISTRIBUTION_RARE`` the fingerprint and the rare state
-    (a Setup with no readout, owner 2026-10-06); ``ALL`` every one.
+    (a Setup with no readout, owner 2026-10-06); ``ALL`` every one. ``NO_TARGET`` needs none:
+    a Setup that declares no target has nothing a stop could rest on, so no rule decides a
+    stop under it (audit 10, owner, 2026-10-06).
     """
 
     POPULATION = "population"
@@ -27,6 +29,7 @@ class SamplingObjective(str, Enum):
     BALANCED = "balanced"
     DISTRIBUTION_RARE = "distribution_rare"
     ALL = "all"
+    NO_TARGET = "no_target"
 
 
 # Objective components a decision must cover for each objective.
@@ -40,6 +43,7 @@ REQUIRED_COMPONENTS: dict[SamplingObjective, frozenset[Component]] = {
     SamplingObjective.ALL: frozenset(
         {Component.POPULATION, Component.DISTRIBUTION, Component.RARE}
     ),
+    SamplingObjective.NO_TARGET: frozenset(),
 }
 
 

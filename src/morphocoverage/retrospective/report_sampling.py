@@ -36,7 +36,10 @@ from ..sampling_unit._state_text import (
     CLUSTER_ALPHA,
     SEED_AGREEMENT_WARNING,
     clustering_parts,
+    scored_shares,
+    single_feature,
     state_words,
+    tested,
     unusual_full,
     unusual_parts,
 )
@@ -194,12 +197,13 @@ def skipped_strata(controls: Any) -> str:
 
 
 def clustered_states(clustering: Sequence[Any]) -> tuple[list[str], int, int]:
-    """The clustered states in words, and in how many groups where seen they cluster."""
+    """The clustered states in words, and in how many groups where tested they cluster (seen,
+    with a smallest possible p that can reach 0.05; audit 10)."""
     names, clustered, seen = [], 0, 0
     for result in clustering:
         if result is None:
             continue
-        rows = result.table[result.table["state_objects"] > 0]
+        rows = result.table[(result.table["state_objects"] > 0) & tested(result.table)]
         words = observation_words(result.settings)[1]
         for state, block in rows.groupby("state", sort=False):
             hits = int(clustered_rows(block).sum())
@@ -299,11 +303,13 @@ def _fields_line(profile: pd.DataFrame, variability: Any, observations: str) -> 
 
 def _unusual_share(unusual: Any, words: str) -> str:
     """`` (farther from the siCTRL reference than all but 1% of its cells; 0-9% of each
-    group)``, empty when no group was scored."""
+    scored group)``, empty when no group was scored."""
     ok = unusual.groups[unusual.groups["status"] == "ok"] if unusual is not None else []
     if not len(ok):
         return ""
-    shares = span([float(v) for v in ok["unusual_share"]], "percent")
+    if single_feature(unusual):  # it restates the mean shift (audit 10)
+        return " (on one feature: not informative beyond the mean shift in question 9)"
+    shares = span(scored_shares(unusual), "percent")
     settings = unusual.settings
     # Each against its own control with several; names joined by "/", never a tuple.
     reference = (
@@ -314,7 +320,7 @@ def _unusual_share(unusual: Any, words: str) -> str:
     exploratory = "exploratory, " if settings.get("exploratory") else ""
     return (
         f" ({exploratory}{reference} than all but {percent(settings['quantile'])} of its "
-        f"{words}; {shares} of each group)"
+        f"{words}; {shares} of each scored group)"
     )
 
 
@@ -322,8 +328,9 @@ def states_lines(clustering: Any, unusual: Any, words: str) -> list[str]:
     """The labelled states over the fields, one line per state: where they cluster; without
     clustering (one observation per field), the unusual observations' share alone."""
     if clustering is None:
-        share = _unusual_share(unusual, words)
+        # One word for the observations: "unusual images ... all but 1% of its images" (A22).
         named = unusual.settings.get("words", words) if unusual is not None else words
+        share = _unusual_share(unusual, named)
         return [f"Unusual {named}{share}."] if share else []
     keys = list(clustering.group_cols)
     share = _unusual_share(unusual, words)
@@ -335,10 +342,15 @@ def states_lines(clustering: Any, unusual: Any, words: str) -> list[str]:
         hits = seen[clustered_rows(seen)]
         named = [group_label({k: r[k] for k in keys}) for r in hits.to_dict("records")]
         where = f" ({listing(named, limit=3)})" if named else ""
+        run = int(tested(seen).sum())
         text = (
             f"clustered in a few fields (q ≤ {CLUSTER_ALPHA:g}) in {len(hits)} of the "
-            f"{len(seen)} groups where seen{where}"
+            f"{run} groups where tested{where}"
+            if run
+            else "not tested: too few in any group for a p that can reach 0.05"
         )
+        if run and len(seen) > run:
+            text += f", {len(seen) - run} more where seen too few to reach 0.05"
         factor = (
             pd.to_numeric(hits["fovs_needed"], errors="coerce")
             / pd.to_numeric(hits["fovs_needed_if_random"], errors="coerce")
@@ -358,8 +370,9 @@ def states_lines(clustering: Any, unusual: Any, words: str) -> list[str]:
 def _short_statement(row: Any) -> str:
     """A profile statement without the clause that repeats its method (full keeps it)."""
     text = str(row.statement)
-    if row.source == "inspect_fovs" and ": the declared reference's" in text:
-        text = text.split(": the declared reference's")[0] + ")"
+    for method in (": the declared reference's", ": this definition of new"):
+        if row.source == "inspect_fovs" and method in text:
+            text = text.split(method)[0]
     return text
 
 
@@ -415,14 +428,14 @@ def profile_full(
     if len(profile):
         lines = [
             wrap(
-                "Measured quantities (the sampling profile), each with where it holds and its "
-                "source:",
+                "Measured quantities (the sampling profile), each with where it holds:",
                 indent,
                 hang=indent + 2,
             )
         ]
         for row in profile.itertuples():
-            text = f"- {row.statement} [{row.where}; {row.source}]"
+            # Where it holds, never the internal function's name (audit 10, A22).
+            text = f"- {row.statement} [{row.where}]"
             lines.append(wrap(text, indent, hang=indent + 2))
         blocks.append("\n".join(lines))
     if unusual is not None:
@@ -461,33 +474,44 @@ def _seen_states(clustering: Sequence[Any], words: str) -> str:
 
 
 def unusual_alone(unusual: Any, clustering: Sequence[Any] = ()) -> str:
-    """``unusual images 0-8% of each group (exploratory)`` when unusual observations were
+    """``unusual images 0-8% of each scored group (exploratory)`` when unusual observations were
     scored without a clustering in fields (one observation per field), else empty."""
     if unusual is None or any(c is not None for c in clustering):
         return ""
     ok = unusual.groups[unusual.groups["status"] == "ok"]
-    if not len(ok):
+    if not len(ok) or single_feature(unusual):
         return ""
-    shares = span([float(v) for v in ok["unusual_share"]], "percent")
+    shares = span(scored_shares(unusual), "percent")
     words = unusual.settings.get("words") or observation_words(unusual.settings)[1]
-    return f"unusual {words} {shares} of each group (exploratory)"
+    return f"unusual {words} {shares} of each scored group (exploratory)"
 
 
-def profile_answer(profile: pd.DataFrame, clustering: Sequence[Any], unusual: Any) -> list[str]:
-    """The parts of question 3's headline (``report_status.profile_status``)."""
+def profile_answer(
+    profile: pd.DataFrame, clustering: Sequence[Any], unusual: Any, variability: Any = None
+) -> list[str]:
+    """The parts of question 3's headline (``report_status.profile_status``), in the words of
+    the observations the results declare (``variability`` too: never "random cells" in a
+    report on images, audit 10, C18)."""
     names, clustered, seen = clustered_states(clustering)
     parts = []
     fields = profile[profile["item"] == "fields against random objects"] if len(profile) else []
     if len(fields):
-        words = _unit(clustering, unusual)
+        words = _unit(clustering, unusual, variability)
         effect = float(fields["value"].iloc[0])
-        parts.append(f"whole fields {effect:.1f}x as variable as random {words}")
+        # One observation per field: fields and observations coincide, no ratio to give (B21).
+        single = str(fields["statement"].iloc[0]).startswith("each field holds one of")
+        parts.append(
+            f"one of the {words} per field"
+            if single
+            else f"whole fields {effect:.1f}x as variable as random {words}"
+        )
     parts += [alone] if (alone := unusual_alone(unusual, clustering)) else []
     parts += names
     if seen and not clustered:
-        words = _unit(clustering, unusual)
-        where = "the one group seen" if seen == 1 else f"all {seen} groups seen"
-        parts.append(f"{_seen_states(clustering, words)} spread like random {words} in {where}")
+        # Not "spread like random": a test that finds nothing shows no clustering (audit 10).
+        words = _unit(clustering, unusual, variability)
+        where = "the one group tested" if seen == 1 else f"the {seen} groups tested"
+        parts.append(f"no clustering shown for {_seen_states(clustering, words)} in {where}")
     # The main answer only: whether the largest share is established and whether the
     # unusual labels are stable are cautions of the section (and raise its status).
     largest, _ = largest_sources(profile)

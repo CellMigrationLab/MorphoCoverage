@@ -322,10 +322,17 @@ GLOSSARY: tuple[Term, ...] = (
     ),
     Term(
         "The data",
-        "Unusual cells and 'nothing new'",
-        "Cells far from the control's, and whether later fields still showed states earlier "
-        "fields did not (the definition of new is declared in the setup).",
-        "Did I image enough?, What limits the sampling?",
+        "Unusual cells",
+        "Cells far from those of their own control in the same repeat, on values relative to "
+        "that control; exploratory, never an error or a new state.",
+        "What limits the sampling?",
+    ),
+    Term(
+        "The data",
+        "'Nothing new'",
+        "Whether later fields still showed states earlier fields did not, by the definition "
+        "of new declared in the setup; not the same as unusual cells.",
+        "Did I image enough?",
     ),
     Term(
         "The data",
@@ -376,7 +383,8 @@ PHRASES: dict[str, tuple[str, ...]] = {
     "UMAP": ("UMAP",),
     "Other feature tables and the combined map": ("other feature tables", "combined map"),
     "Integrity checks": ("integrity",),
-    "Unusual cells and 'nothing new'": ("unusual", "nothing new"),
+    "Unusual cells": ("unusual",),
+    "'Nothing new'": ("nothing new",),
     "Positive control (representation)": ("positive control",),
     "Between-field share": ("between fields",),
 }

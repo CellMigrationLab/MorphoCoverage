@@ -22,7 +22,7 @@ groups are searched in each space apart and merged (``_population_spaces``, owne
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -30,9 +30,20 @@ import pandas as pd
 from .._style import Status, table, wrap
 from .._wording import count, listing, p_value, percent, percent_fine
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
-from ..sampling_unit.contrast_repeats import MIN_REPEATS
+from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.populations import Populations, defined_by, traits
 from ..schema import observation_words, validate_input_tables
+from ._population_context import (
+    AGAINST_WORDS,
+    EXPERIMENTS_DIFFER,
+    against_controls,
+    by_evidence,
+    compared_values,
+    composition,
+    few_valued,
+    few_words,
+    mostly_words,
+)
 from ._population_rule_words import rule_cell, rule_words
 from ._population_spaces import (
     described,
@@ -60,12 +71,19 @@ COMPARED_IN = "“Do the conditions differ?”"
 @dataclass(frozen=True)
 class PopulationsResult:
     """The populations, the enrichment tests (``None`` without a control or a second
-    condition) and the label's overlap."""
+    condition), the label's overlap and, by group, what it is against the conditions
+    (``context``: ``mostly`` one condition, ``few`` its rule's features with few values;
+    ``_population_context``), with ``against`` when the groups are described against their
+    compared controls and ``normalised`` when found on normalised values as the experiments
+    differ (owner, 2026-10-06, audit 10)."""
 
     populations: Populations
     enrichment: pd.DataFrame | None  # one row per population and condition (enrichment_tests)
     label: pd.DataFrame | None  # population, held (of the labelled), purity
     control: Any
+    context: dict[str, dict[str, Any]] = field(default_factory=dict)
+    against: bool = False
+    normalised: bool = False
 
 
 def populations_in_report(
@@ -75,12 +93,14 @@ def populations_in_report(
     two features. ``objects`` holds the values read (normalised with ``normalize``), ``raw``
     the values before, to name the observations left out for want of their own control
     (audit 8, seed 4)."""
+    # Several experiments and no normalize: the values normalised to each own control.
+    objects, read, normalised = compared_values(objects, fovs, setup, raw)
     # With other feature tables, in each space apart and merged (owner, 2026-10-06).
-    populations = populations_in_spaces(objects, fovs, setup, raw)
+    populations = populations_in_spaces(objects, fovs, read, raw)
     if populations is None:
         return None
     if not populations.names:
-        return PopulationsResult(populations, None, None, None)
+        return PopulationsResult(populations, None, None, None, normalised=normalised)
     # The validated observations: group columns only in the FOV table are attached to them.
     data = validate_input_tables(objects, fovs=fovs, feature_cols=setup.columns, **setup.common)
     # Each group known where its space assessed the cell: 1 in it, 0 not, missing unknown.
@@ -118,7 +138,16 @@ def populations_in_report(
         own = set(labelled_populations(label))
         names = [name for name in tested_populations(populations) if name not in own]
         enrichment = enrichment_tests(marked, names, control)
-    return PopulationsResult(populations, enrichment, label, control)
+    # Each group read against the conditions (audit 10): described against its compared
+    # control, mostly one condition, a rule on few values.
+    against = against_controls(populations.table, marked, setup)
+    context = {
+        row["population"]: {"mostly": composition(marked, row["population"])}
+        | {"few": few_valued(row, marked)}
+        for row in populations.table.to_dict("records")
+        if row["kind"] == "group"
+    }
+    return PopulationsResult(populations, enrichment, label, control, context, against, normalised)
 
 
 def labelled_populations(label: pd.DataFrame | None) -> list[str]:
@@ -163,14 +192,15 @@ def _versus(row: Any) -> str:
 
 def _enriched(result: PopulationsResult, name: str) -> str:
     """``drugB: higher in 3 of 3, 7.1% vs 1.8%, q 0.040`` for its most different condition
-    (the smallest q), or ``–``."""
+    (the smallest q, then the largest effect), ``, not tested`` below 3 repeats, or ``–``."""
     tests = _tests(result, name)
     if not len(tests):
         return "–"
-    best = tests.sort_values(["q_paired", "p_paired"], na_position="last").iloc[0]
+    best = by_evidence(tests).iloc[0]  # the smallest q, then the largest effect (audit 10)
     versus = _versus(best)
     q = f", q {p_value(best['q_paired'])}" if pd.notna(best["q_paired"]) else ""
-    return f"{best['condition']}: {_side(best)}{', ' + versus if versus else ''}{q}"
+    untested = ", not tested" if int(best["repeats"]) < MIN_REPEATS else ""
+    return f"{best['condition']}: {_side(best)}{', ' + versus if versus else ''}{q}{untested}"
 
 
 def _verdict(result: PopulationsResult) -> tuple[list[str], list[str]]:
@@ -182,9 +212,43 @@ def _verdict(result: PopulationsResult) -> tuple[list[str], list[str]]:
             continue
         if (tests["q_paired"] <= ALPHA).any():
             significant.append(name)
-        elif one_sided(tests).any():
+        elif trends(tests).any():
             trend.append(name)
     return significant, trend
+
+
+def trends(tests: pd.DataFrame) -> pd.Series:
+    """The tests on one side of the control in every repeat, from ``TREND_REPEATS`` repeats:
+    with fewer, every repeat goes one way without an effect too often (owner, 2026-10-06,
+    audit 10, as the features' trend rule)."""
+    return one_sided(tests) & (tests["repeats"] >= TREND_REPEATS)
+
+
+def _group_parts(result: PopulationsResult, name: str, units: str) -> list[str]:
+    """What question 10 says of a group's conditions: mostly one condition (its shift); each
+    condition more or less common across repeats (exploratory); a trend from 6 repeats; "not
+    tested" below 3 (owner, 2026-10-06, audit 10)."""
+    mostly = result.context.get(name, {}).get("mostly")
+    parts = [mostly_words(mostly, units)] if mostly else []
+    tests = _tests(result, name)
+    if not len(tests):
+        return parts
+    trend = trends(tests)
+    for index, t in tests.iterrows():
+        side = "higher" if t["d"] > 0 else "lower"
+        versus = _versus(t)
+        q = f"q {p_value(t['q_paired'])}" if pd.notna(t["q_paired"]) else ""
+        inside = ", ".join(x for x in (versus, q) if x)
+        if pd.notna(t["q_paired"]) and t["q_paired"] <= ALPHA:
+            more = "more" if t["d"] > 0 else "less"
+            parts.append(f"{more} common in {t['condition']} (exploratory; {inside})")
+        elif bool(trend.loc[index]):
+            parts.append(f"{t['condition']} {side} in every repeat, not significant ({inside})")
+        elif int(t["repeats"]) < MIN_REPEATS and bool(one_sided(tests).loc[index]):
+            both = "both repeats" if int(t["repeats"]) == 2 else f"{int(t['repeats'])} repeats"
+            versus = f" ({versus})" if versus else ""
+            parts.append(f"{t['condition']} {side} in {both}{versus}, not tested")
+    return parts
 
 
 def _rarest(result: PopulationsResult, names: list[str]) -> list[str]:
@@ -193,25 +257,31 @@ def _rarest(result: PopulationsResult, names: list[str]) -> list[str]:
 
 
 def _finding(result: PopulationsResult, name: str, units: str, trend: bool = False) -> str:
-    """``P2 (3% of cells; high dna_intensity): more common in drugB across repeats (7% vs
-    2%, q 0.048)``, for its significant conditions; with ``trend``, those on one side of the
-    control in every repeat, ``in every repeat, not significant``."""
+    """``G2 (3% of cells; high dna_intensity): more common in drugB (exploratory; 7% vs 2%,
+    q 0.048)``, for its significant conditions; with ``trend``, those on one side of the
+    control in every one of 6 or more repeats, ``higher in every repeat, not significant``;
+    a group mostly of one condition, ``mostly a1, 94% of its cells: its shift, not a
+    subpopulation`` (owner, 2026-10-06, audit 10: never "significant across repeats")."""
     row = result.populations.table.set_index("population").loc[name]
     tests = _tests(result, name)
-    if trend:
-        tests = tests[one_sided(tests)]
-    else:
-        tests = tests[tests["q_paired"] <= ALPHA]
+    tests = tests[trends(tests)] if trend else tests[tests["q_paired"] <= ALPHA]
     parts = []
     for _, t in tests.iterrows():
-        more = "more" if t["d"] > 0 else "less"
         versus = _versus(t)
         versus = f"{versus}, " if versus else ""
-        parts.append(f"{more} common in {t['condition']} ({versus}q {p_value(t['q_paired'])})")
+        q = f"q {p_value(t['q_paired'])}" if pd.notna(t["q_paired"]) else ""
+        if trend:
+            side = "higher" if t["d"] > 0 else "lower"
+            inside = ", ".join(x for x in (versus.rstrip(", "), q) if x)
+            parts.append(f"{side} in {t['condition']} in every repeat, not significant ({inside})")
+        else:
+            more = "more" if t["d"] > 0 else "less"
+            parts.append(f"{more} common in {t['condition']} (exploratory; {versus}{q})")
     feature = traits(row["defining"][:1]) if described(row) else found_words(row, rule=False)
-    where = "in every repeat, not significant" if trend else "across repeats"
     share = percent_fine(row["share"])
-    return f"{name} ({share} of {units}; {feature}): {listing(parts, 3)} {where}"
+    mostly = result.context.get(name, {}).get("mostly")
+    found = mostly_words(mostly, units) if mostly else listing(parts, 3)
+    return f"{name} ({share} of {units}; {feature}): {found}"
 
 
 def _label_line(
@@ -295,6 +365,7 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
     # Observations without their own control, named once, never a missing value (audit 8).
     left = no_own_control_words(settings, setup.unit_word, units)
     method += f" ({left})" if left else ""
+    method += f", {EXPERIMENTS_DIFFER}" if result.normalised else ""
     if not settings.get("observations") and not settings.get("spaces"):
         text = wrap(
             f"{method}: not assessed: no {setup.unit_word} has a value of every feature "
@@ -368,43 +439,29 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             row.insert(3, listing([space_words(x) for x in r.found_in], 8))
         columns.insert(3, "found in")
     lines.append(table(rows, columns, indent=4))
+    if result.against:
+        lines.append(wrap(AGAINST_WORDS.format(units=units, unit=setup.unit_word), 4, hang=6))
     if undescribed_line(pops):
         lines.append(wrap(undescribed_line(pops), 4, hang=6))
     significant, trend = _verdict(result)
     for name in pops.names:
         row = pops.table.set_index("population").loc[name]
-        tests = _tests(result, name)
-        if not len(tests):
-            continue
-        parts = []
-        sided = one_sided(tests)
-        for index, t in tests.iterrows():
-            enriched = pd.notna(t["q_paired"]) and t["q_paired"] <= ALPHA
-            consistent = bool(sided.loc[index])
-            side = "higher" if t["d"] > 0 else "lower"
-            versus = _versus(t)
-            versus = f"{versus}, " if versus else ""
-            if enriched:
-                parts.append(
-                    f"{t['condition']} {side}, significant across repeats ({versus}q "
-                    f"{p_value(t['q_paired'])})"
-                )
-            elif consistent:
-                q = f"q {p_value(t['q_paired'])}" if pd.notna(t["q_paired"]) else ""
-                inside = ", ".join(x for x in (versus.rstrip(", "), q) if x)
-                inside = f" ({inside})" if inside else ""
-                parts.append(f"{t['condition']} {side} in every repeat, not significant{inside}")
-        if parts:
-            rule = rule_words(row, units) if row["rule"] else ""
+        parts = _group_parts(result, name, units)
+        context = result.context.get(name, {})
+        if context.get("few"):
+            parts.append(few_words(context["few"], units))
+        rule = rule_words(row, units) if row["rule"] else ""
+        if parts or rule:  # every group with its rule, its conditions when there is a finding
             what = (
                 " and ".join(defined_by(row["defining"][:2]).split(", "))
                 if described(row)
                 else found_words(row, rule=False)
             )
+            said = f": {'; '.join(parts)}." if parts else "."
             lines.append(
                 wrap(
-                    f"- {name}, {percent_fine(row['share'])} of {units}, {what}: "
-                    f"{'; '.join(parts)}." + (f" {rule[:1].upper()}{rule[1:]}." if rule else ""),
+                    f"- {name}, {percent_fine(row['share'])} of {units}, {what}{said}"
+                    + (f" {rule[:1].upper()}{rule[1:]}." if rule else ""),
                     4,
                     hang=6,
                 )
@@ -427,11 +484,16 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             lines.append(wrap(line, 4, hang=6))
     lines.append(
         wrap(
-            f"Assumptions: The {units} of every condition are clustered together, then each "
-            f"condition is compared with its own control on its share of {units} in each, "
-            "per biological repeat (paired t-test on the log odds of the repeat shares, "
-            "Benjamini-Hochberg within each sub-experiment over every population and "
-            "condition); the main population, holding most of them, is the rest, listed and "
+            f"Assumptions: The {units} of every condition are clustered together"
+            + (  # compared only where a control is declared (audit 10, C24)
+                f", then each condition is compared with its own control on its share of "
+                f"{units} in each, per biological repeat (paired t-test on the log odds of the "
+                "repeat shares, Benjamini-Hochberg within each sub-experiment over every "
+                "population and condition)"
+                if setup.reference_control is not None
+                else ", and no condition is compared, as no control is declared"
+            )
+            + "; the main population, holding most of them, is the rest, listed and "
             "not tested. A cluster on the UMAP is kept as a group when "
             f"{percent(settings['purity'])} or more of its {units}' "
             f"{settings['neighbours']} nearest neighbours on all the features are in it too "
@@ -460,10 +522,11 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         )
         return Status.OK, headline, "\n".join(lines)
     if significant:
+        # Exploratory until validated: ⚠️, never ✅ (owner, 2026-10-06, audit 10).
         headline = f"{found}; " + "; ".join(
             _finding(result, name, units) for name in _rarest(result, significant)[:3]
         )
-        status = Status.OK
+        status = Status.CAUTION
     elif result.enrichment is None:
         headline = f"{found}; no control to compare their shares"
         status = Status.NOT_ASSESSED

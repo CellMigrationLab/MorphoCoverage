@@ -28,13 +28,20 @@ from .._style import check_detail, group_columns, group_label, table, width, wra
 from .._wording import count, listing
 from .._wording import fields as fields_text
 from ..metadata import TECHNICAL_REPEAT_COLUMN
+from ..strategies.novelty_null import uninformative_line
 
 # Fields listed in the short form; the full form lists every one.
 SHORT_FIELDS = 8
-_NOT_AN_ERROR = (
-    "None of these is called an error: look at the images to see whether it is biology, "
-    "technique or simply a large field."
-)
+
+
+def _not_an_error(result: Any) -> str:
+    """None of these is an error; "a large field" only where a count or an influence is a
+    reason, never for a new state in one observation per field (audit 10, A22)."""
+    large = bool({reason for reason, _ in reason_counts(result)} & {"count", "influence"})
+    what = "biology, technique or simply a large field" if large else "biology or technique"
+    return f"None of these is called an error: look at the images to see whether it is {what}."
+
+
 # Each reason in a few words, for the short form's first line.
 _REASON_WORDS = {
     "new state": "a state no other field shows",
@@ -98,7 +105,9 @@ def _skipped(result: Any, *, full: bool) -> list[str]:
                 labels[0] if len(labels) == 1 else f"{len(labels)} groups ({listing(labels, 3)})"
             )
             sentences.append(template.format(summary=summary, reason=reason, groups=groups))
-    return sentences
+    # New states not informative: one line for every group, both forms (owner, 2026-10-06).
+    uninformative = uninformative_line(result.settings.get("uninformative_novelty", []))
+    return [*sentences, *([uninformative] if uninformative else [])]
 
 
 def _empty(result: Any) -> str:
@@ -144,11 +153,19 @@ def tally(result: Any) -> tuple[int, int]:
     return len(listed), len({tuple(map(str, group.values())) for group, _, _ in listed})
 
 
+def _elsewhere(result: Any, indent: int) -> list[str]:
+    """The fields listed elsewhere and not again here, in one sentence (one observation per
+    field: the acquisition anomalies' fields; ``workflows._one_per_field.listed_once``)."""
+    sentence = result.settings.get("listed_elsewhere")
+    return [wrap(sentence, indent, hang=indent + 2)] if sentence else []
+
+
 def inspection_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str]]:
     """The short form of question 6 under ``indent``, and its caveats (see the module)."""
     cautions = _skipped(result, full=False)
     if result.fovs.empty:
-        return [wrap(_empty(result), indent, hang=indent + 2)], cautions
+        empty = [wrap(_empty(result), indent, hang=indent + 2)]
+        return [*empty, *_elsewhere(result, indent)], cautions
     groups, _, _ = _keys(result)
     listed = _fields(result)
     _, group_count = tally(result)
@@ -178,8 +195,8 @@ def inspection_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str]
     if len(listed) > SHORT_FIELDS:
         more = len(listed) - SHORT_FIELDS
         lines.append(" " * (indent + 2) + f"and {fields_text(more)} more (report_full.txt).")
-    lines.append(wrap(_NOT_AN_ERROR, indent, hang=indent + 2))
-    return lines, cautions
+    lines.append(wrap(_not_an_error(result), indent, hang=indent + 2))
+    return [*lines, *_elsewhere(result, indent)], cautions
 
 
 def _full(result: Any) -> str:
@@ -201,7 +218,8 @@ def _full(result: Any) -> str:
             extra = ", ".join(f"{c} {first[c]}" for c in trace)
             reasons = "; ".join(own["detail"])
             lines.append(wrap(f"{name}{f' ({extra})' if extra else ''}: {reasons}.", 2, hang=4))
-        lines.append(wrap(_NOT_AN_ERROR, 0, hang=2))
+        lines.append(wrap(_not_an_error(result), 0, hang=2))
+    lines += _elsewhere(result, 0)
     lines += caveat_lines(_skipped(result, full=True), indent=0, detail="full")
     return "\n".join(lines)
 

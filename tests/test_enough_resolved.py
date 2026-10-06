@@ -59,9 +59,10 @@ def test_the_fields_without_observations_are_drawn_and_counted():
     them, so a side where half the fields acquired were empty was told half the fields it
     would acquire (#289). Empty fields are now drawn too (owner, 2026-10-05): the interval
     carries the field-to-field variation in cell counts, and the projection counts every
-    field acquired."""
+    field acquired. Two cells a field: with one, the interval is the exact noncentral t one
+    (audit 10, owner, 2026-10-06), which reads the cells, not the fields."""
     rng = np.random.default_rng(3)
-    t, c = _fields(rng, 10, 0.8, per_field=1), _fields(rng, 10, 0.0, per_field=1)
+    t, c = _fields(rng, 10, 0.6, per_field=2), _fields(rng, 10, 0.0, per_field=2)
     d = cohen_d(np.concatenate(t[0]), np.concatenate(c[0]))
     row = sampling_row(t, c, d, np.random.default_rng(2))
     empty = [np.empty(0)] * 10
@@ -176,7 +177,9 @@ def test_question_2_leads_with_the_resolution_when_a_control_is_declared():
     assert "would need about" in headline and "cells a side" in headline
     short = " ".join(enough_short(None, None, None, contrast=contrast).split())
     assert "Within each repeat, does the difference from the control show?" in short
-    assert "about 42 cells a side" in short
+    # The exact noncentral t interval of one cell per field (audit 10, owner, 2026-10-06)
+    # replaced the bootstrap's: about 30 cells a side, 42 before.
+    assert "about 30 cells a side" in short
 
 
 def test_every_difference_resolved_is_ok_and_the_precision_cautions_stay_in_the_full_form():
@@ -206,11 +209,12 @@ def test_a_comparison_without_an_interval_stays_in_the_count():
     status, headline = enough_status(None, None, contrast)
     assert status is Status.CAUTION
     assert "shown in 1 of 2 comparisons" in headline
-    assert "1 not assessed (too few fields for an interval)" in headline
+    # Fewer than 5 fields a side: not assessable (audit 10, owner, 2026-10-06).
+    assert "1 not assessable (fewer than 5 fields a side)" in headline
     full = " ".join(resolved_full(contrast).split())
-    assert "repeat R2 1 vs 12 +1.70 not assessed: too few fields" in full
+    assert "repeat R2 1 vs 12 +1.70 not assessable: fewer than 5 fields a side" in full
     page = " ".join(_resolution(contrast))
-    assert "Partly" in page and "in 1 of 2 comparisons" in page and "not assessed" in page
+    assert "Partly" in page and "in 1 of 2 comparisons" in page and "not assessable" in page
 
 
 @pytest.mark.parametrize("dataset_id", ["cct8_filopodia_screen"])
