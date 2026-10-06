@@ -204,14 +204,14 @@ fingerprint read raw values. The rule and why are in
 
 **Robust standardisation and MFA weighting.** Before distances or principal components,
 each column is centred on its median and divided by its MAD as an SD, or by its SD when the
-MAD is under a quarter of it: the maps, the populations, the separation, the whole-table
-test and a wide fingerprint read this. Novelty uses its own transform, `RobustStandardize`
+MAD is under a quarter of it: the maps, the populations, the separation, the label check,
+the whole-table test and a wide fingerprint read this. Novelty uses its own transform, `RobustStandardize`
 by default, and unusual observations a mean and SD fitted on the reference. MFA weighting
 divides each table by its first singular value over `sqrt(n - 1)`, so every table's first
 axis has variance 1 whatever the order of the tables and a wide or correlated table does not
 outweigh another (owner, 2026-10-06, audit 8; with one table nothing is weighted): the
 explainable tables among themselves when there are two or more, for novelty, unusual
-observations and the populations; every table in the combined space of the maps, the
+observations, the populations and the label check; every table in the combined space of the maps, the
 populations and the separation. Novelty's radius `sqrt(d)` then reads as the square root of
 the weighted space's total inertia. It changes no statistic of the whole-table test.
 

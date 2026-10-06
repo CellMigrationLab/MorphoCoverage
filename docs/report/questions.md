@@ -211,7 +211,9 @@ data, in plain language, are in [Objects or fields?](objects_or_fields.md).
 
 With a label and no positive control, question 1 is answered by the label: for each labelled cell, whether
 the nearest cell of another field (on the declared features, robustly
-standardized) is labelled too, against the share labelled overall, with
+standardized as the other explainable spaces are, the SD where the MAD is under a quarter of
+it, each explainable table weighted by MFA when there are two or more; owner, 2026-10-06,
+audit 8) is labelled too, against the share labelled overall, with
 `minimum_detection` as for a positive control. Every labelled cell is looked up
 against its true nearest cell of another field, and the answer gives how many were
 assessed. A declared label the check cannot assess (fewer than 5 labelled cells, no

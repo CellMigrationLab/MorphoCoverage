@@ -13,6 +13,7 @@ from test_audit8_b import SEVERAL, _several
 from test_embedding_only import _cells
 from test_feature_tables_batch import _batch, _setup
 
+from morphocoverage.embedding import robust_scale
 from morphocoverage.feature_tables import mfa_weights
 from morphocoverage.objectives import ObjectiveConfig, SamplingObjective
 from morphocoverage.schema import validate_input_tables
@@ -26,6 +27,7 @@ from morphocoverage.workflows._feature_space import (
     separation_in_report,
     unusual_space,
 )
+from morphocoverage.workflows._label_control import _robust
 from morphocoverage.workflows._populations import populations_in_report, populations_text
 
 KEY = ["condition", "biological_repeat", "image_file", "label_id"]
@@ -179,3 +181,21 @@ def test_a_readout_without_features_beside_a_table_reads_unusual_observations_on
         "Representation: readout area; no feature columns declared, so new phenotypes are not "
         "assessed; unusual cells on the readout alone, the other tables never entering them."
     )
+
+
+# --- 6. The label check standardises as the other explainable spaces ------------------------
+
+
+def test_the_label_check_reads_the_robust_scale_and_mfa_of_the_other_explainable_spaces():
+    rng = np.random.default_rng(3)
+    spread = rng.normal(0, 5, 400)
+    spread[:190] = 0.0  # a mostly-zero column: its MAD is far under a quarter of its SD
+    matrix = np.column_stack([rng.normal(size=400), spread, rng.normal(size=400)])
+    one = Setup(readout="a", features=("a", "b", "c"))
+    centre, scale = robust_scale(matrix)
+    np.testing.assert_allclose(_robust(matrix, one), (matrix - centre) / scale)
+    assert scale[1] == pytest.approx(matrix[:, 1].std(ddof=1))  # the MAD floor (seed 14)
+    two = Setup(readout="a", features=("a", "b", "c"), explainable_tables={"T": ("c",)})
+    z = (matrix - centre) / scale
+    weights = mfa_weights(z, ["a", "b", "c"], {"observation table": ("a", "b"), "T": ("c",)})
+    np.testing.assert_allclose(_robust(matrix, two), z * weights)
