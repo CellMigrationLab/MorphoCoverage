@@ -252,8 +252,9 @@ a description with no p-value:
   its own read as a batch (a control of one field of 5 cells: "the repeats separate more"
   in every simulation with no batch). The score by condition reads the view's values; under
   a normalised or centred map the line says so ("Within a condition, on the raw values, 35%
-  share the repeat ... On the raw values, the repeats separate more than the
-  conditions."), so it does not contradict the centred picture. Cells with every raw value
+  share the repeat ..."), so it does not contradict the centred picture, and the two scores,
+  reading different values, are not compared: no "the repeats separate more" under such a
+  map (audit 10, owner, 2026-10-06). Cells with every raw value
   but none in the view are counted apart from the missing values and named: "18 cells of b1
   in R1 left out: no own control" (or "no condition to centre on", for a repeat left out of
   the centred values); the populations name them the same way (owner, 2026-10-06, audit 8).

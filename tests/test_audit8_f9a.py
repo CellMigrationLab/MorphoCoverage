@@ -380,12 +380,11 @@ def test_under_a_centred_map_the_repeat_line_says_it_reads_the_raw_values():
     found = separation_in_report(centred, fovs, setup, ["DINO"], raw=merged)
     line = found.line("DINO")
     assert "Within a condition, on the raw values, " in line
-    assert line.endswith("On the raw values, the repeats separate more than the conditions.")
+    # Raw repeats against centred conditions are not compared (audit 10, B15).
+    assert "separate more" not in line
     plain = separation_in_report(merged, fovs, setup, ["DINO"]).line("DINO")
     assert "on the raw values" not in plain and "Here the repeats separate more" in plain
-    assert "On the raw values, the repeats separate more than the conditions in DINO" in (
-        comparison_table(found)
-    )
+    assert "separate more than the conditions" not in comparison_table(found)
 
 
 def test_the_normalised_map_line_names_the_cells_without_their_own_control():

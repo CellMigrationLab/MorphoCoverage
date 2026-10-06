@@ -535,10 +535,11 @@ def maps_body(setup: Any, viz: str, static: list[str]) -> str:
 def _batch_words(setup: Any, fovs: pd.DataFrame, unnormalisable: str | None, centred: bool) -> str:
     """The end of the maps' note: which view takes a batch between repeats out."""
     if not setup.columns:  # an embedding-only report: the tables are never divided
+        # The map's view; the separation by condition compares within each repeat already.
         view = (
-            "the centred view takes out"
+            "the centred view takes out of the map"
             if centred
-            else "a control would let the centred view take out"
+            else "a control would let the centred view take out of the map"
         )
         return f"repeats, which {view}.</p></div>"
     if unnormalisable is None:
