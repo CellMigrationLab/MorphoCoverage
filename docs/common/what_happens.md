@@ -5,6 +5,8 @@ input switches on, which values each analysis reads, how they are normalised, an
 tests give a verdict. It recaps the rules for each type of feature in one place; the
 details of each analysis are on the page it links to. It describes the code as built
 (`workflows.report` and the modules it calls).
+[The scenarios](../../data/scenarios/README.md) run every path on a small dataset whose
+answers are known.
 
 ## What you provide
 

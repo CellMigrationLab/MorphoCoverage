@@ -444,6 +444,8 @@ data/
     simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py,
                            # unusual_calibration.py) and results
     synthetic/             # a constructed end-to-end dataset with known answers (make_synthetic.py, expected.json)
+    scenarios/             # one small dataset per kind of input (tables, controls, normalisation, unit, wells,
+                           # targets; edge designs; user mistakes) with the truth (make_scenarios.py, README.md)
 
 docs/                      # README.md: start here, the three workflows and a reading order
     report/                # REPORT: running_a_report.md, questions.md (R1-R8 in page order), did_i_image_enough.md,
