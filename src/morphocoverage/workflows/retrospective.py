@@ -39,14 +39,13 @@ into the full microscopist's report, with the settings of both.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, fields, replace
+from dataclasses import fields, replace
 from typing import Any
 
 import pandas as pd
 
-from .._caveats import caveat_lines
 from .._integrity_tables import integrity_by_table
-from .._style import DASH, check_detail, headline, wrap
+from .._style import DASH
 from .._wording import count
 from ..feature_tables import EXPLAINABLE
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
@@ -65,12 +64,7 @@ from ..retrospective import (
     sampling_reliability,
     stopping_calibration,
 )
-from ..retrospective.calibration import calibration_short_parts
-from ..retrospective.report import LIMITS_TITLE
-from ..retrospective.report_status import calibration_status
 from ..sampling_unit import (
-    FeatureDiscovery,
-    FeatureRanking,
     fov_variability,
 )
 from ..schema import resolve_observation_unit
@@ -95,10 +89,21 @@ from ._feature_space import (
     separation_in_report,
     table_lines,
 )
+from ._fingerprint_space import fingerprint_space
 from ._label_control import label_control
 from ._populations import populations_in_report
 from ._rare_share import unlabelled_note
 from ._result_influence import influence_on_result, with_result_influence
+from ._results import (
+    CALIBRATION_SHORT,
+    CALIBRATION_TITLE,
+    PLAN_QUESTIONS,
+    PLAN_TITLE,
+    REPORT_ORDERS,
+    REPORT_QUESTIONS,
+    Plan,
+    Report,
+)
 from ._shared import (
     check_workflow_inputs,
     conditions,
@@ -112,62 +117,9 @@ from ._shared import (
     sufficiency_rules,
 )
 from ._shared import orders as _orders
+from ._whole_table import whole_table_in_report
 from .benchmarks import Benchmark, Family, benchmark, default_families
 from .setup import Setup
-
-PLAN_TITLE = "Plan for the next experiment"
-CALIBRATION_TITLE = (
-    "Would a simple rule have been sufficient, and how reliable is each stopping rule?"
-)
-# The rule check as the "At a glance" block names it.
-CALIBRATION_SHORT = "Rules. How reliable was each stopping rule?"
-REPORT_QUESTIONS = (
-    "unit",
-    "controls",
-    "enough",
-    "profile",
-    "inspect",
-    "conditions",
-    "populations",
-)
-PLAN_QUESTIONS = ("next_time", "bought", "effort", "order")
-# The random orders in which the report replays each rule for "Did I image enough?".
-REPORT_ORDERS = 5
-
-
-@dataclass(frozen=True)
-class Report:
-    """The REPORT answers: ``results`` by analysis, ``document`` the assembled report.
-
-    ``not_assessed`` holds, by question, why an analysis was not run;
-    ``settings`` the replay settings of the run.
-    """
-
-    results: dict[str, Any]
-    document: Any
-    setup: Setup
-    not_assessed: dict[str, str] = field(default_factory=dict)
-    settings: dict[str, Any] = field(default_factory=dict)
-
-    def summary(self, detail: str = "short") -> str:
-        """The report questions (``detail``: ``"short"`` or ``"full"``, as
-        ``MicroscopistReport.summary``), then the settings of the run."""
-        parts = [self.document.summary(REPORT_QUESTIONS, detail=detail)]
-        if self.settings:
-            parts.append(report_settings(self.settings))
-        return "\n\n".join(parts)
-
-    @property
-    def ranking(self) -> FeatureRanking | None:
-        """The ranking over whole technical repeats (question 9), when several features were
-        declared."""
-        return self.results.get("ranking")
-
-    @property
-    def discovery(self) -> FeatureDiscovery | None:
-        """The features the cell-level gate ranks, the paired test beside it (question 9),
-        when several features were declared; ``plots`` draws its best-ranked by default."""
-        return self.results.get("discovery")
 
 
 def report(
@@ -289,6 +241,8 @@ def report(
             objects, fovs, compared, setup, results.get("discovery")
         )
         results["distribution"] = distribution_by_feature(objects, fovs, setup)
+    # Every other table tested whole, beside the features (owner, 2026-10-06).
+    results["whole_table"] = whole_table_in_report(objects, fovs, setup)
     if setup.fingerprint:
         results["fingerprint_precision"] = fingerprint_precision(objects, fovs, setup)
     # Question 10: populations on every condition pooled, then their enrichment.
@@ -357,51 +311,6 @@ def report(
     return Report(results, document, setup, reasons, settings)
 
 
-@dataclass(frozen=True)
-class Plan:
-    """The OPTIMISE answers: ``results`` by analysis, ``document`` the assembled report.
-
-    ``not_assessed`` holds, by question, why an analysis was not run;
-    ``settings`` the computational settings and presets of the run.
-    """
-
-    results: dict[str, Any]
-    document: Any
-    setup: Setup
-    not_assessed: dict[str, str] = field(default_factory=dict)
-    settings: dict[str, Any] = field(default_factory=dict)
-
-    def summary(self, detail: str = "short") -> str:
-        """The planning questions, with the calibration of each stopping rule (``detail``:
-        ``"short"`` or ``"full"``, as ``MicroscopistReport.summary``), then the settings.
-
-        The rule check ("Would a simple rule have been sufficient, and how reliable
-        is each stopping rule?", P5 and P6) is a section of its own, before "What
-        this dataset cannot tell me", with its status (``calibration_status``) in
-        the "At a glance" block of the short form.
-        """
-        short = check_detail(detail) == "short"
-        text = self.document.summary(PLAN_QUESTIONS, detail=detail)
-        calibration = self.results.get("calibration")
-        if calibration is not None:
-            status, answer = calibration_status(calibration)
-            if short:
-                lines, cautions = calibration_short_parts(calibration, indent=2)
-                body = "\n".join([*lines, *caveat_lines(cautions, indent=2)])
-                glance = self.document.at_a_glance(PLAN_QUESTIONS)
-                line = wrap(headline(status, CALIBRATION_SHORT, answer), "  ", hang=5)
-                text = text.replace(glance, f"{glance}\n{line}", 1)
-            else:
-                full = calibration.summary(detail="full")
-                body = "\n".join(f"  {row}" if row else row for row in full.splitlines())
-            section = f"{headline(status, CALIBRATION_TITLE)}\n{body}"
-            head, limits, tail = text.rpartition(f"\n\n{LIMITS_TITLE}\n")
-            text = f"{head}\n\n{section}{limits}{tail}" if limits else f"{text}\n\n{section}"
-        if self.settings:
-            text = f"{text}\n\n{wrap(plan_settings(self.settings))}"
-        return text
-
-
 def optimise(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -440,10 +349,12 @@ def optimise(
     """
     objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     common = setup.common
-    criteria = setup.criteria()
     hierarchy = setup.resolved_hierarchy(objects, fovs)
     strata = setup.resolved_effort_strata(fovs)
     prepared = setup.compared_values(objects, fovs)
+    # A wide table's fingerprint on its first components, as the report reads it.
+    space = fingerprint_space(prepared, fovs, setup)
+    criteria = space.setup.criteria()
     reasons: dict[str, str] = {}
     results: dict[str, Any] = {}
     results["reliability"] = sampling_reliability(
@@ -459,6 +370,13 @@ def optimise(
         n_jobs=setup.n_jobs,
         **common,
     )
+    settings = {
+        "protocol_threshold": protocol_threshold,
+        "reservoir_fraction": reservoir_fraction,
+        "n_splits": n_splits,
+        "draws": draws,
+        "random_state": setup.random_state,
+    }
     if hierarchy is None:
         reasons.update(no_hierarchy_reasons(setup, fovs))
     else:
@@ -516,22 +434,23 @@ def optimise(
         )
     document = assemble({k: v for k, v in results.items() if k != "calibration"}, setup)
     settings = {
-        "protocol_threshold": protocol_threshold,
-        "reservoir_fraction": reservoir_fraction,
+        **settings,
         "reservoir_fovs": reservoir_sizes(replay),
-        "n_splits": n_splits,
-        "draws": draws,
         "recorded_order": setup.acquisition_order_col is not None,
         "permuted_orders": permuted_orders,
         "dispersed_orders": dispersed_orders if setup.stage_cols is not None else 0,
-        "random_state": setup.random_state,
     }
     unit = resolve_observation_unit(setup.observation_unit)[0]
     title = (
         f"{PLAN_TITLE} {DASH} {count(len(objects), unit, setup.unit_words)} in "
         f"{count(len(fovs), 'field')}"
     )
-    document = replace(with_reasons(document, reasons), title=title)
+    unread = [
+        f"The fingerprint, {c}, is not assessable: {r}." for c, r in space.not_assessable.items()
+    ]
+    document = replace(
+        with_reasons(document, reasons), title=title, notes=(*document.notes, *unread)
+    )
     return Plan(results, document, setup, reasons, settings)
 
 
@@ -575,6 +494,8 @@ def document(*parts: Report | Plan) -> MicroscopistReport:
 
 
 __all__ = [
+    "CALIBRATION_SHORT",
+    "CALIBRATION_TITLE",
     "PLAN_QUESTIONS",
     "REPORT_ORDERS",
     "REPORT_QUESTIONS",

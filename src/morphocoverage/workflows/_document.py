@@ -48,6 +48,7 @@ from ._enough_features import default_precision, with_features
 from ._enough_targets import with_targets
 from ._label_control import with_label_check
 from ._populations import with_populations
+from ._whole_table import with_whole_table
 
 if TYPE_CHECKING:
     from .setup import Setup
@@ -62,6 +63,7 @@ _EXTRA_RESULTS = (
     "label_control",
     "populations",
     "separation",
+    "whole_table",
 )
 
 
@@ -186,7 +188,9 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
     document = with_populations(document, results.get("populations"), setup)
     document = with_label_check(document, results.get("label_control"), results)
     # Beyond the mean, with a fingerprint declared (question 9).
-    return with_distribution(document, results.get("distribution"), setup.unit_words)
+    document = with_distribution(document, results.get("distribution"), setup.unit_words)
+    # Every other table tested whole, beside the features (owner, 2026-10-06).
+    return with_whole_table(document, results.get("whole_table"), bool(setup.columns))
 
 
 def _with_integrity(document: MicroscopistReport, integrity: Any) -> MicroscopistReport:

@@ -77,7 +77,7 @@ from ._html_next import fields_next, populations_next
 from ._html_plan import PLAN_TITLE, plan_card
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
-from ._html_render import Terms, adjusted_p, chip, in_units, text_html
+from ._html_render import Terms, adjusted_p, chip, first_sentence, in_units, text_html
 from ._html_script import SCRIPT
 from ._html_sections import (
     INTROS,
@@ -94,6 +94,7 @@ from ._html_sections import (
 )
 from ._html_style import CSS
 from ._html_tests import figure_legends, page_assumptions, tests_section
+from ._whole_table import whole_table_html, whole_table_lines
 from .retrospective import REPORT_QUESTIONS, Report
 
 REPORT_FILE = "report.html"
@@ -294,6 +295,8 @@ def _condition_extras(result: Report, feature_blocks: list[str], folder: Path) -
         buttons = data_buttons(across_data(contrast, folder))
         extra += "<h3>Compared across experiments</h3>" + _html("\n".join(across))
         extra += f'<p class="tools">{buttons}</p>' if buttons else ""
+    # Every other table tested whole (owner, 2026-10-06), its data as CSV.
+    extra += whole_table_html(result.results.get("whole_table"), folder, _html, data_buttons)
     if feature_blocks:
         ranked = result.discovery is not None and len(result.discovery.top())
         extra += (
@@ -323,6 +326,9 @@ def _conditions_card(
         result, _TERMS.annotate
     )
     rest = short[len(reading) :].lstrip("\n") if reading and short.startswith(reading) else short
+    whole = result.results.get("whole_table")
+    if whole is not None and len(whole.tests):  # its own block, among the extras
+        rest = rest.replace("\n".join(whole_table_lines(whole)), "")
     # Without a summary (no reading by verdict), the readings answer.
     body = (summary or _html(reading)) + extras
     if rest.strip():
@@ -424,7 +430,7 @@ def html_report(
         nav.append(f'<a href="#{anchor}"><span class="icon"></span><span>{label}</span></a>')
     nav.append("</nav>")
     overview_short = doc.short.get("overview") or doc.overview or ""
-    subtitle = _first_sentence(overview_short)
+    subtitle = first_sentence(overview_short)
     cards = [
         '<section class="card" id="glance"><h2>At a glance</h2><p class="key">Each marker '
         "says what the answer found, in the word beside it. Underlined words show their "
@@ -555,20 +561,6 @@ def _plotly_scripts(specs: list[dict], embedding: bool) -> str:
         f'<script type="application/json" id="feature-data">{data}</script>'
         f"<script>{plotly_js()}</script><script>{PLOTLY_SCRIPT}</script>"
     )
-
-
-def _first_sentence(text: str) -> str:
-    """The first line of ``text`` with its wrapped continuation lines joined again."""
-    lines = [line for line in text.splitlines() if line.strip()]
-    if not lines:
-        return ""
-    first = len(lines[0]) - len(lines[0].lstrip())
-    parts = [lines[0].strip()]
-    for line in lines[1:]:
-        if len(line) - len(line.lstrip()) <= first:
-            break
-        parts.append(line.strip())
-    return " ".join(parts)
 
 
 def _settings(result: Report) -> str:
