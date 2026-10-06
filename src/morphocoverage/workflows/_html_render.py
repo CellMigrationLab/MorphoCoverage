@@ -185,6 +185,8 @@ def chip(status: Status | None, key: str = "", answer: str = "", word: str | Non
         word = f"No conclusion (n = {few.group(1)})"
     elif key == "populations" and answer.startswith("no group:"):
         word = "No group"
+    elif key == "conditions" and answer.startswith("nothing compared"):
+        word = "Nothing compared"  # audit 10 (F12): never "No consistent difference"
     elif key == "conditions" and status is Status.OK and answer.startswith("beyond the mean"):
         word = "Differs beyond the mean"
     elif key in ("conditions", "populations") and status is Status.CAUTION:

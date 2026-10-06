@@ -31,6 +31,7 @@ from morphocoverage import (
     SamplingObjective,
 )
 from morphocoverage._control import ACROSS, MASTER_RAW
+from morphocoverage._style import Status
 from morphocoverage.plots_pairwise import PANEL_KEYS, verdict_note
 from morphocoverage.policies import decide
 from morphocoverage.sampling_unit import object_rule_check
@@ -48,6 +49,7 @@ from morphocoverage.statistics import benjamini_hochberg, cohen_d
 from morphocoverage.sufficiency_short import met_count
 from morphocoverage.workflows import Setup, attach_feature_tables, plots, report
 from morphocoverage.workflows._guided_controls import ask_experiment
+from morphocoverage.workflows._html_render import chip
 from morphocoverage.workflows._whole_table import across_reason, whole_table_lines
 
 SCENARIOS = Path(__file__).resolve().parents[1] / "data" / "scenarios"
@@ -576,3 +578,14 @@ def test_the_report_runs_with_declared_experiments_and_the_guided_session_asks()
     assert ask_experiment(lambda text: "", print, scan, {"condition": "ctrl"}) is None
     several = {"condition": {"c1": ["a"], "c2": {"k": "b"}}}
     assert ask_experiment(answer, print, scan, several) == {"a": "c1", "b": "c2"}
+
+
+def test_nothing_compared_is_said_never_no_consistent_difference() -> None:
+    # F12 note (e02): the chip read "⚠️ No consistent difference" when nothing was compared.
+    result = _scenario_report("e02_control_in_other_repeats")
+    status = result.document.statuses["conditions"]
+    headline = result.document.headlines["conditions"]
+    assert status is Status.NOT_ASSESSED
+    assert headline.startswith("nothing compared: no biological repeat holds a condition")
+    assert "Nothing compared" in chip(status, "conditions", headline)
+    assert "No consistent difference" not in chip(status, "conditions", headline)

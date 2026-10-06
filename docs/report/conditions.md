@@ -239,6 +239,10 @@ never a "balanced" test of one repeat (audit 10, owner, 2026-10-06).
   already).
 - **Balancing** assumes the observations of a repeat are exchangeable, so any
   subset of them represents it.
+- **Nothing compared.** When no biological repeat holds a condition and its control, the
+  question reads "➖ nothing compared: no biological repeat holds a condition and its
+  control", its chip "Nothing compared", never "No consistent difference" (audit 10, owner,
+  2026-10-06).
 - **Benjamini-Hochberg** correction is applied within each sub-experiment
   (the conditions that share their biological repeats and their control, as
   when a screen runs target by target), each test separately: one part of a

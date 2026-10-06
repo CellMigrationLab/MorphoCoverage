@@ -64,6 +64,9 @@ _UNTESTED = {
 }
 
 
+_NO_CONTROL = "no control group"
+
+
 def _untested_words(statuses: Sequence[str]) -> str:
     """Why contrasts have no test, in a few words."""
     words = {
@@ -78,6 +81,13 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
     if contrast is None and ranking is None and discovery is None:
         return Status.NOT_ASSESSED, "not assessed"
     status, parts, limited, trend = Status.OK, [], False, False
+    table = contrast.table if contrast is not None else pd.DataFrame(columns=["status"])
+    statuses = table["status"].astype(str)
+    if len(statuses) and statuses.str.startswith(_NO_CONTROL).all():
+        # Nothing compared, said as such, never "no consistent difference" (audit 10, F12).
+        return Status.NOT_ASSESSED, (
+            "nothing compared: no biological repeat holds a condition and its control"
+        )
     if contrast is not None and len(contrast.table):
         table = contrast.table
         across = getattr(contrast, "repeats", None)
