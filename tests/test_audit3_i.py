@@ -77,7 +77,7 @@ def test_i1_setup_random_state_seeds_the_report_random_orders(monkeypatch):
         runs[seed] = report(objects, fovs, _setup(random_state=seed, stage_cols=None))
     assert seen == [order_seeds(0, 5), order_seeds(7, 5)]
     assert seen[0] == [0, 1, 2, 3, 4] and not set(seen[0]) & set(seen[1])
-    assert "seeded from random_state); random_state 7." in runs[7].summary()
+    assert "seeded from random_state); random_state 7." in " ".join(runs[7].summary().split())
 
 
 def test_i2_livetables_waits_for_the_first_fov_row_before_fixing_its_key():
@@ -175,7 +175,7 @@ def test_i5_every_preset_is_printed_and_minimum_detection_reaches_the_report(mon
         positive=PositiveControl({"condition": "drug"}, fovs_seen=5),
         minimum_detection=0.8,
     )
-    assert "fewer than 80% of its checks are recognized (minimum_detection" in " ".join(
+    assert "fewer than 80% of its checks are recognized, a provisional threshold" in " ".join(
         positive.declaration()
     )
     rules = [line for line in setup.declaration() if line.startswith("Stopping rules:")]

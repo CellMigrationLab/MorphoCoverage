@@ -436,11 +436,19 @@ def wrap(text: str, indent: int | str = 0, *, hang: int | str | None = None) -> 
             lines.append("")
             continue
         # An emoji in the indent takes two columns but counts one character; a group label
-        # ("MOCK · 1A · B6") is never broken, its separators held by no-break spaces.
+        # ("MOCK · 1A · B6") is never broken, its separators held by no-break spaces. A marker
+        # opening the text is moved into the indent, so its two columns are counted too (no
+        # line one column too wide, audit 10).
+        start = first
+        marker = next(
+            (m for m in (OK, CAUTION, PROBLEM, NOT_ASSESSED) if line.startswith(f"{m} ")), ""
+        )
+        if marker:
+            start, line = f"{first}{marker} ", line[len(marker) + 1 :]
         filled = textwrap.fill(
             line.replace(SEPARATOR, _KEPT),
-            WIDTH - (width(first) - len(first)),
-            initial_indent=first,
+            WIDTH - (width(start) - len(start)),
+            initial_indent=start,
             subsequent_indent=later,
             break_long_words=False,
             break_on_hyphens=False,
