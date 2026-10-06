@@ -109,7 +109,8 @@ html_report(result, fovs, fovs, "results", feature_tables={"DINO": dino})
 `readout=None` (its default) with no `features` makes such a Setup (`Setup.embedding_only`);
 features without a readout and `intensity_features` are refused. `normalize` is accepted:
 it centres the tables per biological repeat (for the maps, the populations, unusual
-observations and the separation, never a test) and never divides them, since the other
+observations and the separation, never a test; without it, unusual observations read each
+column relative to its own control's mean in its repeat) and never divides them, since the other
 tables are never divided by a control. The targets are the user's choice among those
 that need no single readout: the **whole distribution**, the fingerprint of each table
 (read on its first principal components,
@@ -272,7 +273,12 @@ judges a field after (its `min_fovs`, 5 for `default_novelty`): with fewer, no f
 would ever be judged. With `novelty`, the report also counts the fields holding a state
 that fewer than `few_fovs` other fields show (seen, but not established);
 `few_fovs` must exceed the definition's `min_other_fovs` and defaults to two
-more than it. Group columns beyond condition and repeat (the `technical_repeat`, say) are part of
+more than it. When every field holds one observation the report reads the definition
+across fields (owner, 2026-10-06, plan v2): a new state's `min_novel_observations` similar
+observations cannot sit in one field, so a field's observation is new when fewer than that
+many other fields hold one within the radius (`min_other_fovs` raised to it, one
+observation a field), and the declaration says "new: a cell that fewer than 3 other fields
+show" for `default_novelty`; a declared `few_fovs` is raised past it when needed. Group columns beyond condition and repeat (the `technical_repeat`, say) are part of
 a field's identity everywhere, including in the control check. "New" is judged
 on `features` only, never on the readout, and the report names those columns.
 The stopping rules see the same columns (the readout, then `features`) in
