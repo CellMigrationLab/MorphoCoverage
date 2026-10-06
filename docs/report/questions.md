@@ -103,8 +103,8 @@ are in [Objects or fields?](objects_or_fields.md).
 ## The page, section by section
 
 The closing section, "What this dataset cannot tell me", lists the same limits in the short
-and the full forms, one line each pointing to its section ("not assessed, see question 1",
-"Answered in part: see question 3"), the reason stated only in the section; the page, which
+and the full forms, one line each pointing to its section ("not assessed, see question 1", "no conclusion
+possible here, see question 9", "Answered in part: see question 3"), the reason stated only in the section; the page, which
 leaves out the sections it cannot answer, keeps the reasons in its closing card (owner,
 2026-10-06). The rules' provenance, such as "[fixed_fov (target_fovs=8)]" or a config id, is
 printed in the full text report only, never in the short report or on the page (owner,

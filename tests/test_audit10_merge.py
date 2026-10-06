@@ -48,7 +48,7 @@ def test_the_closing_section_points_to_each_section_in_both_forms() -> None:
         assert "Answered in part: see the Foundation." in limits
         assert reason not in limits
         assert reason in " ".join(text.split())  # said once, in its section
-    assert "no group, see question 10" in _limits(result.summary())
+    assert "no conclusion possible here, see question 10" in _limits(result.summary())
     # The page leaves out what it cannot answer, so its closing card keeps the reasons.
     page = " ".join(result.document.limits(None, "short", pointers=False).split())
     assert reason in page

@@ -19,7 +19,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -83,10 +82,15 @@ def _where(title: str) -> str:
     return f"question {number}" if number.isdigit() else f"the {title.split(':', 1)[0]}"
 
 
-def _pointer(title: str, headline_text: str) -> str:
+def _pointer(title: str, headline_text: str, assessed: bool) -> str:
     """``not assessed, see question 1``: the state of an answer, its reason left to its
-    section (owner, 2026-10-06)."""
-    state = re.split(r"[:;]", headline_text, maxsplit=1)[0].strip() or "not assessed"
+    section (owner, 2026-10-06); run without a conclusion, the marker's words."""
+    if not assessed or headline_text.startswith("not assessed"):
+        state = "not assessed"
+    elif headline_text.startswith("not applicable"):
+        state = "not applicable"
+    else:
+        state = "no conclusion possible here"
     return f"{state}, see {_where(title)}"
 
 
@@ -123,10 +127,11 @@ def limits_text(
     for key, title in missing:
         answer = report.headlines.get(key, "")
         if pointers:  # one line per limit, its reason in its section (owner, 2026-10-06)
+            pointer = _pointer(title, answer, report.inputs.get(key) != "not assessed")
             line = (
-                f"{NOT_ASSESSED} {title}: {_pointer(title, answer)}."
+                f"{NOT_ASSESSED} {title}: {pointer}."
                 if full
-                else headline(Status.NOT_ASSESSED, short_titles[key], _pointer(title, answer))
+                else headline(Status.NOT_ASSESSED, short_titles[key], pointer)
             )
         elif full and answer and not answer.startswith("not assessed"):
             # Its own reason, never what to run (audit, 2026-10-02; audit 10, C13).
