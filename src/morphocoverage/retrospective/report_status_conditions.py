@@ -55,7 +55,7 @@ def across_headline(across: pd.DataFrame, repeat_col: str | None) -> str:
 
 
 _UNTESTED = {
-    "only one technical repeat": "one well per condition in a repeat",
+    "only one technical repeat": "one well on a side",
     "too few technical repeats": "too few technical repeats on a side",
     "fewer than 2 fields": "too few fields on a side",
     "fields of one dish or well": "the fields' wells unknown",

@@ -317,7 +317,11 @@ its fields cannot stand in for wells, and its effect sizes are still
 reported. **Without a unit there is no p-value**, unless
 `Setup(fields_independent=True)` declares the fields independent draws;
 whole fields are then shuffled and the section says the p-value treats them
-so. A d on technical-repeat means is computed only when each side holds 4
+so. When no contrast within a repeat has a test, the short form says why from their
+statuses: the control has one well in each repeat, each condition and its control have one,
+too few wells a side for the test to reach p ≤ 0.05, or no well recorded, so treated as one
+well per condition and repeat (audit 10, owner, 2026-10-06). A d on technical-repeat means is
+computed only when each side holds 4
 or more, since from fewer means a d can be very large by chance. The
 whole-field draws of the JCS effect size take whole technical repeats with
 replacement when both sides have them; otherwise they resample these fields

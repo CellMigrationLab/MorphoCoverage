@@ -30,6 +30,7 @@ import pandas as pd
 import pytest
 
 from morphocoverage.sampling_unit.contrast_repeats import TREND_REPEATS
+from morphocoverage.sampling_unit.contrast_text import ONE_UNIT
 from morphocoverage.sampling_unit.reading_text import CONFIRMED, CONSISTENT
 from morphocoverage.workflows import Setup, html_report, optimise, report
 from morphocoverage.workflows._enough_targets import NO_TARGET
@@ -97,12 +98,16 @@ def _sections(result: Any, truth: dict[str, Any]) -> None:
         assert spaces == set(truth["separation_spaces"])
 
 
-def _said_once(result: Any) -> None:
-    """What the report says once is said once: the acquisition block's line and the gap
-    between controls (audit 10, A2 and B12)."""
+def _words(result: Any) -> None:
+    """The report's words agree with what ran (audit 10, owner, 2026-10-06): what is said
+    once is said once (A2, B12), and no sentence contradicts the analysis it describes (T4)."""
     full = " ".join(result.summary("full").split())
     assert full.count("never a biological verdict: open their images") <= 1
     assert full.count("may have been imaged or processed differently") <= 1
+    contrast = result.results.get("contrast")
+    statuses = contrast.table["status"].astype(str) if contrast is not None else pd.Series()
+    if "one well in each repeat" in full:  # A6, C5: the reason is the status's
+        assert statuses.str.startswith(ONE_UNIT).any()
 
 
 def _tests(result: Any, truth: dict[str, Any]) -> None:
@@ -185,7 +190,7 @@ def test_the_scenario_gives_its_truth(name: str, tmp_path: Path) -> None:
         return
     result = _report(loaded, Setup(**loaded.setup))
     _sections(result, truth)
-    _said_once(result)
+    _words(result)
     _tests(result, truth)
     if truth.get("order_free"):
         tables = dict(reversed(loaded.feature_tables.items()))

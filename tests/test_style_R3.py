@@ -162,7 +162,7 @@ def test_a_contrast_the_design_cannot_test_is_left_out_said_once_not_flagged():
     result = condition_contrast(objects, fovs, feature="x", control=CONTROL, n_draws=5)
     status, headline = conditions_status(result, None)
     assert status is Status.NOT_ASSESSED
-    assert "no test (one well per condition in a repeat)" in headline
+    assert "no test (one well on a side)" in headline
     short = result.summary()
     assert " ".join(short.split()).count("only one technical repeat") == 1
     assert "no test" in short and CAUTION not in short

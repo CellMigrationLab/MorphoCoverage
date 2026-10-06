@@ -269,7 +269,7 @@ without explainable features the combined map has a centred view instead (owner,
 | Beyond the mean | biological repeat | per sub-experiment, its own family | exploratory: on the distribution |
 | Population enrichment | biological repeat, from 3 | groups and conditions per sub-experiment | exploratory: on a group's share |
 | Cell-level screen | observation | the paired t's family | exploratory: candidates |
-| Within one repeat | wells, or fields with `fields_independent` | Bonferroni over the comparisons | descriptive, run only when it can reach 0.05 |
+| Within one repeat | wells, or fields with `fields_independent` | Bonferroni over the comparisons | descriptive, run only when it can reach 0.05; when none runs, the reason read from the statuses: the control's one well, too few wells a side, no well recorded (owner, 2026-10-06) |
 | Ranking within repeats | wells, or fields | all its tests together | which features to plot |
 | Pairwise panels | observation | the pairs of one figure | descriptive |
 | Whole-table shuffle | wells, else fields | none | exploratory, CSV only |

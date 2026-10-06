@@ -298,6 +298,38 @@ def _draws_short(contrast: Any, indent: int) -> list[str]:
     return [wrap(head, indent, hang=indent + 2), table(rows, columns, indent=indent + 2)]
 
 
+def _no_within_test(contrast: Any) -> str:
+    """Why no contrast within a repeat has a test, from their statuses (audit 10: never "each
+    condition has one well" when only the control has one, or when wells are not recorded)."""
+    table_ = contrast.table
+    reasons = []
+    one = table_[table_["status"].astype(str).str.startswith(ONE_UNIT)]
+    if len(one):
+        lone_control = (one["control_technical"] == 1).all()
+        lone_treated = (one["technical"] == 1).all()
+        reasons.append(
+            "each condition and its control have one well in each repeat"
+            if lone_control and lone_treated
+            else "the control has one well in each repeat"
+            if lone_control
+            else "each condition has one well in each repeat"
+            if lone_treated
+            else "one side has one well in each repeat"
+        )
+        reasons[-1] += ", no within-repeat technical replication"
+    others = table_.loc[~table_.index.isin(one.index), "status"].astype(str)
+    for status in dict.fromkeys(others):
+        if status == NOT_INDEPENDENT:
+            reasons.append("no well recorded, so treated as one well per condition and repeat")
+        elif status.startswith("too few technical repeats"):
+            reasons.append("too few wells a side for the test to reach p ≤ 0.05")
+        elif not status.startswith(NO_CONTROL):
+            reasons.append(status)
+    if any(s.startswith(NO_CONTROL) for s in others):
+        reasons.append("some repeats hold no own control")
+    return "; ".join(reasons)
+
+
 def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]]:
     """The short form of the contrast under ``indent``, and its caveats (see the module)."""
     lines = [wrap(_head(contrast, short=True), indent, hang=indent + 2)]
@@ -325,11 +357,10 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
         # across-repeat table, so the table would repeat them.
         unit, units = observation_words(contrast.settings)
         lines[-1] = wrap(
-            "No test within a single repeat: each condition has one well there, no "
-            "within-repeat technical replication, and the "
-            f"{units} of one well are not independent replicates (the {unit}-level screen "
-            "above treats them as such, and is exploratory). The per-repeat d are in question 2, "
-            "and every number in the full report (report_full.txt).",
+            f"No test within a single repeat: {_no_within_test(contrast)}. The {units} of one "
+            f"well are not independent replicates (the {unit}-level screen above treats them "
+            "as such, and is exploratory). The per-repeat d are in question 2, and every "
+            "number in the full report (report_full.txt).",
             indent,
             hang=indent + 2,
         )
