@@ -46,6 +46,10 @@ def exploratory_names(results: dict[str, Any], setup: Setup) -> dict[str, list[s
     if setup.novelty is not None and next_fov is not None and len(next_fov):
         enough.append("novelty")
     names = {"enough": enough}
+    inspection = results.get("inspection")
+    looked = getattr(inspection, "settings", {}).get("novelty") is not None
+    if looked:  # question 6's new states (audit 10, B3)
+        names["inspect"] = ["novelty"]
     if results.get("distribution") is not None:
         names["conditions"] = ["beyond the mean"]
     if results.get("populations") is not None:

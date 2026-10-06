@@ -133,7 +133,8 @@ def test_g2_the_chance_expectation_counts_only_fields_judged_for_new_states(synt
     assert inspection.settings["n_fovs_judged"] == 120
     controls = _pooled(reference_lofo=(3, 60))
     statement = _new_state_rows(inspection, controls)[0]["statement"]
-    assert "of the 120 fields judged expected by chance" in statement
+    # Audit 10 (A20): "false alarms alone would give about ..., up to ..., of the N fields".
+    assert "up to 14.9, of the 120 fields judged, so these are compatible with chance" in statement
 
 
 def test_g3_the_expected_count_gives_the_rates_upper_bound():
@@ -144,8 +145,8 @@ def test_g3_the_expected_count_gives_the_rates_upper_bound():
     )
     statement = _new_state_rows(inspection, _pooled(reference_lofo=(0, 56)))[0]["statement"]
     high = upper_bound(0, 56, 0.95)
-    assert "0 to 17.5 of the 336 fields judged expected by chance" in statement
-    assert f"0 of 56 fields (0%; at most {percent(high)} at 95% confidence)" in statement
+    assert "would give about 0, up to 17.5, of the 336 fields judged" in statement
+    assert f"0 of 56 fields, 0%, at most {percent(high)} at 95% confidence" in statement
     assert high == pytest.approx(0.052, abs=1e-3)
     assert "about 0 of 336" not in statement
 

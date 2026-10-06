@@ -148,6 +148,17 @@ control field: the condition it moves most), on the values the test compares (ra
 several controls). Without a control, it is the field-weighted mean of its group, by the
 same rule.
 
+The new states are exploratory, said once in the section, and judged against the definition
+of new's own null rate (`strategies.novelty_null`): the share of a homogeneous population's
+fields it calls new at the group's size, the same fields and observation counts with
+independent Gaussian features, through the same transform, simulated and cached. Above 20%
+the group's new states are not listed: "not informative with 8 fields in 17 features" (17
+features, one image per field and a radius of sqrt(17) called 81-99% of null fields new).
+Beside the fields that hold new states, the count false alarms alone would give: from the
+declared reference's false-alarm rate with a positive control, else from that null rate,
+"new states come from 4 fields; false alarms alone would give about 8, up to 25, ..., so
+these are compatible with chance" (owner, 2026-10-06, audit 10).
+
 `inspect_fovs` lists fields to reopen, one reason per line with its numbers: a new state (support novelty), influence on a declared FOV-weighted summary (mean or an interpolated quantile) that also stands out from the group's other fields (`influence_spread`, 3 robust SDs from the median change; groups of fewer than 4 fields not judged; owner, 2026-10-05), an observation count far from the median, or a difference from the nearest stage neighbours. `novelty_cols` names the features the new-state reason is judged on, so the other reasons can read the readout. There is no combined score and no FOV is called an artifact.
 
 ### The whole dataset at once
@@ -235,6 +246,11 @@ data, in plain language, are in [Objects or fields?](objects_or_fields.md).
 ### Can these features detect what I care about?
 
 `representation_control` judges declared positive-control FOVs (and positive cells planted into reference FOVs) against random reference FOVs holding observations, paired within `pair_cols`: detection and false-alarm rates, "positive only" without a reference, "not assessed" without a control. It also measures both rates leaving one field out within the analysis groups of the inspection (`lofo_group_cols`), which the report's "expected by chance" clause and its detection-adjusted bound read, pooled over the strata of `pair_cols` and said so ("pooled over all plates", owner, 2026-10-05).
+A positive control recognized no more often than the reference's false alarms is "cannot
+tell the positive control from the reference with this definition of new", not judged (➖),
+and questions 2, 4 and 5 say so instead of a weak representation: a definition that tells
+nothing apart says nothing about the features (owner, 2026-10-06, audit 10; before, ❌ weak
+representation at 20% against 20%).
 
 With a label and no positive control, question 1 is answered by the label: for each labelled cell, whether
 the nearest cell of another field (on the declared features, robustly
