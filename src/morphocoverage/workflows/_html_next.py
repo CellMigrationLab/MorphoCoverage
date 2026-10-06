@@ -5,8 +5,10 @@ last section (``_html_plan``, which reuses ``fov_counts``, ``_optimise_code`` an
 ``_repeats_line``).
 
 - ``populations_next``: for a group (the most enriched, else the largest but the main one),
-  validate it on its images, then label it with its rule and declare it as the rare
-  phenotype, so ``report`` says whether it was seen in enough fields.
+  validate it on its images (for example a few of its fields, with their counts), then,
+  when it is rare and not mostly one condition, label it with its rule and declare it as the
+  rare phenotype, so ``report`` says whether it was seen in enough fields (owner, 2026-10-06,
+  audit 10).
 - ``fields_next``: run the report again without the fields found to be artefacts.
 
 The code reads ``result`` (the ``Report``), ``objects`` and ``fovs``, as named in the
@@ -22,13 +24,14 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._wording import listing, percent_fine
+from .._wording import count, listing, percent_fine
 from ..data_check import validate_input_tables
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import traits
 from ..schema import observation_words
 from ._enough_targets import HELD_BACK
+from ._population_context import RARE_SHARE, by_evidence, mostly_words
 from ._population_spaces import described, found_words
 from ._populations import labelled_populations, rule_words, tested_populations
 
@@ -163,8 +166,9 @@ def _chosen_population(populations: Any) -> Any | None:
     name = tested[0]
     enrichment = populations.enrichment
     if enrichment is not None and len(enrichment) and "q_paired" in enrichment:
-        rows = enrichment[enrichment["feature"].isin(tested)].sort_values("q_paired")
-        if len(rows) and np.isfinite(float(rows["q_paired"].iloc[0])):
+        # The smallest q, then the largest effect (audit 10).
+        rows = by_evidence(enrichment[enrichment["feature"].isin(tested)])
+        if len(rows):
             name = str(rows["feature"].iloc[0])
     return table.set_index("population").loc[name].rename(name)
 
@@ -177,9 +181,9 @@ def _labelled(populations: Any, name: str, label: str | None) -> bool:
 
 def _group_fields(
     result: Any, populations: Any, objects: pd.DataFrame | None, fovs: pd.DataFrame, name: str
-) -> list[str]:
-    """The fields holding most of the group's cells (at most ``FIELDS_SHOWN``), named by
-    their FOV key, to open."""
+) -> list[tuple[str, int]]:
+    """Fields holding the group's cells, the most first (at most ``FIELDS_SHOWN``), each
+    with its count of them, named by their FOV key, to open."""
     features = populations.populations.settings.get("features") or []
     if objects is None or not features:
         return []
@@ -190,7 +194,21 @@ def _group_fields(
     inside = populations.populations.membership(name).reindex(data.objects.index)
     mine = data.objects.loc[inside.eq(1).to_numpy(), key].astype(str)
     named = mine.agg(" · ".join, axis=1).value_counts()
-    return [str(f) for f in named.index[:FIELDS_SHOWN]]
+    return [(str(field), int(held)) for field, held in named.iloc[:FIELDS_SHOWN].items()]
+
+
+def not_rare(populations: Any, name: str, share: float, units: str) -> str:
+    """Why a group is not suggested as the rare phenotype, or empty: mostly one condition (its
+    shift), or more than ``RARE_SHARE`` of the cells (owner, 2026-10-06, audit 10, A13)."""
+    mostly = (getattr(populations, "context", {}) or {}).get(name, {}).get("mostly")
+    if mostly:
+        return f"It is {mostly_words(mostly, units)}, so it is not a rare phenotype to declare."
+    if share > RARE_SHARE:
+        return (
+            f"It holds {percent_fine(share)} of the {units}, more than "
+            f"{percent_fine(RARE_SHARE)}: not a rare phenotype to declare."
+        )
+    return ""
 
 
 def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | None = None) -> str:
@@ -211,14 +229,25 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
         )
         return _block([(line, "")])
     fields = _group_fields(result, populations, objects, fovs, name)
-    where = f" (most of its {units} are in {', '.join(fields)})" if fields else ""
+    cells = int(row["observations"])
+    # A few of its fields, with their counts: not "most of its cells" (audit 10, A13).
+    shown = sum(held for _, held in fields)
+    where = (
+        f", for example {listing([f for f, _ in fields], FIELDS_SHOWN)} ({shown} of its "
+        f"{count(cells, result.setup.unit_word, units)})"
+        if fields
+        else ""
+    )
     # A group only another feature table found has no rule in the explainable features.
     what = traits(row["defining"][:2]) if described(row) else found_words(row)
     validate = (
         f"First validate {name} ({percent_fine(share)} of the {units}; "
-        f"{what}): open the images of its fields{where} and check "
+        f"{what}): open the images of its fields{where}; check "
         f"that its {units} are one state, not the end of a gradient or an artefact."
     )
+    why_not = not_rare(populations, name, share, units)
+    if why_not:  # a whole condition, or not rare: never suggested as the rare phenotype
+        return _block([(f"{validate} {why_not}", "")])
     rule = rule_words(row, units)
     study = (
         f"If it is, label its {units} with its rule, {rule}, and declare it as the rare "

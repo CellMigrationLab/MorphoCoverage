@@ -100,6 +100,16 @@ def alike_fields(data: ValidatedInput) -> str | None:
     )
 
 
+def has_few_values(values: np.ndarray) -> bool:
+    """Whether ``values`` (missing ones aside) take few distinct values (see the module)."""
+    values = values[~np.isnan(values)]
+    if not len(values):
+        return False
+    levels, counts = np.unique(values, return_counts=True)
+    share = float(counts.max()) / len(values)
+    return share >= ONE_VALUE or (len(levels) <= FEW_LEVELS and share >= COMMON_LEVEL)
+
+
 def few_values(data: ValidatedInput) -> str | None:
     """The sentence naming the features that take few distinct values (see the module);
     ``None`` when none does."""
@@ -112,7 +122,7 @@ def few_values(data: ValidatedInput) -> str | None:
             continue
         levels, counts = np.unique(values, return_counts=True)
         share = float(counts.max()) / len(values)
-        if share >= ONE_VALUE or (len(levels) <= FEW_LEVELS and share >= COMMON_LEVEL):
+        if has_few_values(values):
             common = f"{levels[counts.argmax()]:.3g} in {percent(share)} of {words}"
             named.append(f"{feature} ({count(len(levels), 'value')}, {common})")
     if not named:

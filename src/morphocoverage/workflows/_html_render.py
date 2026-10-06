@@ -108,7 +108,8 @@ RESULT_WORDS = {
     ("inspect", Status.CAUTION): "Fields to inspect",
     ("conditions", Status.OK): "Differs",
     ("conditions", Status.CAUTION): "Trend only",
-    ("populations", Status.OK): "Enriched",
+    # Population enrichment is exploratory: ⚠️, never "Enriched" (owner, 2026-10-06, audit 10).
+    ("populations", Status.OK): "Groups found",
     ("populations", Status.CAUTION): "Trend only",
     ("enough", Status.OK): "Enough",
     ("enough", Status.CAUTION): "Partly",
@@ -187,6 +188,10 @@ def chip(status: Status | None, key: str = "", answer: str = "", word: str | Non
         word = "No group"
     elif key == "conditions" and status is Status.OK and answer.startswith("beyond the mean"):
         word = "Differs beyond the mean"
+    elif key == "populations" and status is Status.CAUTION and "(exploratory;" in answer:
+        word = "More common (exploratory)"  # never "Enriched" (owner, 2026-10-06, audit 10)
+    elif key == "populations" and status is Status.CAUTION and "not a subpopulation" in answer:
+        word = "A condition's shift"
     elif key in ("conditions", "populations") and status is Status.CAUTION:
         consistent = "same direction" in answer or "in every repeat" in answer
         word = "Trend only" if consistent else "No consistent difference"

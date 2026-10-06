@@ -194,9 +194,9 @@ and the share right of those it picks when the same procedure is refitted with w
 fields held out (5 folds of fields, scikit-learn's `StratifiedGroupKFold`, fewer
 with fewer fields; cells held out for a group in one field, and the report says so):
 these describe the procedure, not the exact thresholds shown (owner, 2026-10-05);
-"What to do next" names the fields
-that hold most of it, to validate on the images, and gives the code that labels
-it with the rule and declares it as the rare phenotype. A cluster holding most
+"What to do next" names a few
+of its fields, to validate on the images, and gives the code that labels
+it with the rule and declares it as the rare phenotype (see below for when). A cluster holding most
 cells is the main population (`P1`), the rest of the cells. On constructed data
 this finds no group in a Gaussian, a separate blob as a group its rule finds,
 and the end of a straight line at most as a group; groups overlapping strongly
@@ -231,6 +231,23 @@ differ?", and the card says so. The PCA and UMAP ring each population and group 
 entry to hide it), can be coloured by condition, population or any feature, and,
 around points drawn with the lasso, list the conditions and populations they
 come from and the features that set them apart (Cohen's d).
+
+Read against the conditions (owner, 2026-10-06, audit 10): a condition more or less common
+in a group across repeats is "more common in a1 (exploratory; 90% vs 4.2%, q 0.024)", ⚠️,
+never "significant across repeats" nor ✅, the page's chip "More common (exploratory)"; a
+group of which one condition holds 90% or more of the cells is "mostly a1, 99% of its
+cells: its shift, not a subpopulation"; a group's defining features are its cells' d
+against the cells of the control they are compared with (a group mostly of a control,
+against every other cell), and with several controls and no `normalize` the groups are
+found on the values normalised to each own control, as the experiments have their own
+controls, so raw values pooled across experiments do not make a group "low area" while
+question 9 reads the condition higher. The most different condition is the one of the
+smallest q, then of the largest effect; a condition on one side in every repeat reads as a
+trend only from 6 repeats, as for the features, and with fewer than 3 repeats "not tested"
+("higher in both repeats, not tested"). A rule that thresholds a feature with few distinct
+values says so. "What to do next" names a few of the group's fields with how many of its
+cells they hold, and suggests declaring the group as the rare phenotype only when it holds
+at most 10% of the cells and is not mostly one condition.
 
 ### Do the conditions differ?
 
