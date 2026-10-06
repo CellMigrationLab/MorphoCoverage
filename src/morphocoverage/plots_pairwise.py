@@ -125,10 +125,11 @@ def verdict_note(verdicts: Mapping[Any, float]) -> str:
     if not verdicts:
         return ""
     parts = [
-        f"{condition} {format_p(q) if np.isfinite(q) else '–'}"
-        for condition, q in verdicts.items()
+        f"{condition} {format_p(q) if np.isfinite(q) else '–'}" for condition, q in verdicts.items()
     ]
     return f"Verdict q (the feature's family): {'; '.join(parts)}."
+
+
 PAIR_COLUMNS = [
     "feature",
     "first",
