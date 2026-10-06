@@ -12,6 +12,7 @@ from .._style import Status, span
 from .._wording import column_word, count, listing
 from ..sampling_unit._units import opposite_signs
 from ..sampling_unit.across_text import secondary_headline
+from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.contrast_text import (
     P_ALPHA,
     across_tested,
@@ -153,7 +154,18 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
         # The secondary rows, when one is significant (owner, 2026-10-05).
         secondary = secondary_headline(contrast)
         parts[1:1] = [secondary] if secondary else []
-        if across and not significant:
+        # A verdict on 3 near-identical repeats (audit 10, owner, 2026-10-06): said, and ⚠️
+        # when every verdict rests on such repeats.
+        tests = discovery.tests
+        verdicts = tests[tests["confirmed"].fillna(False).astype(bool)]
+        flags = verdicts.get("near_identical", pd.Series(False, index=verdicts.index))
+        resting = verdicts[flags.fillna(False).astype(bool)]
+        if len(resting):
+            named = listing([f"{r.feature} for {r.condition}" for r in resting.itertuples()], 3)
+            rest = "rests" if len(resting) == 1 else "rest"
+            parts.insert(1, f"{named} {rest} on {MIN_REPEATS} near-identical repeats")
+        every = bool(len(verdicts)) and len(resting) == len(verdicts)
+        if across and (not significant or every):
             status = Status.CAUTION
         elif not across and contrast is None:
             # The cell-level screen's candidates alone are hypotheses, no answer yet.

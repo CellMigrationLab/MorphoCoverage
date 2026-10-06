@@ -62,7 +62,7 @@ from .._wording import (
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
 from ._common import groups, validated
-from ._discovery_tests import tested_rows
+from ._discovery_tests import near_identical, resting, resting_words, tested_rows
 from ._experiments import corrected, experiments, not_compared
 from ._units import (
     check_arguments,
@@ -114,6 +114,9 @@ TEST_COLUMNS = [
     "repeat_contrasts",
     "ci_low",
     "ci_high",
+    "repeat_sd",
+    "family_sd",
+    "near_identical",
 ]
 
 
@@ -241,6 +244,11 @@ class FeatureDiscovery:
         """The passing features the paired test on the repeat means also passes, best first."""
         ranked = self.ranking.dropna(subset=["score"])
         return ranked.loc[ranked["confirmed"], "feature"].tolist()
+
+    def resting(self) -> pd.DataFrame:
+        """The tests significant across repeats that rest on near-identical repeats
+        (``_discovery_tests.resting``; audit 10, owner, 2026-10-06)."""
+        return resting(self.tests, self.settings["alpha"])
 
     def _unit(self) -> str:
         """The word for one observation (``nucleus``; ``cell`` when none was declared)."""
@@ -417,7 +425,7 @@ class FeatureDiscovery:
                 f"Candidates, but lower in some repeats and higher in others: {names}; a shift "
                 "between repeats, not a consistent effect."
             )
-        return cautions
+        return cautions + resting_words(self.resting())
 
     def short_parts(
         self, indent: int = 0, max_rows: int = TOP_FEATURES, limit: int = 3
@@ -544,6 +552,7 @@ def feature_discovery(
     tests["q_paired_raw"] = corrected(tests["p_paired_raw"], tests["experiment"])
     tests["passes"] = (tests["q_cells"] <= alpha).fillna(False) & tests["d"].notna()
     tests["confirmed"] = tests["passes"] & (tests["q_paired"] <= alpha).fillna(False)
+    tests["near_identical"], tests["family_sd"] = near_identical(tests)
     return FeatureDiscovery(tests, _rank(tests, features), settings)
 
 

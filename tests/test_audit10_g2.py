@@ -40,6 +40,7 @@ from morphocoverage.sampling_unit.contrast_sampling import (
     noncentral_d_interval,
     sampling_row,
 )
+from morphocoverage.sampling_unit.discovery import feature_discovery
 from morphocoverage.sampling_unit.distribution import distribution_contrast
 from morphocoverage.sampling_unit.whole_table import sign_floor, whole_table_tests
 from morphocoverage.statistics import cohen_d
@@ -365,3 +366,79 @@ def test_the_whole_table_verdict_names_thin_controls_and_the_sign_flip_floor() -
     line = " ".join(" ".join(whole_table_lines(result)).split())
     assert "an exact sign-flip test could give no p below 0.25 with 3 repeats" in line
     assert f"the control holds fewer than 3 fields in {repeats[-1]} (1)" in line
+
+
+def _three_repeats() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Three repeats, ctrl and kd, 4 fields of 30 cells a side: ``steady`` changes by x0.83
+    in every repeat almost exactly (each repeat's cells the control's own, scaled), the other
+    features by a factor that varies between the repeats."""
+    rng = np.random.default_rng(14)
+    factors = {"steady": (0.83, 0.83, 0.83), "f1": (0.6, 0.9, 1.0), "f2": (0.7, 1.2, 0.95)}
+    factors |= {"f3": (1.3, 0.8, 1.1), "f4": (0.75, 1.0, 0.7)}
+    rows = []
+    for index, repeat in enumerate(("r1", "r2", "r3")):
+        cells = {f: np.exp(rng.normal(0, 0.3, (4, 30))) * 10 for f in factors}
+        for condition in ("ctrl", "kd"):
+            for field in range(4):
+                for label in range(30):
+                    row = {
+                        "condition": condition,
+                        "biological_repeat": repeat,
+                        "image_file": f"{repeat}_{condition}_{field}.tif",
+                        "label_id": label,
+                    }
+                    for feature, values in cells.items():
+                        scale = factors[feature][index] if condition == "kd" else 1.0
+                        row[feature] = values[field, label] * scale
+                    rows.append(row)
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    return objects, fovs
+
+
+def test_a_verdict_on_three_near_identical_repeats_is_said_and_cautioned() -> None:
+    # A10: a glioma verdict rested on 3 repeats whose log ratios agreed to 0.0018 (median
+    # 0.18 over the family): p 3e-5 from its own tiny SD.
+    objects, fovs = _three_repeats()
+    discovery = feature_discovery(
+        objects,
+        fovs,
+        features=["steady", "f1", "f2", "f3", "f4"],
+        control={"condition": "ctrl"},
+        observation_unit="cell",
+        n_permutations=199,
+    )
+    tests = discovery.tests.set_index("feature")
+    assert tests.loc["steady", "near_identical"]
+    assert not tests.drop(index="steady")["near_identical"].any()
+    assert tests.loc["steady", "repeat_sd"] < 0.2 * tests.loc["steady", "family_sd"]
+    resting = discovery.resting()
+    assert list(resting["feature"]) == ["steady"]
+    text = " ".join(discovery.summary().split())
+    assert "Rests on 3 near-identical repeats: steady for kd" in text
+    assert "under a fifth of its median" in text
+
+
+def test_the_moderated_paired_t_borrows_the_familys_variance() -> None:
+    # A10: the P1 candidate (limma-style empirical Bayes) for 3 near-identical repeats.
+    sys.path.insert(0, str(SCENARIOS.parent / "simulations"))
+    try:
+        from decisions.candidates import repeat_means
+    finally:
+        sys.path.remove(str(SCENARIOS.parent / "simulations"))
+    rng = np.random.default_rng(15)
+    family = {f"f{i}": rng.normal(0, 0.18, 3) for i in range(30)}
+    family["steady"] = np.array([0.180, 0.182, 0.184])
+    found = repeat_means.moderated_t(family)
+    assert repeat_means.t_summary(family["steady"])["p"] < 1e-3
+    assert found["steady"]["p"] > 0.01
+    assert found["steady"]["prior_df"] > 0
+    # Calibrated under the null at 3 repeats: about 5% of the features at p <= 0.05.
+    rejected = [
+        result["p"] <= 0.05
+        for _ in range(200)
+        for result in repeat_means.moderated_t(
+            {f"f{i}": rng.normal(0, rng.choice([0.1, 0.2]), 3) for i in range(20)}
+        ).values()
+    ]
+    assert 0.03 <= np.mean(rejected) <= 0.07

@@ -216,7 +216,8 @@ imaging sessions and acquisition order) and separate outcome generators: scalar 
   confounded with the treatment (a 2-fold gap), heteroscedasticity, phenotype-dependent
   segmentation loss, QC exclusion of treated fields, plate effects, a treatment halving
   the cell number, empty fields omitted. Screening over repeats, wells, fields, cells,
-  field and well shares, imbalance and CV.
+  field and well shares, imbalance and CV. A null family of 20 features at 3, 4 and 6
+  repeats, for the moderated t (amendment of 2026-10-06).
 - **Estimands**: the log ratio (or difference) of the condition's to the control's
   cell-weighted mean; the field-balanced and well-balanced versions as their own
   questions. The truth is computed, not simulated (quadrature, with informative cluster
@@ -224,14 +225,17 @@ imaging sessions and acquisition order) and separate outcome generators: scalar 
 - **Methods**: ours, the paired t-test on the repeat means on the automatic scale (Lord et
   al. 2020); the same on a declared scale; always on differences; the fixed-block model
   (equal to the paired test in a complete two-condition design: a check of the engine);
-  the exact sign-flip test (reference). Comparators, never selected: a random-intercept
+  the exact sign-flip test (reference); the moderated paired t across the dataset's
+  features (limma-style empirical Bayes, Smyth 2004; amendment of 2026-10-06, see
+  [Deviations](#deviations)). Comparators, never selected: a random-intercept
   mixed model on field means (Laird and Ware 1982; statsmodels) and Welch's t on the
   cells pooled (the reference that ignores the hierarchy).
 - **Performance**: type I error (the gate), 95% interval coverage (the gate) and length,
   bias, RMSE, power, failure rate, runtime.
 - **Alternative classes**: a multiplicative effect (0.5 and 1 SD), an additive effect
   (0.5 and 1 SD, normal values), an effect varying between repeats (1 SD, spread 0.5 SD),
-  an unbalanced design (0.75 SD).
+  an unbalanced design (0.75 SD); a family of 20 features, a fifth with a 1 SD
+  multiplicative effect (amendment of 2026-10-06).
 
 ### P2. Incomplete and complex contrasts
 
@@ -404,7 +408,15 @@ the chunks in progress. What is sent back is each module's `summary.md` and `sum
 
 ## Deviations
 
-None yet.
+- **2026-10-06, amendment to P1, before any confirmatory run** (owner, audit 10). A verdict
+  on 3 biological repeats rested on three nearly identical log ratios (SD 0.0018 against a
+  median of 0.18 over its family): the paired t-test divides by the repeats' own SD, so
+  repeats that agree by chance give a tiny p. P1 adds a candidate, the moderated paired t
+  across a family of features (limma-style empirical Bayes, Smyth 2004:
+  `candidates/repeat_means.moderated_t`), and the design points it needs: a null family of
+  20 features at 3, 4 and 6 repeats (`core_null_n*_family`) and the alternative class
+  `family` (20 features, a fifth with a 1 SD multiplicative effect). Until P1 selects, the
+  report keeps the paired t and says when a verdict "rests on 3 near-identical repeats".
 
 ## References
 
@@ -455,6 +467,8 @@ None yet.
   *Biometrics* 35:549-556.
 - Ren S, Lai H, Tong W, Aminzadeh M, Hou X, Lai S (2010). Nonparametric bootstrapping for
   hierarchical data. *J Appl Stat* 37:1487-1498.
+- Smyth GK (2004). Linear models and empirical Bayes methods for assessing differential
+  expression in microarray experiments. *Stat Appl Genet Mol Biol* 3:Article 3.
 - Székely GJ, Rizzo ML (2013). Energy statistics: a class of statistics based on
   distances. *J Stat Plan Inference* 143:1249-1272.
 - Weiszfeld E (1937). Sur le point pour lequel la somme des distances de n points donnés

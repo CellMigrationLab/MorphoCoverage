@@ -8,6 +8,12 @@ read the cells or fields directly.
   weighs the same; without a well column, the condition in the repeat is one well, so this
   is the cell-weighted mean).
 
+``moderated_t`` is the moderated paired t-test across a family of features (limma-style
+empirical Bayes, Smyth 2004): each feature's variance of its per-repeat values shrunk toward
+a prior fitted on every feature of the family, so 3 repeats that agree by chance on one
+feature do not give it a tiny p (audit 10, owner, 2026-10-06: a P1 candidate, added before
+any confirmatory run).
+
 ``mixed_model`` is the random-intercept comparator (statsmodels, the ``validation`` extra):
 field means with a fixed condition effect and random repeat, repeat-by-condition and,
 when recorded, well intercepts; ``pooled_cells`` the reference that ignores the hierarchy
@@ -16,11 +22,12 @@ when recorded, well intercepts; ``pooled_cells`` the reference that ignores the 
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy import stats
+from scipy import special, stats
 
 from morphocoverage.metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 
@@ -91,6 +98,75 @@ def t_summary(values: np.ndarray, alpha: float = 0.05) -> dict[str, float]:
     return {"estimate": mean, "p": float(p), "lo": mean - half, "hi": mean + half, "n": n}
 
 
+def _trigamma_inverse(x: float) -> float:
+    """The ``y`` with ``trigamma(y) = x``, by Newton's method (limma's ``trigammaInverse``)."""
+    if x > 1e7:
+        return 1 / np.sqrt(x)
+    if x < 1e-6:
+        return 1 / x
+    y = 0.5 + 1 / x
+    for _ in range(50):
+        tri = float(special.polygamma(1, y))
+        step = tri * (1 - tri / x) / float(special.polygamma(2, y))
+        y += step
+        if -step / y < 1e-8:
+            break
+    return float(y)
+
+
+def variance_prior(variances: np.ndarray, dfs: np.ndarray) -> tuple[float, float]:
+    """The prior degrees of freedom ``d0`` and variance ``s0^2`` of a family's sample
+    variances (each on ``dfs`` degrees of freedom), by Smyth's (2004) moments of their logs;
+    ``(0, nan)`` with fewer than 3 usable variances, ``(inf, s0^2)`` when they vary no more
+    than sampling alone would (every feature then shares one variance)."""
+    keep = np.isfinite(variances) & (variances > 0) & (dfs > 0)
+    s2, d = variances[keep], dfs[keep]
+    if len(s2) < 3:
+        return 0.0, float("nan")
+    e = np.log(s2) - special.digamma(d / 2) + np.log(d / 2)
+    mean = float(e.mean())
+    spread = float(((e - mean) ** 2).sum() / (len(e) - 1) - special.polygamma(1, d / 2).mean())
+    if spread <= 0:
+        return float("inf"), float(np.exp(mean))
+    d0 = 2 * _trigamma_inverse(spread)
+    return d0, float(np.exp(mean + special.digamma(d0 / 2) - np.log(d0 / 2)))
+
+
+def moderated_t(
+    family: Mapping[str, np.ndarray], alpha: float = 0.05
+) -> dict[str, dict[str, float]]:
+    """The moderated paired t-test of each feature's per-repeat values (``family``: feature
+    -> values, log ratios or differences against the control) against 0: its variance
+    shrunk toward the family's prior (``variance_prior``), ``d0 + n - 1`` degrees of
+    freedom; estimate, p and the t interval per feature. With fewer than 3 features (no
+    prior) it is the paired t-test."""
+    names = [k for k, v in family.items() if len(v) >= 2]
+    variances = np.array([np.var(family[k], ddof=1) for k in names], dtype=float)
+    dfs = np.array([len(family[k]) - 1 for k in names], dtype=float)
+    d0, s0 = variance_prior(variances, dfs)
+    out = {}
+    for name, s2, d in zip(names, variances, dfs, strict=True):
+        values = np.asarray(family[name], dtype=float)
+        mean, n = float(values.mean()), len(values)
+        if d0 == 0 or not np.isfinite(s0):
+            post, df = s2, d
+        elif np.isinf(d0):
+            post, df = s0, np.inf
+        else:
+            post, df = (d0 * s0 + d * s2) / (d0 + d), d0 + d
+        se = float(np.sqrt(post / n)) if post > 0 else float("nan")
+        if not se > 0:
+            out[name] = {"estimate": mean, "p": np.nan, "lo": np.nan, "hi": np.nan, "n": n}
+            out[name]["prior_df"] = float(d0)
+            continue
+        quantile = stats.norm if np.isinf(df) else stats.t(df)
+        half = float(quantile.ppf(1 - alpha / 2)) * se
+        p = 2 * float(quantile.sf(abs(mean / se)))
+        out[name] = {"estimate": mean, "p": p, "lo": mean - half, "hi": mean + half, "n": n}
+        out[name]["prior_df"] = float(d0)
+    return out
+
+
 def pooled_cells(
     objects: pd.DataFrame, feature: str, condition: str, control: str
 ) -> dict[str, float]:
@@ -139,4 +215,13 @@ def mixed_model(
     }
 
 
-__all__ = ["ESTIMANDS", "mixed_model", "paired_values", "pooled_cells", "summaries", "t_summary"]
+__all__ = [
+    "ESTIMANDS",
+    "mixed_model",
+    "moderated_t",
+    "paired_values",
+    "pooled_cells",
+    "summaries",
+    "t_summary",
+    "variance_prior",
+]

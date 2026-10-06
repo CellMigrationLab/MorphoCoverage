@@ -574,6 +574,21 @@ evidence of no change." The paired t-test itself is unchanged. `tests_across_rep
 and `feature_discovery.csv` carry each repeat's change (`repeat_contrasts`, `R1: 0.6463;
 ...`) and the interval (`ci_low`, `ci_high`) at any number of repeats.
 
+**Three near-identical repeats** (audit 10, owner, 2026-10-06). A paired t-test on 3
+repeats divides by their own SD, so 3 repeats that agree almost exactly give a tiny p
+whatever the variation between repeats usually is (a verdict on the lab's glioma tracks:
+log ratios 0.0018 apart in SD, against a median of 0.18 over its family, p 3e-5; at the
+family's typical SD, 0.10).
+A verdict significant across repeats on exactly 3 repeats whose log ratios' SD is under a
+fifth of the median over its sub-experiment's features and conditions (on log ratios only:
+differences carry their feature's units) is said to rest on near-identical repeats, ⚠️ in
+the ranked features' cautions ("Rests on 3 near-identical repeats: tortuosity for KD (SD
+0.0018, median 0.18)") and in the headline, whose marker is ⚠️ when every verdict rests on
+such repeats (`feature_discovery.csv`: `repeat_sd`, `family_sd`, `near_identical`). The test
+itself is unchanged; a moderated paired t borrowing the family's variance (limma-style
+empirical Bayes) is a candidate of module P1 of the [validation protocol](../common/validation.md).
+The readout alone, with no other feature, has no family of features and is not checked.
+
 With a `target` column, the report also says whether the independent reagents of one
 target (two siRNAs of one gene) are on the same side of the control in every repeat
 (`contrast_repeats.reagent_agreement`; described, not tested).

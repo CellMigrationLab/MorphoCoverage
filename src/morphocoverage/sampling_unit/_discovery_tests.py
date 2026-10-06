@@ -11,9 +11,11 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from .._parallel import UNITS_PER_WORKER, map_units, worker_pool
 from .._seeds import group_rng
+from .._wording import listing
 from ..statistics import (
     cohen_d,
     contrasts_text,
@@ -31,6 +33,10 @@ from .contrast_repeats import MIN_REPEATS
 # there is no Cohen's d (each side holds one value of its own); UNTESTED for mixed reasons.
 POOLED_CONTROL = "its control would include repeats the condition was not imaged in"
 NO_SPREAD = "no spread within the condition and the control"
+# A verdict on exactly MIN_REPEATS repeats whose log ratios vary across the repeats less than
+# this share of the median over its family's tests rests on near-identical repeats (audit 10,
+# owner, 2026-10-06: a fifth; a glioma verdict had 0.0018 against a median of 0.18).
+NEAR_IDENTICAL = 0.2
 
 
 def _pooled(
@@ -105,10 +111,56 @@ def _effect(by_t: dict, by_c: dict, log: bool | None) -> dict[str, Any]:
     values, compared, _ = repeat_values(means, controls, log)
     effect = repeat_effect(values, compared)
     return {
+        "repeat_sd": float(np.std(compared, ddof=1)) if len(compared) > 1 else np.nan,
         "repeat_contrasts": contrasts_text(list(by_t), effect["contrasts"]),
         "ci_low": effect["ci_low"],
         "ci_high": effect["ci_high"],
     }
+
+
+def near_identical(tests: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+    """Per test, whether it rests on ``MIN_REPEATS`` near-identical repeats: its repeat SD of
+    the log ratios below ``NEAR_IDENTICAL`` times the median over its family's tests on log
+    ratios (the sub-experiment's features and conditions); and that median. Tests read on
+    differences carry their feature's units, so they are not compared."""
+    flags = pd.Series(False, index=tests.index)
+    medians = pd.Series(np.nan, index=tests.index, dtype=float)
+    logs = tests[(tests["paired_values"] == "normalised") & tests["repeat_sd"].notna()]
+    for _, block in logs.groupby("experiment", sort=False):
+        median = float(block["repeat_sd"].median())
+        medians[block.index] = median
+        mine = (block["repeats"] == MIN_REPEATS) & (block["repeat_sd"] < NEAR_IDENTICAL * median)
+        flags[block.index[mine.to_numpy()]] = True
+    return flags, medians
+
+
+def resting(tests: pd.DataFrame, alpha: float) -> pd.DataFrame:
+    """The tests significant across repeats (paired q at most ``alpha``) that rest on
+    ``MIN_REPEATS`` near-identical repeats (``near_identical``)."""
+    if "near_identical" not in tests or not len(tests):
+        return tests.iloc[:0]
+    significant = (tests["q_paired"] <= alpha).fillna(False)
+    return tests[significant & tests["near_identical"].fillna(False).astype(bool)]
+
+
+def resting_words(rows: pd.DataFrame) -> list[str]:
+    """The caution (⚠️) of the verdicts that rest on near-identical repeats, with their SD
+    and the family's median; empty without."""
+    if not len(rows):
+        return []
+    named = [
+        f"{r.feature} for {r.condition} (SD {r.repeat_sd:.2g}, median {r.family_sd:.2g})"
+        for r in rows.itertuples()
+    ]
+    shown = listing(named, 4)
+    return [
+        (
+            f"Rests on {MIN_REPEATS} near-identical repeats: {shown}. The SD of the log ratios "
+            "across the repeats is under a fifth of its median over the sub-experiment's "
+            "features and conditions, so the small p comes from repeats that agree almost "
+            f"exactly, which {MIN_REPEATS} repeats cannot show to be typical."
+        )
+    ]
 
 
 def _per_repeat(by_t: dict, by_c: dict) -> dict[str, float]:
