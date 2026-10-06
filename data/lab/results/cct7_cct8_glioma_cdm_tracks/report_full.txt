@@ -25,6 +25,7 @@
     siCCT8#8   CCT8_3                  7      0      31                  1
   Values: as given (not normalised).
   ✅ Data checks: no warning.
+  ⚠️ Duplicated or derived features: Mean Speed and Mean Speed Rolling correlate at r = 0.9993, and Mean Speed and Total Distance Traveled Rolling correlate at r = 0.9993: close to one measurement, counted 3 times in each test family; keep one of them.
 
   ❌ Data integrity — 6 findings in 12 fields (structure to inspect, not a judgment)
     Exact checks for copied data, to 6 significant digits: 133 fields and 590 tracks checked, on Mean
@@ -695,10 +696,10 @@ What this acquisition was asked to preserve
     [all groups; fov_clustering]
   - new states come from 6 fields [all groups; inspect_fovs]
 
-  Unusual tracks: farther from the reference (siCTRL) than all but 1% of reference tracks are from
-    the other reference groups (13 standardized features, 5 nearest neighbours), each group against
-    the reference of its own sub-experiment (the conditions that share its repeats and control).
-    Groups: condition · biological repeat · technical repeat.
+  Unusual tracks: farther from the reference siCTRL than all but 1% of reference tracks are from the
+    other reference groups (13 standardized features, 5 nearest neighbours), each group against the
+    reference of its own sub-experiment (the conditions that share its repeats and control). Groups:
+    condition · biological repeat · technical repeat.
     group                          tracks scored  unusual  share  refits agree  threshold  calibrated
     siCCT7#3 · repeat CCT7_1 · B5             28        0     0%          100%       5.38  leave-one-group-out
     siCCT7#3 · repeat CCT7_2 · B5             34        1     3%           25%       5.38  leave-one-group-out
@@ -795,8 +796,9 @@ What this acquisition was asked to preserve
     sub-experiment, over its 13 features and their conditions: this is the result to report. Same
     direction, not significant: on one side of the control in every repeat without reaching q ≤ 0.05,
     a consistent trend and not evidence of no effect (with 3 repeats only large, consistent effects
-    reach it). Beside it, the track-level screen (as Plot&Stats, every track an independent draw) is
-    exploratory: it finds candidates, not effects that repeat:
+    reach it), said from 6 repeats: with fewer, every repeat goes the same way by chance too often (1
+    experiment in 4 with 3 repeats). Beside it, the track-level screen (as Plot&Stats, every track an
+    independent draw) is exploratory: it finds candidates, not effects that repeat:
     - siCCT7#3 — no consistent direction: lower in 1 and higher in 2 of 3 biological repeats; paired
       t-test on the 3 repeat means p 0.65, q 0.99; track-level screen (exploratory) q 0.41 (balanced,
       normalised; with no real effect it gives p ≤ 0.05 in about 36% of experiments like this one);
@@ -807,23 +809,23 @@ What this acquisition was asked to preserve
       normalised; with no real effect it gives p ≤ 0.05 in about 35% of experiments like this one);
       the raw pooled test is not read here: it pools the control of repeats this condition was not
       imaged in; siCCT7#3 (CCT7) agrees in 2 of 3 biological repeats.
-    - siCCT8#5 — same direction in every repeat, not significant: lower in 3 of 3 biological repeats
-      (Cohen's d per repeat, mean -1.06, mean 35% lower than the control); paired t-test on the 3
-      repeat means p 0.0494, q 0.082; track-level screen (exploratory) q 0.0011 (balanced, normalised;
-      with no real effect it gives p ≤ 0.05 in about 34% of experiments like this one); siCCT8#8
-      (CCT8) agrees in 3 of 3 biological repeats.
-    - siCCT8#8 — same direction in every repeat, not significant: lower in 3 of 3 biological repeats
-      (Cohen's d per repeat, mean -1.11, mean 36% lower than the control); paired t-test on the 3
-      repeat means p 0.0506, q 0.082; track-level screen (exploratory) q 0.0011 (balanced, normalised;
-      with no real effect it gives p ≤ 0.05 in about 35% of experiments like this one); siCCT8#5
-      (CCT8) agrees in 3 of 3 biological repeats.
+    - siCCT8#5 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean -1.06, mean 35% lower than the control); paired t-test on the 3 repeat means p
+      0.0494, q 0.088; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 34% of experiments like this one); siCCT8#8 (CCT8) agrees in 3
+      of 3 biological repeats.
+    - siCCT8#8 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean -1.11, mean 36% lower than the control); paired t-test on the 3 repeat means p
+      0.0506, q 0.088; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 35% of experiments like this one); siCCT8#5 (CCT8) agrees in 3
+      of 3 biological repeats.
   Across the 3 biological repeats (each repeat's value is the mean of its tracks, paired with the
     control of the same repeat):
     condition           vs control, by repeat  d tracks per repeat: mean (range)  paired t, raw: p (q)  paired t, normalised: p (q)
     siCCT7#3 vs siCTRL  1 lower, 2 higher      +0.17 (-0.37 to 0.86)              0.61 (0.99)           0.65 (0.99)
     siCCT7#6 vs siCTRL  2 lower, 1 higher      -0.17 (-0.60 to 0.55)              0.79 (0.99)           0.75 (0.99)
-    siCCT8#5 vs siCTRL  lower in 3 of 3        -1.06 (-1.58 to -0.59)             0.064 (0.13)          0.0494 (0.082)
-    siCCT8#8 vs siCTRL  lower in 3 of 3        -1.11 (-1.71 to -0.80)             0.074 (0.13)          0.0506 (0.082)
+    siCCT8#5 vs siCTRL  lower in 3 of 3        -1.06 (-1.58 to -0.59)             0.064 (0.13)          0.0494 (0.088)
+    siCCT8#8 vs siCTRL  lower in 3 of 3        -1.11 (-1.71 to -0.80)             0.074 (0.13)          0.0506 (0.088)
   Independent reagents for one target (target), against the control in each repeat:
     target  reagents            repeats
     CCT7    siCCT7#3, siCCT7#6  on one side in 2 of 3, lower in some and higher in others
@@ -880,22 +882,22 @@ What this acquisition was asked to preserve
     siCTRL: Cohen's d on the observations normalised to each repeat's control, randomization test, q ≤
     0.05 after Benjamini-Hochberg within each sub-experiment: 26 tests in each of 2 sub-experiments).
     Ranked by the largest difference (|d|); change: the condition's mean over the control's, the fold
-    change the paired t-test compares (the difference of the means where a mean is not positive); a
-    candidate is significant across repeats when the paired t-test on the repeat means also gives q ≤
-    0.05:
-    rank  feature                               d  condition  change  q track level  q repeat means  repeats
-       1  Median Speed                      -1.24  siCCT8#8    ×0.48         0.0011           0.082  3 of 3 lower
-       2  Total Turning Angle Rolling       -1.12  siCCT8#8    ×0.63         0.0011           0.082  3 of 3 lower
-       3  Median Speed Rolling              -1.11  siCCT8#8    ×0.60         0.0011           0.082  3 of 3 lower
-       4  Mean Speed                        -1.05  siCCT8#8    ×0.64         0.0011           0.082  3 of 3 lower
-       5  Mean Speed Rolling                -1.04  siCCT8#8    ×0.64         0.0011           0.082  3 of 3 lower
-       6  Total Distance Traveled Rolling   -1.04  siCCT8#8    ×0.64         0.0011           0.082  3 of 3 lower
-       7  Spatial Coverage Rolling          -0.96  siCCT8#5    ×0.44         0.0011           0.082  3 of 3 lower
-       8  Tortuosity Rolling                -0.83  siCCT8#8    ×0.81         0.0011           0.080  3 of 3 lower
-       9  Min Speed Rolling Rolling         -0.69  siCCT8#8    ×0.35         0.0011           0.082  3 of 3 lower
-      10  Max Speed Rolling                 -0.65  siCCT8#8    ×0.75         0.0011            0.22  3 of 3 lower
-      11  Speed Standard Deviation Rolling  -0.52  siCCT8#5    ×0.78         0.0011            0.25  3 of 3 lower
-      12  Speed Standard Deviation          -0.47  siCCT8#5    ×0.82         0.0011            0.27  3 of 3 lower
+    change the paired t-test compares (the difference of the means for a feature with a value that is
+    not positive, the same scale for every condition); a candidate is significant across repeats when
+    the paired t-test on the repeat means also gives q ≤ 0.05:
+    rank  feature                               d  condition   change  q track level  q repeat means  repeats
+       1  Median Speed                      -1.24  siCCT8#8    -0.162         0.0011           0.088  3 of 3 lower
+       2  Total Turning Angle Rolling       -1.12  siCCT8#8     ×0.63         0.0011           0.088  3 of 3 lower
+       3  Median Speed Rolling              -1.11  siCCT8#8     ×0.60         0.0011           0.088  3 of 3 lower
+       4  Mean Speed                        -1.05  siCCT8#8     ×0.64         0.0011           0.088  3 of 3 lower
+       5  Mean Speed Rolling                -1.04  siCCT8#8     ×0.64         0.0011           0.088  3 of 3 lower
+       6  Total Distance Traveled Rolling   -1.04  siCCT8#8     ×0.64         0.0011           0.088  3 of 3 lower
+       7  Spatial Coverage Rolling          -0.96  siCCT8#5     ×0.44         0.0011           0.088  3 of 3 lower
+       8  Tortuosity Rolling                -0.83  siCCT8#8     ×0.81         0.0011           0.080  3 of 3 lower
+       9  Min Speed Rolling Rolling         -0.69  siCCT8#8   -0.0448         0.0011            0.17  3 of 3 lower
+      10  Max Speed Rolling                 -0.65  siCCT8#8     ×0.75         0.0011            0.22  3 of 3 lower
+      11  Speed Standard Deviation Rolling  -0.52  siCCT8#5     ×0.78         0.0011            0.25  3 of 3 lower
+      12  Speed Standard Deviation          -0.47  siCCT8#5     ×0.82         0.0011            0.27  3 of 3 lower
     Significant across repeats (paired t-test on the repeat means, q ≤ 0.05): 1 feature (Tortuosity Rolling, for siCCT8#5 ×0.83; not siCCT8#8).
   Not a candidate for any condition (1 feature): Directionality Rolling.
   Plotted by default: up to 5 best-ranked features (the readout when none ranks).
@@ -940,10 +942,10 @@ What this acquisition was asked to preserve
       label).
     - Repeats needed: for a paired t-test at p ≤ 0.05/m, m the conditions of the sub-experiment
       (what Benjamini-Hochberg asks at most), on the values that test compares: each repeat's change
-      (its mean over its control's, a fold change; the difference of the means where a mean is not
-      positive; the table gives their geometric mean, as the verdict does), its spread between the
-      repeats and its sampling error within one. All projected from the repeats here, so the plan is
-      a guide.
+      (its mean over its control's, a fold change; the difference of the means for a feature with a
+      value that is not positive; the table gives their geometric mean, as the verdict does), its
+      spread between the repeats and its sampling error within one. All projected from the repeats
+      here, so the plan is a guide.
     - The fields a side per repeat are the most any repeat needs, projected from the part of its
       interval of d within wells (narrowing as 1/sqrt of the number); the part between wells stays,
       and when it alone is as wide as the difference, more fields will not resolve it: more wells or

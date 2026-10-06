@@ -27,14 +27,9 @@ What this acquisition was asked to preserve
     below speak of the mean, not of the distribution of phenotypes.
   - Rare phenotype: not declared (no RareTarget in rare), so no answer below says whether a rare
     state was sampled enough.
-  - Representation: readout Filopodia number; 1 declared feature column for unusual cells (against
-    the control cells, their repeats pooled) and new phenotypes (new: at least 3 similar cells that
-    no other field shows).
-  - Report-only rule: with this definition of new, 'Did I image enough?' also judges whether the
-    chance that one more field shows something new is at most 5% (its upper bound; novelty_target).
-    It is not one of the stopping rules (rules): the live decision does not run it, and optimise and
-    benchmark do not calibrate it. A state that fewer than 3 other fields show is counted as seen in
-    few fields (few_fovs).
+  - Representation: readout Filopodia number; 1 declared feature column; unusual cells are not
+    assessed, as each field holds one cell; new phenotypes (new: at least 3 similar cells that no
+    other field shows) are not assessed, as each field holds one cell.
   - Stopping rules: mean-precision rule, per cell, 5% [scalar_precision_object_upper95
     (feature=Filopodia number, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95)] and
     mean-precision rule, per field, 5% [scalar_precision_fov_upper95 (feature=Filopodia number,
@@ -460,9 +455,10 @@ What this acquisition was asked to preserve
     values normalised to each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg within the
     condition's sub-experiment: this is the result to report. Same direction, not significant: on one
     side of the control in every repeat without reaching q ≤ 0.05, a consistent trend and not evidence
-    of no effect (with 3 repeats only large, consistent effects reach it). Beside it, the cell-level
-    screen (as Plot&Stats, every cell an independent draw) is exploratory: it finds candidates, not
-    effects that repeat:
+    of no effect (with 3 repeats only large, consistent effects reach it), said from 6 repeats: with
+    fewer, every repeat goes the same way by chance too often (1 experiment in 4 with 3 repeats).
+    Beside it, the cell-level screen (as Plot&Stats, every cell an independent draw) is exploratory:
+    it finds candidates, not effects that repeat:
     - siCCT8#5 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per repeat,
       mean -1.44, mean 44% lower than the control); paired t-test on the 3 repeat means p 0.037, q
       0.037; on raw values q 0.069; cell-level screen (exploratory) q 0.001 (balanced, normalised;
@@ -488,31 +484,31 @@ What this acquisition was asked to preserve
       0.014, q 0.027; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 5% of experiments like this one); siMAP4K4#6 (MAP4K4) agrees
       in 3 of 3 biological repeats.
-    - siMAP4K4#6 — same direction in every repeat, not significant: higher in 3 of 3 biological
-      repeats (Cohen's d per repeat, mean +1.39, mean 60% higher than the control); paired t-test on
-      the 3 repeat means p 0.058, q 0.058; cell-level screen (exploratory) q 0.001 (balanced,
-      normalised; with no real effect it gives p ≤ 0.05 in about 40% of experiments like this one);
-      siMAP4K4#5 (MAP4K4) agrees in 3 of 3 biological repeats.
-    - siMINK1#10 — same direction in every repeat, not significant: lower in 3 of 3 biological repeats
-      (Cohen's d per repeat, mean -0.88, mean 29% lower than the control); paired t-test on the 3
-      repeat means p 0.064, q 0.064; cell-level screen (exploratory) q 0.002 (balanced, normalised;
-      with no real effect it gives p ≤ 0.05 in about 18% of experiments like this one); siMINK1#3
-      (MINK1) agrees in 3 of 3 biological repeats.
-    - siMINK1#3 — same direction in every repeat, not significant: lower in 3 of 3 biological repeats
-      (Cohen's d per repeat, mean -0.49, mean 17% lower than the control); paired t-test on the 3
-      repeat means p 0.062, q 0.064; on raw values q 0.043; cell-level screen (exploratory) q 0.008
-      (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 5% of experiments like
-      this one); siMINK1#10 (MINK1) agrees in 3 of 3 biological repeats.
-    - siNF2#17 — same direction in every repeat, not significant: higher in 3 of 3 biological repeats
-      (Cohen's d per repeat, mean +0.53, mean 16% higher than the control); paired t-test on the 3
-      repeat means p 0.15, q 0.15; cell-level screen (exploratory) q 0.004 (balanced, normalised; with
-      no real effect it gives p ≤ 0.05 in about 27% of experiments like this one); siNF2#7 (NF2)
-      agrees in 3 of 3 biological repeats.
-    - siNF2#7 — same direction in every repeat, not significant: higher in 3 of 3 biological repeats
-      (Cohen's d per repeat, mean +0.55, mean 17% higher than the control); paired t-test on the 3
-      repeat means p 0.083, q 0.15; cell-level screen (exploratory) q 0.002 (balanced, normalised;
-      with no real effect it gives p ≤ 0.05 in about 17% of experiments like this one); siNF2#17 (NF2)
-      agrees in 3 of 3 biological repeats.
+    - siMAP4K4#6 — not significant across repeats: higher in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean +1.39, mean 60% higher than the control); paired t-test on the 3 repeat means p
+      0.058, q 0.058; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 40% of experiments like this one); siMAP4K4#5 (MAP4K4) agrees
+      in 3 of 3 biological repeats.
+    - siMINK1#10 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean -0.88, mean 29% lower than the control); paired t-test on the 3 repeat means p
+      0.064, q 0.064; cell-level screen (exploratory) q 0.002 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 18% of experiments like this one); siMINK1#3 (MINK1) agrees in
+      3 of 3 biological repeats.
+    - siMINK1#3 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean -0.49, mean 17% lower than the control); paired t-test on the 3 repeat means p
+      0.062, q 0.064; on raw values q 0.043; cell-level screen (exploratory) q 0.008 (balanced,
+      normalised; with no real effect it gives p ≤ 0.05 in about 5% of experiments like this one);
+      siMINK1#10 (MINK1) agrees in 3 of 3 biological repeats.
+    - siNF2#17 — not significant across repeats: higher in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean +0.53, mean 16% higher than the control); paired t-test on the 3 repeat means p
+      0.15, q 0.15; cell-level screen (exploratory) q 0.004 (balanced, normalised; with no real effect
+      it gives p ≤ 0.05 in about 27% of experiments like this one); siNF2#7 (NF2) agrees in 3 of 3
+      biological repeats.
+    - siNF2#7 — not significant across repeats: higher in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean +0.55, mean 17% higher than the control); paired t-test on the 3 repeat means p
+      0.083, q 0.15; cell-level screen (exploratory) q 0.002 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 17% of experiments like this one); siNF2#17 (NF2) agrees in 3
+      of 3 biological repeats.
     - siSCRIB#6 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.62, mean 46% lower than the control); paired t-test on the 3 repeat means p
       0.013, q 0.013; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
@@ -669,10 +665,10 @@ What this acquisition was asked to preserve
       or to the shape of the distribution is not tested (see the unusual cells and the rare label).
     - Repeats needed: for a paired t-test at p ≤ 0.05/m, m the conditions of the sub-experiment
       (what Benjamini-Hochberg asks at most), on the values that test compares: each repeat's change
-      (its mean over its control's, a fold change; the difference of the means where a mean is not
-      positive; the table gives their geometric mean, as the verdict does), its spread between the
-      repeats and its sampling error within one. All projected from the repeats here, so the plan is
-      a guide.
+      (its mean over its control's, a fold change; the difference of the means for a feature with a
+      value that is not positive; the table gives their geometric mean, as the verdict does), its
+      spread between the repeats and its sampling error within one. All projected from the repeats
+      here, so the plan is a guide.
     - The cells a side per repeat are the most any repeat needs, projected from the part of its
       interval of d within wells (narrowing as 1/sqrt of the number); the part between wells stays,
       and when it alone is as wide as the difference, more cells will not resolve it: more wells or

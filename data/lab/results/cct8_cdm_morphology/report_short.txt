@@ -36,11 +36,9 @@ At a glance
 What this acquisition was asked to preserve
   Population summary: the mean of Area over all cells, within 5% and 2.5% (judged on held-back
     fields by optimise).
-  Representation: readout Area; 10 declared feature columns for unusual cells (against the control
-    cells, their repeats pooled) and new phenotypes (new: at least 3 similar cells that no other
-    field shows).
-  Report-only rule: nothing new ≤5%, judged by the report only (not live, not calibrated by optimise
-    and benchmark); seen in few fields: fewer than 3 other fields.
+  Representation: readout Area; 10 declared feature columns; unusual cells are not assessed, as each
+    field holds one cell; new phenotypes (new: at least 3 similar cells that no other field shows)
+    are not assessed, as each field holds one cell.
   Stopping rules: mean-precision rule, per cell, 5% and mean-precision rule, per field, 5% (the
     default); run live, calibrated by optimise.
   Live decision: a stop needs every declared target (population summary); a target no rule decides
@@ -126,19 +124,20 @@ What this acquisition was asked to preserve
     ≤ 0.05 after Benjamini-Hochberg within the condition's sub-experiment, over its 10 features and
     their conditions: this is the result to report. Same direction, not significant: on one side of
     the control in every repeat without reaching q ≤ 0.05, a consistent trend and not evidence of no
-    effect (with 3 repeats only large, consistent effects reach it). Beside it, the cell-level
-    screen (as Plot&Stats, every cell an independent draw) is exploratory: it finds candidates, not
-    effects that repeat:
-    - siCCT8#5 — same direction in every repeat, not significant: lower in 3 of 3 biological repeats
-      (Cohen's d per repeat, mean -0.57, mean 23% lower than the control); paired t-test on the 3
-      repeat means p 0.21, q 0.26; cell-level screen (exploratory) q 0.018 (balanced, normalised;
-      with no real effect it gives p ≤ 0.05 in about 14% of experiments like this one); siCCT8#8
-      (CCT8) agrees in 3 of 3 biological repeats.
-    - siCCT8#8 — same direction in every repeat, not significant: lower in 3 of 3 biological repeats
-      (Cohen's d per repeat, mean -0.59, mean 24% lower than the control); paired t-test on the 3
-      repeat means p 0.11, q 0.18; cell-level screen (exploratory) q 0.0063 (balanced, normalised;
-      with no real effect it gives p ≤ 0.05 in about 5% of experiments like this one); siCCT8#5
-      (CCT8) agrees in 3 of 3 biological repeats.
+    effect (with 3 repeats only large, consistent effects reach it), said from 6 repeats: with
+    fewer, every repeat goes the same way by chance too often (1 experiment in 4 with 3 repeats).
+    Beside it, the cell-level screen (as Plot&Stats, every cell an independent draw) is exploratory:
+    it finds candidates, not effects that repeat:
+    - siCCT8#5 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean -0.57, mean 23% lower than the control); paired t-test on the 3 repeat means p
+      0.21, q 0.26; cell-level screen (exploratory) q 0.018 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 14% of experiments like this one); siCCT8#8 (CCT8) agrees in
+      3 of 3 biological repeats.
+    - siCCT8#8 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean -0.59, mean 24% lower than the control); paired t-test on the 3 repeat means p
+      0.11, q 0.18; cell-level screen (exploratory) q 0.0063 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 5% of experiments like this one); siCCT8#5 (CCT8) agrees in
+      3 of 3 biological repeats.
   Across the 3 biological repeats (each repeat's value is the mean of its cells, paired with the
     control of the same repeat):
     condition           vs control, by repeat  d cells per repeat: mean (range)  paired t, raw: p (q)  paired t, normalised: p (q)
@@ -182,8 +181,9 @@ What this acquisition was asked to preserve
     siCTRL: Cohen's d on the observations normalised to each repeat's control, randomization test, q
     ≤ 0.05 after Benjamini-Hochberg within each sub-experiment: 20 tests). Ranked by the largest
     difference (|d|); change: the condition's mean over the control's, the fold change the paired
-    t-test compares (the difference of the means where a mean is not positive); a candidate is
-    significant across repeats when the paired t-test on the repeat means also gives q ≤ 0.05:
+    t-test compares (the difference of the means for a feature with a value that is not positive,
+    the same scale for every condition); a candidate is significant across repeats when the paired
+    t-test on the repeat means also gives q ≤ 0.05:
     rank  feature      d  condition  change  q cell level  q repeat means  repeats
        1  Round    +2.06  siCCT8#8    ×2.25        0.0015           0.015  3 of 3 higher
        2  AR       -1.89  siCCT8#5    ×0.42        0.0015           0.015  3 of 3 lower
@@ -210,12 +210,12 @@ What this acquisition was asked to preserve
     cells or to the shape of the distribution is not tested (see the unusual cells and the rare
     label). Repeats needed: for a paired t-test at p ≤ 0.05/m, m the conditions of the
     sub-experiment (what Benjamini-Hochberg asks at most), on the values that test compares: each
-    repeat's change (its mean over its control's, a fold change; the difference of the means where a
-    mean is not positive; the table gives their geometric mean, as the verdict does), its spread
-    between the repeats and its sampling error within one. All projected from the repeats here, so
-    the plan is a guide. Candidates come from the cell-level test, which treats every observation as
-    an independent draw and so finds differences that may not repeat; only the paired t-test on the
-    repeat means (3 or more repeats) decides significance.
+    repeat's change (its mean over its control's, a fold change; the difference of the means for a
+    feature with a value that is not positive; the table gives their geometric mean, as the verdict
+    does), its spread between the repeats and its sampling error within one. All projected from the
+    repeats here, so the plan is a guide. Candidates come from the cell-level test, which treats
+    every observation as an independent draw and so finds differences that may not repeat; only the
+    paired t-test on the repeat means (3 or more repeats) decides significance.
 
 ✅ 10. Are there groups of cells, and is a condition enriched in one?
   174 cells in all, every condition pooled, clustered on the 10 declared features (HDBSCAN on a

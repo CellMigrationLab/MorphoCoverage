@@ -40,14 +40,9 @@ What this acquisition was asked to preserve
     below speak of the mean, not of the distribution of phenotypes.
   - Rare phenotype: not declared (no RareTarget in rare), so no answer below says whether a rare
     state was sampled enough.
-  - Representation: readout Area; 10 declared feature columns for unusual cells (against the control
-    cells, their repeats pooled) and new phenotypes (new: at least 3 similar cells that no other
-    field shows).
-  - Report-only rule: with this definition of new, 'Did I image enough?' also judges whether the
-    chance that one more field shows something new is at most 5% (its upper bound; novelty_target).
-    It is not one of the stopping rules (rules): the live decision does not run it, and optimise and
-    benchmark do not calibrate it. A state that fewer than 3 other fields show is counted as seen in
-    few fields (few_fovs).
+  - Representation: readout Area; 10 declared feature columns; unusual cells are not assessed, as
+    each field holds one cell; new phenotypes (new: at least 3 similar cells that no other field
+    shows) are not assessed, as each field holds one cell.
   - Stopping rules: mean-precision rule, per cell, 5% [scalar_precision_object_upper95
     (feature=Area, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95)] and mean-precision
     rule, per field, 5% [scalar_precision_fov_upper95 (feature=Area, target_cv=0.05,
@@ -332,19 +327,20 @@ What this acquisition was asked to preserve
     0.05 after Benjamini-Hochberg within the condition's sub-experiment, over its 10 features and
     their conditions: this is the result to report. Same direction, not significant: on one side of
     the control in every repeat without reaching q ≤ 0.05, a consistent trend and not evidence of no
-    effect (with 3 repeats only large, consistent effects reach it). Beside it, the cell-level screen
-    (as Plot&Stats, every cell an independent draw) is exploratory: it finds candidates, not effects
-    that repeat:
-    - siCCT8#5 — same direction in every repeat, not significant: lower in 3 of 3 biological repeats
-      (Cohen's d per repeat, mean -0.57, mean 23% lower than the control); paired t-test on the 3
-      repeat means p 0.21, q 0.26; cell-level screen (exploratory) q 0.018 (balanced, normalised; with
-      no real effect it gives p ≤ 0.05 in about 14% of experiments like this one); siCCT8#8 (CCT8)
-      agrees in 3 of 3 biological repeats.
-    - siCCT8#8 — same direction in every repeat, not significant: lower in 3 of 3 biological repeats
-      (Cohen's d per repeat, mean -0.59, mean 24% lower than the control); paired t-test on the 3
-      repeat means p 0.11, q 0.18; cell-level screen (exploratory) q 0.0063 (balanced, normalised;
-      with no real effect it gives p ≤ 0.05 in about 5% of experiments like this one); siCCT8#5 (CCT8)
-      agrees in 3 of 3 biological repeats.
+    effect (with 3 repeats only large, consistent effects reach it), said from 6 repeats: with fewer,
+    every repeat goes the same way by chance too often (1 experiment in 4 with 3 repeats). Beside it,
+    the cell-level screen (as Plot&Stats, every cell an independent draw) is exploratory: it finds
+    candidates, not effects that repeat:
+    - siCCT8#5 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean -0.57, mean 23% lower than the control); paired t-test on the 3 repeat means p
+      0.21, q 0.26; cell-level screen (exploratory) q 0.018 (balanced, normalised; with no real effect
+      it gives p ≤ 0.05 in about 14% of experiments like this one); siCCT8#8 (CCT8) agrees in 3 of 3
+      biological repeats.
+    - siCCT8#8 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean -0.59, mean 24% lower than the control); paired t-test on the 3 repeat means p
+      0.11, q 0.18; cell-level screen (exploratory) q 0.0063 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 5% of experiments like this one); siCCT8#5 (CCT8) agrees in 3
+      of 3 biological repeats.
   Across the 3 biological repeats (each repeat's value is the mean of its cells, paired with the
     control of the same repeat):
     condition           vs control, by repeat  d cells per repeat: mean (range)  paired t, raw: p (q)  paired t, normalised: p (q)
@@ -393,8 +389,9 @@ What this acquisition was asked to preserve
     siCTRL: Cohen's d on the observations normalised to each repeat's control, randomization test, q ≤
     0.05 after Benjamini-Hochberg within each sub-experiment: 20 tests). Ranked by the largest
     difference (|d|); change: the condition's mean over the control's, the fold change the paired
-    t-test compares (the difference of the means where a mean is not positive); a candidate is
-    significant across repeats when the paired t-test on the repeat means also gives q ≤ 0.05:
+    t-test compares (the difference of the means for a feature with a value that is not positive, the
+    same scale for every condition); a candidate is significant across repeats when the paired t-test
+    on the repeat means also gives q ≤ 0.05:
     rank  feature       d  condition  change  q cell level  q repeat means  repeats
        1  Round     +2.06  siCCT8#8    ×2.25        0.0015           0.015  3 of 3 higher
        2  AR        -1.89  siCCT8#5    ×0.42        0.0015           0.015  3 of 3 lower
@@ -450,10 +447,10 @@ What this acquisition was asked to preserve
       or to the shape of the distribution is not tested (see the unusual cells and the rare label).
     - Repeats needed: for a paired t-test at p ≤ 0.05/m, m the conditions of the sub-experiment
       (what Benjamini-Hochberg asks at most), on the values that test compares: each repeat's change
-      (its mean over its control's, a fold change; the difference of the means where a mean is not
-      positive; the table gives their geometric mean, as the verdict does), its spread between the
-      repeats and its sampling error within one. All projected from the repeats here, so the plan is
-      a guide.
+      (its mean over its control's, a fold change; the difference of the means for a feature with a
+      value that is not positive; the table gives their geometric mean, as the verdict does), its
+      spread between the repeats and its sampling error within one. All projected from the repeats
+      here, so the plan is a guide.
     - The cells a side per repeat are the most any repeat needs, projected from the part of its
       interval of d within wells (narrowing as 1/sqrt of the number); the part between wells stays,
       and when it alone is as wide as the difference, more cells will not resolve it: more wells or
