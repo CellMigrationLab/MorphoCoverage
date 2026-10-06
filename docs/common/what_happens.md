@@ -152,7 +152,7 @@ the contrast table, or the one control.
 | Unusual observations | the declared `features` raw, MFA across tables, against each own control | observation; clustering per field | groups and states | no control, no `features`, one observation per field |
 | Novelty and the positive control | the declared `features` raw, MFA across tables, fitted on the visible fields | field | none | no `novelty`; one observation per field when a new state needs several in one field |
 | Maps PCA and UMAP | raw, and divided by the own control whenever a control is declared; robustly standardised | observation | none | fewer than 3 columns in the space |
-| Separation scores | by condition as the figures read them; by repeat always raw; one line with one well per condition and repeat | neighbours outside the field, per repeat | none, descriptive | one condition; a space of fewer than 3 columns, which has no map |
+| Separation scores | by condition as the figures read them; by repeat always raw; one line with one well per condition and repeat, no within-repeat technical replication | neighbours outside the field, per repeat | none, descriptive | one condition; a space of fewer than 3 columns, which has no map |
 | Copy checks | each explainable table apart, or the features as one table | field | none, exact | `integrity=True` not given; the guided session gives it |
 | Duplicated or derived features | every declared column, on all rows and within each experiment | column pair | none, a caution | none |
 | Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap, an engineering threshold for quality control, not a test | one control |
