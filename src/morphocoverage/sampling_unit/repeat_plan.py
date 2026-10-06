@@ -19,7 +19,8 @@ fields resampled as acquired, ``contrast_sampling``):
   report no longer prints it as a verdict (owner, 2026-10-02: from 3 repeats it
   contradicted the readings, and docs/optimise/optimise.md, P10, needs 5 or more units); the
   column stays for the advice of "Did I image enough?" (``_html_sections``);
-- **the repeats needed**: the fewest biological repeats (at most ``MAX_REPEATS``)
+- **the repeats needed**: the fewest biological repeats (from ``MIN_REPEATS``, the paired
+  test's minimum, to ``MAX_REPEATS``)
   for which a paired t-test on the repeat values reaches ``power`` at the
   correction the report uses, with the fields acquired and with twice as many (which
   halve only the part of the sampling error within wells, ``between_share``; owner,
@@ -57,6 +58,7 @@ from scipy import stats
 from ..metadata import REPEAT_COLUMN as REPEAT
 from ..statistics import repeat_values
 from ._experiments import experiments
+from .contrast_repeats import MIN_REPEATS
 from .contrast_sampling import PRACTICAL, projected_fields
 
 ALPHA = 0.05
@@ -98,8 +100,10 @@ def paired_power(delta: float, sd: float, repeats: int, alpha: float) -> float:
 
 
 def repeats_needed(delta: float, sd: float, alpha: float, power: float = POWER) -> float:
-    """The fewest repeats (2 to ``MAX_REPEATS``) reaching ``power``; ``inf`` beyond."""
-    for repeats in range(2, MAX_REPEATS + 1):
+    """The fewest repeats (``MIN_REPEATS`` to ``MAX_REPEATS``) reaching ``power``; ``inf``
+    beyond. It starts at the paired test's minimum: two repeats are never tested, whatever
+    their power would be (audit 10, owner, 2026-10-06)."""
+    for repeats in range(MIN_REPEATS, MAX_REPEATS + 1):
         if paired_power(abs(delta), sd, repeats, alpha) >= power:
             return float(repeats)
     return np.inf

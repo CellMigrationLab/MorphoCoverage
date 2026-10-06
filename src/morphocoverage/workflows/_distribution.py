@@ -2,13 +2,16 @@
 
 With a phenotypic fingerprint declared, the distribution of each explainable feature the
 fingerprint reads is compared with the control's (``sampling_unit.distribution``): the
-spread and the 10%, 50% and 90% quantiles, per biological repeat on field-balanced
-subsamples, tested across the repeats (owner, 2026-10-02; 2026-10-06, audit 8). A
+spread and the 10%, 50% and 90% quantiles beyond the mean's shift, on the feature's scale,
+per biological repeat on field-balanced subsamples, tested across the repeats (owner,
+2026-10-02; 2026-10-06, audits 8 and 10). A
 fingerprint that reads no explainable feature (one declared on a DINO table) compares none,
 and the report says so once (``NOT_RUN``). A
 condition whose distribution differs is a difference, so it answers question 9 like a
 feature significant across repeats; one that moves the same way in every repeat without
-reaching q <= 0.05 is a trend, said as such.
+reaching q <= 0.05 is a trend from ``TREND_REPEATS`` repeats, said as such; with 2 repeats
+it is "lower (higher) in both repeats", not tested; nothing significant is "not
+significant", never "no difference" (audit 10, owner, 2026-10-06).
 """
 
 from __future__ import annotations
@@ -63,10 +66,20 @@ def distribution_by_feature(
         fovs,
         features=features,
         random_state=setup.random_state,
+        scales=setup.scales,
+        families=setup.families(fovs),
         **setup.contrast_arguments,
         **setup.common,
     )
     return result if result.n_tests else None
+
+
+def _direction(row: Any) -> str:
+    """``lower in both repeats``: the direction of a statistic not tested (2 repeats), never
+    a trend, which needs ``TREND_REPEATS`` (audit 10, owner, 2026-10-06)."""
+    way = "lower" if row.lower == row.repeats else "higher"
+    every = "both repeats" if row.repeats == 2 else f"all {row.repeats} repeats"
+    return f"{way} in {every}"
 
 
 def _consistent(rows: pd.DataFrame, tested: bool = True) -> pd.DataFrame:
@@ -139,12 +152,10 @@ def _condition_line(condition: Any, rows: pd.DataFrame, result: DistributionCont
         parts.append("the same way in every repeat, not significant: " + listing(_named(trend), 6))
     if len(untested):
         best = untested.drop_duplicates("feature")
-        named = [f"{r.feature} ({_NAMES[r.statistic]})" for r in best.itertuples()]
-        parts.append(
-            f"the same way in every repeat, not tested (fewer than {MIN_REPEATS} repeats): "
-            + listing(named, 6)
-        )
-    return f"- {condition} — " + ("; ".join(parts) if parts else "no difference beyond the mean")
+        named = [f"{r.feature} ({_NAMES[r.statistic]}, {_direction(r)})" for r in best.itertuples()]
+        parts.append(f"not tested (fewer than {MIN_REPEATS} repeats): " + listing(named, 6))
+    # Not significant is not "no difference" (audit 10, owner, 2026-10-06).
+    return f"- {condition} — " + ("; ".join(parts) if parts else "not significant beyond the mean")
 
 
 def _cell(row: pd.Series, statistic: str) -> str:
@@ -169,7 +180,9 @@ def distribution_text(result: DistributionContrast, unit: str = "cells") -> str:
         f"a side, the smaller side's, and as many {unit} a field, the smallest field's, "
         f"averaged over {draws} draws): the "
         "spread (the condition's SD over the control's) and the 10%, 50% and 90% quantiles "
-        f"(their shift in control SDs), each tested across the {repeats} repeats (t-test on "
+        "(their shift beyond the mean's, in control SDs), each on the feature's scale "
+        f"(the log of its values when its tests read log ratios), tested across the {repeats} "
+        "repeats (t-test on "
         "the per-repeat values; Benjamini-Hochberg within each sub-experiment: "
         f"{tests_words(result)}):",
         2,
@@ -194,7 +207,7 @@ def distribution_text(result: DistributionContrast, unit: str = "cells") -> str:
     lines.append(
         wrap(
             f"With {repeats} biological repeats only large, consistent changes reach q ≤ 0.05; "
-            "the same way in every repeat is a trend, not evidence of no difference.",
+            "not significant is not evidence of no difference.",
             4,
             hang=6,
         )
@@ -219,11 +232,8 @@ def distribution_headline(result: DistributionContrast) -> str:
     untested = _consistent(result.tests, tested=False)
     if len(untested):
         conditions = listing(list(dict.fromkeys(untested["condition"].astype(str))), 4)
-        return (
-            f"beyond the mean, the same way in every repeat for {conditions}, not tested "
-            f"(fewer than {MIN_REPEATS} repeats)"
-        )
-    return "beyond the mean, no difference in the distributions"
+        return f"beyond the mean, not tested for {conditions} (fewer than {MIN_REPEATS} repeats)"
+    return "beyond the mean, not significant"
 
 
 def _insert(text: str, paragraph: str) -> str:

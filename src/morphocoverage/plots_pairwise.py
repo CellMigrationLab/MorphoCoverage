@@ -71,7 +71,7 @@ PANEL_TITLES = {
 # diagonal, the upper right above it.
 PANEL_KEYS = {
     "B": "◣ lower left: Cohen's d · ◥ upper right: adjusted p",
-    "C": "◣ lower left: p · ◥ upper right: adjusted p",
+    "C": "◣ lower left: p · ◥ upper right: adjusted over this figure only",
 }
 # What each panel is good for, in a line (owner, 2026-10-02).
 PAIR_READING = (
@@ -111,10 +111,25 @@ PAIRED_NOTE = (
     f"{PAIRED_READING} The paired t-test on the biological repeats' means: each condition's "
     "mean paired with the other's in every repeat that imaged both (on the log ratios when "
     "every value of the feature is positive). Lower left: its p-value, unadjusted; upper "
-    "right: adjusted over the pairs of this figure (Benjamini-Hochberg; the tables adjust "
-    "over every feature and condition). Green at ≤ 0.05, darker the smaller; – : fewer than "
-    "3 repeats imaged both."
+    "right: adjusted over the pairs of this figure only (Benjamini-Hochberg); the verdict's "
+    "q is adjusted over every feature and condition of its sub-experiment, so the two can "
+    "fall either side of 0.05. Green at ≤ 0.05, darker the smaller; – : fewer than 3 "
+    "repeats imaged both."
 )
+
+
+def verdict_note(verdicts: Mapping[Any, float]) -> str:
+    """The verdict's q of each condition against its control, the feature's family (audit
+    10, owner, 2026-10-06), so panel C's q, adjusted over the figure only, is never read as
+    the verdict: "Verdict q (the feature's family): KD 0.074; KD2 –."; empty without any."""
+    if not verdicts:
+        return ""
+    parts = [
+        f"{condition} {format_p(q) if np.isfinite(q) else '–'}" for condition, q in verdicts.items()
+    ]
+    return f"Verdict q (the feature's family): {'; '.join(parts)}."
+
+
 PAIR_COLUMNS = [
     "feature",
     "first",
@@ -390,12 +405,18 @@ def _matrix(
 
 
 def add_pairwise(
-    figure: Figure, table: pd.DataFrame, conditions: Sequence[Any], several: bool = False
+    figure: Figure,
+    table: pd.DataFrame,
+    conditions: Sequence[Any],
+    several: bool = False,
+    verdicts: Mapping[Any, float] | None = None,
 ) -> None:
     """Panels B (d and the randomization test) and C (the paired t-test on the repeats'
     means) under the figure's plot, side by side when the figure is wide enough, else one
     under the other; the legend says what each shows (``several``: with several controls,
-    ``PAIR_NOTE_SEVERAL``). Nothing with fewer than two conditions."""
+    ``PAIR_NOTE_SEVERAL``) and, with ``verdicts`` (each condition's verdict q against its
+    control, the feature's family), those q beside panel C's (``verdict_note``). Nothing
+    with fewer than two conditions."""
     conditions = list(conditions)
     n = len(conditions)
     if n < 2 or table.empty:
@@ -428,7 +449,8 @@ def add_pairwise(
     panel_letter(ax_b, "B", pad=8)
     panel_letter(ax_c, "C", pad=8)
     note = PAIR_NOTE_SEVERAL if several else PAIR_NOTE
-    set_legend(figure, [sentences(caption), note, PAIRED_NOTE])
+    paired = " ".join(filter(None, [PAIRED_NOTE, verdict_note(verdicts or {})]))
+    set_legend(figure, [sentences(caption), note, paired])
 
 
 def _square(x: float, y: float, colour: tuple[float, float, float]) -> FancyBboxPatch:
@@ -461,4 +483,5 @@ __all__ = [
     "p_colour",
     "p_shade",
     "pairwise_contrasts",
+    "verdict_note",
 ]

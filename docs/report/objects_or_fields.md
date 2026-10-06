@@ -128,6 +128,11 @@ and changed only that one thing.
   pictures with a design effect of 1, the unusual objects are unusual pictures, and whether
   objects cluster in a few pictures, or a count rule holds with whole pictures, has no
   meaning; the report says so once (owner, 2026-10-06).
+- **Few pictures.** The count-rule check draws whole pictures at random, with
+  replacement, as from a well with many pictures like these, so the pictures it takes can
+  outnumber those acquired, and the report says so; a group of fewer than 5 pictures with
+  objects is not assessable, its draws mostly repeating its own few pictures (audit 10,
+  owner, 2026-10-06).
 - **Some measures shift between runs.** The JCS stability measure varies from
   run to run, so only its direction is reliable: pictures are less stable
   than random objects.

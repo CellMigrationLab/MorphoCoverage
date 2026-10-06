@@ -114,6 +114,7 @@ Current objective types are:
 - `balanced` (summary and rare phenotype)
 - `distribution_rare` (fingerprint and rare phenotype)
 - `all`
+- `no_target` (none: a Setup that declares no target, so nothing decides a stop; audit 10, owner, 2026-10-06)
 
 The objectives with a rare component (`rare_discovery`, `balanced`, `distribution_rare`, `all`) require a `RareTarget`: object prevalence and/or FOV incidence, detection probability, minimum number of FOV occurrences, and a declared phenotype definition. `workflows.Setup.objective()` picks the objective whose components are the declared targets.
 

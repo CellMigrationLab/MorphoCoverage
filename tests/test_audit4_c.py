@@ -239,7 +239,8 @@ def test_p1_4_the_object_rule_divides_by_the_repeats_own_control_mean():
     # The same CV in both repeats: the same rule, although the levels differ 2x.
     by_repeat = table.groupby("biological_repeat")["rule_objects"].median()
     assert by_repeat["r1"] == pytest.approx(by_repeat["r2"], rel=0.35)
-    text = result.summary()
+    # Read unwrapped: the count rule's sentence grew (audit 10, A16), so its line breaks moved.
+    text = " ".join(result.summary().split())
     assert "of the same biological repeat" in text
     assert "differ by 2.0x" in text
 
@@ -325,7 +326,8 @@ def test_p1_12_small_unit_d_plural_and_rare_declaration_wording():
     assert "unstable" not in " ".join(contrast.summary().split())
     assert " 2 vs 2 " in contrast.summary(detail="full")
     # A field rule asking for one field says "1 field", not "1 fields".
-    spec = [("ctrl", "r1", "A", 4, 10.0), ("drug", "r1", "B", 4, 10.0)]
+    # 5 fields a side: the check needs 5 since audit 10 (owner, 2026-10-06).
+    spec = [("ctrl", "r1", "A", 5, 10.0), ("drug", "r1", "B", 5, 10.0)]
     objects, fovs = _tables(spec, per_field=200)
     fovs = pd.concat([fovs, fovs.assign(position_id=fovs["position_id"] + "_empty")])
     result = object_rule_check(objects, fovs, feature="x", control=CONTROL, n_draws=20)

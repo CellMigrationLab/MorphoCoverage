@@ -1,5 +1,5 @@
 """Parts of a ``Setup`` declared on their own (private): the positive control and its
-checks, the default definition of new.
+checks, the default definition of new, the objective of the declared targets.
 
 Shared-private: re-exported by ``workflows.setup``, where they are imported from.
 """
@@ -15,9 +15,11 @@ import numpy as np
 import pandas as pd
 
 from .._checks import check_seed, is_integer, is_number
+from .._control import comparison_label
 from .._former_repeat import read_fields
 from .._parallel import check_n_jobs
-from ..metadata import REPEAT_COLUMN
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
+from ..objectives import ObjectiveConfig, SamplingObjective
 from ..statistics import SCALES
 from ..strategies import SupportNoveltyEstimator
 from ..transforms import RobustStandardize, Standardize
@@ -202,14 +204,99 @@ def check_few_fovs(setup: Setup) -> None:
         )
 
 
+def check_experiment(setup: Setup) -> None:
+    """``experiment`` is ``None``, a column name, or a mapping condition -> experiment (kept
+    as a dict); anything else is refused (audit 10, owner, 2026-10-06)."""
+    value = setup.experiment
+    if value is None or (isinstance(value, str) and value):
+        return
+    if not isinstance(value, Mapping) or not value:
+        raise TypeError(
+            "experiment must be a FOV-table column naming each condition's experiment, or a "
+            "mapping condition -> experiment, such as {'THBS5': 'untransfected'}"
+        )
+    object.__setattr__(setup, "experiment", dict(value))
+
+
+def experiment_families(setup: Setup, fovs: pd.DataFrame) -> dict[Any, Any] | None:
+    """Each condition's declared experiment (``Setup.experiment``), ``None`` without one: the
+    mapping as declared, or the FOV table's column, one experiment per condition (a control
+    serving several experiments is left out: a test belongs to its condition's)."""
+    value = setup.experiment
+    if value is None:
+        return None
+    if isinstance(value, Mapping):
+        return _with_labels(dict(value), setup)
+    if value not in fovs.columns:
+        raise ValueError(
+            f"experiment names {value!r}, which is not a column of the FOV table: name the "
+            "column holding each condition's experiment, or pass a mapping condition -> "
+            "experiment"
+        )
+    pairs = fovs[[CONDITION_COLUMN, value]].dropna().drop_duplicates()
+    counts = pairs[CONDITION_COLUMN].value_counts()
+    controls = set((setup.own_references or {}).values())
+    controls |= {(setup.single_control or {}).get(CONDITION_COLUMN)}
+    several = [c for c in counts.index[counts > 1] if c not in controls]
+    if several:
+        raise ValueError(
+            f"experiment: {several[:3]} hold several values of {value!r}; a condition other "
+            "than a control belongs to one experiment"
+        )
+    multiple = set(counts.index[counts > 1])
+    found = dict(zip(pairs[CONDITION_COLUMN], pairs[value], strict=True))
+    return _with_labels({c: e for c, e in found.items() if c not in multiple}, setup)
+
+
+def _with_labels(families: dict[Any, Any], setup: Setup) -> dict[Any, Any]:
+    """``families`` with each comparison's label (``THBS5_SiFBN2 vs THBS5_SiNC``) mapped to
+    its condition's experiment, as the tests name the rows of several controls."""
+    for condition, reference in setup.comparisons or ():
+        if condition in families:
+            families.setdefault(comparison_label(condition, reference), families[condition])
+    return families
+
+
+def setup_objective(setup: Setup) -> ObjectiveConfig:
+    """The objective whose components are the declared targets (``Setup.objective``).
+
+    The population summary whenever the readout's mean is a target; a fingerprint adds
+    the distribution component, a rare target the rare component; with none of them, no
+    component (``no_target``: nothing decides a stop). The live decision and every replay
+    run under it, so a rule that has no evidence about a declared target cannot alone say
+    stop, and a target no rule decides stays ``unsupported`` in the decision view rather
+    than being assumed adequate.
+    """
+    if not setup.mean_target:  # no mean: the fingerprint and the rare phenotype only
+        if setup.rare is None and not setup.fingerprint:
+            # No target at all: no component, nothing decides a stop (audit 10, owner,
+            # 2026-10-06; before, a fingerprint was required that nobody declared).
+            return ObjectiveConfig(SamplingObjective.NO_TARGET)
+        if setup.rare is None:
+            return ObjectiveConfig(SamplingObjective.DISTRIBUTION)
+        if setup.fingerprint:  # owner, 2026-10-06 (audit 8): no population component
+            return ObjectiveConfig(SamplingObjective.DISTRIBUTION_RARE, rare=setup.rare)
+        return ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=setup.rare)
+    if setup.rare is not None and setup.fingerprint:
+        return ObjectiveConfig(SamplingObjective.ALL, rare=setup.rare)
+    if setup.rare is not None:
+        return ObjectiveConfig(SamplingObjective.BALANCED, rare=setup.rare)
+    if setup.fingerprint:
+        return ObjectiveConfig(SamplingObjective.PHENOTYPE)
+    return ObjectiveConfig(SamplingObjective.POPULATION)
+
+
 __all__ = [
     "MANY_NOVELTY_FEATURES",
     "PositiveControl",
     "check_embedding_only",
+    "check_experiment",
     "check_few_fovs",
     "check_positive",
     "check_presets",
     "check_scales",
     "default_novelty",
+    "experiment_families",
+    "setup_objective",
     "warn_novelty_dimension",
 ]

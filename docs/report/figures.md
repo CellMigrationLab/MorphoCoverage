@@ -33,7 +33,11 @@ at 0.05). It treats every observation as an independent draw, so when the
 repeats differ it passes more often than 5% without an effect; the table keeps
 the paired t-test on the repeats' means beside it, drawn as panel C (`p_paired`
 below the diagonal, uncorrected, and `q_paired`, Benjamini-Hochberg over the pairs
-tested, above; with 3 repeats that imaged both), and a pair imaged in different repeats is marked †, since the
+tested, above; with 3 repeats that imaged both). Panel C's q is adjusted over the figure
+only, so its key says "adjusted over this figure only", and the legend gives each
+condition's verdict q beside it, the feature family's ("Verdict q (the feature's family):
+KD 0.074"; `figure.pairwise_verdicts`), since the two can fall either side of 0.05 (audit 10,
+owner, 2026-10-06). A pair imaged in different repeats is marked †, since the
 difference between batches is in it (`plots_pairwise.pairwise_contrasts` gives
 the table, and each figure carries it as `figure.pairwise`). Every object is a
 jittered point in its condition's colour (the HTML report's colours), shaped by

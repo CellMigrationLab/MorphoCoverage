@@ -105,7 +105,7 @@ from scipy import stats
 from .._parallel import map_units
 from ..statistics import cohen_d
 from ._balanced import BalancedDesign, BalancedRerun
-from ._experiments import corrected, experiments, family_sizes
+from ._experiments import corrected, declared, experiments, family_sizes
 
 ALPHA = 0.05
 # Balanced resamples per condition, and the shuffles of the randomization test in each.
@@ -298,6 +298,15 @@ def refined(
     return values, counts
 
 
+def repeats_to_balance(by_t: Mapping[Any, Any], small: Any, unbalanced: bool) -> list[Any]:
+    """The repeats the balanced test balances: those not ``small`` (sparse) when the
+    condition is unbalanced, and none when fewer than 2 are left, since one repeat alone is
+    not balanced over the repeats; the test as provided is then read (audit 10, owner,
+    2026-10-06), or none when it pools the control of other repeats."""
+    kept = [r for r in by_t if r not in small] if unbalanced else []
+    return kept if len(kept) >= 2 else []
+
+
 def sparse(sizes: dict[Any, int]) -> list[Any]:
     """The repeats too small to balance to (see the module): fewer than ``SPARSE`` of the
     median repeat's observations, or fewer than ``MIN_BALANCED``. Against the median, not the
@@ -381,7 +390,7 @@ def trusted_test(
     spread = max(max(n.values()) / max(min(n.values()), 1) for n in (sizes, control_sizes))
     unbalanced = bool(spread > IMBALANCE or len(every) > len(control_sizes))
     small = set(sparse(sizes)) | set(sparse(control_sizes))
-    kept = [r for r in by_t if r not in small] if unbalanced else []
+    kept = repeats_to_balance(by_t, small, unbalanced)
     scaled = normalised(by_t, every), normalised(by_c, every), normalised(every, every)
     scale = all(x is not None for x in scaled)
     d, p, d_bal, p_bal, per_t, per_c, retests = _tests(
@@ -410,6 +419,7 @@ def cell_table(
     plan: pd.DataFrame,
     n_permutations: int,
     rng_for: Any,
+    families: Mapping[Any, Any] | None = None,
 ) -> pd.DataFrame:
     """One row per condition: the cell-level test pooled as provided, the balance check and,
     when unbalanced, the balanced test over the repeats that are not sparse, each on raw and
@@ -444,7 +454,7 @@ def cell_table(
         )
         unbalanced = bool(spread > IMBALANCE or others > 0)
         small = sorted(set(sparse(sizes)) | set(sparse(control_sizes)), key=str)
-        kept = [r for r in by_t if r not in small] if unbalanced else []
+        kept = repeats_to_balance(by_t, small, unbalanced)
         d, p, d_bal, p_bal, per_t, per_c, raw = _tests(
             by_t, by_c, every, kept, False, n_permutations, rng_for(condition, "raw")
         )
@@ -511,7 +521,7 @@ def cell_table(
     family = experiments(
         {condition: list(side["treated_by_repeat"]) for condition, side in pooled.items()}
     )
-    table["experiment"] = table["condition"].map(family)
+    table["experiment"] = table["condition"].map(declared(family, families))
     table = table.set_index("condition", drop=False)
     # A test as provided whose control pools repeats the condition lacks is withheld, so it
     # leaves the correction family: q only over the tests reported (owner, 2026-10-05).

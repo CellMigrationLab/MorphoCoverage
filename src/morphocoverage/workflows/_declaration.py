@@ -22,7 +22,7 @@ from .._style import rule_label, wrap
 from .._wording import count, listing, percent, plural, rate
 from ..evidence import Component
 from ..order_check import RANDOM_SAMPLE_ASSUMPTION
-from ..results import COMPONENT_WORDS
+from ..results import COMPONENT_WORDS, NO_TARGET_WORDS
 from ..retrospective.replay import strategy_label
 from ..schema import resolve_observation_unit
 from ..statistics import fovs_to_detect
@@ -72,6 +72,10 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
     controls = controls_sentence(setup)
     if controls:  # several controls (owner, 2026-10-05)
         lines.append(f"{controls}.")
+    if setup.experiment is not None:  # declared correction families (audit 10, 2026-10-06)
+        name = setup.experiment
+        how = f"by the column {name!r}" if isinstance(name, str) else "condition by condition"
+        lines.append(f"Experiments: declared {how}, each corrected on its own.")
     if novelty_runs(setup, per_field):  # the positive control is judged by it
         lines.append(_novelty(setup))
         lines += [_positive(setup)] if setup.positive is not None else []
@@ -99,7 +103,9 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
         COMPONENT_WORDS[c].lower() for c in Component if c in objective.required_components
     )
     lines.append(
-        f"Live decision: a stop needs every declared target ({targets}); a rule decides "
+        f"Live decision: {NO_TARGET_WORDS}."
+        if not targets
+        else f"Live decision: a stop needs every declared target ({targets}); a rule decides "
         "only the targets it has evidence about, and a target no rule decides stays "
         "unsupported rather than assumed adequate."
     )
@@ -581,8 +587,10 @@ def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> 
         [COMPONENT_WORDS[c].lower() for c in Component if c in objective.required_components]
     )
     lines.append(
-        f"Live decision: a stop needs every declared target ({targets}); a target no rule "
-        "decides stays unsupported, never assumed adequate."
+        f"Live decision: {NO_TARGET_WORDS}."
+        if not targets
+        else f"Live decision: a stop needs every declared target ({targets}); a target no "
+        "rule decides stays unsupported, never assumed adequate."
     )
     text = [wrap(line, indent, hang=indent + 2) for line in lines]
     return "\n".join([*text, *caveat_lines(cautions, indent=indent)])

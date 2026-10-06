@@ -236,7 +236,9 @@ def test_issue_145_a_comparison_not_tested_is_not_called_not_significant():
     assert result.tests.query("condition == 'narrow'")["q"].isna().all()
     paragraph = distribution_text(result)
     line = " ".join(paragraph.split("- narrow — ")[1].split("\n    condition")[0].split())
-    assert line.startswith("the same way in every repeat, not tested (fewer than 3 repeats): ")
+    # With 2 repeats, the direction in both, never trend words (audit 10, owner, 2026-10-06).
+    assert line.startswith("not tested (fewer than 3 repeats): ")
+    assert "in both repeats" in line and "the same way in every repeat" not in line
     assert "not significant" not in line and "q –" not in line
     assert "    narrow  " in paragraph  # its values are in the table
     assert "not significant" not in distribution_headline(result)

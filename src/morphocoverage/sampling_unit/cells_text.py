@@ -140,16 +140,26 @@ def _sparse(contrast: Any, cells: pd.DataFrame) -> list[str]:
     flagged = cells[cells["sparse_repeats"].map(len) > 0]
     groups: dict[tuple[tuple[str, ...], int], list[str]] = {}
     for row in flagged.to_dict("records"):
-        key = (tuple(str(r) for r in row["sparse_repeats"]), int(row["balanced_repeats"]))
+        left = int(row["repeats"]) - len(row["sparse_repeats"])
+        provided = not row["other_control_repeats"] > 0
+        key = (
+            tuple(str(r) for r in row["sparse_repeats"]),
+            int(row["balanced_repeats"]),
+            left,
+            provided,
+        )
         groups.setdefault(key, []).append(str(row["condition"]))
     lines = []
-    for (names, kept), conditions in groups.items():
+    for (names, kept, left, provided), conditions in groups.items():
+        # One repeat alone is not balanced over the repeats: no balanced test, the test as
+        # provided is read (audit 10, owner, 2026-10-06).
         rest = (
-            f"the balanced test balances the other {word}"
-            if kept == 1
-            else f"the balanced test balances the other {count(kept, word)}"
+            f"the balanced test balances the other {count(kept, word)}"
             if kept
-            else "no other repeat is left to balance"
+            else f"one {word} alone would be left, so there is no balanced test"
+            + (" and the test as provided is read" if provided else "")
+            if left == 1
+            else f"no other {word} is left to balance"
         )
         one = len(names) == 1
         lines.append(

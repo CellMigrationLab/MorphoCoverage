@@ -229,7 +229,8 @@ def decide(
         per_component.setdefault(component, Decision.UNSUPPORTED)
 
     required_decisions = [per_component[c] for c in Component if c in required]
-    if Decision.UNSUPPORTED in required_decisions:
+    # No target declared: nothing decides a stop (audit 10, owner, 2026-10-06).
+    if not required_decisions or Decision.UNSUPPORTED in required_decisions:
         overall: Decision | None = Decision.UNSUPPORTED
     else:
         overall = combine_decisions(required_decisions)

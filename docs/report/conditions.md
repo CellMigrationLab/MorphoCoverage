@@ -144,8 +144,14 @@ secondary rows:
   holding all four (raw differences of differences where a mean is not positive). Shifts the
   four conditions of a repeat share cancel, so without a difference of effects it gives
   p <= 0.05 in about 5% of experiments (`tests/test_comparisons.py` simulates it).
-- **`vs_master_raw`**: a control against the master control, the paired t-test on each
-  repeat's difference of the means, in the repeats holding both.
+- **`vs_master_raw`**: a control against the master control, not normalised, the paired
+  t-test on each repeat's log ratio of the means, on the feature's scale as every test (the
+  difference of the means for a feature read on differences), in the repeats holding both,
+  so the fold change printed beside it is what it tests (audit 10, owner, 2026-10-06; before,
+  the difference was tested beside a fold change). In a report with other tables, these
+  rows are tested feature by feature only, each kind with its reason: a difference of log
+  ratios has no meaning in an embedding; the whole-table test compares each condition with
+  its own control, not the controls with the master.
 
 The sign-flip test is given where it can reach 0.05 once corrected (`_reach`). The code is
 `sampling_unit.contrast_across`, its words `across_text`, and the table `_control`.
@@ -204,7 +210,9 @@ repeat holding under a quarter of the median repeat on its side, or fewer than
 kept in the test as provided and left out of the balanced one, which balances
 the other repeats. A small control repeat is left out of both sides, so each
 condition stays paired with its own repeats' control. When every repeat is that
-small, nothing is balanced and only the test as provided is given.
+small, or all but one, nothing is balanced and only the test as provided is given: one
+repeat alone is not balanced over the repeats, and the reading reads the test as provided,
+never a "balanced" test of one repeat (audit 10, owner, 2026-10-06).
 
 ## Assumptions
 
@@ -231,11 +239,25 @@ small, nothing is balanced and only the test as provided is given.
   already).
 - **Balancing** assumes the observations of a repeat are exchangeable, so any
   subset of them represents it.
+- **Nothing compared.** When no biological repeat holds a condition and its control, the
+  question reads "➖ nothing compared: no biological repeat holds a condition and its
+  control", its chip "Nothing compared", never "No consistent difference" (audit 10, owner,
+  2026-10-06).
 - **Benjamini-Hochberg** correction is applied within each sub-experiment
   (the conditions that share their biological repeats and their control, as
   when a screen runs target by target), each test separately: one part of a
   screen does not dilute another (owner, 2026-10-01). The tests within one
-  repeat keep their Bonferroni correction.
+  repeat keep their Bonferroni correction. `Setup(experiment=...)`, a column of the FOV
+  table or a mapping condition -> experiment, names the families instead: each declared
+  experiment is one family, so an untransfected pair imaged in the same repeats as an siRNA
+  set is not corrected with it, and a screen declared as one experiment is corrected as one
+  (audit 10, owner, 2026-10-06). When the tests against one control label fall into two or
+  more families (a screen run target by target against one siCTRL), the screen-wide q, over
+  every test against that label, is given beside each verdict ("screen-wide q 0.054"; the
+  CSV's `q_screen`, `screen_wide_adjusted_p`). The guided session asks, with several
+  controls, whether each control's conditions are a separate experiment, and with one
+  control whose conditions fall into sets imaged in separate repeats, whether they are one
+  screen; No, the default, keeps the design's families.
 
 ## Limitations
 
@@ -382,9 +404,16 @@ and their conditions" (owner, 2026-10-06). With a fingerprint, the report also c
 beyond the mean the distribution of each explainable feature the fingerprint reads (none
 for a fingerprint declared on a DINO table alone, which the section says once): per
 biological repeat against its own control, the spread (the SD ratio) and the 10%, 50% and
-90% quantiles (their shift in control SDs), each tested across the repeats
-(Benjamini-Hochberg within each sub-experiment, a family of its own). A condition whose
-distribution differs answers the question like a feature significant across repeats.
+90% quantiles (their shift beyond the shift of the mean, in control SDs), each on the
+feature's scale, the log of its values when its tests read log ratios, and each tested
+across the repeats (Benjamini-Hochberg within each sub-experiment, a family of its own). A
+condition that only moves its mean, or changes every value by one factor, shifts no
+quantile beyond it (audit 10, owner, 2026-10-06; before, the quantile shifts held the mean's
+and a pure shift read "differs beyond the mean"). A condition whose distribution differs
+answers the question like a feature significant across repeats; nothing significant reads
+"not significant", never "no difference"; the same direction in every repeat is a trend
+only from 6 repeats, and with 2 repeats "lower (higher) in both repeats", not tested (audit
+10, owner, 2026-10-06).
 
 Both sides are read on **field-balanced subsamples** (owner, 2026-10-06): per repeat, the
 same number of fields a side, the smaller side's, drawn at random among each side's fields,
@@ -398,7 +427,8 @@ has no field-to-field variation in its spread. Null calibration
 5 features, field SD 0.5 or 1 cell SD, equal sides, a control of one field of 60 or of 6
 cells, a condition that lost cells, and uneven random counts): each statistic gave
 p ≤ 0.05 in 3.6-5.8% of tests, and any q ≤ 0.05 over the 20 tests in 2.8-7.0% of
-datasets. The same tests on the pooled cells gave up to 56% for the spread and up to 13%
+datasets (measured before the quantile shifts were taken beyond the mean's, on the feature's
+scale; not rerun since). The same tests on the pooled cells gave up to 56% for the spread and up to 13%
 for the outer quantiles, and up to 31% of datasets with a q ≤ 0.05 (6 repeats, a control of
 one field of 60 cells, field SD 1; audit 8 found 56% and 34% on its own design, now 4%
 and 3%).
@@ -454,7 +484,12 @@ statistics below.
   effective dimensions grow, so the test is close to calibrated in wide tables (7.5% at 3
   repeats in the simulation below) and conservative in narrow ones (plan v2, owner,
   2026-10-06). It needs 3
-  repeats; with fewer, "not tested across repeats, 2 repeats". Benjamini-Hochberg: the tests
+  repeats; with fewer, "not tested across repeats, 2 repeats". Beside each verdict (audit 10,
+  owner, 2026-10-06): the smallest p an exact sign-flip test of its `n` repeats could give,
+  `2^(1-n)` (0.25 with 3 repeats, 0.0625 with 5), so a smaller t-test p is read as resting
+  on the projections' normality; and the repeats whose control holds fewer than 3 fields
+  ("the control holds fewer than 3 fields in R6 (1)"), where one field can carry the
+  repeat's shift (both in `tests_whole_table.csv`, `sign_floor` and `few_control`). Benjamini-Hochberg: the tests
   of one table form one family per sub-experiment, as the per-feature main rows do, never
   joining the per-feature families.
 - **Shuffle test, exploratory** (owner, 2026-10-06): the distance between the condition's
@@ -526,7 +561,8 @@ provided; a pilot of 1 or 2 repeats included): per condition, the fields a side 
 needs to resolve the difference (projected from its interval: fewer than acquired where it
 is resolved), led by the repeats a paired test needs for 80% power at 0.05/m, m the
 conditions of the sub-experiment (what Benjamini-Hochberg asks at most), with the fields per
-repeat as now and twice as many (`sampling_unit.repeat_plan`). No verdict on what limits it
+repeat as now and twice as many (`sampling_unit.repeat_plan`). The count starts at 3, the
+paired test's minimum, never 2 (audit 10, owner, 2026-10-06). No verdict on what limits it
 is printed (owner, 2026-10-02): from 3 repeats it contradicted the readings, and telling the
 variation between repeats from the sampling within them is P10's question, which needs 5 or
 more units.
@@ -551,6 +587,21 @@ and the 95% t interval of the change, which is wide; a change that is not signif
 evidence of no change." The paired t-test itself is unchanged. `tests_across_repeats.csv`
 and `feature_discovery.csv` carry each repeat's change (`repeat_contrasts`, `R1: 0.6463;
 ...`) and the interval (`ci_low`, `ci_high`) at any number of repeats.
+
+**Three near-identical repeats** (audit 10, owner, 2026-10-06). A paired t-test on 3
+repeats divides by their own SD, so 3 repeats that agree almost exactly give a tiny p
+whatever the variation between repeats usually is (a verdict on the lab's glioma tracks:
+log ratios 0.0018 apart in SD, against a median of 0.18 over its family, p 3e-5; at the
+family's typical SD, 0.10).
+A verdict significant across repeats on exactly 3 repeats whose log ratios' SD is under a
+fifth of the median over its sub-experiment's features and conditions (on log ratios only:
+differences carry their feature's units) is said to rest on near-identical repeats, ⚠️ in
+the ranked features' cautions ("Rests on 3 near-identical repeats: tortuosity for KD (SD
+0.0018, median 0.18)") and in the headline, whose marker is ⚠️ when every verdict rests on
+such repeats (`feature_discovery.csv`: `repeat_sd`, `family_sd`, `near_identical`). The test
+itself is unchanged; a moderated paired t borrowing the family's variance (limma-style
+empirical Bayes) is a candidate of module P1 of the [validation protocol](../common/validation.md).
+The readout alone, with no other feature, has no family of features and is not checked.
 
 With a `target` column, the report also says whether the independent reagents of one
 target (two siRNAs of one gene) are on the same side of the control in every repeat

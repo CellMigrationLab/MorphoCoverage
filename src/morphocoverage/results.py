@@ -271,6 +271,10 @@ class StrategyResult:
         return self.evidence.diagnostics
 
 
+# An objective with no target (``SamplingObjective.NO_TARGET``): what the live decision says.
+NO_TARGET_WORDS = "no target: nothing decides a stop"
+
+
 def combine_decisions(decisions: Sequence[Decision | None]) -> Decision | None:
     """Undefined if any decision is, stop if all stop, otherwise continue.
 
@@ -434,13 +438,16 @@ def _target_decisions(
             text = f"{COMPONENT_WORDS[component]}: no rule decides it"
             entries.append(_TargetDecision(component, Decision.UNSUPPORTED, text))
             overall.append(Decision.UNSUPPORTED)
-    if Decision.UNSUPPORTED in overall:
+    if not required:
+        combined: Decision | None = Decision.UNSUPPORTED
+        final = NO_TARGET_WORDS
+    elif Decision.UNSUPPORTED in overall:
         missing = [
             COMPONENT_WORDS[e.component].lower()
             for e in entries
             if e.decision is Decision.UNSUPPORTED and e.component is not None
         ]
-        combined: Decision | None = Decision.UNSUPPORTED
+        combined = Decision.UNSUPPORTED
         final = f"unsupported (no rule decides the {', '.join(missing)})"
     else:
         combined = combine_decisions(overall)
@@ -456,6 +463,7 @@ def _target_decisions(
 
 __all__ = [
     "COMPONENT_WORDS",
+    "NO_TARGET_WORDS",
     "Decision",
     "StrategyResult",
     "Timing",

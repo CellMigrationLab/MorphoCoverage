@@ -295,7 +295,8 @@ def test_h12_a_zero_control_mean_is_not_too_few_fields():
     result = object_rule_check(objects, fovs, feature="mitoses", control=CONTROL, n_draws=50)
     assert result.table["status"].str.contains("the reference mean is 0").all()
     few = object_rule_check(*_tables([("ctrl", "r1", "w", 1, 10.0, 0.1)]), feature="x")
-    assert few.table["status"].eq("fewer than 2 fields with cells").all()
+    # Audit 10 (A16): below 5 fields the count rule is not assessable (owner, 2026-10-06).
+    assert few.table["status"].eq("fewer than 5 fields with cells").all()
 
 
 def test_h13_a_sparse_group_does_not_read_zero_per_field():

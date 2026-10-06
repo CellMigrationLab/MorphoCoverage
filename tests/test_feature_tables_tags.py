@@ -271,6 +271,8 @@ class Script:
     def ask(self, prompt):
         if prompt.startswith("Test the changes of "):
             return ""  # the scale question of plan v2 (owner, 2026-10-06): its default
+        if prompt.startswith(("Are the conditions of each control a separate", "Are they one")):
+            return ""  # separate experiments? (audit 10, owner, 2026-10-06): its default
         if not self.answers:
             raise AssertionError(f"no scripted answer left for {prompt!r}")
         return self.answers.pop(0)

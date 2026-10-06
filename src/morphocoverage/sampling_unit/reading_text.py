@@ -215,6 +215,7 @@ def _paired(row: pd.Series, n: int, word: str) -> tuple[bool, str]:
     confirmed = bool(q <= ALPHA)
     uncorrected = f"p {p_value(p)}, " if pd.notna(p) else ""
     words = f"paired t-test on the {n} repeat means {uncorrected}q {p_value(q)}"
+    words += f" (screen-wide q {p_value(row['q_screen'])})" if pd.notna(row.get("q_screen")) else ""
     words += "" if which == "normalised" else " (raw values)"
     raw = row["q_paired_t"]
     if which == "normalised" and pd.notna(raw) and (raw <= ALPHA) != confirmed:

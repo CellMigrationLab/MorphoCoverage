@@ -14,7 +14,12 @@ so a condition not named like a control can become one (``VEC`` for ``THBS5``; o
 2026-10-05). The gate proposes No when
 the likeliest control is missing from biological repeats where other conditions are
 imaged, and then shows the condition by repeat table of images first. Then the contrast
-table the answers give is shown, one test per line.
+table the answers give is shown, one test per line. Then, when sets of conditions could be
+separate experiments, whether they are (``ask_experiment``; audit 10, owner, 2026-10-06):
+with several controls, whether each control's conditions are an experiment of their own;
+with one control whose conditions fall into sets imaged in separate biological repeats,
+whether they are one screen, corrected together. No, the default, keeps the families the
+design gives.
 """
 
 from __future__ import annotations
@@ -26,7 +31,9 @@ import pandas as pd
 
 from .._control import NO_CONTROL
 from .._style import table
+from .._wording import listing
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
+from ..sampling_unit._experiments import experiments
 from ._guided_ask import Ask, Say, ask_control, choose, choose_many, text, yes_no
 
 # The last part of a name that reads like a negative control (VEC_SiNC, x_siCTRL, y_scr).
@@ -211,6 +218,48 @@ def ask_controls(ask: Ask, say: Say, scan: Any) -> tuple[dict | None, dict | Non
     return ask_several(ask, say, scan)
 
 
+def _sets(scan: Any, control: Any) -> list[list[Any]]:
+    """The conditions compared with ``control``, in sets linked by the biological repeats
+    they share with it (``_experiments.experiments``)."""
+    fields = scan.fovs
+    if REPEAT_COLUMN not in fields or CONDITION_COLUMN not in fields:
+        return []
+    repeats = fields.groupby(CONDITION_COLUMN)[REPEAT_COLUMN].agg(set).to_dict()
+    own = repeats.get(control, set())
+    held = {c: r & own for c, r in repeats.items() if c != control and r & own}
+    numbers = experiments(held)
+    return [[c for c in held if numbers[c] == n] for n in sorted(set(numbers.values()))]
+
+
+def ask_experiment(ask: Ask, say: Say, scan: Any, control: Any) -> dict[Any, Any] | None:
+    """Whether sets of conditions are separate experiments (see the module): the mapping
+    condition -> experiment ``Setup(experiment=...)`` takes, or ``None`` (the default)."""
+    spec = (control or {}).get(CONDITION_COLUMN)
+    if isinstance(spec, dict):  # several controls
+        members = {c: list(m.values() if isinstance(m, dict) else m) for c, m in spec.items()}
+        if sum(bool(m) for m in members.values()) < 2:
+            return None
+        prompt = (
+            "Are the conditions of each control a separate experiment, corrected on its own? "
+            "No: corrected together wherever they share biological repeats."
+        )
+        if not yes_no(ask, say, prompt, default=False):
+            return None
+        return {m: str(c) for c, ms in members.items() for m in ms}
+    sets = _sets(scan, spec) if spec is not None else []
+    if len(sets) < 2:
+        return None
+    named = listing([listing([str(c) for c in s], 3) for s in sets], 4)
+    say(f"The conditions fall into {len(sets)} sets imaged in separate repeats: {named}.")
+    prompt = (
+        f"Are they one experiment against {spec}, a screen corrected together? No: each set "
+        "corrected on its own, the screen-wide q beside each verdict."
+    )
+    if not yes_no(ask, say, prompt, default=False):
+        return None
+    return {c: "screen" for s in sets for c in s}
+
+
 def contrast_lines(control: Any, parents: Any, master: Any) -> list[str]:
     """The tests these answers make, one per line, with their family."""
     from .setup import Setup
@@ -232,6 +281,7 @@ def contrast_lines(control: Any, parents: Any, master: Any) -> list[str]:
 
 __all__ = [
     "ask_controls",
+    "ask_experiment",
     "ask_gate",
     "ask_several",
     "contrast_lines",

@@ -31,11 +31,11 @@ from .._wording import count, listing, p_value, rate, shortened
 from ..retrospective.report import QUESTIONS, questions_for, short_questions_for
 from ..retrospective.report_resolved import _needing, _table, _unassessed, between_wells
 from ..retrospective.report_status import group_word
-from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
+from ..sampling_unit.contrast_sampling import MIN_FIELDS, MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import resolve_observation_unit
 from ..strategies.base import SamplingStrategy
-from ..sufficiency_short import rule_tallies
+from ..sufficiency_short import met_count, rule_tallies
 from ._contrasts import controls_sentence
 from ._html_render import in_units
 
@@ -304,8 +304,8 @@ def _resolution(contrast: Any, single_repeat: bool = False) -> list[str]:
         )
     if _unassessed(rows):
         lines.append(
-            f"In {count(_unassessed(rows), 'comparison')} there are too few {fields} for an "
-            "interval: not assessed."
+            f"In {count(_unassessed(rows), 'comparison')} there are fewer than {MIN_FIELDS} "
+            f"{fields} a side: not assessable."
         )
     return lines
 
@@ -325,7 +325,7 @@ def _precision(sufficiency: Any, readout: str, fields: str) -> list[str]:
         met, groups = first["met"], first["groups"]
         line = (
             f"Enough to pin down each {word}'s own mean of {readout}? The {first['label']} "
-            f"was met in {met} of {count(groups, word)}."
+            f"was met in {met_count(first, word)}."
         )
         if met < groups:
             line += (
@@ -336,8 +336,8 @@ def _precision(sufficiency: Any, readout: str, fields: str) -> list[str]:
     if novel:
         t = novel[0]
         lines.append(
-            f"Enough to have seen every phenotype? '{t['label']}' was met in {t['met']} of "
-            f"{count(t['groups'], word)} (the numbers below)."
+            f"Enough to have seen every phenotype? '{t['label']}' was met in "
+            f"{met_count(t, word)} (the numbers below)."
         )
     return lines
 

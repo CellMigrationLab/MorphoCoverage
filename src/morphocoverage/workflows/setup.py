@@ -41,7 +41,7 @@ from ..metadata import (
 )
 from ..normalize import METHODS as NORMALIZATIONS
 from ..normalize import normalize_to_control, normalize_to_own
-from ..objectives import ObjectiveConfig, RareTarget, SamplingObjective
+from ..objectives import ObjectiveConfig, RareTarget
 from ..outcomes import RareStateDetected, RelativeMeanError
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.hierarchy import SamplingHierarchy
@@ -67,11 +67,14 @@ from ._feature_space import check_feature_tables, table_columns
 from ._setup_parts import (
     PositiveControl,
     check_embedding_only,
+    check_experiment,
     check_few_fovs,
     check_positive,
     check_presets,
     check_scales,
     default_novelty,
+    experiment_families,
+    setup_objective,
     warn_novelty_dimension,
 )
 
@@ -109,6 +112,9 @@ class Setup:
     - ``scales``: each explainable feature's scale for the tests across repeats, ``{"area":
       "ratio", "velocity": "difference"}`` (plan v2, owner, 2026-10-06; ``check_scales``);
       a feature not named keeps the automatic rule (log ratio when every value is positive).
+    - ``experiment``: the correction families, a FOV-table column naming each condition's
+      experiment or a mapping condition -> experiment; each declared experiment is corrected
+      on its own (audit 10, owner, 2026-10-06); ``None``, the sub-experiments of the design.
     - ``feature_tables``: the non-explainable feature tables, each name with its columns,
       such as a DINO embedding (owner, 2026-10-05): never tested feature by feature, they
       join the maps, the populations, the copy checks and their own fingerprints, never
@@ -221,6 +227,7 @@ class Setup:
     intensity_features: tuple[str, ...] = ()
     explainable_tables: Mapping[str, tuple[str, ...]] | None = None
     scales: Mapping[str, str] | None = None
+    experiment: str | Mapping[Any, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.readout is not None and (not isinstance(self.readout, str) or not self.readout):
@@ -287,6 +294,7 @@ class Setup:
         warn_novelty_dimension(self)
         check_feature_tables(self)
         check_scales(self)
+        check_experiment(self)
         if set(self.intensity_features) - set(self.columns):
             raise ValueError("intensity_features must be declared columns (readout or features)")
         undeclared = set(self.criterion_columns) - {*self.columns, *table_columns(self)}
@@ -303,6 +311,10 @@ class Setup:
     def scale_of(self, feature: str | None) -> str | None:
         """The declared scale of ``feature`` (``scales``), ``None`` for the automatic rule."""
         return (self.scales or {}).get(feature) if feature is not None else None
+
+    def families(self, fovs: pd.DataFrame) -> dict[Any, Any] | None:
+        """Each condition's declared experiment (``experiment``), ``None`` without one."""
+        return experiment_families(self, fovs)
 
     @property
     def columns(self) -> list[str]:
@@ -473,28 +485,10 @@ class Setup:
         return normalized_text(self, fovs, objects)
 
     def objective(self) -> ObjectiveConfig:
-        """The objective whose components are the declared targets.
-
-        The population summary is always declared; a fingerprint adds the
-        distribution component, a rare target the rare component. The live
-        decision and every replay run under it, so a rule that has no evidence
-        about a declared target cannot alone say stop, and a target no rule
-        decides stays ``unsupported`` in the decision view rather than being
-        assumed adequate.
-        """
-        if not self.mean_target:  # no mean: the fingerprint and the rare phenotype only
-            if self.rare is None:
-                return ObjectiveConfig(SamplingObjective.DISTRIBUTION)
-            if self.fingerprint:  # owner, 2026-10-06 (audit 8): no population component
-                return ObjectiveConfig(SamplingObjective.DISTRIBUTION_RARE, rare=self.rare)
-            return ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=self.rare)
-        if self.rare is not None and self.fingerprint:
-            return ObjectiveConfig(SamplingObjective.ALL, rare=self.rare)
-        if self.rare is not None:
-            return ObjectiveConfig(SamplingObjective.BALANCED, rare=self.rare)
-        if self.fingerprint:
-            return ObjectiveConfig(SamplingObjective.PHENOTYPE)
-        return ObjectiveConfig(SamplingObjective.POPULATION)
+        """The objective whose components are the declared targets (``setup_objective``):
+        a rule with no evidence about a declared target cannot alone say stop, and a target
+        no rule decides stays ``unsupported``; with no target, nothing decides a stop."""
+        return setup_objective(self)
 
     def criteria(self) -> list[OutcomeCriterion]:
         """The declaration as outcome criteria, judged on held-back fields.

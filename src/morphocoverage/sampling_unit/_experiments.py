@@ -8,6 +8,15 @@ can show, so the p-values are corrected (Benjamini-Hochberg, as the owner decide
 2026-10-01) within each sub-experiment: the conditions linked by a biological repeat they
 were both compared in (``experiments``; the whole report when every condition shares the
 repeats).
+
+The Setup may name the families instead (``Setup(experiment=...)``, audit 10, owner,
+2026-10-06): each declared experiment is one family (``declared``), so a set imaged in the
+same repeats as another but answering another question, an untransfected pair beside an
+siRNA set, is not corrected with it, and a screen declared as one experiment is corrected as
+one; a condition no declaration names keeps its sub-experiment. When tests of two or more
+families share one control label (a screen whose targets were imaged in their own repeats
+against the same control), the screen-wide q, over every test against that label, is given
+beside each verdict (``screen_wide``).
 """
 
 from __future__ import annotations
@@ -47,6 +56,35 @@ def experiments(repeats: Mapping[Any, Iterable[Any]]) -> dict[Any, int]:
                 first[repeat] = condition
     numbers: dict[Any, int] = {}
     return {c: numbers.setdefault(root(c), len(numbers)) for c in repeats}
+
+
+def declared(numbers: Mapping[Any, int], families: Mapping[Any, Any] | None) -> dict[Any, int]:
+    """Each condition's correction family, numbered from 0 in order: its declared experiment
+    (``families``: condition -> experiment; see the module), else its sub-experiment
+    (``numbers``, ``experiments``)."""
+    if not families:
+        return dict(numbers)
+    codes: dict[Any, int] = {}
+    keys = {
+        c: ("declared", families[c]) if c in families else ("derived", n)
+        for c, n in numbers.items()
+    }
+    return {c: codes.setdefault(key, len(codes)) for c, key in keys.items()}
+
+
+def screen_wide(p_values: pd.Series, controls: pd.Series, family: pd.Series) -> np.ndarray:
+    """The screen-wide q of each test (see the module): Benjamini-Hochberg over every test
+    against its control label when those tests fall in two or more families; NaN for a
+    label whose tests are one family, where the family's q is the screen's."""
+    q = np.full(len(p_values), np.nan)
+    labels = controls.astype(str).to_numpy()
+    families = family.to_numpy()
+    values = p_values.to_numpy(dtype=float)
+    for label in pd.unique(labels):
+        mine = labels == label
+        if len(pd.unique(families[mine & np.isfinite(values)])) > 1:
+            q[mine] = benjamini_hochberg(values[mine])
+    return q
 
 
 def repeat_experiments(
@@ -148,10 +186,12 @@ __all__ = [
     "ALPHA",
     "bridges",
     "corrected",
+    "declared",
     "experiments",
     "family_sizes",
     "family_words",
     "not_compared",
     "repeat_experiments",
     "same_experiment",
+    "screen_wide",
 ]

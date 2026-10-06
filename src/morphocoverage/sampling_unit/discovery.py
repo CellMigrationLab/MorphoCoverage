@@ -62,8 +62,8 @@ from .._wording import (
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
 from ._common import groups, validated
-from ._discovery_tests import tested_rows
-from ._experiments import corrected, experiments, not_compared
+from ._discovery_tests import near_identical, resting, resting_words, tested_rows
+from ._experiments import corrected, declared, experiments, not_compared, screen_wide
 from ._units import (
     check_arguments,
     contrasts_of,
@@ -114,6 +114,10 @@ TEST_COLUMNS = [
     "repeat_contrasts",
     "ci_low",
     "ci_high",
+    "repeat_sd",
+    "family_sd",
+    "near_identical",
+    "q_screen",
 ]
 
 
@@ -198,6 +202,13 @@ def _limited(row: Mapping[str, Any]) -> list[str]:
     return [contrasts_words(row["repeat_contrasts"], values), interval]
 
 
+def _screen(row: Any) -> str:
+    """`` (screen-wide q 0.054)`` beside a verdict whose control label is shared by several
+    families (audit 10, owner, 2026-10-06); empty otherwise."""
+    q = getattr(row, "q_screen", np.nan)
+    return f" (screen-wide q {p_value(q)})" if pd.notna(q) else ""
+
+
 def _q(value: float) -> str:
     if not np.isfinite(value):
         return "–"
@@ -226,7 +237,10 @@ class FeatureDiscovery:
         for feature in features[:5]:
             mine = tests[(tests["feature"] == feature) & tests["confirmed"]]
             conditions = listing(
-                [f"{r.condition} {change(r.change, r.paired_values)}" for r in mine.itertuples()],
+                [
+                    f"{r.condition} {change(r.change, r.paired_values)}{_screen(r)}"
+                    for r in mine.itertuples()
+                ],
                 3,
             )
             others = tests[(tests["feature"] == feature) & tests["passes"] & ~tests["confirmed"]]
@@ -241,6 +255,11 @@ class FeatureDiscovery:
         """The passing features the paired test on the repeat means also passes, best first."""
         ranked = self.ranking.dropna(subset=["score"])
         return ranked.loc[ranked["confirmed"], "feature"].tolist()
+
+    def resting(self) -> pd.DataFrame:
+        """The tests significant across repeats that rest on near-identical repeats
+        (``_discovery_tests.resting``; audit 10, owner, 2026-10-06)."""
+        return resting(self.tests, self.settings["alpha"])
 
     def _unit(self) -> str:
         """The word for one observation (``nucleus``; ``cell`` when none was declared)."""
@@ -417,7 +436,7 @@ class FeatureDiscovery:
                 f"Candidates, but lower in some repeats and higher in others: {names}; a shift "
                 "between repeats, not a consistent effect."
             )
-        return cautions
+        return cautions + resting_words(self.resting())
 
     def short_parts(
         self, indent: int = 0, max_rows: int = TOP_FEATURES, limit: int = 3
@@ -467,11 +486,13 @@ def feature_discovery(
     comparisons: Sequence[tuple[Any, Any]] | None = None,
     n_jobs: int = 1,
     scales: Mapping[str, str] | None = None,
+    families: Mapping[Any, Any] | None = None,
 ) -> FeatureDiscovery:
     """Rank ``features`` by the cell-level gate, with the paired test beside it (see the
     module). Arguments follow ``condition_contrast``; ``n_jobs`` worker processes test the
     features, with the same results for every value (``_parallel``); ``scales``, each
-    feature's declared scale (``Setup.scales``), else the automatic rule."""
+    feature's declared scale (``Setup.scales``), else the automatic rule; ``families``, each
+    condition's declared experiment (``Setup.experiment``), else the sub-experiments."""
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     features = list(dict.fromkeys(features))
     if not features:
@@ -520,7 +541,7 @@ def feature_discovery(
         empty = pd.DataFrame(columns=RANKING_COLUMNS)  # its columns, for top and the page
         return FeatureDiscovery(pd.DataFrame(columns=TEST_COLUMNS), empty, settings)
     tests = pd.DataFrame(rows).reindex(columns=TEST_COLUMNS)
-    tests["experiment"] = tests["condition"].map(experiments(held))
+    tests["experiment"] = tests["condition"].map(declared(experiments(held), families))
     # The tests at p <= alpha rerun with the shuffles their family needs (contrast_cells).
     tests["p_cells"], tests["permutations"] = refined(
         tests["p_cells"],
@@ -544,6 +565,10 @@ def feature_discovery(
     tests["q_paired_raw"] = corrected(tests["p_paired_raw"], tests["experiment"])
     tests["passes"] = (tests["q_cells"] <= alpha).fillna(False) & tests["d"].notna()
     tests["confirmed"] = tests["passes"] & (tests["q_paired"] <= alpha).fillna(False)
+    tests["near_identical"], tests["family_sd"] = near_identical(tests)
+    tests["q_screen"] = screen_wide(
+        tests["p_paired"], tests["control_condition"], tests["experiment"]
+    )
     return FeatureDiscovery(tests, _rank(tests, features), settings)
 
 

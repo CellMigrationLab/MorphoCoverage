@@ -93,9 +93,14 @@ once. A declared ratio on a feature with a value that is not positive is refused
   declared target can be judged, and `optimise` refuses with the same words. Without
   explainable features the aims are the whole distribution, the labelled phenotype, or both.
 
+**Correction families.** `experiment`, a column of the FOV table or a mapping condition ->
+experiment, names the Benjamini-Hochberg families, by default the sub-experiments
+([testing in one place](#testing-in-one-place); audit 10, owner, 2026-10-06).
+
 **Repeats and wells.**
 
-- `biological_repeat`: the replicate of every verdict; paired tests need 3 repeats.
+- `biological_repeat`: the replicate of every verdict; paired tests need 3 repeats, and
+  the repeats the plan asks for start at 3 (audit 10, owner, 2026-10-06).
 - `technical_repeat`, the wells: part of each analysis group by default, and the unit
   resampled or shuffled first wherever one is.
 - `fields_independent=True`: without a well column, the tests within one repeat and the
@@ -145,18 +150,18 @@ the contrast table, or the one control.
 
 | Analysis | Values it reads | Level | Correction family | Not run, or not applicable, when |
 | --- | --- | --- | --- | --- |
-| Paired t across repeats, the main rows | raw means per repeat; tested on the scale declared in `Setup(scales=...)` (plan v2, owner, 2026-10-06), else on the log ratio to the own control when every observation of the feature is positive, else the difference, one scale per feature for every condition (owner, 2026-10-06); raw beside | biological repeat | Benjamini-Hochberg over every explainable feature, the label share and every main row, per sub-experiment | fewer than 3 repeats: direction and d only; no repeat holds both: "Not compared" |
+| Paired t across repeats, the main rows | raw means per repeat; tested on the scale declared in `Setup(scales=...)` (plan v2, owner, 2026-10-06), else on the log ratio to the own control when every observation of the feature is positive, else the difference, one scale per feature for every condition (owner, 2026-10-06); raw beside | biological repeat | Benjamini-Hochberg over every explainable feature, the label share and every main row, per sub-experiment | fewer than 3 repeats: direction and d only; no repeat holds both: "Not compared", and when no condition is compared at all, "➖ nothing compared" (audit 10, owner, 2026-10-06) |
 | `across_normalised` rows | per repeat, each condition's log ratio to its own control, their difference | repeats holding all four | one family over every feature and row of this kind | fewer than 3 repeats: named, not compared; no treatment key: no row |
-| `vs_master_raw` rows | per repeat, the raw difference of a control and the master | repeats holding both | one family over every feature and row of this kind | no master; a pair joined by a parent link |
-| Cell-level screen | observations pooled over repeats, divided by the same repeat's control mean when every control mean is positive; balanced when the repeats are unbalanced | observation | the same family as the paired t | the control pooled from other repeats with no balanced test possible |
+| `vs_master_raw` rows | per repeat, a control against the master, not normalised, on the feature's scale: the log ratio of their means, else the difference, so the fold change shown is what is tested (audit 10, owner, 2026-10-06) | repeats holding both | one family over every feature and row of this kind | no master; a pair joined by a parent link |
+| Cell-level screen | observations pooled over repeats, divided by the same repeat's control mean when every control mean is positive; balanced when the repeats are unbalanced and at least 2 repeats are left to balance, else as provided (audit 10, owner, 2026-10-06) | observation | the same family as the paired t | the control pooled from other repeats with no balanced test possible |
 | Discovery and ranking | the screen as the gate, the paired t as the second gate, ranked by the largest \|d\| | as above | as above | fewer than 2 compared columns, the readout and the label share counted |
 | Ranking within repeats | field means within each repeat | wells, or fields with `fields_independent` | one family over all its tests | no well and fields not declared independent: no test |
 | Heatmap | the discovery's d and q | observation, repeat | the discovery's | no discovery |
-| SuperPlots and pairwise panels | divided by the own control with `normalize`, else raw; pairwise d with 1999 shuffles | points per observation, intervals over wells and fields | the pairs of one figure | normalised: pairs under different controls are not compared |
-| "Did I image enough?" per feature | per repeat, the bootstrap interval of d over wells then fields; the mean-precision rules on raw values | repeat and condition; each analysis group | none | fewer than 2 explainable columns: the readout's answer only; no control |
-| Mean-precision stopping rules | the raw readout, upper 95% bound at the first tolerance | analysis group, per object and per field | none | no readout |
+| SuperPlots and pairwise panels | divided by the own control with `normalize`, else raw; pairwise d with 1999 shuffles; panel C's q labelled "adjusted over this figure only", the verdict's q beside it (audit 10, owner, 2026-10-06) | points per observation, intervals over wells and fields | the pairs of one figure | normalised: pairs under different controls are not compared |
+| "Did I image enough?" per feature | per repeat, the bootstrap interval of d over wells then fields, the exact noncentral t interval with one observation per field and no wells, "not assessable" below 5 fields a side (audit 10, owner, 2026-10-06); the mean-precision rules on raw values | repeat and condition; each analysis group | none | fewer than 2 explainable columns: the readout's answer only; no control |
+| Mean-precision stopping rules | the raw readout, upper 95% bound at the first tolerance; the count across groups says how many were judged, "0 of 27 judged; 12 too few fields; 1 undefined" (audit 10, owner, 2026-10-06) | analysis group, per object and per field | none | no readout |
 | Fingerprint | as declared, or on the first k principal components when wider than a fifth of the median judged group; divided by the own control with `normalize`, whatever the number of controls | analysis group of at least 4 fields | none | groups of fewer than 4 fields: not judged; on components, groups of fewer than 5 k observations: not assessable, named |
-| Beyond the mean | the explainable features the fingerprint reads, per repeat against the own control on field-balanced subsamples (owner, 2026-10-06): SD ratio, 10%, 50% and 90% quantile shifts | biological repeat | its own family per sub-experiment | no fingerprint; a fingerprint reading no explainable feature, said once; no control |
+| Beyond the mean | the explainable features the fingerprint reads, per repeat against the own control on field-balanced subsamples (owner, 2026-10-06): SD ratio, 10%, 50% and 90% quantile shifts beyond the mean's shift, on the feature's scale, in control SDs; "not significant", never "no difference"; a trend from 6 repeats, "lower in both repeats" at 2 (audit 10, owner, 2026-10-06) | biological repeat | its own family per sub-experiment | no fingerprint; a fingerprint reading no explainable feature, said once; no control |
 | Rare label | its share compared like a feature; the label check on the nearest cell of another field; clustering in fields | observation, field | the features' family; clustering over groups and states | label check with a positive control declared; without explainable features, clustering only; one observation per field: no clustering in question 3, the one-per-field reason instead (owner, 2026-10-06) |
 | Populations | the readout and `features` as the figures read them, MFA across two or more explainable tables | observation; enrichment per repeat | groups and conditions per sub-experiment | fewer than 2 columns; enrichment without a control or with fewer than 3 repeats |
 | Unusual observations, biological | the declared `features` relative to each own control in its repeat: divided by its mean with `normalize`, else the log ratio to its mean or the difference, on the feature's declared scale, undeclared the log ratio when every value is positive; MFA across tables; against each own control, today's threshold, exploratory (owner, 2026-10-06, plan v2) | observation; clustering per field | groups and states | no control, no `features`; one observation per field: unusual images, no clustering |
@@ -168,7 +173,7 @@ the contrast table, or the one control.
 | Duplicated or derived features | every declared column, on all rows and within each experiment | column pair | none, a caution | none |
 | Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap, an engineering threshold for quality control, not a test, in the acquisition block of "What is in the dataset" | one control |
 | `optimise` | criteria on held-back fields, divided as the fingerprint, a fingerprint's components refitted on the fields not held back; the rules replayed raw | analysis group | none | no target it can judge |
-| `live_session` | the raw columns of each field | analysis group | none | none |
+| `live_session` | the raw columns of each field | analysis group | none | no target declared: "no target: nothing decides a stop" (audit 10, owner, 2026-10-06) |
 
 With the readout as the only explainable column, its own tests are corrected over its
 conditions per sub-experiment. With no `features` and other tables given, unusual
@@ -180,7 +185,7 @@ observations read the readout alone, as the declaration and the report say (owne
 | Analysis | Values it reads | Level | Correction family | Not run, or not applicable, when |
 | --- | --- | --- | --- | --- |
 | Per-feature tests, heatmap, SuperPlots, "enough" per feature | never | | | always |
-| Whole-table test, the verdict | raw columns robustly scaled per comparison on its two sides' within-group residuals (owner, 2026-10-06), field means, the shift per repeat projected on the other repeats' mean shift | biological repeat | per table and sub-experiment, apart from the features | no control or no repeat column; fewer than 3 repeats: "not tested"; rows across experiments are not tested |
+| Whole-table test, the verdict | raw columns robustly scaled per comparison on its two sides' within-group residuals (owner, 2026-10-06), field means, the shift per repeat projected on the other repeats' mean shift; beside it the exact sign-flip floor `2^(1-n)` and the repeats whose control holds fewer than 3 fields (audit 10, owner, 2026-10-06) | biological repeat | per table and sub-experiment, apart from the features | no control or no repeat column; fewer than 3 repeats: "not tested"; rows across experiments are not tested, each kind's own reason said once (audit 10, owner, 2026-10-06) |
 | Whole-table shuffle | the same centres, labels of units shuffled within repeats, 999 times | wells, else the group columns beyond condition and repeat, else fields | none, in `tests_whole_table.csv` only | fewer than 40 distinct assignments |
 | Mean-precision rules | none | | | always |
 | Fingerprint per table | raw columns robustly standardised, the first k principal components fitted on every complete observation | analysis group of at least 4 fields | none | one k, a fifth of the median judged group; a group of fewer than 5 k observations not assessable, named; k under 2 or no group of 4 fields: not assessable, `optimise` too |
@@ -262,7 +267,7 @@ without explainable features the combined map has a centred view instead (owner,
 
 | Test | Unit of replication | Benjamini-Hochberg family | Role |
 | --- | --- | --- | --- |
-| Paired t on repeat means, main rows | biological repeat, from 3 | every explainable feature, the label share and every main row, per sub-experiment | the verdict, "significant across repeats"; with exactly 3 repeats, each repeat's change and the 95% t interval beside it, "very limited biological replication" said once (plan v2, owner, 2026-10-06) |
+| Paired t on repeat means, main rows | biological repeat, from 3 | every explainable feature, the label share and every main row, per sub-experiment | the verdict, "significant across repeats"; with exactly 3 repeats, each repeat's change and the 95% t interval beside it, "very limited biological replication" said once (plan v2, owner, 2026-10-06); ⚠️ "rests on 3 near-identical repeats" when its log ratios' SD across the 3 repeats is under a fifth of the median over its sub-experiment's features and conditions, ⚠️ for the question when every verdict does (audit 10, owner, 2026-10-06) |
 | Sign-flip test | biological repeat | the readout's conditions per sub-experiment | in the full report, only where its smallest p can reach 0.05 |
 | `across_normalised`, `vs_master_raw` | biological repeat, from 3 | one family per kind over every feature and row | verdicts across experiments |
 | Whole-table test | biological repeat, from 3 | per table and sub-experiment | the verdict for a table |
@@ -282,7 +287,11 @@ fingerprint, the rare target and novelty. Each section of the report and of the 
 answers with one of them says so once, in one sentence pointing to that protocol
 (`workflows._exploratory`).
 
-Benjamini-Hochberg controls the false discovery rate within each family above, never across
+A declared `experiment` replaces the sub-experiment wherever a family above reads "per
+sub-experiment": the paired t, the cell-level screen, the whole-table test and beyond the
+mean (populations and the plan's 0.05/m keep the sub-experiments); the screen-wide q is given
+beside each verdict whose control label several families share (audit 10, owner,
+2026-10-06). Benjamini-Hochberg controls the false discovery rate within each family above, never across
 the report: a report of several families can hold more false discoveries overall than any
 one family allows. The report says so once, where it explains its q-values (plan v2, owner,
 2026-10-06).

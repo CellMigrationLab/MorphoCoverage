@@ -230,9 +230,10 @@ def across_parts(contrast: Any, indent: int = 2) -> list[str]:
     if len(raw) or (across["kind"] == MASTER_RAW).any():
         lines.append(
             wrap(
-                f"{_master(contrast, word)} The controls against it on the raw values, in the "
-                f"{word}s holding both: raw comparisons across experiments assume they were "
-                "imaged and processed alike.",
+                f"{_master(contrast, word)} The controls against it on the raw values, not "
+                f"normalised, in the {word}s holding both, on each feature's scale: the log "
+                "ratio of the control's mean to the master's, else their difference; raw "
+                "comparisons across experiments assume they were imaged and processed alike.",
                 indent + 2,
                 hang=indent + 4,
             )
@@ -246,6 +247,16 @@ def across_parts(contrast: Any, indent: int = 2) -> list[str]:
             wrap(
                 f"{listing(list(fell['comparison']), 3)}: a value is not positive, so the "
                 "differences of the raw differences are compared instead of log ratios.",
+                indent + 2,
+                hang=indent + 4,
+            )
+        )
+    fell = compared[(compared["kind"] == MASTER_RAW) & (compared["values"] == RAW)]
+    if len(fell):
+        lines.append(
+            wrap(
+                f"{listing(list(fell['comparison']), 3)}: a value is not positive, so the "
+                "raw differences are compared instead of log ratios.",
                 indent + 2,
                 hang=indent + 4,
             )
