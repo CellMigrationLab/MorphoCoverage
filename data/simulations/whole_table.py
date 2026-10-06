@@ -123,7 +123,7 @@ def _setting(arguments: tuple) -> dict:
         z = _standardised(values)
         row = _table_rows("t", z, meta, [("cond", "ctrl")], PERMUTATIONS, replicate)[0]
         hits["repeat_level"] += row["p_repeats"] <= 0.05
-        hits["image_level"] += row["p_image"] <= 0.05
+        hits["image_level"] += row["p_shuffle"] <= 0.05
         hits["plain"] += _plain_p(z, meta) <= 0.05
     rows = {}
     for test, hit in hits.items():
