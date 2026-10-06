@@ -285,7 +285,8 @@ given to `report`.
   DINO's centred view.
 - The populations in the explainable, DINO and combined spaces, on values normalised to
   each own control and centred, so observations in repeats without their own control are
-  left out of them.
+  left out of the spaces holding the explainable features, and named once ("36 cells of b1
+  and b2 in R4 left out: no own control"), never counted as missing values.
 
 **(d) No control declared.**
 

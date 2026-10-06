@@ -37,6 +37,7 @@ from ._population_rule_words import rule_cell, rule_words
 from ._population_spaces import (
     described,
     found_words,
+    no_own_control_words,
     populations_in_spaces,
     space_words,
     spaces_method,
@@ -68,12 +69,14 @@ class PopulationsResult:
 
 
 def populations_in_report(
-    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, raw: pd.DataFrame | None = None
 ) -> PopulationsResult | None:
     """The populations and their enrichment (see the module), or ``None`` with fewer than
-    two features."""
+    two features. ``objects`` holds the values read (normalised with ``normalize``), ``raw``
+    the values before, to name the observations left out for want of their own control
+    (audit 8, seed 4)."""
     # With other feature tables, in each space apart and merged (owner, 2026-10-06).
-    populations = populations_in_spaces(objects, fovs, setup)
+    populations = populations_in_spaces(objects, fovs, setup, raw)
     if populations is None:
         return None
     if not populations.names:
@@ -289,6 +292,9 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             f"features; groups found in two spaces are one when their {units} overlap with a "
             f"Jaccard index of {settings['same_group']:g} or more"
         )
+    # Observations without their own control, named once, never a missing value (audit 8).
+    left = no_own_control_words(settings, setup.unit_word, units)
+    method += f" ({left})" if left else ""
     if not settings.get("observations") and not settings.get("spaces"):
         text = wrap(
             f"{method}: not assessed: no {setup.unit_word} has a value of every feature "

@@ -29,7 +29,9 @@ import pandas as pd
 
 from .._wording import count, listing
 from ..feature_tables import COMBINED, EXPLAINABLE
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..sampling_unit.populations import MAX_POINTS, Populations, find_populations
+from ..schema import validate_input_tables
 from ._feature_space import explainable_space, features_words, space, table_of
 
 if TYPE_CHECKING:
@@ -136,11 +138,53 @@ def _merged(results: dict[str, Populations], index: pd.Index) -> Populations:
     return Populations(labels, table, settings, members)
 
 
+def _without_own_control(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, raw: pd.DataFrame | None
+) -> pd.Index:
+    """The observations a value of whose explainable features is missing only once normalised:
+    their condition has no own control in their repeat (audit 8, seed 4)."""
+    if raw is None or raw is objects or setup.normalize is None or not setup.columns:
+        return pd.Index([])
+    columns = list(setup.columns)
+    complete = raw[columns].notna().all(axis=1) & objects[columns].isna().any(axis=1)
+    return objects.index[complete.reindex(objects.index, fill_value=False).to_numpy()]
+
+
+def _left_without_control(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, left: pd.Index
+) -> list[tuple[str, list[str]]]:
+    """Each repeat of ``left`` with its conditions, in the order of the observation table."""
+    data = validate_input_tables(
+        objects.loc[left], fovs=fovs, feature_cols=list(setup.columns)[:1], **setup.common
+    )
+    frame = data.objects
+    alone = pd.Series("all", index=frame.index)
+    repeat, condition = frame.get(REPEAT_COLUMN, alone), frame.get(CONDITION_COLUMN, alone)
+    return [
+        (str(r), [str(c) for c in pd.unique(condition[repeat == r])]) for r in pd.unique(repeat)
+    ]
+
+
+def no_own_control_words(settings: dict[str, Any], unit: str, units: str) -> str:
+    """``36 cells of b1 and b2 in R4 left out: no own control``, said once for every space
+    that reads the explainable features (audit 8, seed 4: never a missing value); empty when
+    none was."""
+    found = settings.get("no_own_control")
+    if not found:
+        return ""
+    where = "; ".join(f"{listing(c, 4)} in {r}" for r, c in found["where"])
+    spaces = found.get("spaces") or []
+    of = f" of {listing([space_words(s) for s in spaces], 4)}" if len(spaces) > 1 else ""
+    return f"{count(found['observations'], unit, units)} of {where} left out{of}: no own control"
+
+
 def populations_in_spaces(
-    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, raw: pd.DataFrame | None = None
 ) -> Populations | None:
     """The populations of every space, merged (see the module); ``None`` with fewer than two
-    explainable features and no other table."""
+    explainable features and no other table. With ``raw`` (the values before normalisation),
+    the observations left out for want of their own control are counted apart from those
+    missing a value (``no_own_control_words``)."""
     spaces = _spaces(setup)
     results = {}
     for name, (columns, blocks, named_by) in spaces.items():
@@ -158,7 +202,17 @@ def populations_in_spaces(
         )
     if not results:
         return None
+    left = _without_own_control(objects, fovs, setup, raw)
+    reading = [n for n in results if set(spaces[n][0]) & set(setup.columns)]
+    for name in reading if len(left) else []:
+        results[name].settings["incomplete_observations"] -= len(left)
     found = results[EXPLAINABLE] if not setup.feature_tables else _merged(results, objects.index)
+    if len(left) and reading:
+        found.settings["no_own_control"] = {
+            "observations": len(left),
+            "where": _left_without_control(objects, fovs, setup, left),
+            "spaces": reading,
+        }
     owner = table_of(setup)
     if len(set(owner.values())) > 1:  # each rule feature's table named (owner, 2026-10-06)
         found.table["rule_tables"] = [
@@ -241,6 +295,7 @@ __all__ = [
     "SPACE_MAX_POINTS",
     "described",
     "found_words",
+    "no_own_control_words",
     "populations_in_spaces",
     "rule_tables",
     "space_words",

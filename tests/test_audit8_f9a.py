@@ -9,6 +9,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+from test_audit8_b import SEVERAL, _several
 from test_embedding_only import _cells
 from test_feature_tables_batch import _batch, _setup
 
@@ -19,10 +20,12 @@ from morphocoverage.separation import separation
 from morphocoverage.transforms import BlockWeights
 from morphocoverage.workflows import Setup, default_novelty, html_report, report
 from morphocoverage.workflows._feature_space import (
+    attached,
     centred_tables,
     novelty_space,
     separation_in_report,
 )
+from morphocoverage.workflows._populations import populations_in_report, populations_text
 
 KEY = ["condition", "biological_repeat", "image_file", "label_id"]
 
@@ -132,3 +135,29 @@ def test_novelty_with_two_explainable_tables_does_not_depend_on_their_order():
         evidence = estimator.estimate(data, objective=ObjectiveConfig(SamplingObjective.POPULATION))
         found.append(evidence.quantities["lofo_novel_fraction"].value)
     assert found[0] == pytest.approx(found[1])
+
+
+# --- 4. The populations name the cells left out for want of their own control ---------------
+
+
+def test_the_populations_name_the_cells_without_their_own_control_never_a_missing_value():
+    objects, fovs, tables = _several()
+    objects.loc[objects.index[:5], "area"] = np.nan  # a true missing value, counted as one
+    setup = Setup(
+        readout="area",
+        features=("area", "fib_len", "fib_w"),
+        control=SEVERAL,
+        normalize="control_mean",
+        observation_unit="cell",
+    )
+    merged, setup, _ = attached(objects, fovs, setup, {"fiber": tables["fiber"]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        prepared = setup.prepared(merged, fovs)
+        found = populations_in_report(prepared, fovs, setup, merged)
+    settings = found.populations.settings
+    # b1 in R1, where cB was not imaged: 3 fields of 6 cells (audit 8, seed 4).
+    assert settings["no_own_control"]["observations"] == 18
+    assert settings["incomplete_observations"] == 5
+    text = " ".join(populations_text(found, setup)[2].split())
+    assert "(18 cells of b1 in R1 left out: no own control)" in text

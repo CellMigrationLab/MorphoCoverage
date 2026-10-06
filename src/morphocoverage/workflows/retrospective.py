@@ -262,7 +262,7 @@ def report(
     # Question 10: populations on every condition pooled, then their enrichment.
     # The tables centred per repeat with normalize, as the features are divided.
     analysed = analysed_tables(prepared, fovs, setup)
-    results["populations"] = populations_in_report(analysed, fovs, setup)
+    results["populations"] = populations_in_report(analysed, fovs, setup, objects)
     # Per feature table, how far the conditions separate (descriptive, owner 2026-10-05).
     results["separation"] = separation_in_report(analysed, fovs, setup, raw=objects)
     rules, novelty_target = sufficiency_rules(setup)
