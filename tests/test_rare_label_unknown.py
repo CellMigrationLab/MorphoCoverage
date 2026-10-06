@@ -39,7 +39,12 @@ def test_the_label_check_leaves_the_unlabelled_cells_out(tables):
     check = label_control(objects, fovs, _setup())
     known = objects.loc[~missing, "mitotic"].astype(bool)
     assert check.observations == len(known) and check.labelled == int(known.sum())
-    assert check.chance == pytest.approx(known.mean())
+    # The chance is the share labelled within the labelled cells' own conditions (audit 10,
+    # C26), over the cells with a label only.
+    condition = objects.loc[~missing, "condition"]
+    share = known.groupby(condition).mean()
+    weights = known.groupby(condition).sum()
+    assert check.chance == pytest.approx(float((share * weights).sum() / weights.sum()))
     assert check.recognized >= 0.9
 
 
