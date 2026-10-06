@@ -92,7 +92,14 @@ def _line(row: Any) -> str:
     else:
         verdict = f"not tested across repeats, {count(row.repeats, 'repeat')}"
     apart = f"; the centres {row.effect:.2f} within-group SDs apart" if pd.notna(row.effect) else ""
-    return f"- {name}: {verdict}; field-level p {p_value(row.p_image)}, exploratory{apart}."
+    return f"- {name}: {verdict}{apart}."
+
+
+def _shuffled(result: WholeTable) -> str:
+    """The units the exploratory p shuffles, in words: ``fields``, ``technical repeats``."""
+    names = [str(n) for n in dict.fromkeys(result.tests["shuffled"].dropna())] or ["field"]
+    words = {"field": "fields", "technical_repeat": "technical repeats"}
+    return " or ".join(words.get(n, f"{n} groups") for n in names)
 
 
 def whole_table_lines(result: WholeTable, indent: int = 2) -> list[str]:
@@ -118,11 +125,10 @@ def whole_table_lines(result: WholeTable, indent: int = 2) -> list[str]:
         "control's (each field's observations averaged first), projected on the other "
         "repeats' mean shift; a one-sided paired t-test that the projections are positive, "
         f"corrected for the repeats they share, from {MIN_REPEATS} repeats; q within each "
-        "table and sub-experiment. Field-level: the distance between the centres against the "
-        f"fields' labels permuted within each repeat ({permutations} permutations), "
-        "uncorrected; it counts a shift particular to one repeat's wells, so it screens, it "
-        "does not confirm. Within-group SDs: the typical distance of an observation from its "
-        "own group's centre."
+        "table and sub-experiment. Within-group SDs: the typical distance of an observation "
+        "from its own group's centre. The CSV also gives an exploratory p with the labels of "
+        f"the {_shuffled(result)} shuffled within each repeat ({permutations} permutations), "
+        "never part of the verdict: it ignores any well effect the data do not name."
     )
     lines.append(wrap(how, indent))
     if result.settings.get("across_not_tested"):

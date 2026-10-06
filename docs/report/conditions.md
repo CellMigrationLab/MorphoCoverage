@@ -401,19 +401,24 @@ the statistics below.
   repeats; with fewer, "not tested across repeats, 2 repeats". Benjamini-Hochberg: the tests
   of one table form one family per sub-experiment, as the per-feature main rows do, never
   joining the per-feature families.
-- **Field-level, exploratory** (the image-level test; with one image per field the same):
-  the distance between the condition's and the control's centres over the repeats holding
-  both, against the labels of the fields permuted within each repeat (999 permutations, all
-  at once), `p = (extreme + 1) / (B + 1)`, uncorrected. It asks whether these fields differ,
-  not whether the shift repeats.
+- **Shuffle test, exploratory** (owner, 2026-10-06): the distance between the condition's
+  and the control's centres over the repeats holding both, against the labels of the units
+  permuted within each repeat (999 permutations, all at once), `p = (extreme + 1) / (B +
+  1)`, uncorrected. The unit is the highest one below the repeat the data name: the
+  technical repeat (`technical_repeat`), else the analysis groups beyond the condition and
+  the repeat (a `well` column in `group_cols`), else the field (the CSV's `shuffled`).
+  Fewer than 40 distinct assignments, one well a side say, give no p. It is in
+  `tests_whole_table.csv` only, never in the verdict or the answer: it asks whether these
+  units differ, not whether the shift repeats, and shuffling fields counts any well effect
+  the data do not name.
 - **The effect size**: the length of the mean shift over the repeats in within-group SDs,
   the root of the summed variances of the observations around their own group's centre (a
   side in a repeat), the typical distance of an observation from its group's centre. For one
   column it is a Cohen's d.
 
 The text reads, per table and comparison: "DINO (384 columns): - THBS5_SiCol6a1 vs
-THBS5_SiNC: shifted the same way in 4 of 5 repeats, p 0.03 (q 0.06) across repeats;
-field-level p 0.002, exploratory; the centres 0.41 within-group SDs apart." A shift
+THBS5_SiNC: shifted the same way in 4 of 5 repeats, p 0.03 (q 0.06) across repeats; the
+centres 0.41 within-group SDs apart." A shift
 significant across repeats is named in the answer's line, so "At a glance" mentions it,
 and turns the marker to ✅. The page shows the block under "Do the conditions differ?" and
 saves the tests as `tests_whole_table.csv`. Observations missing a value of the table are
@@ -427,9 +432,11 @@ correlated columns, with and without a batch (a shift of each repeat and of each
 even and uneven counts (2 to 10 fields a side and repeat). Without an effect, the repeat-level
 test rejected 2.3-7.5% at 5% (mean 4.1% without a batch, 4.5% with one; the highest, 7.5%,
 with 3 repeats, within two standard errors of 5%); the plain paired t on the same
-projections 8-22%. The field-level test rejected 2.5-7.8% without a batch, and with one it is
-**anti-conservative**, as the cell-level screen is: 13-22% with one image per field and
-39-58% with 20 cells per field, since a well's own shift counts for it. Power, a shift of
+projections 8-22%. The shuffle test, on fields since the simulated wells are not named,
+rejected 2.5-7.8% without a batch, and with one it is **anti-conservative**, as the
+cell-level screen is: 13-22% with one image per field and 39-58% with 20 cells per field,
+since a well's own shift counts for it; hence wells shuffled when named, and never a
+verdict. Power, a shift of
 0.3 within-group SDs in every repeat: 58% with 3 repeats, 79% with 4, 97% with 6 (34%, 57%
 and 86% with a batch); a shift of 0.6: 94% with 3 repeats (82% with a batch) and at least
 98% from 4.
