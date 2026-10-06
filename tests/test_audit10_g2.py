@@ -41,10 +41,11 @@ from morphocoverage.sampling_unit.contrast_sampling import (
     sampling_row,
 )
 from morphocoverage.sampling_unit.distribution import distribution_contrast
+from morphocoverage.sampling_unit.whole_table import sign_floor, whole_table_tests
 from morphocoverage.statistics import cohen_d
 from morphocoverage.sufficiency_short import met_count
-from morphocoverage.workflows import Setup, plots, report
-from morphocoverage.workflows._whole_table import across_reason
+from morphocoverage.workflows import Setup, attach_feature_tables, plots, report
+from morphocoverage.workflows._whole_table import across_reason, whole_table_lines
 
 SCENARIOS = Path(__file__).resolve().parents[1] / "data" / "scenarios"
 sys.path.insert(0, str(SCENARIOS))
@@ -337,3 +338,30 @@ def test_beyond_the_mean_says_not_significant_and_no_trend_from_two_repeats() ->
     assert "no difference beyond the mean" not in text
     assert "no difference in the distributions" not in a24.document.headlines["conditions"]
     assert "beyond the mean, not significant" in a24.document.headlines["conditions"]
+
+
+def test_the_whole_table_verdict_names_thin_controls_and_the_sign_flip_floor() -> None:
+    # B10: the whole-DINO verdicts rested on a repeat whose control held one image; and
+    # with n repeats an exact sign-flip test cannot go below 2^(1-n).
+    assert [sign_floor(n) for n in (3, 5)] == [0.25, 0.0625]
+    loaded = make_scenarios.load("a03_mix_one_norm_image_none_fp_dino")
+    repeats = sorted(set(loaded.fovs["biological_repeat"]))
+    keys = ["condition", "biological_repeat", "image_file"]
+
+    def kept(table: pd.DataFrame) -> pd.DataFrame:
+        # The control keeps one field in the last repeat.
+        last = (table["condition"] == "ctrl") & (table["biological_repeat"] == repeats[-1])
+        first = table.loc[last, "image_file"].min()
+        return table[~last | (table["image_file"] == first)]
+
+    attached = attach_feature_tables(loaded.objects, loaded.fovs, loaded.feature_tables)
+    fovs, objects = kept(loaded.fovs), kept(attached.objects)
+    assert len(fovs[keys].drop_duplicates()) == len(loaded.fovs) - 3
+    tables = {"DINO1": list(attached.columns["DINO1"])}
+    result = whole_table_tests(objects, fovs, tables=tables, pairs=[("a", "ctrl")])
+    [row] = result.tests.to_dict("records")
+    assert row["few_control"] == f"{repeats[-1]} (1)"
+    assert row["sign_floor"] == 0.25
+    line = " ".join(" ".join(whole_table_lines(result)).split())
+    assert "an exact sign-flip test could give no p below 0.25 with 3 repeats" in line
+    assert f"the control holds fewer than 3 fields in {repeats[-1]} (1)" in line

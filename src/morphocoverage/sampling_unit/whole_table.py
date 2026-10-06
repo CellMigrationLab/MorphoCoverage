@@ -45,6 +45,12 @@ which changes none of the statistics below, so it is not applied.
   observations around their own group's centre (a side in a repeat), the typical distance of
   an observation from its group's centre. One column of a single feature gives a Cohen's d.
 
+Beside the verdict (audit 10, owner, 2026-10-06): the smallest p an exact sign-flip test of
+the ``n`` repeats could give, ``2^(1-n)`` (``sign_floor``: 0.25 with 3 repeats, 0.0625 with
+5), so a t-test p below it is read as resting on the normality of the projections; and the
+repeats whose control holds fewer than ``FEW_CONTROL`` fields (``few_control``), whose
+shift one field can carry.
+
 Benjamini-Hochberg: the repeat-level tests of one table form one family per
 sub-experiment (the conditions linked by the repeats they were compared in, ``_experiments``),
 as the per-feature main rows do, and never join the per-feature families.
@@ -99,8 +105,19 @@ COLUMNS = (
     "fields",
     "observations",
     "left_out",
+    "sign_floor",
+    "few_control",
     "status",
 )
+# A repeat whose control holds fewer fields than this is named beside the verdict (audit 10,
+# owner, 2026-10-06): one field of the control can carry the whole shift.
+FEW_CONTROL = 3
+
+
+def sign_floor(repeats: int) -> float:
+    """The smallest p an exact sign-flip test of ``repeats`` projections can give, ``2^(1-n)``:
+    a labelling and its negation give the same projections (audit 10, owner, 2026-10-06)."""
+    return float(2.0 ** (1 - repeats)) if repeats >= 1 else float("nan")
 
 
 def projections(deltas: np.ndarray) -> np.ndarray:
@@ -258,6 +275,9 @@ def _table_rows(
         shift = float(np.linalg.norm(deltas.mean(axis=0)))
         effect = shift / float(np.sqrt(spread)) if spread > 0 else float("nan")
         tested = len(both) >= MIN_REPEATS and np.isfinite(p)
+        # The control's fields in each repeat: few of them carry the repeat's shift alone.
+        control_fields = {r: int(((repeat[chosen] == r) & (side == 0)).sum()) for r in both}
+        few = "; ".join(f"{r} ({n})" for r, n in control_fields.items() if n < FEW_CONTROL)
         rows.append(
             {
                 **row,
@@ -273,6 +293,8 @@ def _table_rows(
                 "permutations": permutations,
                 "fields": int(chosen.sum()),
                 "observations": int(observed.sum()),
+                "sign_floor": sign_floor(len(both)),
+                "few_control": few,
                 "status": "tested" if tested else f"not tested: {len(both)} repeats",
             }
         )
@@ -355,11 +377,13 @@ def whole_table_tests(
         "left_out": left,
         "min_repeats": MIN_REPEATS,
         "min_assignments": MIN_ASSIGNMENTS,
+        "few_control": FEW_CONTROL,
     }
     return WholeTable(tests, settings)
 
 
 __all__ = [
+    "FEW_CONTROL",
     "MIN_ASSIGNMENTS",
     "MIN_REPEATS",
     "ONE_EACH",
@@ -369,5 +393,6 @@ __all__ = [
     "projections",
     "repeat_test",
     "shuffle_test",
+    "sign_floor",
     "whole_table_tests",
 ]

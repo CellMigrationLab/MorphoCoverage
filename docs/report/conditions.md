@@ -470,7 +470,12 @@ statistics below.
   effective dimensions grow, so the test is close to calibrated in wide tables (7.5% at 3
   repeats in the simulation below) and conservative in narrow ones (plan v2, owner,
   2026-10-06). It needs 3
-  repeats; with fewer, "not tested across repeats, 2 repeats". Benjamini-Hochberg: the tests
+  repeats; with fewer, "not tested across repeats, 2 repeats". Beside each verdict (audit 10,
+  owner, 2026-10-06): the smallest p an exact sign-flip test of its `n` repeats could give,
+  `2^(1-n)` (0.25 with 3 repeats, 0.0625 with 5), so a smaller t-test p is read as resting
+  on the projections' normality; and the repeats whose control holds fewer than 3 fields
+  ("the control holds fewer than 3 fields in R6 (1)"), where one field can carry the
+  repeat's shift (both in `tests_whole_table.csv`, `sign_floor` and `few_control`). Benjamini-Hochberg: the tests
   of one table form one family per sub-experiment, as the per-feature main rows do, never
   joining the per-feature families.
 - **Shuffle test, exploratory** (owner, 2026-10-06): the distance between the condition's

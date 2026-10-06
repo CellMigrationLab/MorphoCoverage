@@ -35,6 +35,7 @@ from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..sampling_unit.contrast_repeats import TREND_REPEATS
 from ..sampling_unit.whole_table import (
     ALPHA,
+    FEW_CONTROL,
     MIN_REPEATS,
     ONE_EACH,
     WholeTable,
@@ -57,8 +58,7 @@ ACROSS_NO_FEATURES = (
 # Why each kind of row across experiments is not tested on a whole table, its own reason
 # (audit 10, owner, 2026-10-06: the log-ratio reason did not fit the master rows).
 ACROSS_REASONS = {
-    ACROSS: "a difference of log ratios has no meaning in a table such as an "
-    "embedding",
+    ACROSS: "a difference of log ratios has no meaning in a table such as an embedding",
     MASTER_RAW: "the whole-table test compares each condition with its own control, "
     "not the controls with the master",
 }
@@ -116,10 +116,25 @@ def _line(row: Any) -> str:
     if row.status == ONE_EACH:
         return f"- {name}: not tested, one observation a side and repeat, no spread to scale on."
     if row.status == "tested":
+        # Beside the verdict, the exact sign-flip floor and the repeats whose control holds
+        # few fields (audit 10, owner, 2026-10-06).
+        floor = getattr(row, "sign_floor", float("nan"))
         verdict = (
             f"shifted the same way in {row.same_way} of {count(row.repeats, 'repeat')}, "
             f"p {p_value(row.p_repeats)} (q {p_value(row.q_repeats)}) across repeats"
+            + (
+                f" (an exact sign-flip test could give no p below {p_value(floor)} with "
+                f"{count(row.repeats, 'repeat')})"
+                if pd.notna(floor)
+                else ""
+            )
         )
+        few = getattr(row, "few_control", "")
+        if isinstance(few, str) and few:
+            verdict += (
+                f"; the control holds fewer than {FEW_CONTROL} fields in {few}, so one field "
+                "can carry that repeat's shift"
+            )
     else:
         verdict = f"not tested across repeats, {count(row.repeats, 'repeat')}"
     apart = f"; the centres {row.effect:.2f} within-group SDs apart" if pd.notna(row.effect) else ""
