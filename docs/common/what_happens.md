@@ -138,7 +138,7 @@ the contrast table, or the one control.
 | Unusual observations | the declared `features` raw, MFA across tables, against each own control | observation; clustering per field | groups and states | no control, no `features`, one observation per field |
 | Novelty and the positive control | the declared `features` raw, MFA across tables, fitted on the visible fields | field | none | no `novelty`; one observation per field when a new state needs several in one field |
 | Maps PCA and UMAP | raw, and divided by the own control whenever a control is declared; robustly standardised | observation | none | fewer than 3 columns in the space |
-| Separation scores | as the figures read them | neighbours outside the field, per repeat | none, descriptive | one condition; a space of fewer than 3 columns, which has no map |
+| Separation scores | by condition as the figures read them; by repeat always raw; one line with one well per condition and repeat | neighbours outside the field, per repeat | none, descriptive | one condition; a space of fewer than 3 columns, which has no map |
 | Copy checks | each explainable table apart, or the features as one table | field | none, exact | `integrity=True` not given; the guided session gives it |
 | Duplicated or derived features | every declared column, on all rows and within each experiment | column pair | none, a caution | none |
 | Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap | one control |
@@ -163,7 +163,7 @@ names only the tables.
 | Unusual observations | only when no `features` are declared: in an embedding-only report the tables' MFA space, centred with `normalize`; with a readout, the readout and the tables | observation | groups and states | `features` declared; no control; one observation per field |
 | Novelty and the positive control | never | | | always |
 | Maps | one per table and a combined MFA map; a centred view per table | observation | none | fewer than 3 columns |
-| Separation scores | each table and the combined space; raw, centred with `normalize` | neighbours outside the field | none | one condition; fewer than 3 columns |
+| Separation scores | each table and the combined space; by condition raw, centred with `normalize`; by repeat always raw | neighbours outside the field | none | one condition; fewer than 3 columns |
 | Copy checks | each table apart, the union named by table | field | none | `integrity=True` not given |
 | Duplicated features, acquisition gap | never | | | always |
 | `optimise` | the fingerprint on the same components, on held-back fields | analysis group | none | no fingerprint and no labelled phenotype |

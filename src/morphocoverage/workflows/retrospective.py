@@ -264,7 +264,7 @@ def report(
     analysed = analysed_tables(prepared, fovs, setup)
     results["populations"] = populations_in_report(analysed, fovs, setup)
     # Per feature table, how far the conditions separate (descriptive, owner 2026-10-05).
-    results["separation"] = separation_in_report(analysed, fovs, setup)
+    results["separation"] = separation_in_report(analysed, fovs, setup, raw=objects)
     rules, novelty_target = sufficiency_rules(setup)
     if novelty is None:
         novelty_target = None

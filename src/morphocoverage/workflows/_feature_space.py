@@ -394,10 +394,13 @@ def separation_in_report(
     fovs: pd.DataFrame,
     setup: Setup,
     names: Sequence[str] | None = None,
+    raw: pd.DataFrame | None = None,
 ) -> Separation | None:
     """The separation of the conditions and of the repeats in each space with a map
-    (``space_names``, or those of ``names``), on the values the figures read; ``None`` with
-    one condition, no condition column or no space of ``MIN_FEATURES`` columns."""
+    (``space_names``, or those of ``names``): of the conditions on the values the figures
+    read, of the repeats on the ``raw`` values (default ``objects``; owner, 2026-10-06, audit
+    8); ``None`` with one condition, no condition column or no space of ``MIN_FEATURES``
+    columns."""
     if CONDITION_COLUMN not in fovs or fovs[CONDITION_COLUMN].nunique() < 2:
         return None
     # Only the spaces with a map (``MIN_FEATURES`` columns), so every score has its map.
@@ -412,6 +415,7 @@ def separation_in_report(
         spaces={name: columns for name, (columns, _) in spaces.items()},
         blocks={name: blocks for name, (_, blocks) in spaces.items()},
         random_state=setup.random_state,
+        repeat_values=raw,
         **setup.common,
     )
 
@@ -471,7 +475,7 @@ def centred_tables(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> p
     conditions they share, ``_experiments``) on the conditions in all of its repeats; a
     repeat of a sub-experiment without such a condition is left as given and named
     (``centring_line``). The centred map, and with ``normalize`` the populations, unusual
-    observations and the separation by condition (``analysed_tables``); never a test.
+    observations and the separation of the conditions (``analysed_tables``); never a test.
     ``None`` without other tables."""
     found = _centring(objects, fovs, setup)
     if found is None:
@@ -481,10 +485,11 @@ def centred_tables(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> p
 
 
 def analysed_tables(values: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> pd.DataFrame:
-    """The values the tables' populations, unusual observations and separation by condition
-    read: with ``normalize`` declared, the tables centred per repeat (``centred_tables``), as
-    the explainable features are divided by their control; ``values`` otherwise. Never a
-    test: the whole-table test and the fingerprint read the raw values."""
+    """The values the tables' populations, unusual observations and separation of the
+    conditions read (the repeats' separation reads the raw values): with ``normalize``
+    declared, the tables centred per repeat (``centred_tables``), as the explainable features
+    are divided by their control; ``values`` otherwise. Never a test: the whole-table test
+    and the fingerprint read the raw values."""
     if setup.normalize is None or not setup.feature_tables:
         return values
     centred = centred_tables(values, fovs, setup)
@@ -528,7 +533,8 @@ def centring_line(
             "its sub-experiment"
         )
     unusual = unusual and not setup.columns
-    readers = ["the centred map", "the populations", "unusual observations", "the separation"]
+    readers = ["the centred map", "the populations", "unusual observations"]
+    readers.append("the separation of the conditions")
     readers = [r for r in readers if unusual or r != "unusual observations"]
     reads = f"{listing(readers)} read them" if setup.normalize is not None else ""
     reads = reads or "the centred map reads them"

@@ -218,7 +218,20 @@ a description with no p-value:
   share its repeat, against chance, the median over the conditions. When the repeats
   separate more than the conditions in a table (their score goes further from chance
   towards 100%, and at least a tenth of the way), the line says so plainly: there, a batch
-  between repeats is larger than the difference between conditions.
+  between repeats is larger than the difference between conditions. This score always
+  reads the raw values, in every view (owner, 2026-10-06, audit 8): measured on values
+  centred per repeat it would measure a batch after removing it, and a centre with noise of
+  its own read as a batch (a control of one field of 5 cells: "the repeats separate more"
+  in every simulation with no batch). The score by condition reads the view's values.
+
+With one well per condition and repeat, or no well column, a difference between wells is
+also a difference between the conditions of a repeat, so the score by condition reads it as
+a separation of the conditions (audit 8: a well shift of 0.5 SD with no condition effect
+took the score 34% of the way from chance to 100%, and "the repeats separate more" in half
+the simulations). One line under the maps says so for such a design ("Each condition is
+imaged in one well per biological repeat, so a difference between wells reads here as a
+separation of the conditions."); with two wells or more per condition and repeat, a well is
+never its own observations' neighbour and the line is left out.
 
 Neighbours never come from the observation's own field, nor from its own well when its
 condition has another well in the repeat, and chance is computed over what remains: cells of

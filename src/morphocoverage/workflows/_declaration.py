@@ -109,8 +109,8 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
 TABLES_CENTRED = (
     "Values: the other feature tables centred per biological repeat, on the median of the "
     "per-condition medians of the conditions in every repeat, for the maps, the "
-    "populations, unusual observations and the separation; never divided, and never for a "
-    "test, which reads the raw values."
+    "populations, unusual observations and the separation of the conditions; never divided, "
+    "and never for a test, which reads the raw values."
 )
 
 

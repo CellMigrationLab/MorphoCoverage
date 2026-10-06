@@ -217,7 +217,10 @@ def test_seed6_the_batch_line_says_unusual_observations_read_the_explainable_fea
         warnings.simplefilter("ignore")
         result = report(objects, fovs, setup, feature_tables={"DINO": table})
     full = " ".join(result.summary(detail="full").split())
-    assert "the centred map, the populations and the separation read them, never a test" in full
+    assert (
+        "the centred map, the populations and the separation of the conditions read them, "
+        "never a test" in full
+    )
 
 
 SEVERAL = {"condition": {"cA": ["a1"], "cB": ["b1"]}}

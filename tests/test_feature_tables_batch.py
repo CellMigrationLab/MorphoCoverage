@@ -81,7 +81,7 @@ def test_an_unbalanced_design_is_centred_on_the_conditions_in_every_repeat():
     line = centring_line(merged, fovs, setup)
     assert "per-condition medians of ctrl and b, the conditions in every repeat" in line
     # Unusual observations read the explainable features here (audit 8B, seed 6).
-    assert "the populations and the separation read them" in line
+    assert "the populations and the separation of the conditions read them" in line
 
 
 def test_the_centre_does_not_depend_on_how_many_cells_a_condition_holds():

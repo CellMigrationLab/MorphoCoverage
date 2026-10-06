@@ -342,10 +342,16 @@ def embeddings(
     # How far the conditions separate in each space, under its map (owner, 2026-10-05).
     own = list(setup.feature_tables or {})
     separations = {
-        values: separation_in_report(table, fovs, setup, own if values == "centred" else None)
+        values: separation_in_report(
+            table, fovs, setup, own if values == "centred" else None, raw=objects
+        )
         for values, table in tables.items()
         if values in maps
     }
+    # One well per condition and repeat: a well difference reads as a condition's (audit 8).
+    raw_separation = separations.get("raw")
+    wells = raw_separation.well_line() if raw_separation is not None else ""
+    neighbours = f"{NEIGHBOURS} {wells}".rstrip()
     ranked = list(top) + [f for f in setup.columns if f not in set(top)]
     first = maps["raw"][spaces[0]]
     features = [f for f in ranked if f"z:{f}" in first.points][:MAP_FEATURES]
@@ -486,7 +492,7 @@ def embeddings(
         + (f'<p class="note">{html.escape(note)}</p>' if note else "")
         + comparison
         + f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
-        f'<p class="note">{html.escape(NEIGHBOURS)}</p>'
+        f'<p class="note">{html.escape(neighbours)}</p>'
         + (f'<p class="note">{html.escape(centred)}</p>' if "centred" in maps else "")
         + '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "

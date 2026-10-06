@@ -24,7 +24,8 @@ NEIGHBOURS = (
     "the repeats, so a batch between repeats cannot pass for a separation. Where a condition "
     f"has fewer than {K} such observations in a repeat, the neighbours are as many as the "
     "fewest it has, so a perfect separation reads 100%. Within a condition, the same with "
-    "the repeat: how far the repeats separate, a batch effect. A description, not a test."
+    "the repeat, always on the raw values: how far the repeats separate, a batch effect. A "
+    "description, not a test."
 )
 
 # What the centred view removes, said once (owner, 2026-10-06).

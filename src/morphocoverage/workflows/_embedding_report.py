@@ -179,7 +179,7 @@ def embedding_report(
     if setup.fingerprint:
         results["fingerprint_precision"] = fingerprint_precision(objects, fovs, setup)
     results["populations"] = populations_in_report(analysed, fovs, setup)
-    results["separation"] = separation_in_report(analysed, fovs, setup)
+    results["separation"] = separation_in_report(analysed, fovs, setup, raw=objects)
     reasons = embedding_reasons(results, setup, fovs, per_field)
     reasons.update({k: v for k, v in side.items() if k not in reasons})
     document = with_reasons(assemble(results, setup, per_field), reasons)
