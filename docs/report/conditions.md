@@ -447,9 +447,9 @@ has no field-to-field variation in its spread. Null calibration
 `data/simulations/results/beyond_the_mean.csv`; 400 datasets per setting, 3 and 6 repeats,
 5 features, field SD 0.5 or 1 cell SD, equal sides, a control of one field of 60 or of 6
 cells, a condition that lost cells, and uneven random counts): each statistic gave
-p ≤ 0.05 in 3.6-5.8% of tests, and any q ≤ 0.05 over the 20 tests in 2.8-7.0% of
-datasets (measured before the quantile shifts were taken beyond the mean's, on the feature's
-scale; not rerun since). The same tests on the pooled cells gave up to 56% for the spread and up to 13%
+p ≤ 0.05 in 3.6-6.5% of tests, and any q ≤ 0.05 over the 20 tests in 3.0-7.0% of
+datasets (rerun after the quantile shifts were taken beyond the mean's, on the feature's
+scale, audit 10; before, 3.6-5.8% and 2.8-7.0%). The same tests on the pooled cells gave up to 56% for the spread and up to 13%
 for the outer quantiles, and up to 31% of datasets with a q ≤ 0.05 (6 repeats, a control of
 one field of 60 cells, field SD 1; audit 8 found 56% and 34% on its own design, now 4%
 and 3%).
