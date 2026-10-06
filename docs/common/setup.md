@@ -4,6 +4,8 @@ REPORT, OPTIMISE and LIVE all start from one `Setup`: the readout, the features,
 control, the targets the acquisition must preserve and the columns that place each field.
 This page is every field of it. `scan_design` and the guided session build one for you
 ([Running a report](../report/running_a_report.md)).
+[What happens for what you provide](what_happens.md) maps each field to the analyses it
+switches on.
 
 ## The `Setup`
 
