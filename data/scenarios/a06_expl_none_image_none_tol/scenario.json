@@ -1,7 +1,7 @@
 {
  "name": "a06_expl_none_image_none_tol",
  "kind": "axes",
- "checks": "features; no condition test; the questions about fields not applicable; the mean's tolerances",
+ "checks": "features; no condition test; the field questions on the images; the mean's tolerances",
  "axes": {
   "tables": "expl",
   "controls": "none",
@@ -28,7 +28,8 @@
    "overview",
    "populations",
    "separation",
-   "sufficiency"
+   "sufficiency",
+   "variability"
   ],
   "absent": [
    "clustering",
@@ -40,13 +41,10 @@
    "object_rules",
    "rare_clustering",
    "unusual",
-   "variability",
    "whole_table"
   ],
   "not_applicable": {
-   "conditions": "needs a control",
-   "profile": "one image per field",
-   "unit": "each field holds one"
+   "conditions": "needs a control"
   },
   "table_column": false,
   "separation_spaces": [

@@ -1,7 +1,7 @@
 {
  "name": "a01_tagged_several_image_none_rare",
  "kind": "axes",
- "checks": "features; own controls and the rows across experiments; the questions about fields not applicable; the rare label's share and clustering",
+ "checks": "features; own controls and the rows across experiments; the field questions on the images; the rare label's share and clustering",
  "axes": {
   "tables": "tagged",
   "controls": "several",
@@ -65,20 +65,20 @@
    "ranking",
    "rare_clustering",
    "separation",
-   "sufficiency"
+   "sufficiency",
+   "unusual",
+   "variability"
   ],
   "absent": [
    "clustering",
    "distribution",
    "fingerprint_precision",
    "object_rules",
-   "unusual",
-   "variability",
    "whole_table"
   ],
   "not_applicable": {
-   "profile": "one image per field",
-   "unit": "each field holds one"
+   "profile": "cluster in a few fields is not applicable",
+   "unit": "random images and whole fields are the same draws"
   },
   "table_column": true,
   "separation_spaces": [

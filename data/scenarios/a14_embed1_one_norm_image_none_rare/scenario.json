@@ -1,7 +1,7 @@
 {
  "name": "a14_embed1_one_norm_image_none_rare",
  "kind": "axes",
- "checks": "embedding-only report; each condition against the control; normalised and centred views; the questions about fields not applicable; the rare label's share and clustering; the page",
+ "checks": "embedding-only report; each condition against the control; normalised and centred views; the field questions on the images; the rare label's share and clustering; the page",
  "axes": {
   "tables": "embed1",
   "controls": "one",
@@ -39,6 +39,7 @@
    "populations",
    "rare_clustering",
    "separation",
+   "unusual",
    "whole_table"
   ],
   "absent": [
@@ -49,17 +50,15 @@
    "inspection",
    "label_control",
    "object_rules",
-   "sufficiency",
-   "unusual",
-   "variability"
+   "sufficiency"
   ],
   "not_applicable": {
    "conditions": "Per feature",
    "controls": "no explainable features",
    "enough": "Per feature",
    "inspect": "no explainable features",
-   "profile": "one image per field",
-   "unit": "each field holds one"
+   "profile": "Fields against random",
+   "unit": "no explainable features"
   },
   "table_column": false,
   "separation_spaces": [
