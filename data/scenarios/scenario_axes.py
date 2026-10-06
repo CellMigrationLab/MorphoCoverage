@@ -304,11 +304,12 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
 def _fingerprint_headline(target: str, other_tables: bool, per_field: bool) -> str:
     """The fingerprint's part of "Did I image enough?": judged in groups of 12 cells (k = 2),
     not assessable in groups of 4 images (k would be 0)."""
-    named = "the fingerprint"
+    # A covariance criterion: the covariance fingerprint (plan v2, owner, 2026-10-06).
+    named = "the covariance fingerprint"
     if target == "fp_dino":
-        named = "the fingerprint of DINO1"
+        named = "the covariance fingerprint of DINO1"
     elif other_tables:
-        named = "the fingerprint of the explainable features"
+        named = "the covariance fingerprint of the explainable features"
     return f"{named} within its tolerance" if per_field else f"{named} not assessable"
 
 

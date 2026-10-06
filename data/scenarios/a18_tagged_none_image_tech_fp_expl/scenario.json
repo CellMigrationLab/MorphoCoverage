@@ -72,7 +72,7 @@
   },
   "table_column": true,
   "headlines": {
-   "enough": "the fingerprint not assessable"
+   "enough": "the covariance fingerprint not assessable"
   },
   "separation_spaces": [
    "Explainable"

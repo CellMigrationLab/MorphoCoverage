@@ -67,7 +67,7 @@
   },
   "table_column": true,
   "headlines": {
-   "enough": "the fingerprint of the explainable features within its tolerance"
+   "enough": "the covariance fingerprint of the explainable features within its tolerance"
   },
   "separation_spaces": [
    "Combined",

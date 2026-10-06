@@ -58,7 +58,7 @@
   },
   "table_column": false,
   "headlines": {
-   "enough": "the fingerprint within its tolerance"
+   "enough": "the covariance fingerprint within its tolerance"
   },
   "separation_spaces": [
    "Features"

@@ -94,7 +94,7 @@
   },
   "table_column": false,
   "headlines": {
-   "enough": "the fingerprint of DINO1 within its tolerance"
+   "enough": "the covariance fingerprint of DINO1 within its tolerance"
   },
   "separation_spaces": [
    "Combined",
