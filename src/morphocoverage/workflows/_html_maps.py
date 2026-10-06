@@ -30,7 +30,6 @@ from ..plots_embedding import embedding_figures
 from ..sampling_unit.populations import MAX_COMPONENTS, VARIANCE
 from ._contrasts import left_out_sentence, normalisation_problem
 from ._feature_space import (
-    centred_left_out,
     centred_tables,
     centring_line,
     features_words,
@@ -335,10 +334,9 @@ def embeddings(
     control = setup.figure_control
     tables, unnormalisable = _tables(setup, objects, fovs)
     maps = _maps(setup, tables, fovs, top, carry)
-    left = centred_left_out(objects, fovs, setup) if "centred" in maps else ""
     ran = "unusual" in result.results
     line = centring_line(objects, fovs, setup, ran) if "centred" in maps else ""
-    centred = centred_note(setup.unit_word, setup.unit_words, left, line)
+    centred = centred_note(line)
     spaces = list(maps["raw"])
     several = len(spaces) > 1
     # How far the conditions separate in each space, under its map (owner, 2026-10-05).

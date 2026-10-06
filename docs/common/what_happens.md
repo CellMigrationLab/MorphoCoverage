@@ -87,7 +87,7 @@ flowchart TD
     EX -- "yes" --> RUL["Stopping rules, Foundation, fields to check, duplicated features"]
     EX -- "no" --> EMB["Embedding-only: per-feature parts not applicable"]
     IN --> NE{"Non-explainable tables?"}
-    NE -- "yes" --> TAB["A map per table, a centred view when one is possible"]
+    NE -- "yes" --> TAB["A map per table and its centred view"]
     IN --> CT{"Control?"}
     CT -- "none" --> NOC["No condition test; groups not compared"]
     CT -- "one or several" --> OWN["Each condition against its own control"]
@@ -192,14 +192,15 @@ observations, novelty, the Foundation and the live session read raw values. The 
 in [normalising to the control](setup.md#normalising-to-the-control).
 
 **Batch centring of the non-explainable tables.** A table is never divided. Each column
-is centred per biological repeat: on the median of all the repeat's observations when
-every repeat holds the same conditions in the FOV table, otherwise on the median of the
-control, each condition's own with several. On a control the repeat is centred only when
-the control holds at least 5 observations there; repeats with fewer, none included, are
-left out and named. The centred map view is
-shown whenever a centring is possible. With `normalize` the populations and the separation
-of the tables read the centred values, and so do unusual observations in an embedding-only
-report. No test reads them: the whole-table test and the fingerprint read raw values.
+is centred per biological repeat on the median of the per-condition medians of the
+conditions in every repeat, balanced or not (owner, 2026-10-06, audit 8); without such a
+condition, within each sub-experiment on the conditions in all of its repeats, a
+sub-experiment with none left uncentred and named. One line says which conditions set the
+centre. The centred map view is shown whenever there is a table. With `normalize` the
+populations and the separation of the conditions read the centred values, and so do unusual
+observations in an embedding-only report. No test reads them: the whole-table test and the
+fingerprint read raw values. The rule and why are in
+[batch normalisation](../report/feature_tables_and_maps.md).
 
 **Robust standardisation and MFA weighting.** Before distances or principal components,
 each column is centred on its median and divided by its MAD as an SD, or by its SD when the
@@ -288,7 +289,7 @@ given to `report`.
 
 - The overview, the Foundation's variability, the stopping rules, the fields to check, the
   next-field novelty with `novelty`, and the targets.
-- The maps raw, a table's centred view only when every repeat holds the same conditions,
-  the populations without enrichment, and the separation.
+- The maps raw, each table's centred view, the populations without enrichment, and the
+  separation.
 - No condition test, no whole-table test, no unusual observations, no normalisation: a
   Setup with `normalize` and no control is refused.

@@ -25,7 +25,11 @@ from morphocoverage.workflows import (
 )
 from morphocoverage.workflows._contrasts import normalised_readers
 from morphocoverage.workflows._declaration import declaration_short
-from morphocoverage.workflows._feature_space import centred_left_out, separation_in_report
+from morphocoverage.workflows._feature_space import (
+    centred_tables,
+    centring_line,
+    separation_in_report,
+)
 
 KEY = ["condition", "biological_repeat", "image_file", "label_id"]
 
@@ -283,12 +287,16 @@ def test_b10_embedding_only_says_the_rows_across_experiments_are_not_tested():
     assert "there are no explainable features to test them on" in full
 
 
-def test_seed5_a_repeat_whose_control_holds_nothing_is_named():
+def test_seed5_a_repeat_without_its_control_is_centred_on_the_conditions_in_every_repeat():
+    # Audit 8 (owner, 2026-10-06): no control decides the centre, so no repeat is left out.
     objects, fovs, tables = _several()
     names = tuple(f"d{j}" for j in range(4))
     merged = objects.merge(tables["DINO"], on=KEY)
     setup = Setup(control=SEVERAL, observation_unit="cell", feature_tables={"DINO": names})
-    assert "R1 of cB (0 cells)" in centred_left_out(merged, fovs, setup)
+    assert centred_tables(merged, fovs, setup)[list(names)].notna().all().all()
+    line = centring_line(merged, fovs, setup)
+    assert "per-condition medians of cA, a1 and b1, the conditions in every repeat" in line
+    assert "uncentred" not in line
 
 
 def test_seed22_separation_only_on_spaces_with_a_map():

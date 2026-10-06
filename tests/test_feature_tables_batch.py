@@ -1,9 +1,11 @@
 """Batch normalisation of the other feature tables (owner, 2026-10-06): each repeat centred
-on all its observations in a balanced design, else on its control; with normalize declared,
+on the median of the per-condition medians of the conditions in every repeat (audit 8; before,
+on all its observations in a balanced design, else on its control); with normalize declared,
 the populations, unusual observations and separation read the centred values, never a test."""
 
 import numpy as np
 import pandas as pd
+import pytest
 from test_feature_tables_1006 import _cells, _table
 
 from morphocoverage.feature_tables import attach_feature_tables
@@ -11,7 +13,6 @@ from morphocoverage.separation import lift
 from morphocoverage.workflows import Setup
 from morphocoverage.workflows._feature_space import (
     analysed_tables,
-    balanced,
     centred_tables,
     centring_line,
     separation_in_report,
@@ -49,30 +50,90 @@ def _setup(names, **kwargs) -> Setup:
     )
 
 
-def test_a_balanced_design_is_centred_on_all_observations_of_each_repeat():
+def _per_condition_centre(rows: pd.DataFrame, conditions: list[str]) -> float:
+    """The median of the per-condition medians of ``d0`` over ``conditions``."""
+    return float(np.median([rows.loc[rows["condition"] == c, "d0"].median() for c in conditions]))
+
+
+def test_a_balanced_design_is_centred_on_the_median_of_its_condition_medians():
     merged, fovs, names = _batch()
-    assert balanced(fovs)
     setup = _setup(names)
     centred = centred_tables(merged, fovs, setup)
-    medians = merged.groupby("biological_repeat")["d0"].transform("median")
-    np.testing.assert_allclose(centred["d0"], merged["d0"] - medians)
+    for _, rows in merged.groupby("biological_repeat"):
+        centre = _per_condition_centre(rows, ["ctrl", "a", "b"])
+        np.testing.assert_allclose(centred.loc[rows.index, "d0"], rows["d0"] - centre)
     line = centring_line(merged, fovs, setup)
-    assert line.startswith("Batch: the other tables centred on the median of all the cells")
+    assert line.startswith(
+        "Batch: the other tables centred per biological repeat on the median of the "
+        "per-condition medians of ctrl, a and b, the conditions in every repeat"
+    )
     assert "the centred map reads them, never a test." in line
 
 
-def test_an_unbalanced_design_is_centred_on_its_control():
+def test_an_unbalanced_design_is_centred_on_the_conditions_in_every_repeat():
     merged, fovs, names = _batch(drop_ctrl_r3=True)
-    assert not balanced(fovs)
     setup = _setup(names, normalize="control_mean")
     centred = centred_tables(merged, fovs, setup)
-    for repeat, rows in merged.groupby("biological_repeat"):
-        control = rows[rows["condition"] == "ctrl"]["d0"].median()
-        np.testing.assert_allclose(centred.loc[rows.index, "d0"], rows["d0"] - control)
+    for _, rows in merged.groupby("biological_repeat"):
+        # a is not imaged in R3: ctrl and b set the centre of every repeat (audit 8).
+        centre = _per_condition_centre(rows, ["ctrl", "b"])
+        np.testing.assert_allclose(centred.loc[rows.index, "d0"], rows["d0"] - centre)
     line = centring_line(merged, fovs, setup)
-    assert "on the median of the control in their biological repeat" in line
+    assert "per-condition medians of ctrl and b, the conditions in every repeat" in line
     # Unusual observations read the explainable features here (audit 8B, seed 6).
     assert "the populations and the separation read them" in line
+
+
+def test_the_centre_does_not_depend_on_how_many_cells_a_condition_holds():
+    # Audit 8 A3: 5 times the cells of a in R1 moved the all-observation median.
+    merged, fovs, names = _batch(batch=0.0, effect=3.0)
+    setup = _setup(names)
+    more = merged[(merged["condition"] == "a") & (merged["biological_repeat"] == "R1")]
+    copies = [more.assign(label_id=more["label_id"] + 100 * (i + 1)) for i in range(4)]
+    crowded = pd.concat([merged, *copies], ignore_index=True)
+    centred = centred_tables(crowded, fovs, setup)
+    in_r1 = crowded["biological_repeat"] == "R1"
+    centre = (crowded.loc[in_r1, "d0"] - centred.loc[in_r1, "d0"]).iloc[0]
+    assert centre == pytest.approx(_per_condition_centre(crowded[in_r1], ["ctrl", "a", "b"]))
+
+
+def test_without_a_condition_in_every_repeat_each_sub_experiment_is_centred_apart():
+    merged, fovs, names = _batch()
+    gone = merged["condition"].isin(["ctrl", "a"]) & merged["biological_repeat"].eq("R3")
+    gone |= merged["condition"].eq("b") & merged["biological_repeat"].ne("R3")
+    merged = merged[~gone].reset_index(drop=True)
+    fovs = fovs[fovs["image_file"].isin(merged["image_file"])].reset_index(drop=True)
+    setup = _setup(names)
+    centred = centred_tables(merged, fovs, setup)
+    for repeat, rows in merged.groupby("biological_repeat"):
+        conditions = ["b"] if repeat == "R3" else ["ctrl", "a"]
+        centre = _per_condition_centre(rows, conditions)
+        np.testing.assert_allclose(centred.loc[rows.index, "d0"], rows["d0"] - centre)
+    line = centring_line(merged, fovs, setup)
+    assert (
+        "the conditions in every repeat of its sub-experiment: ctrl and a in R1 and R2; b in R3"
+        in line
+    )
+
+
+def test_a_sub_experiment_with_no_condition_in_all_its_repeats_is_left_uncentred_and_named():
+    merged, fovs, names = _batch()
+    # R1 holds ctrl and a, R2 a and b, R3 b and ctrl: linked, but none in all three.
+    gone = (
+        (merged["condition"].eq("b") & merged["biological_repeat"].eq("R1"))
+        | (merged["condition"].eq("ctrl") & merged["biological_repeat"].eq("R2"))
+        | (merged["condition"].eq("a") & merged["biological_repeat"].eq("R3"))
+    )
+    merged = merged[~gone].reset_index(drop=True)
+    fovs = fovs[fovs["image_file"].isin(merged["image_file"])].reset_index(drop=True)
+    setup = _setup(names)
+    centred = centred_tables(merged, fovs, setup)
+    np.testing.assert_allclose(centred["d0"], merged["d0"])
+    line = centring_line(merged, fovs, setup)
+    assert line.startswith(
+        "Batch: the other tables left uncentred: no condition is in every repeat of a "
+        "sub-experiment"
+    )
 
 
 def test_a_planted_batch_is_removed_and_a_condition_effect_survives():

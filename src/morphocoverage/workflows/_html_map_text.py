@@ -11,7 +11,6 @@ from typing import Any
 from .._wording import count, percent
 from ..feature_tables import EXPLAINABLE
 from ..separation import K, Separation
-from ._feature_space import CENTRED_MIN_CONTROL
 
 # The values views, as their buttons name them.
 VALUE_WORDS = {"raw": "Raw", "normalised": "Normalised", "centred": "Centred per repeat"}
@@ -36,17 +35,10 @@ CENTRED = (
 )
 
 
-def centred_note(unit: str, units: str, left_out: str, line: str = "") -> str:
-    """``CENTRED``, the centring used (``_feature_space.centring_line``), on a control the
-    line on a small control (owner, 2026-10-06) and the repeats left out
-    (``_feature_space.centred_left_out``, empty when none is)."""
-    small = (
-        f"A repeat is centred on its control only when the control holds at least "
-        f"{CENTRED_MIN_CONTROL} {units} there: a small control adds noise that every {unit} of "
-        "the repeat shares."
-    )
-    on_control = "on the median of the control" in line or not line
-    return " ".join(p for p in (CENTRED, line, small if on_control else "", left_out) if p)
+def centred_note(line: str = "") -> str:
+    """``CENTRED`` and the centring used (``_feature_space.centring_line``: which conditions
+    set the centre, the repeats left uncentred; owner, 2026-10-06, audit 8)."""
+    return " ".join(p for p in (CENTRED, line) if p)
 
 
 def combined_words(columns: dict[str, int]) -> str:

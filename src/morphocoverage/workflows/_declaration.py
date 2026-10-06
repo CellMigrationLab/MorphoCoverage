@@ -107,8 +107,8 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
 
 # An embedding-only Setup's normalisation (owner, 2026-10-06).
 TABLES_CENTRED = (
-    "Values: the other feature tables centred per biological repeat, on all its observations "
-    "when every repeat holds the same conditions, else on its control, for the maps, the "
+    "Values: the other feature tables centred per biological repeat, on the median of the "
+    "per-condition medians of the conditions in every repeat, for the maps, the "
     "populations, unusual observations and the separation; never divided, and never for a "
     "test, which reads the raw values."
 )

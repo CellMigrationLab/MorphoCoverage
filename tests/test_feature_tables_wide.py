@@ -1,6 +1,6 @@
 """The owner's decisions of 2026-10-06 on wide feature tables: the fingerprint of a table on
 its first principal components (k at most a fifth of the smallest group, not assessable
-below 2), and the centred map view left out where the control is small."""
+below 2), and the centred map view (audit 8: no repeat left out for a small control)."""
 
 import numpy as np
 import pandas as pd
@@ -16,7 +16,7 @@ from morphocoverage.workflows._enough_targets import (
     fingerprint_precision,
     targets_status,
 )
-from morphocoverage.workflows._feature_space import centred_left_out, centred_tables
+from morphocoverage.workflows._feature_space import centred_tables, centring_line
 from morphocoverage.workflows._fingerprint_space import fingerprint_space
 from morphocoverage.workflows._html_map_text import centred_note
 
@@ -137,9 +137,10 @@ def test_components_error_is_its_metric_on_the_projected_values():
     assert metric.parameters["components"] == 2 and metric.parameters["features"] == list("abe")
 
 
-def test_a_repeat_whose_control_is_small_is_left_out_of_the_centred_view_and_named():
+def test_a_repeat_whose_control_is_small_is_centred_like_the_others():
+    # Audit 8 (owner, 2026-10-06): the centre is the median of the condition medians of the
+    # conditions in every repeat, so a small control no longer leaves its repeat out.
     objects, fovs, rng = _cells(fields=2, cells=3)
-    # Unbalanced (b not imaged in R1), so centred on the control (owner, 2026-10-06).
     objects, fovs = _without(objects, "b", "R1"), _without(fovs, "b", "R1")
     small = (objects["condition"] == "ctrl") & (objects["biological_repeat"] == "R2")
     objects = objects[~(small & (objects["label_id"] > 2))].reset_index(drop=True)  # 4 cells
@@ -152,14 +153,11 @@ def test_a_repeat_whose_control_is_small_is_left_out_of_the_centred_view_and_nam
         feature_tables={"DINO": ("d0", "d1")},
         observation_unit="cell",
     )
-    centred = centred_tables(merged, fovs, setup)
-    in_r2 = merged["biological_repeat"] == "R2"
-    assert centred.loc[in_r2, "d0"].isna().all()
-    assert centred.loc[~in_r2, "d0"].notna().all()
-    left = centred_left_out(merged, fovs, setup)
-    assert left == (
-        "Left out of the centred view, their control holding fewer than 5 cells in the "
-        "repeat: R2 of ctrl (4 cells)."
+    assert centred_tables(merged, fovs, setup)["d0"].notna().all()
+    line = centring_line(merged, fovs, setup)
+    note = centred_note(line)
+    assert note.endswith(
+        "Batch: the other tables centred per biological repeat on the median of the "
+        "per-condition medians of ctrl and a, the conditions in every repeat; the centred map "
+        "reads them, never a test."
     )
-    note = centred_note("cell", "cells", left, "on the median of the control")
-    assert "a small control adds noise that every cell of the repeat shares." in note
