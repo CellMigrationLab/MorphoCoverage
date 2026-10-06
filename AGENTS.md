@@ -442,7 +442,8 @@ data/
                            # only pinned public or owner-released sources, never a manuscript)
     morphobricks/          # small tables as the other MorphoBricks tools write them (fiberfeatures_patches.csv), with provenance
     simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py,
-                           # unusual_calibration.py, whole_table.py, beyond_the_mean.py) and results
+                           # unusual_calibration.py, whole_table.py, beyond_the_mean.py) and results;
+                           # decisions/: the pre-registered benchmark (docs/common/validation.md, owner 2026-10-06)
     synthetic/             # a constructed end-to-end dataset with known answers (make_synthetic.py, expected.json)
     scenarios/             # one small dataset per kind of input (tables, controls, normalisation, unit, wells,
                            # targets; edge designs; user mistakes) with the truth (make_scenarios.py, README.md)
@@ -455,7 +456,7 @@ docs/                      # README.md: start here, the three workflows and a re
     live/                  # LIVE: live_session.md (O1-O9), stopping_rules.md, online_acquisition.md
     common/                # setup.md, what_happens.md, data_format.md, glossary.md (generated from glossary.py),
                            # project_aim.md, scientific_contract.md, architecture.md, morphobricks_fov_contract.md,
-                           # open_work.md
+                           # open_work.md, validation.md (the pre-registered benchmark)
     audit/, proposals/, preliminary_findings.md  # records, kept as written
 
 `tests/test_contracts.py` checks that every module under `src/morphocoverage/` is listed above, as it checks section 9's scenarios. A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.

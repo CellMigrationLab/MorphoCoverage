@@ -21,6 +21,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-xdist>=3.5", "ruff==0.16.8"]
+# The benchmark's comparators (data/simulations/decisions, docs/common/validation.md): never
+# imported by the package. harmonypy is GPL-3.0, used only as a reference by those scripts.
+validation = ["statsmodels>=0.14", "harmonypy>=0.0.9"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

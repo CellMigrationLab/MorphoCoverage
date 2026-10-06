@@ -14,3 +14,7 @@ morphocoverage_output/
 
 # In-progress simulation results (written as each setting finishes; removed at the end)
 data/simulations/results/*.partial.csv
+
+# The benchmark's default output folder (data/simulations/decisions; send back the summaries)
+decisions_results/
+decisions_results.zip
