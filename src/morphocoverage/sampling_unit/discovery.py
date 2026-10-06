@@ -269,7 +269,7 @@ class FeatureDiscovery:
             else count(n_tests, "test")
         )
         return (
-            f"Which features separate the conditions? {passing} of {self._counted(n)} "
+            f"Which features separate the conditions? {passing} of {self._of(n)} "
             f"{'is a candidate' if passing == 1 else 'are candidates'} in the exploratory "
             f"{self._unit()}-level screen: they differ for at least one condition (each "
             f"condition against {against}: Cohen's d on the observations normalised to each "
@@ -293,6 +293,12 @@ class FeatureDiscovery:
             return ""
         named = [f"{feature}, the {scale}" for feature, scale in scales.items()]
         return f"; declared in the Setup: {'; '.join(named[:6])}"
+
+    def _of(self, n: int) -> str:
+        """``4 features``, or ``4 (3 features and the rare share)``: never "4 of 3 features
+        and the rare share" (audit 10, C20)."""
+        counted = self._counted(n)
+        return counted if counted == count(n, "feature") else f"{n} ({counted})"
 
     def _counted(self, features: list[str] | int) -> str:
         """``features`` (names, or a number of all the features), the labelled state's share

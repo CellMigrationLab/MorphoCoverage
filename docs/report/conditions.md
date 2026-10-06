@@ -369,8 +369,10 @@ When there are wells to shuffle, the section also ranks the features within
 each repeat (`sampling_unit.feature_ranking`), as fiberfeatures scores a
 feature set: the same test for every feature and contrast, Benjamini-Hochberg
 corrected together, a gate at q <= 0.05, and the passing features ordered by
-the largest |d| on field means. The ranking says which features are worth
-plotting. With few technical repeats a side the p-values have a floor, and
+the largest |d| on field means. It is headed "Ranking within repeats (wells as the
+unit)", apart from the discovery's "Which features separate the conditions?", and the
+discovery alone says what is plotted by default; both count a labelled share apart, "1 of 4
+(3 features and the rare share)" (audit 10, owner, 2026-10-06). With few technical repeats a side the p-values have a floor, and
 after the correction a lone contrast at the floor cannot pass: the section
 gives the smallest q the tests can reach and how many must reach the floor
 for one to pass.

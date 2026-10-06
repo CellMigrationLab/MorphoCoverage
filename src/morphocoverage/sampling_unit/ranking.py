@@ -54,7 +54,7 @@ from .._control import check_comparisons, compared_name, control_name, versus
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
 from .._style import check_detail, table, wrap
-from .._wording import column_word, count
+from .._wording import column_word, count, features_counted
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..statistics import benjamini_hochberg
 from ._common import groups, validated
@@ -84,9 +84,6 @@ EFFECT_CAP = 20.0
 GATE_ALPHA = 0.05
 TOP_FEATURES = 5
 MAX_ROWS_LISTED = 24
-_PLOTTED = (
-    f"Plotted by default: up to {TOP_FEATURES} best-ranked features (the readout when none ranks)."
-)
 
 
 @dataclass(frozen=True)
@@ -165,12 +162,13 @@ class FeatureRanking:
         n_tests = int(self.tests["p_value"].notna().sum()) if len(self.tests) else 0
         repeat_col = self.settings["repeat_col"]
         return (
-            f"Which features separate the conditions? Each of the "
+            f"Ranking within repeats ({'wells' if self.settings.get('unit') else 'fields'} as "
+            f"the unit): each of the "
             f"{self.settings['n_features']} declared features, "
             + (
                 "each condition against its own control"
                 if self.settings.get("comparisons")
-                else f"every condition against the control {control}"
+                else f"every condition against the control, {control_name(control)},"
             )
             + (f" within each {column_word(repeat_col)}" if repeat_col else "")
             + f": Cohen's d on field means and a randomization test over whole {self._units()} "
@@ -189,15 +187,17 @@ class FeatureRanking:
         """The short form's first line: how many features pass, and how they were tested."""
         n_tests = int(self.tests["p_value"].notna().sum()) if len(self.tests) else 0
         n = self.settings["n_features"]
+        units = "wells" if self.settings.get("unit") else "fields"
+        # Its own name: the discovery asks "Which features separate the conditions?" (A9).
+        name = f"Ranking within repeats ({units} as the unit)"
         if not n_tests:
-            return (
-                f"Which features separate the conditions? None is ranked: for the {n} declared "
-                "features no contrast could be tested."
-            )
+            return f"{name}. None is ranked: no contrast could be tested for the {n} features."
         passing = int(self.ranking["score"].notna().sum())
         label = compared_name(self.settings)
+        counted = features_counted(n, self.settings.get("share"))
+        what = counted if counted == count(n, "feature") else f"{n} ({counted})"
         return (
-            f"Which features separate the conditions? {passing} of {count(n, 'feature')} pass "
+            f"{name}: {passing} of {what} pass "
             f"the gate (q <= {self.settings['alpha']:g}, Benjamini-Hochberg over "
             f"{count(n_tests, 'test')}: Cohen's d on field means, each condition against "
             + ("its own control" if self.settings.get("comparisons") else f"the control ({label})")
@@ -292,8 +292,6 @@ class FeatureRanking:
             return [*lines, wrap(reason, indent, hang=indent + 2)], []
         lines += self._table(max_rows, indent + 2)
         lines += [wrap(line, indent, hang=indent + 2) for line in self._unranked(short=True)]
-        if self.ranking["score"].notna().any():
-            lines.append(" " * indent + _PLOTTED)
         return lines, self._cautions()
 
     def summary(self, max_rows: int = MAX_ROWS_LISTED, detail: str = "short") -> str:
@@ -310,8 +308,6 @@ class FeatureRanking:
         lines += self._table(max_rows, 2)
         lines += [wrap(line, 2, hang=4) for line in self._unranked(short=False)]
         lines += caveat_lines(self._cautions(), indent=2, detail="full")
-        if self.ranking["score"].notna().any():
-            lines.append(f"  {_PLOTTED}")
         return "\n".join(lines)
 
 

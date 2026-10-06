@@ -116,6 +116,8 @@ def _words(result: Any) -> None:
         assert not re.search(r"\b0 vs 0\b", text)  # B6, C7: no own control, never 0 vs 0
         assert "{'" not in text  # A22, C8, C22: no dict repr
         assert not ("No condition to compare" in text and "Not compared:" in text)  # C8
+        assert text.count("Which features separate the conditions?") <= 1  # A9
+        assert not re.search(r"\d+ of \d+ features and the", text)  # C20: 4 of 3 features
         if statuses.str.startswith(NO_CONTROL).any():  # B4, C9: the reason is the control
             assert "has a value of every feature" not in text
 

@@ -178,7 +178,7 @@ def test_the_ranking_is_a_table_of_the_best_features_with_its_caveats_once():
     assert re.search(r"rank\s+feature\s+\|d\|\s+best contrast\s+q\s+passes in", short)
     assert short.count("distinct assignments") == 1
     full = ranking.summary(detail="full")
-    assert "Which features separate the conditions? Each of the 2 declared features" in full
+    assert "Ranking within repeats (wells as the unit): each of the 2 declared features" in full
     best = ranking.ranking.iloc[0]
     assert f"{best['score']:.2f}" in full and f"{best['q_value']:.3g}" in full
     assert "No contrast passes the gate for 1 feature: y." in full
