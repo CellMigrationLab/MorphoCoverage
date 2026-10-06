@@ -314,11 +314,12 @@ feature). Features that are not read one by one, such as the deep-learning
 embedding of a DINO model, come as **other feature tables**, each with a name
 (owner, 2026-10-05). Several can be loaded side by side, a DINOv2 and a DINOv3
 embedding say, to compare the models. They are never tested feature by feature
-and there is no whole-embedding test; with the explainable features they make
-the PCA and UMAP (one map per table, and a weighted combined map first), the
-populations (still named and given rules with explainable features where
-possible), unusual observations, novelty, the copy checks and a fingerprint
-declared on them. Pass them by name to `report`, `html_report`, `scan_design`
+and there is no whole-embedding test; they join the PCA and UMAP (one map per
+table, and a weighted combined map first), the populations (searched in each
+table, in the explainable features and in the combined space), the copy checks
+(on each table apart) and their own fingerprints, never novelty or unusual
+observations, which read the explainable features only (owner, 2026-10-06;
+[Feature tables and maps](../report/feature_tables_and_maps.md)). Pass them by name to `report`, `html_report`, `scan_design`
 and `guide` (`feature_tables={"DINOv2": dino}`); `attach_feature_tables` checks
 them on their own.
 
@@ -326,31 +327,32 @@ One row of a table is one observation, identified as the observation table
 identifies it: the field key columns the observation table holds (the analysis
 groups and the field identifier, as the validator resolves them), then
 `label_id` and `z`, `z0`, `z1`, `c`, `t` when the observation table has them.
-Values are matched as text, so `1` and `"1"` are one label. The observations
+Values are matched as text, a whole number written as a decimal read as that
+whole number, so `1`, `1.0` and `"1"` are one label (a CSV column with one empty
+cell is read as decimals; owner, 2026-10-06). The observations
 must be told apart by these columns (several cells of one field need a
 `label_id`). Each table must:
 
 - hold every identity column and match every observation exactly once: no
   observation missing, no row matching none, no observation twice;
 - hold numeric feature columns only: every column but the identity, none named
-  like MorphoBricks metadata (`condition`, `z`, `label_id`, ...);
-- hold no infinite value; missing values are kept and counted, never imputed or
-  dropped;
+  like MorphoBricks metadata (`condition`, `z`, `label_id`, ...), and none
+  without a single value;
+- hold no infinite value; missing values are kept and counted, never imputed:
+  each analysis that reads the table leaves out the observations missing one of
+  its values, and says how many;
 - use column names found neither in the observation table nor in another table;
 - have a non-empty name of its own, other than `explainable` and `combined`
   (the names of the observation table's features and of the combined space),
   compared ignoring case.
 
-Every problem is raised at once, naming the table. In the combined space, each
-column is standardised as each analysis standardises it now, then a table of
-`p` columns is multiplied by `sqrt(p_explainable / p)`, so every table carries
-the total variance of the explainable features (MFA's equal weight per table,
-scaled by the square root of the number of columns rather than by the first
-singular value, so the weights do not depend on the data and a definition of
-new fitted on the fields seen so far keeps one geometry). The definition of new
-reads that space with its radius multiplied by the square root of the number
-of tables. An other table is never divided by a control: an embedding has no
-ratio scale.
+Every problem is raised at once, naming the table; a column with one value
+everywhere is accepted and listed, as no analysis can use it. In the combined
+space, each table, robustly standardised, is divided by its own first singular
+value (MFA; owner, 2026-10-06), so no table's first axis outweighs another's,
+the explainable features keeping weight 1. An other table is never divided by a
+control: an embedding has no ratio scale; its map centred on each repeat's
+control is a view of the maps only.
 
 ```python
 import numpy as np

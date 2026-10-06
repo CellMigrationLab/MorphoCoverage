@@ -53,7 +53,12 @@ look like any field's.
 ## 3. What the new checks catch
 
 `integrity_checks(objects, fovs, feature_cols=...)` compares every acquired
-field with every other one, across groups, on the declared features.
+field with every other one, across groups, on the declared features. With
+[other feature tables](feature_tables_and_maps.md#other-feature-tables-embeddings),
+the report and the scan run the checks on the explainable features and on
+each table apart, and give the union, naming the table each copy was found in
+(owner, 2026-10-06): pooled, a copy confined to one table, an embedding
+computed twice for one image, was missed.
 Observations are compared **to 6 significant digits**, so a copy that went
 through float32 (parquet, HDF5, `.npy`) or a six-digit export still matches:
 
