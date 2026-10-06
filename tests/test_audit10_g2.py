@@ -27,9 +27,10 @@ from morphocoverage import (
     Evidence,
     SamplingObjective,
 )
+from morphocoverage.plots_pairwise import PANEL_KEYS, verdict_note
 from morphocoverage.policies import decide
 from morphocoverage.sufficiency_short import met_count
-from morphocoverage.workflows import Setup, report
+from morphocoverage.workflows import Setup, plots, report
 
 SCENARIOS = Path(__file__).resolve().parents[1] / "data" / "scenarios"
 sys.path.insert(0, str(SCENARIOS))
@@ -85,3 +86,29 @@ def test_a_setup_with_no_target_has_no_component_and_nothing_decides_a_stop(name
     overall, per_component = decide(Evidence(), Effort(n_fovs=10, n_objects=100), [stop], objective)
     assert per_component == {"distribution": Decision.STOP}
     assert overall is Decision.UNSUPPORTED
+
+
+def test_panel_c_says_its_q_is_the_figures_and_gives_the_verdicts_q() -> None:
+    # A3: panel C's q, adjusted over the figure's pairs, was green where the verdict's q,
+    # adjusted over the feature family, was not significant (and the other way round).
+    name = "a15_expl_one_cells_tech_rare"
+    loaded, result = make_scenarios.load(name), _scenario_report(name)
+    discovery = result.discovery
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        drawn = plots(loaded.objects, loaded.fovs, result.setup, ranking=discovery)
+    tests = discovery.tests
+    checked = 0
+    for feature, parts in drawn.items():
+        for figure in parts:
+            mine = tests[tests["feature"].eq(feature) & tests["q_paired"].notna()]
+            expected = dict(zip(mine["condition"], mine["q_paired"], strict=True))
+            assert figure.pairwise_verdicts == pytest.approx(expected)
+            legend = " ".join(figure.legend_artist.get_text().split())
+            assert "adjusted over the pairs of this figure only" in legend
+            if expected:
+                checked += 1
+                assert verdict_note(expected) in legend
+                assert "Verdict q (the feature's family): " in legend
+    assert checked
+    assert PANEL_KEYS["C"].endswith("adjusted over this figure only")
