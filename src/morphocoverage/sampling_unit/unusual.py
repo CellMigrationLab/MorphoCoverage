@@ -148,8 +148,9 @@ def unusual_objects(
     repeats its conditions share, ``_experiments.repeat_experiments``). ``own`` maps each
     condition to its own control (several declared controls, owner 2026-10-05): a group is
     then scored against its own control's groups only, among ``reference``'s. ``weights``
-    multiply the standardised features, a weight per feature (the others 1): the weighted
-    combined space of several feature tables (``feature_tables.table_weights``).
+    multiply the standardised features, a fixed weight per feature (the others 1); the
+    report gives none, as unusual observations read the explainable features only (owner,
+    2026-10-06).
     """
     (reference,) = read_former(reference=reference)
     if not 0 < quantile < 1:

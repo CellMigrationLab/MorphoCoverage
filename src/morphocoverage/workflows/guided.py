@@ -60,15 +60,14 @@ from typing import Any
 
 import pandas as pd
 
-from .._wording import count, duration, percent
-from ..feature_tables import table_weights
+from .._wording import count, duration, listing, percent
 from ..metadata import CONDITION_COLUMN
 from ..multivariate_outcomes import CovarianceError
 from ..objectives import RareTarget
 from ..retrospective.criteria import OutcomeCriterion
 from . import _guided_ask as q
 from ._guided_controls import ask_controls, contrast_lines
-from ._guided_tables import Tables, ask_tables, entries, identity, read_tables
+from ._guided_tables import Tables, ask_tables, changed, entries, identity, read_tables
 from ._html_data import EMBED_BUDGET
 from .html_report import html_report, zip_results
 from .retrospective import Report, report
@@ -90,19 +89,29 @@ RARE_FIELDS = 3
 SECONDS_PER_PAIR = 0.6
 SECONDS_PER_CONDITION = 8.0
 SECONDS_FIXED = 60.0
+# Each other feature table (owner, 2026-10-06): its populations, maps and copy checks, a
+# fixed part and a part per column, from a report and page of 5,000 cells with a table of
+# 400 and of 1,500 columns on 3 processes (65 s and 129 s more than without; 2026-10-06).
+SECONDS_PER_TABLE = 40.0
+SECONDS_PER_TABLE_COLUMN = 0.06
 
 
-def rough_runtime(n_features: int, n_conditions: int, n_jobs: int = 4) -> float:
+def rough_runtime(
+    n_features: int, n_conditions: int, n_jobs: int = 4, tables: Sequence[int] = ()
+) -> float:
     """The seconds a report and its page take, roughly: ``SECONDS_PER_PAIR`` for each
     feature and condition on 4 cores (fewer cores slower), ``SECONDS_PER_CONDITION`` for
-    each condition and ``SECONDS_FIXED``."""
+    each condition and ``SECONDS_FIXED``; and for each other feature table (``tables``: its
+    number of columns) ``SECONDS_PER_TABLE`` and ``SECONDS_PER_TABLE_COLUMN`` a column."""
     cores = (os.cpu_count() or 1) if n_jobs < 1 else n_jobs
     per_pair = SECONDS_PER_PAIR * 4 / max(1, min(cores, 4))
     conditions = max(1, n_conditions)
+    others = sum(SECONDS_PER_TABLE + SECONDS_PER_TABLE_COLUMN * columns for columns in tables)
     return (
         per_pair * max(1, n_features) * conditions
         + SECONDS_PER_CONDITION * conditions
         + SECONDS_FIXED
+        + others
     )
 
 
@@ -160,26 +169,32 @@ class Answers:
     def fingerprint(
         self, tables: Mapping[str, Sequence[str]] | None = None
     ) -> tuple[OutcomeCriterion, ...]:
-        """The fingerprint criterion the answers declare (none for the population aim); with
-        other feature tables (``tables``: each name and its columns), on the weighted combined
-        space (``feature_tables.table_weights``, owner 2026-10-05)."""
+        """The fingerprint criteria the answers declare (none for the population aim): the
+        explainable features', and with other feature tables (``tables``: each name and its
+        columns) one per table, each with its own verdict at the same tolerance (owner,
+        2026-10-06)."""
         if self.aim == "population":
             return ()
         tolerance = float(self.fingerprint_tolerance)
-        weights = table_weights(tables, len(self.features)) if tables else {}
-        columns = (*self.features, *weights)
-        metric = CovarianceError(
-            columns, True, weights=tuple(weights.get(c, 1.0) for c in columns) if tables else None
-        )
-        others = " and the other feature tables, each weighing as much," if tables else ""
-        return (
+        within = f"within {percent(tolerance)}"
+        criteria = [
             OutcomeCriterion(
-                metric,
+                CovarianceError(tuple(self.features), True),
                 tolerance,
                 "lower_is_better",
-                f"the covariance of the standardised features{others} within {percent(tolerance)}",
-            ),
-        )
+                f"the covariance of the standardised features {within}",
+            )
+        ]
+        for name, columns in (tables or {}).items():
+            criteria.append(
+                OutcomeCriterion(
+                    CovarianceError(tuple(columns), True),
+                    tolerance,
+                    "lower_is_better",
+                    f"the covariance of the standardised {name} columns {within}",
+                )
+            )
+        return tuple(criteria)
 
     def setup(self, scan: DesignScan, **fields: Any) -> Setup:
         """The ``Setup`` these answers make for ``scan`` (``fields`` add or override any
@@ -333,7 +348,7 @@ def _load(
         "rows": len(objects),
         "checksum": table_checksum(objects),
         "fovs_checksum": None if fovs is None else table_checksum(fovs),
-        "feature_tables": entries(tables),
+        "feature_tables": entries(tables, objects),
     }
     return objects, fovs, tables, dataset
 
@@ -383,9 +398,11 @@ def _saved(
         if choice == "continue":
             return saved, None
     elif saved is not None:
+        differs = changed(saved.dataset, dataset) or ["the tables"]
         say(
             f"{path} holds answers for another table ({saved.dataset.get('rows')} rows, saved "
-            f"{saved.saved or 'earlier'}); they cannot be reused for this one."
+            f"{saved.saved or 'earlier'}); what differs: {listing(differs, 6)}. They cannot be "
+            "reused for this one."
         )
     unusable = saved is None or not usable
     if unusable and not q.yes_no(ask, say, "Delete them and start over?", True):
@@ -494,7 +511,8 @@ def guide(
     fields = scan.fovs
     conditions = int(fields[CONDITION_COLUMN].nunique()) if CONDITION_COLUMN in fields else 1
     cores = setup.n_jobs if setup.n_jobs > 0 else os.cpu_count() or 1
-    estimate = rough_runtime(len(setup.columns), conditions, setup.n_jobs)
+    tables = [len(c) for c in (setup.feature_tables or {}).values()]
+    estimate = rough_runtime(len(setup.columns), conditions, setup.n_jobs, tables)
     say(
         f"Running the report for {count(len(setup.columns), 'feature')} and "
         f"{count(conditions, 'condition')}; on {count(cores, 'core')} this takes roughly "

@@ -104,8 +104,9 @@ class Setup:
       "intensity" (``_acquisition_gap``, owner 2026-10-05).
     - ``feature_tables``: the other feature tables, each name with its columns, such as a
       DINO embedding (owner, 2026-10-05): never tested feature by feature, they join the
-      explainable features in the maps, populations, unusual observations, novelty, copy
-      checks and fingerprint (``_feature_space``). Set by the workflows' ``feature_tables=``.
+      maps, the populations, the copy checks and their own fingerprints, never novelty or
+      unusual observations (owner, 2026-10-06; ``_feature_space``). Set by the workflows'
+      ``feature_tables=``.
     - ``normalize``: ``"control_mean"`` divides every feature (the readout
       included) by the mean of the control condition's observations of the
       same repeat (``normalize_to_control``); needs ``control`` to name the

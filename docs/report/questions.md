@@ -160,7 +160,13 @@ this finds no group in a Gaussian, a separate blob as a group its rule finds,
 and the end of a straight line at most as a group; groups overlapping strongly
 on every feature are not told apart. Without a group the answer is ➖ "No group":
 no candidate group passed the check on these features, which says nothing of a
-continuum or of rare states (owner, 2026-10-05). Each group is listed with its share, the
+continuum or of rare states (owner, 2026-10-05). With [other feature
+tables](feature_tables_and_maps.md#other-feature-tables-embeddings), the groups are searched
+in each space apart, the explainable features, each table and the weighted combined space,
+and each distinct group is reported once, naming the spaces that found it (groups of two
+spaces merged at a Jaccard index of 0.5 or more); a group the explainable features did not
+find has no rule ("found in DINOv2 only; no rule in the explainable features describes it"),
+and the enrichment tests run on the merged list (owner, 2026-10-06). Each group is listed with its share, the
 features that set it apart, its neighbours inside, its rule, the fields and
 repeats it is seen in, and the share of its cells in its largest field (a group
 living mostly in one field may be that image's artefact; the table, `Populations.table`,

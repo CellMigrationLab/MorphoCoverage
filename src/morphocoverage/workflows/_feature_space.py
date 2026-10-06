@@ -3,18 +3,18 @@
 ``Setup.feature_tables`` names each other feature table and its columns (owner, 2026-10-05;
 ``morphocoverage.feature_tables``). The workflows take the tables themselves with their
 ``feature_tables=`` keyword and attach them at the door (``attached``), which records their
-columns in the ``Setup`` they return. Here:
+columns in the ``Setup`` they return. The tables join the maps, the populations, the copy
+checks and their own fingerprints, never novelty or unusual observations, which read the
+explainable features only (owner, 2026-10-06). Here:
 
 - ``check_feature_tables``: the declaration, refused when a name is empty, reserved or
   repeated, or a column is declared twice or is the readout, a feature or the rare label;
-- ``space``: the weighted combined space of the distance-based analyses (the maps, the
-  populations, unusual observations), the explainable columns at weight 1 and every other
-  table at ``table_weights``'s; without other tables, the explainable columns alone, not
-  weighted, as before;
-- ``novelty_space``: the definition of new on that space: its transform followed by the
-  weights (``ColumnWeights``), its radius times ``sqrt`` of the number of tables, as every
-  table adds the explainable table's total variance (the default radius ``sqrt(d)`` of
-  ``d`` explainable features becomes the square root of the space's total variance);
+- ``space``: the weighted combined space of the maps and the populations, its columns and
+  its tables (``blocks``: the explainable features first, each table then divided by its
+  first singular value, ``feature_tables.mfa_weights``); without other tables, the
+  explainable columns alone, not weighted, as before;
+- ``novelty_space``: the definition of new and the columns it reads, the declared features
+  alone whatever the tables (owner, 2026-10-06);
 - ``attached``: the observation table with the tables' columns and the ``Setup`` naming them.
 """
 
@@ -24,7 +24,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-import numpy as np
 import pandas as pd
 
 from .._wording import count
@@ -34,12 +33,11 @@ from ..feature_tables import (
     RESERVED_NAMES,
     FeatureTables,
     attach_feature_tables,
-    table_weights,
 )
-from ..metadata import CONDITION_COLUMN
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
+from ..schema import validate_input_tables
 from ..separation import Separation, separation
-from ..strategies import SupportNoveltyEstimator, SupportNoveltyStrategy
-from ..transforms import Chain, ColumnWeights
+from ..strategies import SupportNoveltyEstimator
 
 if TYPE_CHECKING:
     from .setup import Setup
@@ -70,12 +68,6 @@ def check_feature_tables(setup: Setup) -> None:
                 raise ValueError(f"{column!r} is a column of both {seen[column]!r} and {name!r}")
             seen[column] = name
         tables[name] = columns
-    if tables and any(isinstance(rule, SupportNoveltyStrategy) for rule in setup.rules or ()):
-        # The rules read every column the report gives them, here the tables' unweighted.
-        raise ValueError(
-            "a novelty rule among rules would read the other feature tables unweighted: leave "
-            "it out of rules, and the report judges the novelty bound on the combined space"
-        )
     object.__setattr__(setup, "feature_tables", tables or None)
 
 
@@ -84,32 +76,26 @@ def table_columns(setup: Setup) -> list[str]:
     return [c for columns in (setup.feature_tables or {}).values() for c in columns]
 
 
+# The tables of a space, by name: the explainable features first, then each other table.
+Blocks = dict[str, tuple[str, ...]]
+
+
 def space(
     setup: Setup, explainable: Sequence[str] | None = None
-) -> tuple[list[str], dict[str, float] | None]:
-    """The columns of the weighted combined space and each column's weight (``None``, not
-    weighted, without other tables). ``explainable`` defaults to ``Setup.columns``."""
+) -> tuple[list[str], Blocks | None]:
+    """The columns of the weighted combined space and its tables (``None``, not weighted,
+    without other tables). ``explainable`` defaults to ``Setup.columns``."""
     columns = list(setup.columns if explainable is None else explainable)
     if not setup.feature_tables:
         return columns, None
-    weights = {c: 1.0 for c in columns}
-    weights.update(table_weights(setup.feature_tables, len(columns)))
-    return list(weights), weights
+    blocks = {EXPLAINABLE: tuple(columns), **dict(setup.feature_tables)}
+    return [c for block in blocks.values() for c in block], blocks
 
 
 def novelty_space(setup: Setup) -> tuple[SupportNoveltyEstimator | None, list[str]]:
     """The definition of new and the columns it reads: ``Setup.novelty`` on the declared
-    features, or with other tables on the weighted combined space (see the module)."""
-    novelty = setup.novelty
-    if novelty is None:  # Setup declares features with novelty: none needed without it
-        return None, list(setup.features)
-    columns, weights = space(setup, setup.features)
-    if weights is None:
-        return novelty, columns
-    weighting = ColumnWeights(tuple(weights[c] for c in columns))
-    transform = weighting if novelty.transform is None else Chain([novelty.transform, weighting])
-    radius = novelty.epsilon * float(np.sqrt(1 + len(setup.feature_tables or {})))
-    return replace(novelty, epsilon=radius, transform=transform), columns
+    features, whatever the other tables (owner, 2026-10-06: they never enter novelty)."""
+    return setup.novelty, list(setup.features)
 
 
 def attached(
@@ -149,56 +135,101 @@ def table_lines(setup: Setup, tables: FeatureTables | None = None) -> list[str]:
     if not setup.feature_tables:
         return []
     declared = setup.feature_tables
-    weights = table_weights(declared, len(setup.columns))
     lines = (
         tables.lines()
         if tables is not None
         else [f"{name}: {count(len(c), 'feature column')}." for name, c in declared.items()]
     )
-    shares = ", ".join(f"{name} {weights[c[0]]:.2f}" for name, c in declared.items())
     lines.append(
-        "Other feature tables are not tested feature by feature; with the explainable features "
-        "they make the maps, the populations, unusual observations, novelty, the copy checks "
-        "and a fingerprint declared on them, in a combined space where every table weighs as "
-        f"much as the explainable one (weight per column: {shares})."
+        f"{features_words(setup)}. The other tables are never tested feature by feature: they "
+        "join the maps, the populations, the copy checks and their own fingerprints, not "
+        "novelty or unusual observations, which read the explainable features only; in the "
+        "combined space each table counts as much as the explainable features, its first axis "
+        "weighing as much as theirs."
     )
     return lines
 
 
-def space_names(setup: Setup) -> dict[str, tuple[list[str], dict[str, float] | None]]:
+def features_words(setup: Setup) -> str:
+    """``17 explainable features and 768 columns of 2 other tables`` (one table: ``of the
+    other table DINOv2``); the explainable features alone without tables."""
+    explainable = count(len(setup.columns), "explainable feature")
+    declared = setup.feature_tables or {}
+    if not declared:
+        return explainable
+    columns = count(sum(len(c) for c in declared.values()), "column")
+    if len(declared) == 1:
+        return f"{explainable} and {columns} of the other table {next(iter(declared))}"
+    return f"{explainable} and {columns} of {len(declared)} other tables"
+
+
+def space_names(setup: Setup) -> dict[str, tuple[list[str], Blocks | None]]:
     """Each feature space of the maps and the separation score, by the name the page shows:
     with other tables the combined space first, then the explainable features and each
     table; without them, the declared features alone."""
     if not setup.feature_tables:
         return {"Features": (list(setup.columns), None)}
-    columns, weights = space(setup)
-    spaces = {COMBINED.capitalize(): (columns, weights)}
+    columns, blocks = space(setup)
+    spaces = {COMBINED.capitalize(): (columns, blocks)}
     spaces[EXPLAINABLE.capitalize()] = (list(setup.columns), None)
     spaces.update({name: (list(c), None) for name, c in setup.feature_tables.items()})
     return spaces
 
 
 def separation_in_report(
-    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    setup: Setup,
+    names: Sequence[str] | None = None,
 ) -> Separation | None:
-    """The separation of the conditions in each space (``space_names``), on the values the
-    figures read; ``None`` with one condition or no condition column."""
+    """The separation of the conditions and of the repeats in each space (``space_names``,
+    or those of ``names``), on the values the figures read; ``None`` with one condition or
+    no condition column."""
     if CONDITION_COLUMN not in fovs or fovs[CONDITION_COLUMN].nunique() < 2:
         return None
     spaces = space_names(setup)
+    if names is not None:
+        spaces = {name: spaces[name] for name in names if name in spaces}
     return separation(
         objects,
         fovs,
         spaces={name: columns for name, (columns, _) in spaces.items()},
-        weights={name: weights for name, (_, weights) in spaces.items()},
+        blocks={name: blocks for name, (_, blocks) in spaces.items()},
         random_state=setup.random_state,
         **setup.common,
     )
 
 
+def centred_tables(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> pd.DataFrame | None:
+    """``objects`` with every other table's column centred on its repeat's control: minus
+    the median of the control's observations in the same biological repeat, each condition's
+    own control with several (``Setup.own_references``; owner, 2026-10-06). For the maps
+    only, never the tests. A condition without a control, or whose control was not imaged in
+    its repeat, has no centred value (missing). ``None`` without other tables or a control."""
+    control = (setup.single_control or {}).get(CONDITION_COLUMN)
+    own = setup.own_references
+    columns = table_columns(setup)
+    if not columns or (control is None and own is None):
+        return None
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=columns, **setup.common)
+    frame = data.objects
+    if CONDITION_COLUMN not in frame:
+        return None
+    condition = frame[CONDITION_COLUMN]
+    repeat = frame[REPEAT_COLUMN] if REPEAT_COLUMN in frame else pd.Series("all", frame.index)
+    medians = frame[columns].groupby([condition, repeat]).median()
+    reference = condition.map(own) if own is not None else pd.Series(control, frame.index)
+    shift = medians.reindex(pd.MultiIndex.from_arrays([reference, repeat])).to_numpy()
+    centred = frame[columns].to_numpy(dtype=float) - shift
+    shifted = pd.DataFrame(centred, index=frame.index, columns=columns)
+    return objects.assign(**{c: shifted[c] for c in columns})
+
+
 __all__ = [
     "attached",
+    "centred_tables",
     "check_feature_tables",
+    "features_words",
     "novelty_space",
     "separation_in_report",
     "space",

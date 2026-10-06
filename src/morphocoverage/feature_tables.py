@@ -5,9 +5,9 @@ discovery, the heatmap, SuperPlots, "Did I image enough?" per feature). Features
 not read one by one, such as the deep-learning embeddings of a DINO model, come as **other
 feature tables**, each with a name ("DINOv2", "DINOv3"), so that several models can be
 loaded side by side and compared (owner, 2026-10-05). They are never tested feature by
-feature; with the explainable features they make the space of the maps, the populations,
-unusual observations, novelty, the copy checks and the declared fingerprint
-(``workflows``, ``docs/common/data_format.md``).
+feature; with the explainable features they make the maps, the populations, the copy checks
+and a fingerprint of their own, never novelty, which reads the explainable features only
+(owner, 2026-10-06; ``workflows``, ``docs/common/data_format.md``).
 
 ``attach_feature_tables`` validates every table against the observation table and returns
 the observation table with every table's columns attached (``FeatureTables``). One row of a
@@ -15,36 +15,37 @@ table is one observation, identified as the observation table identifies it
 (``observation_identity``): the FOV key columns the observation table holds (the analysis
 groups and the field identifier, as ``validate_input_tables`` resolves them), then
 ``label_id`` and the within-field coordinates ``z``, ``z0``, ``z1``, ``c``, ``t`` when the
-observation table has them. Values are matched as text, so ``1`` and ``"1"`` are one label.
-A table must:
+observation table has them. Values are matched as text, a whole number written as a decimal
+read as that whole number, so ``1``, ``1.0`` and ``"1"`` are one label (owner, 2026-10-06:
+a CSV column with one empty cell is read as decimals). A table must:
 
 - hold every identity column and match every observation exactly once: no observation
   missing, no row matching none, no observation twice;
 - hold numeric feature columns only (every column but the identity), none named like
-  MorphoBricks metadata (``condition``, ``z``, ``label_id``, ...);
+  MorphoBricks metadata (``condition``, ``z``, ``label_id``, ...), and none without a value;
 - hold no infinite value; missing values are kept and counted (``missing``), never
-  imputed or dropped, as in the observation table;
+  imputed, and each analysis that reads the table leaves out the observations missing one
+  of its values, and says how many;
 - use column names found neither in the observation table nor in another table;
 - have a non-empty name of its own (``"explainable"`` and ``"combined"`` name the
   observation table's features and the weighted combined space).
 
-Every problem is collected and raised at once (``ValueError``), naming the table.
+Every problem is collected and raised at once (``ValueError``), naming the table. A column
+with one value everywhere is accepted and listed (``constant``): no analysis can use it.
 
-``table_weights`` gives the weight of each column in the weighted combined space: every
-column is standardised as the analysis standardises it now, then a table of ``p`` columns
-is multiplied by ``sqrt(p_explainable / p)``, so every table carries the same total
-variance as the explainable one (``p_explainable``, each of its columns at weight 1). This
-is the MFA idea of equal weight per table, with each table scaled by the square root of its
-number of columns rather than by its first singular value: the weights do not depend on the
-data, so a definition of new fitted on the fields seen so far keeps the same geometry at
-every step, and with few observations a first singular value would be noisy. Without
-other tables nothing is weighted and every analysis is as before.
+``mfa_weights`` gives the weight of each column in the weighted combined space (owner,
+2026-10-06): every table, robustly standardised, is divided by its own first singular value,
+as in multiple factor analysis (MFA), so that no table's first axis outweighs another's,
+whatever its number of columns and however correlated they are; the weights are scaled so
+that the explainable features keep weight 1. ``table_shares`` gives each table's share of a
+principal axis of that space. Without other tables nothing is weighted and every analysis is
+as before.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -90,8 +91,9 @@ class FeatureTables:
       feature columns attached in its row order;
     - ``columns``: each table's name and its feature columns, in the order given;
     - ``missing``: each table's missing values, and ``incomplete`` the observations holding
-      at least one;
-    - ``identity``: the columns that identify an observation.
+      at least one, which every analysis reading the table leaves out;
+    - ``identity``: the columns that identify an observation;
+    - ``constant``: each table's columns with one value everywhere, which no analysis uses.
     """
 
     objects: pd.DataFrame
@@ -99,19 +101,27 @@ class FeatureTables:
     missing: dict[str, int]
     incomplete: dict[str, int]
     identity: tuple[str, ...]
+    constant: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     def lines(self) -> list[str]:
-        """One sentence per table: its columns, how it matched, its missing values."""
+        """One sentence per table: its columns, how it matched, its missing values and what
+        they remove, its constant columns."""
         key = ", ".join(self.identity)
         lines = []
         for name, columns in self.columns.items():
-            missing = self.missing[name]
+            missing, rows = self.missing[name], self.incomplete[name]
             gaps = (
-                f"{count(missing, 'missing value')} in {count(self.incomplete[name], 'row')}, "
-                "kept as missing"
+                f"{count(missing, 'missing value')} in {count(rows, 'row')}, which every "
+                f"analysis reading {name} leaves out, counted there"
                 if missing
                 else "no missing value"
             )
+            constant = self.constant.get(name, ())
+            if constant:
+                gaps += (
+                    f"; {count(len(constant), 'column')} with one value everywhere "
+                    f"({listing(list(constant), _SHOWN)}), which no analysis can use"
+                )
             lines.append(
                 f"{name}: {count(len(columns), 'feature column')}, every observation matched "
                 f"once by {key}; {gaps}."
@@ -142,9 +152,19 @@ def observation_identity(
     return tuple(c for c in dict.fromkeys([*key, *within]) if c in objects.columns)
 
 
+def identity_text(value: Any) -> str:
+    """A value as the identity matches it: a whole number written as a decimal (``1.0``, as
+    a CSV column with an empty cell is read) as the whole number, anything else as its text."""
+    if isinstance(value, float | np.floating) and np.isfinite(value) and float(value).is_integer():
+        return str(int(value))
+    return str(value)
+
+
 def _keys(table: pd.DataFrame, identity: Sequence[str]) -> pd.Series:
-    """Each row's identity as one text, so ``1`` and ``"1"`` match."""
-    text = table[list(identity)].astype(str)
+    """Each row's identity as one text, so ``1``, ``1.0`` and ``"1"`` match."""
+    text = pd.DataFrame(
+        {c: [identity_text(v) for v in table[c].tolist()] for c in identity}, index=table.index
+    )
     return text.agg("\x1f".join, axis=1) if len(identity) > 1 else text.iloc[:, 0]
 
 
@@ -246,7 +266,22 @@ def _column_problems(
             f"{name!r} holds {count(infinite, 'infinite value')}, which no feature may hold "
             "(a missing value is allowed)"
         )
+    empty = [c for c, none in zip(numeric, np.isnan(values).all(axis=0), strict=True) if none]
+    if empty and len(values):
+        problems.append(
+            f"{name!r} has columns without a single value: {listing(empty, _SHOWN)}; leave "
+            "them out of the table"
+        )
     return problems
+
+
+def _constant(block: pd.DataFrame) -> tuple[str, ...]:
+    """The columns of ``block`` with one value everywhere (missing values aside)."""
+    values = block.to_numpy(dtype=float)
+    if not len(values):
+        return ()
+    spread = np.nanmax(values, axis=0) - np.nanmin(values, axis=0)
+    return tuple(c for c, s in zip(block.columns, spread, strict=True) if not s > 0)
 
 
 def attach_feature_tables(
@@ -288,6 +323,7 @@ def attach_feature_tables(
     blocks = []
     missing: dict[str, int] = {}
     incomplete: dict[str, int] = {}
+    constant: dict[str, tuple[str, ...]] = {}
     for name, table in tables.items():
         named = _name_problems(name, seen)
         problems += named
@@ -316,22 +352,48 @@ def attach_feature_tables(
         columns[label] = tuple(features)
         missing[label] = int(block.isna().to_numpy().sum())
         incomplete[label] = int(block.isna().any(axis=1).sum())
+        constant[label] = _constant(block)
     if problems:
         raise ValueError("the other feature tables cannot be used: " + "; ".join(problems))
     merged = pd.concat([objects, *blocks], axis=1)
-    return FeatureTables(merged, columns, missing, incomplete, identity)
+    return FeatureTables(merged, columns, missing, incomplete, identity, constant)
 
 
-def table_weights(columns: Mapping[str, Sequence[str]], explainable: int) -> dict[str, float]:
-    """Each column's weight in the weighted combined space: ``sqrt(explainable / p)`` for a
-    table of ``p`` columns (see the module); the explainable columns are not listed (1)."""
-    if explainable < 1:
-        raise ValueError("the combined space needs at least one explainable column")
-    weights: dict[str, float] = {}
-    for table in columns.values():
-        weight = float(np.sqrt(explainable / len(table)))
-        weights.update({column: weight for column in table})
+def mfa_weights(
+    z: np.ndarray, features: Sequence[str], blocks: Mapping[str, Sequence[str]]
+) -> np.ndarray:
+    """Each column's weight in the weighted combined space (see the module): ``z`` holds the
+    robustly standardised ``features``, ``blocks`` each table's columns, the explainable
+    features first. A table is weighted by the first block's first singular value over its
+    own (both on the columns centred on their means), so the first block keeps weight 1; a
+    column of no block, or a table none of whose columns is in ``features``, keeps 1."""
+    weights = np.ones(len(features))
+    position = {f: i for i, f in enumerate(features)}
+    singular: dict[str, float] = {}
+    for name, columns in blocks.items():
+        index = [position[c] for c in columns if c in position]
+        if index:
+            part = z[:, index] - z[:, index].mean(axis=0)
+            singular[name] = float(np.linalg.svd(part, compute_uv=False)[0]) if len(z) else 0.0
+    reference = next((v for v in singular.values() if v > 0), 0.0)
+    for name, columns in blocks.items():
+        if singular.get(name, 0.0) > 0 and reference > 0:
+            index = [position[c] for c in columns if c in position]
+            weights[index] = reference / singular[name]
     return weights
+
+
+def table_shares(
+    loadings: np.ndarray, features: Sequence[str], blocks: Mapping[str, Sequence[str]]
+) -> dict[str, list[float]]:
+    """Each table's share of each principal axis: the sum of its columns' squared loadings
+    (``loadings``: one row per feature, one column per axis, each axis of unit length)."""
+    position = {f: i for i, f in enumerate(features)}
+    shares = {}
+    for name, columns in blocks.items():
+        index = [position[c] for c in columns if c in position]
+        shares[name] = [float(np.square(loadings[index, axis]).sum()) for axis in range(2)]
+    return shares
 
 
 __all__ = [
@@ -340,6 +402,8 @@ __all__ = [
     "LABEL_COLUMN",
     "FeatureTables",
     "attach_feature_tables",
+    "identity_text",
+    "mfa_weights",
     "observation_identity",
-    "table_weights",
+    "table_shares",
 ]

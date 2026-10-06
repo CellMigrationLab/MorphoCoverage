@@ -39,10 +39,11 @@ from typing import Any, TypeVar
 import pandas as pd
 
 from .._former_repeat import one_warning, read_former, renamed_tables
+from .._integrity_tables import integrity_by_table
 from .._style import Status, check_detail
 from ..data_check import DataCheck, check_tables
-from ..feature_tables import FeatureTables, attach_feature_tables
-from ..integrity import IntegrityResult, integrity_checks
+from ..feature_tables import EXPLAINABLE, FeatureTables, attach_feature_tables
+from ..integrity import IntegrityResult
 from ..metadata import (
     CONDITION_COLUMN,
     MORPHOBRICKS_FOV_CANDIDATES,
@@ -515,7 +516,6 @@ def scan_design(
     taken = {*fov_key, *groups}
     features = list(feature_cols) if features_declared else _feature_candidates(objects, taken)
     objects, tables, refused = _with_tables(objects, fovs, feature_tables, found_fov, added_fov)
-    others = [c for columns in (tables.columns if tables else {}).values() for c in columns]
     data_check = _quiet(
         check_tables,
         objects,
@@ -527,11 +527,12 @@ def scan_design(
     )
     integrity = None
     if data_check.ok and features:
+        # On each feature table apart, the union said (owner, 2026-10-06).
         integrity = _quiet(
-            integrity_checks,
+            integrity_by_table,
             objects,
             fovs,
-            feature_cols=[*features, *others],
+            tables={EXPLAINABLE: features, **(tables.columns if tables else {})},
             fov_col=found_fov,
             observation_unit=observation_unit,
         )

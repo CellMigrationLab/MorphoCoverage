@@ -29,6 +29,7 @@ from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import traits
 from ..schema import observation_words
 from ._enough_targets import HELD_BACK
+from ._population_spaces import described, found_words
 from ._populations import labelled_populations, rule_words, tested_populations
 
 # The reservoir optimise holds back to judge each stop, as in docs/report/questions.md (one
@@ -173,8 +174,8 @@ def _group_fields(
         objects, fovs=fovs, feature_cols=features[:1], **result.setup.common
     )
     key = [c for c in data.fov_key if c in data.objects]
-    labels = populations.populations.labels.reindex(data.objects.index)
-    mine = data.objects.loc[labels.eq(name).to_numpy(), key].astype(str)
+    inside = populations.populations.membership(name).reindex(data.objects.index)
+    mine = data.objects.loc[inside.eq(1).to_numpy(), key].astype(str)
     named = mine.agg(" · ".join, axis=1).value_counts()
     return [str(f) for f in named.index[:FIELDS_SHOWN]]
 
@@ -198,9 +199,11 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
         return _block([(line, "")])
     fields = _group_fields(result, populations, objects, fovs, name)
     where = f" (most of its {units} are in {', '.join(fields)})" if fields else ""
+    # A group only another feature table found has no rule in the explainable features.
+    what = traits(row["defining"][:2]) if described(row) else found_words(row)
     validate = (
         f"First validate {name} ({percent_fine(share)} of the {units}; "
-        f"{traits(row['defining'][:2])}): open the images of its fields{where} and check "
+        f"{what}): open the images of its fields{where} and check "
         f"that its {units} are one state, not the end of a gradient or an artefact."
     )
     rule = rule_words(row, units)
@@ -214,7 +217,7 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
         "rare phenotype: the report then says in “Did I image enough?” whether it was seen in "
         "enough fields of every well."
     )
-    phenotype = f"{name}: {traits(row['defining'][:2])}"
+    phenotype = f"{name}: {what}" if described(row) else name
     # The share of cells the rule labels, which the code declares (the cluster's share
     # without a rule).
     if row["rule"] and objects is not None:
@@ -222,8 +225,8 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
     labelled = (
         f"objects[{name!r}] = {row['rule_code']}\n"
         if row["rule"]
-        else 'found = result.results["populations"].populations.labels\n'
-        f"objects[{name!r}] = found.reindex(objects.index).eq({name!r})\n"
+        else 'found = result.results["populations"].populations\n'
+        f"objects[{name!r}] = found.membership({name!r}).reindex(objects.index).eq(1)\n"
     )
     code = (
         _GUARD + "from dataclasses import replace\n"

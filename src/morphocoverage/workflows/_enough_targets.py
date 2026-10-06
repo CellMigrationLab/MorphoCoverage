@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from .._seeds import group_rng
+from .._seeds import group_key, group_rng
 from .._style import Status, span, worst, wrap
 from .._wording import count, percent, plural, rate
 from ..evaluator import FovSubsets, iter_analysis_groups
@@ -48,33 +48,68 @@ UNDEFINED_TOLERANCE = 0.10
 HELD_BACK = 0.35
 
 
+def _columns(criterion: Any) -> list[str]:
+    """The feature columns a criterion's metric reads, from its provenance."""
+    parameters = criterion.metric.parameters
+    named = [*parameters.get("features", []), parameters.get("feature")]
+    return [c for c in dict.fromkeys(named) if isinstance(c, str)]
+
+
+def table_of(columns: list[str], setup: Setup) -> str | None:
+    """The feature table ``columns`` belong to, as the text names it (``the explainable
+    features``, ``DINOv2``), when there are other tables; ``None`` without them or when the
+    columns span several (owner, 2026-10-06: a fingerprint per table)."""
+    if not setup.feature_tables:
+        return None
+    if set(columns) <= set(setup.columns):
+        return "the explainable features"
+    return next((n for n, c in setup.feature_tables.items() if set(columns) <= set(c)), None)
+
+
 def fingerprint_precision(
     objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
 ) -> pd.DataFrame | None:
     """Per group and fingerprint criterion: the fields, the estimated error and whether it is
-    within the tolerance (see the module); ``None`` without a fingerprint."""
+    within the tolerance (see the module); ``None`` without a fingerprint. With other feature
+    tables, each criterion's ``table``; observations missing a value a criterion reads are
+    left out of it, counted (``left_out``; owner, 2026-10-06)."""
     criteria = [c for c in setup.fingerprint if c.direction == "lower_is_better"]
     if not criteria:
         return None
+    values = setup.compared_values(objects, fovs)
     data = validate_input_tables(
-        setup.compared_values(objects, fovs),
-        fovs=fovs,
-        feature_cols=setup.judged_columns,
-        **setup.common,
+        values, fovs=fovs, feature_cols=setup.judged_columns, **setup.common
     )
+    # A criterion whose columns miss values reads the observations holding all of them.
+    complete: dict[int, dict[str, Any]] = {}
+    for i, criterion in enumerate(criteria):
+        held = ~data.objects[_columns(criterion)].isna().any(axis=1)
+        if not held.all():
+            kept = validate_input_tables(
+                values.loc[held[held].index],
+                fovs=fovs,
+                feature_cols=setup.judged_columns,
+                **setup.common,
+            )
+            complete[i] = {group_key(g): d for g, d in iter_analysis_groups(kept)}
     rows = []
     for group, group_data in iter_analysis_groups(data):
         n = len(group_data.fovs)
         half = n // 2
         subsets = FovSubsets(group_data) if n >= MIN_FIELDS else None
         rng = group_rng(setup.random_state, group)
-        for criterion in criteria:
+        for i, criterion in enumerate(criteria):
             errors = []
-            splits = SPLITS if subsets is not None else 0
+            here, left_out = subsets, 0
+            if i in complete:
+                own = complete[i].get(group_key(group))
+                left_out = len(group_data.objects) - (len(own.objects) if own is not None else 0)
+                here = FovSubsets(own) if own is not None and subsets is not None else None
+            splits = SPLITS if here is not None else 0
             for _ in range(splits):
                 order = rng.permutation(n)
                 value = criterion.metric.evaluate(
-                    subsets.take(order[half : 2 * half]), subsets.take(order[:half])
+                    here.take(order[half : 2 * half]), here.take(order[:half])
                 )
                 if value is not None and np.isfinite(value):
                     errors.append(value)
@@ -89,6 +124,8 @@ def fingerprint_precision(
                 {
                     **group,
                     "criterion": criterion.description or criterion.metric.name,
+                    "table": table_of(_columns(criterion), setup),
+                    "left_out": left_out,
                     "tolerance": tolerance,
                     "fields": n,
                     "splits": splits,
@@ -169,26 +206,41 @@ def held_back_note(judged: pd.DataFrame, word: str, fields: str) -> str:
     )
 
 
+def fingerprint_title(criterion: str, rows: pd.DataFrame) -> str:
+    """``The fingerprint, <criterion>``, or with other feature tables ``The fingerprint of
+    DINOv2 (<criterion>)``: each table its own verdict (owner, 2026-10-06)."""
+    table = rows["table"].iloc[0] if "table" in rows else None
+    if isinstance(table, str):
+        return f"The fingerprint of {table} ({criterion})"
+    return f"The fingerprint, {criterion}"
+
+
+def _left_out(rows: pd.DataFrame, unit: str) -> str:
+    """``125 cells with a missing value of its columns left out.``, or empty."""
+    left = int(rows["left_out"].sum()) if "left_out" in rows else 0
+    return f"{count(left, unit)} with a missing value of its columns left out." if left else ""
+
+
 def fingerprint_lines(
-    table: pd.DataFrame, word: str, fields: str, held_back: bool = True
+    table: pd.DataFrame, word: str, fields: str, held_back: bool = True, unit: str = "observation"
 ) -> list[str]:
     """One paragraph per fingerprint criterion (see the module); ``held_back=False`` leaves
-    out what optimise's held-back fields can confirm (``held_back_note``)."""
+    out what optimise's held-back fields can confirm (``held_back_note``); ``unit`` names an
+    observation."""
     lines = []
     for criterion, rows in table.groupby("criterion", sort=False):
         judged = rows[rows["met"].notna()]
+        title = fingerprint_title(criterion, rows)
+        left = _left_out(rows, unit)
         if not len(judged):
-            text = (
-                f"The fingerprint, {criterion}: not judged in any {word}: "
-                f"{_unjudged_reasons(rows, fields)}."
-            )
-            lines.append(wrap(text, 2, hang=4))
+            text = f"{title}: not judged in any {word}: {_unjudged_reasons(rows, fields)}."
+            lines.append(wrap(f"{text} {left}".rstrip(), 2, hang=4))
             continue
         met = int(judged["met"].sum())
         errors = judged["error"]
         tolerance = _number(judged["tolerance"].iloc[0])
         text = (
-            f"The fingerprint, {criterion}: its error with the {fields} acquired, estimated "
+            f"{title}: its error with the {fields} acquired, estimated "
             f"from random halves of each {word}'s {fields}, is {_number(errors.min())}-"
             f"{_number(errors.max())} (median {_number(errors.median())}; the tolerance "
             f"{tolerance}): within it in {met} of {count(len(judged), word)}"
@@ -202,7 +254,7 @@ def fingerprint_lines(
                 f"({span(judged['fields'].astype(float))} acquired)."
             )
         note = held_back_note(judged, word, fields) if held_back else ""
-        said = (text, partly_undefined(judged, word), not_judged(rows, word, fields), note)
+        said = (text, partly_undefined(judged, word), not_judged(rows, word, fields), note, left)
         lines.append(wrap(" ".join(part for part in said if part), 2, hang=4))
     return lines
 
@@ -243,16 +295,23 @@ def targets_status(
         )
         statuses.append(Status.OK if seen == len(rows) else Status.CAUTION)
     if precision is not None:
-        judged = precision[precision["met"].notna()]
-        if not len(judged):
-            groups = len(precision) // precision["criterion"].nunique()
-            parts.append(f"the fingerprint judged in none of {groups}")
-            statuses.append(Status.NOT_ASSESSED)
-        else:
+        # With other feature tables, a verdict per table (owner, 2026-10-06).
+        tables = precision["table"] if "table" in precision else pd.Series(None, precision.index)
+        by_table = tables.notna().all() and tables.nunique() > 1
+        for table, rows in precision.groupby(
+            tables if by_table else [0] * len(precision), sort=False
+        ):
+            name = f"the fingerprint of {table}" if by_table else "the fingerprint"
+            judged = rows[rows["met"].notna()]
+            if not len(judged):
+                groups = len(rows) // rows["criterion"].nunique()
+                parts.append(f"{name} judged in none of {groups}")
+                statuses.append(Status.NOT_ASSESSED)
+                continue
             met = int(judged["met"].sum())
             # Groups it could not be judged in are not counted: say the tally is of the judged.
-            of = f"{len(judged)} judged" if len(judged) < len(precision) else f"{len(judged)}"
-            parts.append(f"the fingerprint within its tolerance in {met} of {of}")
+            of = f"{len(judged)} judged" if len(judged) < len(rows) else f"{len(judged)}"
+            parts.append(f"{name} within its tolerance in {met} of {of}")
             statuses.append(Status.OK if met == len(judged) else Status.CAUTION)
     return statuses, parts
 
@@ -267,7 +326,7 @@ def with_targets(
     if clustering is not None and len(clustering.table):
         lines += rare_lines(clustering, setup, word, field)
     if precision is not None:
-        lines += fingerprint_lines(precision, word, plural(field))
+        lines += fingerprint_lines(precision, word, plural(field), unit=setup.unit_word)
     if not lines:
         return document
     paragraph = "\n".join(lines)
@@ -303,6 +362,7 @@ def with_targets(
 __all__ = [
     "fingerprint_lines",
     "fingerprint_precision",
+    "fingerprint_title",
     "held_back_note",
     "not_judged",
     "partly_undefined",

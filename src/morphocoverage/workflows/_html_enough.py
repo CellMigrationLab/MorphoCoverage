@@ -268,7 +268,14 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
         criteria = list(dict.fromkeys(precision["criterion"]))
         for criterion in criteria:
             own = judged[judged["criterion"] == criterion]
-            named = "" if len(criteria) == 1 else f", {criterion},"
+            rows = precision[precision["criterion"] == criterion]
+            table = rows["table"].iloc[0] if "table" in rows else None
+            # With other feature tables, each table its own verdict (owner, 2026-10-06).
+            named = (
+                f" of {table}"
+                if isinstance(table, str)
+                else ("" if len(criteria) == 1 else f", {criterion},")
+            )
             if not len(own):
                 lines.append(f"The fingerprint{named} is not judged in any {word}.")
                 continue
@@ -280,7 +287,9 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
                 else f"in {met} of {count(len(own), word)}" + ("" if every else " judged")
             )
             lines.append(f"The fingerprint{named} is within its tolerance {within}.")
-        text = "\n".join(fingerprint_lines(precision, word, plural(field), held_back=False))
+        text = "\n".join(
+            fingerprint_lines(precision, word, plural(field), held_back=False, unit=setup.unit_word)
+        )
         if text:
             # No group judged: not assessed, never a ✅ over an empty set.
             mark = "✅" if judged["met"].astype(bool).all() else "⚠️"

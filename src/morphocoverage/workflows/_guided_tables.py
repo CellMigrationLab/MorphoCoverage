@@ -5,7 +5,9 @@ with a path and a name, checked against the observation table (owner, 2026-10-05
 is read and checked with the ones before it (``attach_feature_tables``), and one that cannot
 be used is said and asked again. ``read_tables`` reads tables given to ``guide`` (a
 DataFrame or a CSV path by name), and ``entries`` records them in the saved answers: each
-name, path and checksum; answers are reused only for the same names and checksums.
+name, path and checksum, of the rows sorted by their identity so that the row order does not
+count; answers are reused only for the same names and checksums, and ``changed`` names the
+table that differs (owner, 2026-10-06).
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ from typing import Any
 import pandas as pd
 
 from .._wording import count
-from ..feature_tables import attach_feature_tables
+from ..feature_tables import attach_feature_tables, identity_text
 from . import _guided_ask as q
 
 QUESTION = (
@@ -75,12 +77,24 @@ def ask_tables(
         say(f"{name}: {count(len(attached.columns[name]), 'feature column')}, checked.")
 
 
-def entries(tables: Tables) -> list[dict[str, Any]]:
-    """The tables as the saved answers record them: name, path and checksum."""
+def _sorted(table: pd.DataFrame, objects: pd.DataFrame) -> pd.DataFrame:
+    """``table`` with its rows sorted by its identity columns (those it shares with the
+    observation table, matched as ``attach_feature_tables`` matches them), so a table saved
+    in another row order has the same checksum (owner, 2026-10-06)."""
+    key = [c for c in table.columns if c in objects.columns]
+    if not key:
+        return table
+    text = pd.DataFrame({c: [identity_text(v) for v in table[c].tolist()] for c in key})
+    return table.iloc[text.sort_values(key, kind="stable").index.to_numpy()]
+
+
+def entries(tables: Tables, objects: pd.DataFrame) -> list[dict[str, Any]]:
+    """The tables as the saved answers record them: name, path and checksum, of the rows
+    sorted by their identity."""
     from .guided import table_checksum  # guided imports this module
 
     return [
-        {"name": name, "path": path, "checksum": table_checksum(table)}
+        {"name": name, "path": path, "checksum": table_checksum(_sorted(table, objects))}
         for name, (table, path) in tables.items()
     ]
 
@@ -90,4 +104,24 @@ def identity(dataset: Mapping[str, Any]) -> list[tuple[str, str]]:
     return [(e["name"], e["checksum"]) for e in dataset.get("feature_tables") or []]
 
 
-__all__ = ["QUESTION", "Tables", "ask_tables", "entries", "identity", "read_tables"]
+def changed(saved: Mapping[str, Any], dataset: Mapping[str, Any]) -> list[str]:
+    """What differs between the tables the answers were saved for and these: ``the
+    observation table``, ``the FOV table``, ``the feature table 'DINOv2'`` (changed, added or
+    no longer given), so a refusal names it (owner, 2026-10-06)."""
+    found = []
+    if saved.get("checksum") != dataset.get("checksum"):
+        found.append("the observation table")
+    if saved.get("fovs_checksum", "missing") != dataset.get("fovs_checksum"):
+        found.append("the FOV table")
+    before, now = dict(identity(saved)), dict(identity(dataset))
+    for name in dict.fromkeys([*before, *now]):
+        if name not in now:
+            found.append(f"the feature table {name!r}, not given this time")
+        elif name not in before:
+            found.append(f"the feature table {name!r}, new")
+        elif before[name] != now[name]:
+            found.append(f"the feature table {name!r}")
+    return found
+
+
+__all__ = ["QUESTION", "Tables", "ask_tables", "changed", "entries", "identity", "read_tables"]

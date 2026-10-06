@@ -17,9 +17,8 @@ Shared settings, explicit on every metric:
   units contribute comparably. The reference is fixed for a group, so every
   stop is measured in the same units. A reference feature with zero spread
   makes the outcome undefined.
-- ``weights`` (keyword only, optional): one weight per feature, multiplied in after the
-  scaling, so that several feature tables each carry their weight in the weighted combined
-  space (``feature_tables.table_weights``); enters the parameters only when given.
+- ``weights`` (keyword only, optional): one fixed weight per feature, multiplied in after
+  the scaling; enters the parameters only when given.
 
 Metric-specific settings (quantiles, kernel bandwidth, subsample size, number
 of projections, seeds) have no defaults: they define the geometry of the

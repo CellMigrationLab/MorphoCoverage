@@ -45,9 +45,10 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import caveat_lines
+from .._integrity_tables import integrity_by_table
 from .._style import DASH, check_detail, headline, wrap
 from .._wording import count
-from ..integrity import integrity_checks
+from ..feature_tables import EXPLAINABLE
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..retrospective import (
     MicroscopistReport,
@@ -92,7 +93,6 @@ from ._feature_space import (
     attached,
     novelty_space,
     separation_in_report,
-    table_columns,
     table_lines,
 )
 from ._label_control import label_control
@@ -206,9 +206,10 @@ def report(
 
     ``feature_tables`` are other feature tables for the same observations, by name (a DINO
     embedding, owner 2026-10-05): checked and attached (``attach_feature_tables``), never
-    tested feature by feature, they join the explainable features in the populations,
-    unusual observations, novelty, the copy checks and a fingerprint declared on them, in
-    the weighted combined space (``_feature_space``); the report's ``setup`` names them.
+    tested feature by feature, they join the maps, the populations (in each table and in the
+    weighted combined space, ``_feature_space``), the copy checks (on each table apart) and
+    their own fingerprints, never novelty or unusual observations (owner, 2026-10-06); the
+    report's ``setup`` names them.
     """
     given = feature_tables is not None
     objects, fovs, data_check = check_workflow_inputs(
@@ -242,7 +243,7 @@ def report(
     if setup.positive is None and setup.rare_label is not None:
         # The labelled rare state is a positive control of its own (owner, 2026-10-02).
         results["label_control"] = label_control(objects, fovs, setup)
-    # "New" is judged on the declared features, with other tables on the combined space.
+    # "New" is judged on the declared features alone, whatever the tables (owner, 2026-10-06).
     combined, novelty_cols = novelty_space(setup)
     if setup.positive is not None:  # Setup guarantees features and novelty with it
         positive = setup.positive
@@ -270,9 +271,9 @@ def report(
             # The leave-one-field-out rates within the inspection's analysis groups.
             lofo_group_cols=common["group_cols"],
         )
-    if integrity:
-        every = [*setup.columns, *table_columns(setup)]
-        results["integrity"] = integrity_checks(objects, fovs, feature_cols=every, **common)
+    if integrity:  # on each feature table apart, the union said (owner, 2026-10-06)
+        tables_read = {EXPLAINABLE: setup.columns, **(setup.feature_tables or {})}
+        results["integrity"] = integrity_by_table(objects, fovs, tables=tables_read, **common)
     if setup.rare_label is not None:
         results["rare_clustering"] = rare_clustering(objects, fovs, setup)
     prepared = setup.prepared(objects, fovs)
@@ -301,7 +302,7 @@ def report(
         objects,
         fovs,
         # The rules read the same columns, and the same raw values, in report,
-        # optimise, benchmark and live (with novelty, the other tables too: it reads them).
+        # optimise, benchmark and live.
         feature_cols=list(dict.fromkeys([*setup.columns, *(novelty_cols if novelty else [])])),
         strategies=rules,
         objective=setup.objective(),
