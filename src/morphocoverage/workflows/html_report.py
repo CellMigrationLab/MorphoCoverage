@@ -355,14 +355,15 @@ def html_report(
     *,
     title: str = "MorphoCoverage report",
     attach: Sequence[str | Path] = (),
-    feature_tables: Mapping[str, pd.DataFrame] | None = None,
+    feature_tables: Mapping[str, pd.DataFrame | tuple[pd.DataFrame, str]] | None = None,
 ) -> Path:
     """Write ``folder/report.html`` and its figures (see the module); returns the page's path.
 
     ``objects`` and ``fovs`` are the tables the ``report`` was run on; ``attach`` are more files
     the page carries for download (the design scan, the saved answers): one not found is named
     in the Files card, and two of one name are both carried (``_html_data.page_files``).
-    ``feature_tables`` are the other feature tables given to ``report``, attached again here.
+    ``feature_tables`` are the feature tables given to ``report`` (with their tags), attached
+    again here.
     """
     if not isinstance(result, Report):
         raise TypeError("result must be the Report that report() returned")

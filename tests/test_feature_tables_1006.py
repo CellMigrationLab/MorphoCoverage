@@ -398,11 +398,13 @@ def test_the_columns_are_said_as_explainable_features_and_other_tables():
 
 def test_a_reordered_table_keeps_its_checksum_and_a_changed_one_is_named():
     objects, _, embedding = _tables()
-    first = entries({"DINO": (embedding, None)}, objects)
-    shuffled = entries({"DINO": (embedding.sample(frac=1, random_state=0), None)}, objects)
+    first = entries({"DINO": (embedding, None, "non-explainable")}, objects)
+    shuffled = entries(
+        {"DINO": (embedding.sample(frac=1, random_state=0), None, "non-explainable")}, objects
+    )
     assert first == shuffled
     edited = embedding.assign(e0=embedding["e0"] + 1e-3)
-    later = entries({"DINO": (edited, None)}, objects)
+    later = entries({"DINO": (edited, None, "non-explainable")}, objects)
     saved = {"checksum": "a", "fovs_checksum": None, "feature_tables": first}
     now = {"checksum": "a", "fovs_checksum": None, "feature_tables": later}
     assert changed(saved, now) == ["the feature table 'DINO'"]

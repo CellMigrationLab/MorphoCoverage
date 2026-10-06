@@ -5,11 +5,15 @@ columns that would say more, and the questions to answer before the analysis
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from typing import Any
+
+import pandas as pd
 
 from .._integrity_text import integrity_status
 from .._style import Status
 from .._wording import count, listing, percent
+from ..feature_tables import EXPLAINABLE, OBSERVATION_TABLE, FeatureTables, attach_feature_tables
 from ..sampling_unit.contrast_cells import IMBALANCE, MIN_BALANCED, SPARSE
 from ..schema import unit_plural
 from .scan import GOALS, DesignScan, Finding, Question
@@ -21,6 +25,46 @@ _UNIT_HINTS = (
     ("track", re.compile(r"track|speed|displacement", re.IGNORECASE)),
     ("nucleus", re.compile(r"nucle", re.IGNORECASE)),
 )
+
+
+def with_tables(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    tables: Mapping[str, pd.DataFrame | tuple[pd.DataFrame, str]] | None,
+    fov_col: str,
+    added: bool,
+) -> tuple[pd.DataFrame, FeatureTables | None, list[Finding]]:
+    """``objects`` with the other feature tables attached, what was checked, and the finding
+    that says why they cannot be used (then ``objects`` as given)."""
+    if not tables:
+        return objects, None, []
+    reason = None
+    if added:
+        reason = (
+            "the other feature tables are matched to observations by their image, and the "
+            "observation table names none"
+        )
+    else:
+        try:
+            attached = attach_feature_tables(objects, fovs, tables, fov_col=fov_col)
+        except (ValueError, TypeError) as error:
+            reason = str(error)
+        else:
+            return attached.objects, attached, []
+    text = f"{reason[:1].upper()}{reason[1:]}."
+    return objects, None, [Finding(Status.PROBLEM, "feature_tables", text)]
+
+
+def copy_tables(
+    features: list[str], explainable: dict[str, tuple[str, ...]], others: dict[str, Any]
+) -> dict[str, Any]:
+    """The tables the copy checks read apart: the observation table's features and each
+    explainable table when there are explainable tables, else the features as one; then
+    each other table (owner, 2026-10-06)."""
+    inside = {c for cols in explainable.values() for c in cols}
+    own = [c for c in features if c not in inside]
+    first = {OBSERVATION_TABLE: own, **explainable} if explainable else {EXPLAINABLE: features}
+    return {**first, **others}
 
 
 def unit_words(scan: DesignScan) -> tuple[str, str]:
@@ -340,6 +384,7 @@ def technical_line(scan: DesignScan) -> str | None:
 
 __all__ = [
     "compared",
+    "copy_tables",
     "fields_line",
     "findings",
     "questions",
@@ -347,4 +392,5 @@ __all__ = [
     "suggestions",
     "technical_line",
     "unit_words",
+    "with_tables",
 ]

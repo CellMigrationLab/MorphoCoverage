@@ -300,23 +300,30 @@ def test_other_feature_tables_are_asked_for_checked_named_and_saved(tmp_path):
     cells.to_csv(path, index=False)
     _embedding(cells).to_csv(good, index=False)
     _embedding(cells, drop=2).to_csv(short, index=False)
-    tables = ["y", str(tmp_path / "missing.csv"), str(short), "short", str(good), "DINOv2", ""]
+    # Each table's tag asked after its name, "no" (non-explainable) by default (2026-10-06).
+    tables = [
+        *("y", str(tmp_path / "missing.csv"), str(short), "short", ""),
+        *(str(good), "DINOv2", "", ""),
+    ]
     questions = ["y", "", "", "", "", "", "all", ""]
     result, script = _run(str(path), tmp_path / "results", tables + questions, run_report=False)
     assert "other feature tables for the same observations" in script.prompts[0]
     assert "It cannot be read" in script.text
     assert "'short' lacks a row for 2 observations" in script.text
-    assert "DINOv2: 4 feature columns, checked." in script.text
+    assert "DINOv2: 4 feature columns, non-explainable, checked." in script.text
     entry = result.answers.dataset["feature_tables"]
     # The checksum of the rows sorted by their identity (owner, 2026-10-06).
-    assert entry == [{"name": "DINOv2", "path": str(good), "checksum": entry[0]["checksum"]}]
-    assert (
-        entry[0]["checksum"] == entries({"DINOv2": (pd.read_csv(good), None)}, cells)[0]["checksum"]
-    )
+    checksum = entry[0]["checksum"]
+    assert entry == [
+        {"name": "DINOv2", "path": str(good), "tag": "non-explainable", "checksum": checksum}
+    ]
+    tables = {"DINOv2": (pd.read_csv(good), None, "non-explainable")}
+    assert checksum == entries(tables, cells)[0]["checksum"]
     assert result.setup.feature_tables == {"DINOv2": tuple(f"dino_{j}" for j in range(4))}
     # Listed in the scan, which is printed before "Did your dataset load correctly?".
     scan = (tmp_path / "results" / "scan.txt").read_text()
-    assert "Other feature table DINOv2: 4 feature columns, every observation matched once" in scan
+    line = "Other feature table DINOv2 (non-explainable): 4 feature columns, every observation"
+    assert line in scan
     assert script.text.index("Other feature table DINOv2") < script.text.index("Loaded correctly?")
     assert "Other feature tables: DINOv2" in "\n".join(result.answers.lines())
 

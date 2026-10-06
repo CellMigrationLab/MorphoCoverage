@@ -256,7 +256,9 @@ def heatmap_data(discovery: Any, folder: Path) -> list[tuple[str, str]]:
     if tests is None or not len(tests):
         return []
     order = {f: i for i, f in enumerate(discovery.ranking["feature"])}
-    frame = tests.reindex(columns=HEATMAP_COLUMNS)
+    # Each feature's table after it, with explainable tables (owner, 2026-10-06).
+    named = ["feature", *(["table"] if "table" in tests else []), *HEATMAP_COLUMNS[1:]]
+    frame = tests.reindex(columns=named)
     frame = frame.assign(_rank=frame["feature"].map(order)).sort_values("_rank", kind="stable")
     frame = frame.drop(columns="_rank").rename(
         columns={"passes": "candidate", "confirmed": "significant_across_repeats"}

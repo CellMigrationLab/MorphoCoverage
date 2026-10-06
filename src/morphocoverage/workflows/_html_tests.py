@@ -41,6 +41,7 @@ from ..sampling_unit.legend_text import described_rows, feature_counts, figure_l
 from ..sampling_unit.reading_text import CONFIRMED, CONSISTENT, MIXED
 from ..sampling_unit.repeat_plan_text import plan_parts
 from ._families import _CELL_VERSIONS
+from ._feature_space import with_table
 from ._html_data import data_buttons, write_csv
 from ._html_tabs import OFF_PAGE, tabs_html, test_blocks
 
@@ -61,12 +62,8 @@ _VERSIONS = tuple(
     for normalised in (True, False)
 )
 # The reading's names of the screen's versions (reading_text._cell_version), as here.
-_LABELS = {
-    "balanced, normalised": "balanced, normalised",
-    "balanced": "balanced, raw",
-    "normalised": "as provided, normalised",
-    "raw": "as provided, raw",
-}
+_LABELS = {"balanced, normalised": "balanced, normalised", "balanced": "balanced, raw"}
+_LABELS |= {"normalised": "as provided, normalised", "raw": "as provided, raw"}
 
 
 def _table(columns: Sequence[str], rows: Sequence[Sequence[str]], name: str) -> str:
@@ -142,6 +139,7 @@ def across_frame(result: Any) -> pd.DataFrame:
         frame = pd.DataFrame(
             {
                 "feature": tests["feature"],
+                **({"table": tests["table"]} if "table" in tests else {}),  # owner, 2026-10-06
                 "condition": tests["condition"],
                 "control": tests["control_condition"],
                 "repeats": tests["repeats"],
@@ -296,6 +294,7 @@ def _cells(result: Any, folder: Path) -> str:
         frame = pd.DataFrame(
             {
                 "feature": tests["feature"],
+                **({"table": tests["table"]} if "table" in tests else {}),
                 "condition": tests["condition"],
                 "cells": tests["observations"],
                 "control_cells": tests["control_observations"],
@@ -460,7 +459,8 @@ def _beyond(result: Any, folder: Path) -> str:
                 p_value(r["q"]),
             ]
         )
-    frame = tests.drop(columns=["values"]).rename(columns={"q": "adjusted_p"})
+    frame = with_table(tests.drop(columns=["values"]), result.setup)
+    frame = frame.rename(columns={"q": "adjusted_p"})
     files = [(write_csv(frame, folder, "tests_beyond_the_mean.csv"), "Data (CSV)")]
     caption = (
         "<p>Per biological repeat against its own control: the spread (the condition's SD "

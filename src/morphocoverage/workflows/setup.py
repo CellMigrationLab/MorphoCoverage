@@ -107,11 +107,14 @@ class Setup:
     - ``intensity_features``: with several controls, declared columns compared between the
       controls for an acquisition gap, beside every declared column whose name contains
       "intensity" (``_acquisition_gap``, owner 2026-10-05).
-    - ``feature_tables``: the other feature tables, each name with its columns, such as a
-      DINO embedding (owner, 2026-10-05): never tested feature by feature, they join the
-      maps, the populations, the copy checks and their own fingerprints, never novelty or
-      unusual observations (owner, 2026-10-06; ``_feature_space``). Set by the workflows'
-      ``feature_tables=``.
+    - ``feature_tables``: the non-explainable feature tables, each name with its columns,
+      such as a DINO embedding (owner, 2026-10-05): never tested feature by feature, they
+      join the maps, the populations, the copy checks and their own fingerprints, never
+      novelty or unusual observations (owner, 2026-10-06; ``_feature_space``).
+      ``explainable_tables``: the explainable ones (fiberfeatures, CellProfiler), each name
+      with its final columns, explainable features to declare in ``features``; with none
+      declared, every column of them is a feature (owner, 2026-10-06). Both are set by the
+      workflows' ``feature_tables=``.
     - ``normalize``: ``"control_mean"`` divides every feature (the readout
       included) by the mean of the control condition's observations of the
       same repeat (``normalize_to_control``); needs ``control`` to name the
@@ -224,6 +227,7 @@ class Setup:
     contrasts: pd.DataFrame | None = field(default=None, compare=False)
     feature_tables: Mapping[str, tuple[str, ...]] | None = None
     intensity_features: tuple[str, ...] = ()
+    explainable_tables: Mapping[str, tuple[str, ...]] | None = None
 
     def __post_init__(self) -> None:
         if self.readout is not None and (not isinstance(self.readout, str) or not self.readout):

@@ -30,7 +30,7 @@ import pandas as pd
 from .._wording import count, listing
 from ..feature_tables import COMBINED, EXPLAINABLE
 from ..sampling_unit.populations import MAX_POINTS, Populations, find_populations
-from ._feature_space import features_words, space
+from ._feature_space import explainable_space, features_words, space, table_of
 
 if TYPE_CHECKING:
     from .setup import Setup
@@ -69,12 +69,14 @@ def _jaccard(first: pd.Index, second: pd.Index) -> float:
 def _spaces(setup: Setup) -> dict[str, tuple[list[str], Any, list[str] | None]]:
     """Each space searched: its columns, its tables (the combined space) and the features
     that may describe its groups (``None``: all of them; empty: none)."""
+    # The explainable features, each of their tables weighted by MFA (owner, 2026-10-06).
+    explainable, weighted = explainable_space(setup)
     if not setup.feature_tables:
-        return {EXPLAINABLE: (list(setup.columns), None, list(setup.columns))}
+        return {EXPLAINABLE: (explainable, weighted, explainable)}
     columns, blocks = space(setup)
     spaces: dict[str, tuple[list[str], Any, list[str] | None]] = {}
     if setup.columns:  # none in an embedding-only report (owner, 2026-10-06)
-        spaces[EXPLAINABLE] = (list(setup.columns), None, list(setup.columns))
+        spaces[EXPLAINABLE] = (explainable, weighted, explainable)
     spaces.update({name: (list(c), None, []) for name, c in setup.feature_tables.items()})
     if setup.columns or len(setup.feature_tables) > 1:  # one table is its own combined space
         spaces[COMBINED] = (columns, blocks, [])
@@ -156,9 +158,20 @@ def populations_in_spaces(
         )
     if not results:
         return None
-    if not setup.feature_tables:
-        return results[EXPLAINABLE]
-    return _merged(results, objects.index)
+    found = results[EXPLAINABLE] if not setup.feature_tables else _merged(results, objects.index)
+    owner = table_of(setup)
+    if len(set(owner.values())) > 1:  # each rule feature's table named (owner, 2026-10-06)
+        found.table["rule_tables"] = [
+            rule_tables(terms, owner) for terms in found.table["rule_terms"]
+        ]
+    return found
+
+
+def rule_tables(terms: Any, owner: dict[str, str]) -> str:
+    """The table of each feature of a rule: ``AR from fiberfeatures, MinFeret from
+    CellProfiler``; empty without a rule."""
+    features = dict.fromkeys(term[0] for term in (terms or ()))
+    return ", ".join(f"{f} from {owner[f]}" for f in features if f in owner)
 
 
 def found_words(row: Any, rule: bool = True) -> str:
@@ -229,6 +242,7 @@ __all__ = [
     "described",
     "found_words",
     "populations_in_spaces",
+    "rule_tables",
     "space_words",
     "spaces_method",
     "undescribed_line",

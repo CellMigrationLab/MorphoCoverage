@@ -4,13 +4,14 @@
 
 1. **Load** the observation table (and the FOV table, when there is one), from a path or
    a DataFrame; with paths (asked or given), ask too for **other feature tables** for the same
-   observations (a DINO embedding, owner 2026-10-05: each with a path and a name, checked
-   against the observation table, ``_guided_tables``; or ``guide(feature_tables=...)``);
+   observations (a DINO embedding, owner 2026-10-05: each with a path, a name and whether it
+   is explainable, owner 2026-10-06, checked against the observation table,
+   ``_guided_tables``; or ``guide(feature_tables=...)``);
    and choose the **results folder**.
 2. If the folder already holds saved answers (``ANSWERS_FILE``) for the same tables (the
    observation table and the FOV table, or no FOV table, by their checksums), offer to
    **continue** with them or to **delete them and start over**; answers saved for other
-   tables (the other feature tables by name and checksum included) are never reused, nor
+   tables (the other feature tables by name, checksum and tag included) are never reused, nor
    answers saved by an earlier version, which did not check the FOV table (the questions are
    asked again; owner, 2026-10-05).
 3. **Scan** the design (``scan_design``, the other feature tables listed with it) and print
@@ -68,7 +69,16 @@ from ..retrospective.criteria import OutcomeCriterion
 from . import _guided_ask as q
 from ._feature_space import features_words
 from ._guided_controls import ask_controls, contrast_lines
-from ._guided_tables import Tables, ask_tables, changed, entries, identity, read_tables
+from ._guided_tables import (
+    Tables,
+    ask_tables,
+    changed,
+    entries,
+    identity,
+    read_tables,
+    tag_of,
+    tagged,
+)
 from ._html_data import EMBED_BUDGET
 from .html_report import html_report, zip_results
 from .retrospective import Report, report
@@ -268,7 +278,7 @@ class Answers:
             f"One row is a {self.observation_unit}.",
         ]
         tables = [
-            f"{e['name']} ({e['path'] or 'a DataFrame'})"
+            f"{e['name']} ({tag_of(e)}, {e['path'] or 'a DataFrame'})"
             for e in self.dataset.get("feature_tables") or []
         ]
         if tables:
@@ -493,7 +503,7 @@ def guide(
     ask: Callable[[str], str] = input,
     say: Callable[[str], None] = print,
     run_report: bool = True,
-    feature_tables: Mapping[str, pd.DataFrame | str | Path] | None = None,
+    feature_tables: Mapping[str, Any] | None = None,
     **setup_fields: Any,
 ) -> GuidedResult:
     """Run the guided session (see the module) and return what it produced.
@@ -502,10 +512,11 @@ def guide(
     ``None``); ``folder`` is the results folder (asked for when ``None``). ``setup_fields``
     go to the ``Setup`` (``n_jobs=4``, ``normalize="control_mean"``). With
     ``run_report=False`` the session stops after saving the answers. ``feature_tables`` are
-    other feature tables by name (DataFrames or CSV paths), asked for when the tables are paths.
+    other feature tables by name (DataFrames or CSV paths, non-explainable, or either with its
+    tag: ``(table, "explainable")``), asked for with their tags when the tables are paths.
     """
     objects, fovs, tables, dataset = _load(ask, say, objects, fovs, feature_tables)
-    others = {name: table for name, (table, _) in tables.items()} or None
+    others = tagged(tables) or None
     if folder is None:
         folder = q.text(ask, "Folder for the results:", DEFAULT_FOLDER)
     folder = Path(folder).expanduser()

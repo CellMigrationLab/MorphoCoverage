@@ -430,6 +430,59 @@ class ColumnWeights(FeatureTransform):
         return matrix * np.asarray(self.weights)
 
 
+@dataclass(frozen=True)
+class BlockWeights(FeatureTransform):
+    """Weigh each block of features (each explainable feature table) as multiple factor
+    analysis does, fitted on the visible observations (owner, 2026-10-06): the features of a
+    block are multiplied by the first block's first singular value over its own (each block
+    centred on its visible means), so the first block keeps weight 1 and a table of many
+    correlated columns does not outweigh one of few (``feature_tables.mfa_weights``). Applied
+    after a standardisation: ``Chain([RobustStandardize(), BlockWeights(blocks)])``. A feature
+    of no block keeps weight 1. Not fitted with fewer than 2 observations or missing values.
+    """
+
+    blocks: tuple[tuple[str, ...], ...]
+
+    def __post_init__(self) -> None:
+        blocks = tuple(tuple(str(c) for c in block) for block in self.blocks)
+        if not blocks or any(not block for block in blocks):
+            raise ValueError("blocks must be one or more non-empty tuples of feature names")
+        object.__setattr__(self, "blocks", blocks)
+
+    @property
+    def name(self) -> str:
+        """``block_weights``."""
+        return "block_weights"
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """The blocks, each its feature names."""
+        return {"blocks": [list(block) for block in self.blocks]}
+
+    def output_width(self, n_inputs: int) -> int:
+        """One output per feature."""
+        return n_inputs
+
+    def fit_matrix(
+        self, matrix: np.ndarray, names: tuple[str, ...]
+    ) -> tuple[dict[str, Any], tuple[str, ...]] | str:
+        """Each feature's weight on the visible observations."""
+        from .feature_tables import mfa_weights  # feature_tables reads the schema
+
+        missing = missing_values_reason(matrix, names)
+        if missing:
+            return f"{missing}; choose or implement an explicit missing-data policy"
+        if len(matrix) < 2:
+            return "fewer than 2 observations"
+        blocks = {str(i): block for i, block in enumerate(self.blocks)}
+        weights = mfa_weights(matrix, [str(n) for n in names], blocks)
+        return {"weights": _floats(weights)}, names
+
+    def apply_matrix(self, state: Mapping[str, Any], matrix: np.ndarray) -> np.ndarray:
+        """Each feature times its fitted weight."""
+        return matrix * np.asarray(state["weights"])
+
+
 class Chain(FeatureTransform):
     """Transforms applied in order, each fitted on the previous one's visible output."""
 
@@ -493,6 +546,7 @@ class Chain(FeatureTransform):
 
 __all__ = [
     "PCA",
+    "BlockWeights",
     "Chain",
     "ColumnWeights",
     "FeatureTransform",
