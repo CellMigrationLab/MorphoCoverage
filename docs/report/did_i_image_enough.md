@@ -59,7 +59,10 @@ the guide. On the page each target has its own tab, after the features, and a
 line at the top of the card. A covariance criterion, the one the guided session declares,
 is named the covariance fingerprint ("The covariance fingerprint of DINOv2 (...)"): it
 reads how the features vary together, not their whole distribution (plan v2, owner,
-2026-10-06).
+2026-10-06). When every declared target is not assessable, an embedding alone with "the whole
+distribution" (`tolerances=()`) on groups too small for its components, the answer gives
+each reason and says that no declared target can be judged on these data; `optimise` refuses
+with the same words.
 
 ## The stopping rules and the next field: `sufficiency_report`
 

@@ -1,13 +1,13 @@
 """The scenarios of options no other dataset of the repository exercises, which
-``make_scenarios.py`` writes beside the edges: declared scales, a trend over six repeats, and
-the acquisition block (a field far from its condition and repeat, controls apart in
-intensity), with the mistake a declared scale allows (``make_scenarios`` lists the truth's
-keys).
+``make_scenarios.py`` writes beside the edges: declared scales, a trend over six repeats, the
+acquisition block (a field far from its condition and repeat, controls apart in intensity)
+and the whole distribution of an embedding as the only target, not assessable, with the
+mistake a declared scale allows (``make_scenarios`` lists the truth's keys).
 """
 
 from __future__ import annotations
 
-from make_scenarios import Design, Scenario
+from make_scenarios import Design, Scenario, covariance
 from scenario_axes import SEVERAL_CONTROL
 from scenario_edges import CTRL, READOUT, _scenario
 
@@ -108,6 +108,43 @@ def acquisition_block() -> Scenario:
     return scenario
 
 
+def whole_distribution_not_assessable() -> Scenario:
+    """An embedding alone with the whole distribution as the only target (``tolerances=()``,
+    as the guided session declares it), on one image per field and 5 fields per condition and
+    repeat: too few images for 2 principal components, so the fingerprint is not assessable
+    and no target can be judged, said rather than refused."""
+    design = Design(("ctrl", "a"), shifts={"a": 0.8}, fields=5, cells=1, seed=2018)
+    columns = [f"d{j}" for j in range(8)]
+    return _scenario(
+        "e17_whole_distribution_not_assessable",
+        "edge",
+        "an embedding alone, the whole distribution the only target (tolerances=()), groups "
+        "of 5 images: the fingerprint not assessable, with why, and no target judged",
+        design,
+        {
+            "readout": None,
+            "observation_unit": "image",
+            **CTRL,
+            "tolerances": [],
+            "fingerprint": [covariance(columns)],
+            "feature_tables": {"DINO1": columns},
+        },
+        {
+            "results": ["fingerprint_precision", "whole_table", "populations"],
+            "absent": ["contrast", "discovery", "sufficiency"],
+            "headlines": {"enough": "the covariance fingerprint of DINO1 not assessable"},
+            "full": [
+                "not assessable: its median group holds 5 images",
+                "No declared target can be judged on these data.",
+            ],
+            "html": True,
+            "table_column": False,
+        },
+        columns=(),
+        tables={"DINO1": ("dino", None)},
+    )
+
+
 def ratio_on_signed() -> Scenario:
     """A ratio declared for a signed feature: refused where the values are read."""
     return _scenario(
@@ -127,4 +164,10 @@ def ratio_on_signed() -> Scenario:
     )
 
 
-SCENARIOS = [declared_scales, trend_six_repeats, acquisition_block, ratio_on_signed]
+SCENARIOS = [
+    declared_scales,
+    trend_six_repeats,
+    acquisition_block,
+    whole_distribution_not_assessable,
+    ratio_on_signed,
+]

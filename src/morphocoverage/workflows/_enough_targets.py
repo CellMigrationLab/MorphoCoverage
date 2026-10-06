@@ -283,6 +283,20 @@ def assessable_reason(rows: pd.DataFrame) -> str | None:
     return str(reasons.iloc[0]) if len(reasons) else None
 
 
+# Said when every declared target is not assessable (the report, the page and optimise).
+NO_TARGET = "No declared target can be judged on these data."
+
+
+def no_target_judged(precision: pd.DataFrame | None, setup: Setup) -> bool:
+    """Whether every declared target is not assessable: no mean target, no rare target, and
+    each fingerprint criterion not assessable (an embedding-only Setup with
+    ``tolerances=()`` or no readout, on groups too small for its components)."""
+    if precision is None or setup.mean_target or setup.rare is not None:
+        return False
+    rows = precision.groupby("criterion", sort=False)
+    return all(assessable_reason(group) is not None for _, group in rows)
+
+
 def _left_out(rows: pd.DataFrame, unit: str) -> str:
     """``125 cells with a missing value of its columns left out.``, and apart ``36 cells of
     b1 in R4 left out: no own control.`` (audit 8, seed 4), or empty."""
@@ -416,6 +430,8 @@ def with_targets(
         lines += rare_lines(clustering, setup, word, field)
     if precision is not None:
         lines += fingerprint_lines(precision, word, plural(field), unit=setup.unit_word)
+    if no_target_judged(precision, setup):
+        lines.append(wrap(NO_TARGET, 2, hang=4))
     if not lines:
         return document
     paragraph = "\n".join(lines)
@@ -466,11 +482,13 @@ def with_targets(
 
 
 __all__ = [
+    "NO_TARGET",
     "assessable_reason",
     "fingerprint_lines",
     "fingerprint_precision",
     "fingerprint_title",
     "held_back_note",
+    "no_target_judged",
     "not_judged",
     "partly_undefined",
     "rare_lines",

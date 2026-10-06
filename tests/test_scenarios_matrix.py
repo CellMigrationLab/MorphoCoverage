@@ -30,7 +30,8 @@ import pytest
 
 from morphocoverage.sampling_unit.contrast_repeats import TREND_REPEATS
 from morphocoverage.sampling_unit.reading_text import CONFIRMED, CONSISTENT
-from morphocoverage.workflows import Setup, html_report, report
+from morphocoverage.workflows import Setup, html_report, optimise, report
+from morphocoverage.workflows._enough_targets import NO_TARGET
 from morphocoverage.workflows._html_tests import across_frame
 
 SCENARIOS = Path(__file__).resolve().parents[1] / "data" / "scenarios"
@@ -185,6 +186,21 @@ def test_the_scenario_gives_its_truth(name: str, tmp_path: Path) -> None:
         )
     if truth.get("html"):
         _page(result, loaded, truth, tmp_path)
+
+
+def test_the_whole_distribution_alone_runs_when_its_fingerprint_is_not_assessable() -> None:
+    # a08 with the guided session's "whole distribution" aim, tolerances=(): its groups of 4
+    # images are too small for the components; the report says so, it does not crash.
+    loaded = make_scenarios.load("a08_embed1_several_norm_image_tech_fp_dino")
+    setup = Setup(**{**loaded.setup, "tolerances": ()})
+    result = _report(loaded, setup)
+    enough = " ".join(result.document.sections["enough"].split())
+    assert "not assessable: its median group holds 4 images" in enough
+    assert NO_TARGET in enough
+    merged = loaded.objects.merge(loaded.feature_tables["DINO1"])
+    with pytest.raises(ValueError, match="No declared target can be judged") as error:
+        optimise(merged, loaded.fovs, setup, fov_counts=[2], reservoir_fraction=0.5)
+    assert "not assessable: its median group holds 4 images" in str(error.value)
 
 
 def test_the_committed_scenarios_are_what_the_generator_writes(tmp_path: Path) -> None:

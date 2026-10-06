@@ -43,7 +43,13 @@ from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency_short import field_bound_assumption, rule_tallies, uniformity_assumption
 from ._enough_features import ENOUGH, NOT_YET, PARTLY, FeatureEnough
-from ._enough_targets import assessable_reason, fingerprint_lines, rare_lines
+from ._enough_targets import (
+    NO_TARGET,
+    assessable_reason,
+    fingerprint_lines,
+    no_target_judged,
+    rare_lines,
+)
 from ._feature_space import table_of
 from ._html_render import text_html
 from ._html_sections import _resolution
@@ -293,6 +299,8 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
                 else f"in {met} of {count(len(own), word)}" + ("" if every else " judged")
             )
             lines.append(f"The {what}{named} is within its tolerance {within}.")
+        if no_target_judged(precision, setup):
+            lines.append(NO_TARGET)
         text = "\n".join(
             fingerprint_lines(precision, word, plural(field), held_back=False, unit=setup.unit_word)
         )

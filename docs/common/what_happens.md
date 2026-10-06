@@ -89,8 +89,9 @@ once. A declared ratio on a feature with a value that is not positive is refused
   fingerprint" (plan v2, owner, 2026-10-06). "The whole
   distribution" declares no mean target (`tolerances=()`), so no mean-precision rule, and
   the declaration says so once; "averages" and "both" keep the mean target (owner,
-  2026-10-06). Without explainable features the aims are the whole distribution, the
-  labelled phenotype, or both.
+  2026-10-06). When its fingerprint is not assessable, the report says why and that no
+  declared target can be judged, and `optimise` refuses with the same words. Without
+  explainable features the aims are the whole distribution, the labelled phenotype, or both.
 
 **Repeats and wells.**
 

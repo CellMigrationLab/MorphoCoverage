@@ -84,7 +84,7 @@ from ._document import (
 )
 from ._embedding_report import embedding_plan, embedding_report
 from ._enough_features import enough_by_feature
-from ._enough_targets import fingerprint_precision
+from ._enough_targets import NO_TARGET, fingerprint_precision
 from ._feature_space import (
     analysed_tables,
     attached,
@@ -384,11 +384,19 @@ def optimise(
     space = fingerprint_space(prepared, fovs, setup)
     criteria = space.setup.criteria()
     if not criteria:  # an embedding-only Setup whose targets cannot be judged
-        unread = "; ".join(f"{c}: {r}" for c, r in space.not_assessable.items())
+        unread = [
+            f"The {space.nouns.get(c, 'fingerprint')}, {c}, is not assessable: {r}."
+            for c, r in space.not_assessable.items()
+        ]
+        if unread:  # declared, as the report says it (tolerances=() or no readout)
+            raise ValueError(
+                f"optimise judges the declared targets on held-back fields. {NO_TARGET} "
+                + " ".join(unread)
+            )
         raise ValueError(
             "optimise judges the declared targets on held-back fields, and this Setup has "
             "none it can judge: without a readout, declare the fingerprint of a table or a "
-            "labelled phenotype (rare, rare_label)" + (f" ({unread})" if unread else "")
+            "labelled phenotype (rare, rare_label)"
         )
     reasons: dict[str, str] = {}
     results: dict[str, Any] = {}

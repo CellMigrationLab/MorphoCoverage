@@ -33,6 +33,7 @@ report and ``optimise`` judge the same fingerprint; the line of each says ``k``.
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -235,7 +236,19 @@ def fingerprint_space(
     if not readings:
         return FingerprintSpace(setup, {}, tuple(pairs), nouns)
     kept = tuple(read for _, read in pairs if read is not None)
-    return FingerprintSpace(replace(setup, fingerprint=kept), readings, tuple(pairs), nouns)
+    return FingerprintSpace(_keeping(setup, kept), readings, tuple(pairs), nouns)
+
+
+def _keeping(setup: Setup, kept: tuple[OutcomeCriterion, ...]) -> Setup:
+    """``setup`` with the fingerprint ``kept``. When nothing is kept and the fingerprint was
+    the only target (``tolerances=()``, no rare target), the copy judges no target, which a
+    Setup refuses as a declaration; it is set on a copy, not validated again, and the report
+    and ``optimise`` say that no target can be judged."""
+    if kept or setup.tolerances or setup.rare is not None:
+        return replace(setup, fingerprint=kept)
+    judged_nothing = copy.copy(setup)
+    object.__setattr__(judged_nothing, "fingerprint", kept)
+    return judged_nothing
 
 
 __all__ = [
