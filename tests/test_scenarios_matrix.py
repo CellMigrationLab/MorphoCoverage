@@ -350,7 +350,6 @@ def test_the_rows_across_experiments_of_the_acquisition_block_scenario() -> None
     assert {"own_control", "across_normalised"} <= kinds
 
 
-@pytest.mark.xfail(strict=True, reason="G1: the positive control 'cannot tell' (audit 10, C1)")
 def test_a_positive_control_no_better_than_false_alarms_is_not_judged() -> None:
     # T3, C1: a02's positive control is recognized no more often than reference fields are
     # called new; the answer cannot tell them apart, it is not a weak representation.
@@ -361,13 +360,11 @@ def test_a_positive_control_no_better_than_false_alarms_is_not_judged() -> None:
     assert result.document.statuses["controls"] is not Status.PROBLEM
 
 
-@pytest.mark.xfail(strict=True, reason="G2: repeats needed start at MIN_REPEATS (audit 10, C14)")
 def test_the_repeats_needed_are_never_fewer_than_the_paired_test_needs() -> None:
     # T8, C14: "Repeats needed ... 2" while the paired test needs 3.
     assert repeats_needed(5.0, 0.1, 0.05) >= MIN_REPEATS
 
 
-@pytest.mark.xfail(strict=True, reason="G2: beyond the mean minus the mean shift (C2, C16)")
 def test_a_pure_shift_does_not_differ_beyond_the_mean() -> None:
     # T9, C2: a25's conditions are shifted on the log scale, nothing more; beyond the mean
     # reads the quantile shifts minus the mean shift, so no distribution differs.
@@ -378,7 +375,6 @@ def test_a_pure_shift_does_not_differ_beyond_the_mean() -> None:
     assert "same way in every repeat" not in " ".join(result.summary("full").split())
 
 
-@pytest.mark.xfail(strict=True, reason="G2: no target, nothing decides a stop (audit 10, C12)")
 def test_the_live_decision_with_no_target_says_nothing_decides_a_stop() -> None:
     # T4, C12: a10 declares no target, yet the declaration said a stop needs the fingerprint.
     loaded = make_scenarios.load("a10_embed2_several_norm_cells_none_tol")
