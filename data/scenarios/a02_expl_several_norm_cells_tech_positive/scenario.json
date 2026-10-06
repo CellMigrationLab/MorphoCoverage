@@ -74,6 +74,9 @@
   "separation_spaces": [
    "Features"
   ],
+  "full": [
+   "judged against the controls cA and cB pooled"
+  ],
   "controls_status": "assessed",
   "contrast_kinds": [
    "across_normalised",

@@ -277,6 +277,8 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
             (ran if per_field else absent).append("controls")
             if per_field:  # 5 reference fields seen, as the definition of new needs
                 controls_status = "assessed"
+            if per_field and axes["controls"] == "several":  # the own controls, pooled
+                full.append("judged against the controls cA and cB pooled")
             if not per_field:
                 reasons["controls"] = "judged by the definition of new"
                 reasons["enough"] = "is not asked"

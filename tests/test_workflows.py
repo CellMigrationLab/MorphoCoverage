@@ -198,7 +198,7 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     setup = _setup(
         novelty=default_novelty(FEATURE_COLS),
         positive=PositiveControl(
-            {"condition": "drug"}, fovs_seen=4, pair_cols=("biological_repeat",)
+            {"condition": "drug"}, fovs_seen=5, pair_cols=("biological_repeat",)
         ),
     )
     result = report(objects, fovs, setup)
@@ -524,7 +524,7 @@ def test_positive_control_keeps_the_declared_fov_identity():
     setup = _setup(
         novelty=default_novelty(FEATURE_COLS),
         positive=PositiveControl(
-            {"condition": "drug"}, fovs_seen=2, pair_cols=("biological_repeat",)
+            {"condition": "drug"}, fovs_seen=5, pair_cols=("biological_repeat",)
         ),
         fov_col="pos",
         group_cols=("condition", "biological_repeat", "well"),

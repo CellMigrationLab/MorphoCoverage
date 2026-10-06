@@ -208,10 +208,11 @@ def feature_data(
         files.append((write_csv(frame, folder, f"{name}_repeats.csv"), "Repeat summaries (CSV)"))
     if pairs:
         frame = pd.concat(pairs, ignore_index=True).drop_duplicates(["values", "first", "second"])
-        # The feature's table, with explainable tables (owner, 2026-10-06; audit 8B).
+        # The feature's table, with explainable tables (owner, 2026-10-06; audit 8B); the
+        # label's share is no table's feature: an empty cell, as in the tests' CSVs.
         owner = table_of(next(iter(setups.values()))) if setups else {}
-        if feature in owner:
-            frame.insert(0, "table", owner[feature])
+        if owner:
+            frame.insert(0, "table", owner.get(feature, ""))
         files.append((write_csv(frame, folder, f"{name}_pairs.csv"), "Pairs (CSV)"))
     return files
 

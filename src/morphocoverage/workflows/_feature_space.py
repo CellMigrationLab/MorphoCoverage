@@ -44,6 +44,7 @@ from ..feature_tables import (
     FeatureTables,
     attach_feature_tables,
     mfa_weights,
+    shared_column_text,
 )
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..sampling_unit._experiments import experiments
@@ -76,7 +77,7 @@ def _declared(declared: Any, seen: dict[str, str], names: list[str]) -> dict[str
         columns = tuple(columns)
         for column in columns:
             if column in seen:
-                raise ValueError(f"{column!r} is a column of both {seen[column]!r} and {name!r}")
+                raise ValueError(shared_column_text(column, seen[column], name))
             seen[column] = name
         tables[name] = columns
     return tables

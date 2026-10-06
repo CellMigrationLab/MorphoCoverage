@@ -1,7 +1,7 @@
 {
  "name": "e03_one_condition",
  "kind": "edge",
- "checks": "one condition: no comparison, no separation; the rest runs",
+ "checks": "one condition: no comparison, no separation, said why; the rest runs",
  "axes": {},
  "planes": null,
  "setup": {
@@ -34,6 +34,9 @@
    "discovery",
    "separation",
    "whole_table"
-  ]
+  ],
+  "not_applicable": {
+   "conditions": "holds one condition, ctrl, so no other"
+  }
  }
 }

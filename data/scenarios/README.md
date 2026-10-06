@@ -63,7 +63,7 @@ the effect. Each table is a few hundred rows at most.
 | `a25_mix_several_norm_cells_tech_fp_expl` | axes | tables mix, controls several, normalize True, unit cells, wells tech, target fp_expl | features; own controls and the rows across experiments; normalised and centred views; a fingerprint on the explainable features |
 | `e01_two_repeats` | edge | 2 conditions, 2 repeats, 12 fields, 60 rows; DINO1 (non-explainable) | two repeats: the paired tests and the whole-table test need 3, said, nothing tested |
 | `e02_control_in_other_repeats` | edge | 2 conditions, 4 repeats, 12 fields, 60 rows; DINO1 (non-explainable) | a control imaged in other repeats than its condition: not compared across repeats |
-| `e03_one_condition` | edge | 1 condition, 4 repeats, 12 fields, 60 rows; DINO1 (non-explainable) | one condition: no comparison, no separation; the rest runs |
+| `e03_one_condition` | edge | 1 condition, 4 repeats, 12 fields, 60 rows; DINO1 (non-explainable) | one condition: no comparison, no separation, said why; the rest runs |
 | `e04_screen_30_conditions` | edge | 31 conditions, 3 repeats, 279 fields, 279 rows | a screen of 30 conditions against one control, the readout alone: its tests corrected over the conditions, every condition compared |
 | `e05_no_condition_in_every_repeat` | edge | 3 conditions, 4 repeats, 27 fields, 135 rows; DINO1 (non-explainable) | no condition in every repeat: compared where both are; the other tables not centred |
 | `e06_chain_of_parent_controls` | edge | 6 conditions, 3 repeats, 54 fields, 216 rows | controls in a chain of parents: each condition against its own control, each control against its parent |
@@ -80,7 +80,7 @@ the effect. Each table is a few hundred rows at most.
 | `m04_several_controls_no_members` | mistake | 4 conditions, 4 repeats, 48 fields, 240 rows | several controls with no condition under them: refused at the Setup |
 | `m05_normalize_without_control` | mistake | 2 conditions, 4 repeats, 24 fields, 120 rows | normalisation without a control: refused at the Setup |
 | `m06_planes_given_as_rows` | mistake | 2 conditions, 4 repeats, 24 fields, 360 rows | one row per cell and plane given as is: refused, naming planes_as_features |
-| `m07_positive_control_seen_too_few_fields` | mistake | 2 conditions, 3 repeats, 36 fields, 180 rows | a positive control after 2 reference fields, where the definition of new needs 5: runs, the control never judged |
+| `m07_positive_control_seen_too_few_fields` | mistake | 2 conditions, 3 repeats, 36 fields, 180 rows | a positive control after 2 reference fields, where the definition of new needs 5: refused at the Setup, naming the minimum |
 <!-- /scenarios -->
 
 ## How it is used

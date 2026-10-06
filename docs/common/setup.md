@@ -263,7 +263,9 @@ or technical-repeat column, a control column, a plot column): only a column
 left at its MorphoBricks default may be absent, so a misspelt name never pools
 what it should keep apart.
 A definition of new (`novelty`) needs `features`, and a positive control needs
-`novelty`. With `novelty`, the report also counts the fields holding a state
+`novelty` and at least as many reference fields seen (`fovs_seen`) as the definition
+judges a field after (its `min_fovs`, 5 for `default_novelty`): with fewer, no field
+would ever be judged. With `novelty`, the report also counts the fields holding a state
 that fewer than `few_fovs` other fields show (seen, but not established);
 `few_fovs` must exceed the definition's `min_other_fovs` and defaults to two
 more than it. Group columns beyond condition and repeat (the `technical_repeat`, say) are part of

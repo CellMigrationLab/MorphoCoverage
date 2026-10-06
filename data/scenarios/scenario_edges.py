@@ -102,12 +102,13 @@ def one_condition() -> Scenario:
     return _scenario(
         "e03_one_condition",
         "edge",
-        "one condition: no comparison, no separation; the rest runs",
+        "one condition: no comparison, no separation, said why; the rest runs",
         design,
         {**READOUT, **CTRL},
         {
             "results": ["variability", "sufficiency", "inspection"],
             "absent": ["contrast", "discovery", "separation", "whole_table"],
+            "not_applicable": {"conditions": "holds one condition, ctrl, so no other"},
         },
         tables={"DINO1": ("dino", None)},
     )
@@ -439,7 +440,7 @@ def planes_as_rows() -> Scenario:
 
 def positive_seen_too_few() -> Scenario:
     """A positive control judged after fewer reference fields than the definition of new
-    needs before any estimate (5): never judged."""
+    needs before any estimate (5): it would never be judged, so the Setup refuses it."""
     setup = {
         **READOUT,
         **CTRL,
@@ -450,10 +451,10 @@ def positive_seen_too_few() -> Scenario:
         "m07_positive_control_seen_too_few_fields",
         "mistake",
         "a positive control after 2 reference fields, where the definition of new needs 5: "
-        "runs, the control never judged",
+        "refused at the Setup, naming the minimum",
         Design(("ctrl", "a"), repeats=3, shifts={"a": 0.8}, fields=6, seed=3007),
         setup,
-        {"results": ["controls"], "controls_status": "not assessed"},
+        {"outcome": "refused", "at": "setup", "error": "ValueError", "match": "fovs_seen=5 or"},
     )
 
 

@@ -147,13 +147,9 @@ def _page(result: Any, loaded: Any, truth: dict[str, Any], folder: Path) -> None
             result, loaded.objects, loaded.fovs, folder, feature_tables=loaded.feature_tables
         )
     assert page.exists()
-    features = set(result.setup.columns)
     named = []
     for path in sorted((folder / "figures").glob("*.csv")):
         if not any(part in path.name for part in FEATURE_CSVS):
-            continue
-        # A feature's own pairs; the rare label's share is no table's feature.
-        if path.name.endswith("_pairs.csv") and path.name[: -len("_pairs.csv")] not in features:
             continue
         columns = pd.read_csv(path, nrows=0).columns
         if "feature" in columns:

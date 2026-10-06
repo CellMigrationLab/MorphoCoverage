@@ -199,6 +199,21 @@ def _tagged(given: Any) -> tuple[Any, str | None]:
     return given, NON_EXPLAINABLE_TAG
 
 
+def prefixed(table: str, column: Any) -> str:
+    """A column's final name when another table or the observation table holds the same
+    name: the table's name first, ``"fiberfeatures: area"``."""
+    return f"{table}: {column}"
+
+
+def shared_column_text(column: Any, first: str, second: str) -> str:
+    """The refusal of one column name declared for two tables, with the names to use."""
+    return (
+        f"{column!r} is a column of both {first!r} and {second!r}: the tables are read with "
+        f"such columns prefixed by their table's name, so declare {prefixed(first, column)!r} "
+        f"for {first!r} and {prefixed(second, column)!r} for {second!r}"
+    )
+
+
 def _final_names(
     objects: pd.DataFrame, features: Mapping[str, list[Any]]
 ) -> dict[str, dict[Any, str]]:
@@ -210,7 +225,7 @@ def _final_names(
             seen[column] = seen.get(column, 0) + 1
     own = set(objects.columns)
     return {
-        name: {c: f"{name}: {c}" if c in own or seen[c] > 1 else c for c in columns}
+        name: {c: prefixed(name, c) if c in own or seen[c] > 1 else c for c in columns}
         for name, columns in features.items()
     }
 
@@ -517,6 +532,8 @@ __all__ = [
     "identity_text",
     "mfa_weights",
     "observation_identity",
+    "prefixed",
     "read_tag",
+    "shared_column_text",
     "table_shares",
 ]

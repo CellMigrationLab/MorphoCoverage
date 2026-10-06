@@ -48,7 +48,7 @@ answers are known.
   `contrasts=table` replaces it. One control written in these forms, without parents, is
   one control ([several controls](../report/conditions.md#several-controls)).
 - A positive control: `positive=PositiveControl(...)`, which needs the control, `features`
-  and `novelty`.
+  and `novelty`, and `fovs_seen` at least the definition of new's `min_fovs`.
 - Several controls with no condition under any of them and no parent compare nothing with
   its own control: the Setup refuses them, naming what to declare, and the guided session
   asks again. `scan_design` takes the several-controls form as the Setup does.

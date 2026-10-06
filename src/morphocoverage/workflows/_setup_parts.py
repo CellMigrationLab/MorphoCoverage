@@ -95,6 +95,16 @@ def check_positive(setup: Setup) -> None:
             "a positive control is judged with the definition of new: declare novelty "
             "(and features), or leave the positive control out"
         )
+    # Fewer seen fields than the definition of new needs: no field is ever judged (F10).
+    novelty, seen = setup.novelty, setup.positive.fovs_seen
+    needed = max(novelty.min_fovs, novelty.min_other_fovs)
+    if is_integer(seen) and seen < needed:
+        name = "min_fovs" if novelty.min_fovs >= novelty.min_other_fovs else "min_other_fovs"
+        raise ValueError(
+            f"the positive control is judged after fovs_seen={seen} reference fields, but the "
+            f"definition of new judges a field only after {needed} (its {name}): declare "
+            f"fovs_seen={needed} or more"
+        )
 
 
 def check_presets(setup: Setup) -> None:

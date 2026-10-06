@@ -153,7 +153,7 @@ def test_seed3_b4_one_image_per_field_says_why_and_declares_only_what_runs():
         features=FEATURES,
         control={"condition": "ctrl"},
         novelty=default_novelty(FEATURES),
-        positive=PositiveControl({"condition": "a"}, fovs_seen=3),
+        positive=PositiveControl({"condition": "a"}, fovs_seen=5),
         observation_unit="image",
     )
     with warnings.catch_warnings():

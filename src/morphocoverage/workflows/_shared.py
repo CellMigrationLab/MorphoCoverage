@@ -480,9 +480,14 @@ def conditions(
 ) -> dict[str, Any]:
     """R7: each condition against the control (or each declared comparison), per repeat, on
     the raw values, each test normalising to its own control itself."""
-    if not (
-        setup.compares and CONDITION_COLUMN in fovs.columns and fovs[CONDITION_COLUMN].nunique() > 1
-    ):
+    held = fovs[CONDITION_COLUMN].nunique() if CONDITION_COLUMN in fovs.columns else 0
+    if setup.compares and held == 1:  # the real reason, not the generic need (F10)
+        only = fovs[CONDITION_COLUMN].dropna().iloc[0]
+        reasons["conditions"] = (
+            f"not applicable: the FOV table holds one condition, {only}, so no other "
+            "condition is compared with the control"
+        )
+    if not (setup.compares and held > 1):
         return {}
     pooled = pooled_columns(objects, fovs, setup, [CONDITION_COLUMN, REPEAT_COLUMN])
     if pooled:

@@ -285,9 +285,14 @@ def _positive(setup: Setup) -> str:
             "paired across the whole table, every repeat pooled (pair_cols=()), so a shift "
             "between repeats can read as a detected phenotype"
         )
+    # Several own controls are one reference, pooled: named, never as a dict (F10).
+    reference = setup.reference_control or {}
+    pooled = [str(v) for spec in reference.values() if isinstance(spec, tuple) for v in spec]
+    against = f"the control {control_text(reference)}"
+    if len(pooled) > 1:
+        against = f"the controls {listing(pooled)} pooled"
     return (
-        f"Positive control: fields of {dict(positive.selector)} judged against the control "
-        f"{control_text(setup.reference_control)} after "
+        f"Positive control: fields of {dict(positive.selector)} judged against {against} after "
         f"{count(positive.fovs_seen, 'reference field')}, "
         f"{paired}. If fewer than {percent(setup.minimum_detection)} of its checks are "
         "recognized (minimum_detection, a provisional preset), every adequacy answer carries "

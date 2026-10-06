@@ -172,7 +172,7 @@ def test_i5_every_preset_is_printed_and_minimum_detection_reaches_the_report(mon
         _setup(minimum_detection=1.5)
     positive = _setup(
         novelty=default_novelty(FEATURE_COLS),
-        positive=PositiveControl({"condition": "drug"}, fovs_seen=2),
+        positive=PositiveControl({"condition": "drug"}, fovs_seen=5),
         minimum_detection=0.8,
     )
     assert "fewer than 80% of its checks are recognized (minimum_detection" in " ".join(
