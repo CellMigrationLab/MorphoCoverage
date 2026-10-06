@@ -487,6 +487,11 @@ when named, and never a verdict. Power, a shift of 0.3 within-group SDs in every
 with 3 repeats, 81% with 4, 98% with 6 (36%, 59% and 87% with a batch); a shift of 0.6: 96%
 with 3 repeats (86% with a batch) and at least 99% from 4 (scaled on every observation of
 the table, before audit 8: 2.3-7.5% without an effect, and 58%, 79% and 97% power).
+In narrow tables the test is conservative, as its correction is set for the largest
+correlation of the projections, reached in wide tables (audit 8, 400 null datasets each,
+cells in fields): one column 2.8% at 5% with 3 or 4 repeats and 1.8% with 6, two columns
+4.5% with 3 repeats, against 4.5% with 200 columns; and with very uneven fields (100 cells a
+field in one repeat, 3 in the others) 0.8%.
 
 ## Reading them together
 
