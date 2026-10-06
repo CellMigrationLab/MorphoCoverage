@@ -57,6 +57,9 @@
   ],
   "not_applicable": {},
   "table_column": false,
+  "separation_spaces": [
+   "Features"
+  ],
   "html": false
  }
 }

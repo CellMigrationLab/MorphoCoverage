@@ -52,6 +52,9 @@
    "unit": "no explainable features"
   },
   "table_column": false,
+  "separation_spaces": [
+   "DINO1"
+  ],
   "html": false
  }
 }

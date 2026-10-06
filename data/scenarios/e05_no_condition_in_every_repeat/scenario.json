@@ -1,7 +1,7 @@
 {
  "name": "e05_no_condition_in_every_repeat",
  "kind": "edge",
- "checks": "no condition in every repeat: compared where both are; tables centred on the control",
+ "checks": "no condition in every repeat: compared where both are; the other tables not centred",
  "axes": {},
  "planes": null,
  "setup": {
@@ -30,7 +30,7 @@
   ],
   "untested_across": true,
   "overview": [
-   "Batch:"
+   "Batch: the other tables are not centred, as no condition is in every"
   ]
  }
 }

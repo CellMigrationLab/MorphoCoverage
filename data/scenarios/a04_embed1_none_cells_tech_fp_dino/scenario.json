@@ -77,8 +77,11 @@
   },
   "table_column": false,
   "headlines": {
-   "enough": "fingerprint"
+   "enough": "the fingerprint of DINO1 within its tolerance"
   },
+  "separation_spaces": [
+   "DINO1"
+  ],
   "html": false
  }
 }

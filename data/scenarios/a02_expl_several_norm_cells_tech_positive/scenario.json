@@ -71,6 +71,9 @@
   ],
   "not_applicable": {},
   "table_column": false,
+  "separation_spaces": [
+   "Features"
+  ],
   "controls_status": "assessed",
   "contrast_kinds": [
    "across_normalised",

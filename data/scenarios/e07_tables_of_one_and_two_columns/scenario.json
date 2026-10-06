@@ -52,6 +52,10 @@
   "separation_spaces": [
    "Combined",
    "Explainable"
-  ]
+  ],
+  "full": [
+   "each of their 2 tables weighted by MFA"
+  ],
+  "order_free": true
  }
 }

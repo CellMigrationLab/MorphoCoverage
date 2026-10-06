@@ -67,6 +67,11 @@
    "unit": "no explainable features"
   },
   "table_column": false,
+  "separation_spaces": [
+   "Combined",
+   "DINO1",
+   "DINO2"
+  ],
   "html": true
  }
 }

@@ -31,6 +31,9 @@
    "enough_features"
   ],
   "untested_across": true,
-  "untested_whole": "no repeat holds both"
+  "untested_whole": "no repeat holds both",
+  "overview": [
+   "in every repeat of its sub-experiment: ctrl in"
+  ]
  }
 }

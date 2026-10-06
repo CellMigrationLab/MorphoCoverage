@@ -90,6 +90,7 @@ def control_elsewhere() -> Scenario:
             "absent": ["enough_features"],
             "untested_across": True,
             "untested_whole": "no repeat holds both",
+            "overview": ["in every repeat of its sub-experiment: ctrl in"],
         },
         tables={"DINO1": ("dino", None)},
     )
@@ -142,10 +143,14 @@ def no_shared_condition() -> Scenario:
     return _scenario(
         "e05_no_condition_in_every_repeat",
         "edge",
-        "no condition in every repeat: compared where both are; tables centred on the control",
+        "no condition in every repeat: compared where both are; the other tables not centred",
         design,
         {**READOUT, **CTRL},
-        {"results": ["contrast", "whole_table"], "untested_across": True, "overview": ["Batch:"]},
+        {
+            "results": ["contrast", "whole_table"],
+            "untested_across": True,
+            "overview": ["Batch: the other tables are not centred, as no condition is in every"],
+        },
         tables={"DINO1": ("dino", None)},
     )
 
@@ -197,6 +202,8 @@ def narrow_tables() -> Scenario:
         {
             "results": ["contrast", "whole_table", "fingerprint_precision"],
             "separation_spaces": ["Combined", "Explainable"],
+            "full": ["each of their 2 tables weighted by MFA"],
+            "order_free": True,
         },
         columns=("area", "length"),
         tables={"single": (("width",), "explainable"), "pair": (("e0", "e1"), None)},
@@ -325,6 +332,7 @@ def known_effects() -> Scenario:
             "null_conditions": ["vehicle"],
             "null_features": ["ecc"],
             "whole_table_planted": {"DINO1": ["strong"]},
+            "overview": ["medians of ctrl, strong and vehicle, the conditions in every repeat"],
         },
         tables={"DINO1": ("dino", None)},
     )

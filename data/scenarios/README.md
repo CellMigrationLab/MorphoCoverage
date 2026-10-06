@@ -65,7 +65,7 @@ the effect. Each table is a few hundred rows at most.
 | `e02_control_in_other_repeats` | edge | 2 conditions, 4 repeats, 12 fields, 60 rows; DINO1 (non-explainable) | a control imaged in other repeats than its condition: not compared across repeats |
 | `e03_one_condition` | edge | 1 condition, 4 repeats, 12 fields, 60 rows; DINO1 (non-explainable) | one condition: no comparison, no separation; the rest runs |
 | `e04_screen_30_conditions` | edge | 31 conditions, 3 repeats, 279 fields, 279 rows | a screen of 30 conditions against one control, the readout alone: its tests corrected over the conditions, every condition compared |
-| `e05_no_condition_in_every_repeat` | edge | 3 conditions, 4 repeats, 27 fields, 135 rows; DINO1 (non-explainable) | no condition in every repeat: compared where both are; tables centred on the control |
+| `e05_no_condition_in_every_repeat` | edge | 3 conditions, 4 repeats, 27 fields, 135 rows; DINO1 (non-explainable) | no condition in every repeat: compared where both are; the other tables not centred |
 | `e06_chain_of_parent_controls` | edge | 6 conditions, 3 repeats, 54 fields, 216 rows | controls in a chain of parents: each condition against its own control, each control against its parent |
 | `e07_tables_of_one_and_two_columns` | edge | 2 conditions, 4 repeats, 32 fields, 160 rows; single (explainable), pair (non-explainable) | a table of 1 column and one of 2: tested, the 2 columns fingerprinted; no separation line of their own |
 | `e08_counts_with_many_zeros` | edge | 2 conditions, 4 repeats, 24 fields, 120 rows | a count feature, mostly zeros, beside the readout: compared like any feature; two columns, so no separation score |

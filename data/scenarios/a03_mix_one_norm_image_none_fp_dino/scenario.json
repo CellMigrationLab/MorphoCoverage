@@ -67,7 +67,6 @@
   "results": [
    "contrast",
    "discovery",
-   "distribution",
    "enough_features",
    "fingerprint_precision",
    "inspection",
@@ -80,6 +79,7 @@
   ],
   "absent": [
    "clustering",
+   "distribution",
    "label_control",
    "object_rules",
    "rare_clustering",
@@ -92,8 +92,16 @@
   },
   "table_column": true,
   "headlines": {
-   "enough": "fingerprint"
+   "enough": "the fingerprint of DINO1 not assessable"
   },
+  "separation_spaces": [
+   "Combined",
+   "DINO1",
+   "Explainable"
+  ],
+  "full": [
+   "Beyond the mean: not compared, as the fingerprint reads no"
+  ],
   "html": false
  }
 }

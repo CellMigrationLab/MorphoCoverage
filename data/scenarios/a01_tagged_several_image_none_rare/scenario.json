@@ -81,6 +81,9 @@
    "unit": "each field holds one"
   },
   "table_column": true,
+  "separation_spaces": [
+   "Explainable"
+  ],
   "contrast_kinds": [
    "across_normalised",
    "own_control"

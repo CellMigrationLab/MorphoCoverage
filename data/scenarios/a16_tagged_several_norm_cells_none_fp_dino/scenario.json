@@ -84,7 +84,6 @@
    "clustering",
    "contrast",
    "discovery",
-   "distribution",
    "enough_features",
    "fingerprint_precision",
    "inspection",
@@ -99,14 +98,23 @@
    "whole_table"
   ],
   "absent": [
+   "distribution",
    "label_control",
    "rare_clustering"
   ],
   "not_applicable": {},
   "table_column": true,
   "headlines": {
-   "enough": "fingerprint"
+   "enough": "the fingerprint of DINO1 within its tolerance"
   },
+  "separation_spaces": [
+   "Combined",
+   "DINO1",
+   "Explainable"
+  ],
+  "full": [
+   "Beyond the mean: not compared, as the fingerprint reads no"
+  ],
   "contrast_kinds": [
    "across_normalised",
    "own_control"

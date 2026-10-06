@@ -67,8 +67,13 @@
   },
   "table_column": true,
   "headlines": {
-   "enough": "fingerprint"
+   "enough": "the fingerprint of the explainable features within its tolerance"
   },
+  "separation_spaces": [
+   "Combined",
+   "DINO1",
+   "Explainable"
+  ],
   "html": false
  }
 }

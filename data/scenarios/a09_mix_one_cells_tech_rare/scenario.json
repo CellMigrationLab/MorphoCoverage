@@ -66,6 +66,11 @@
   ],
   "not_applicable": {},
   "table_column": true,
+  "separation_spaces": [
+   "Combined",
+   "DINO1",
+   "Explainable"
+  ],
   "html": true
  }
 }

@@ -64,7 +64,9 @@ HTML = {1, 6, 8, 9, 13}
 
 def _design(controls: str, unit: str, wells: str, target: str, seed: int) -> Design:
     """The layout of an axes case: 3 repeats, few fields, few observations; a fingerprint is
-    judged in groups of 4 fields or more, so its cases have 4 per group."""
+    judged in groups of 4 fields or more, on k principal components, k a fifth of the median
+    group: its cases have 4 fields per group, of 3 cells (k = 2, judged) or one image each
+    (not assessable)."""
     several = controls == "several"
     fields = (2 if wells == "tech" else 3) if unit == "cells" else 4
     return Design(
@@ -74,7 +76,7 @@ def _design(controls: str, unit: str, wells: str, target: str, seed: int) -> Des
         # One repeat without the second control: its conditions have no own control there.
         absent=frozenset({("cB", 2)}) if several else frozenset(),
         fields=4 if target.startswith("fp") else fields,
-        cells=(2 if target.startswith("fp") else 4) if unit == "cells" else 1,
+        cells=(3 if target.startswith("fp") else 4) if unit == "cells" else 1,
         wells=2 if wells == "tech" else 0,
         seed=seed,
     )
@@ -237,6 +239,7 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
     ran = ["overview", "populations", "separation"]
     absent: list[str] = []
     reasons: dict[str, str] = {}
+    full: list[str] = []
     controls_status = None
     (ran if target.startswith("fp") else absent).append("fingerprint_precision")
     (ran if target == "rare" else absent).append("rare_clustering")
@@ -261,7 +264,10 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
             ran.append("variability")
         if control:
             ran += ["contrast", "discovery", "enough_features", "ranking"]
-            (ran if target.startswith("fp") else absent).append("distribution")
+            # Beyond the mean reads the explainable features the fingerprint reads only.
+            (ran if target == "fp_expl" else absent).append("distribution")
+            if target == "fp_dino":
+                full.append("Beyond the mean: not compared, as the fingerprint reads no")
             if per_field:
                 ran += ["unusual", "object_rules", "clustering"]
         else:
@@ -282,12 +288,36 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
         "table_column": any(tag == "explainable" for _, tag in tables.values()),
     }
     if target.startswith("fp"):
-        truth["headlines"] = {"enough": "fingerprint"}
+        truth["headlines"] = {"enough": _fingerprint_headline(target, other_tables, per_field)}
+    truth["separation_spaces"] = _spaces(axes, tables)
+    if full:
+        truth["full"] = full
     if controls_status is not None:
         truth["controls_status"] = controls_status
     if axes["controls"] == "several" and not embedding:
         truth["contrast_kinds"] = ["across_normalised", "own_control"]
     return truth
+
+
+def _fingerprint_headline(target: str, other_tables: bool, per_field: bool) -> str:
+    """The fingerprint's part of "Did I image enough?": judged in groups of 12 cells (k = 2),
+    not assessable in groups of 4 images (k would be 0)."""
+    named = "the fingerprint"
+    if target == "fp_dino":
+        named = "the fingerprint of DINO1"
+    elif other_tables:
+        named = "the fingerprint of the explainable features"
+    return f"{named} within its tolerance" if per_field else f"{named} not assessable"
+
+
+def _spaces(axes: dict[str, Any], tables: dict[str, Any]) -> list[str]:
+    """The feature spaces the separation scores: the explainable features ("Features" when
+    the observation table is the only table), each other table, and the combined space of
+    two or more."""
+    spaces = [name for name, (_, tag) in tables.items() if tag != "explainable"]
+    if not str(axes["tables"]).startswith("embed"):
+        spaces.append("Features" if not tables else "Explainable")
+    return sorted(spaces + (["Combined"] if len(spaces) > 1 else []))
 
 
 SCENARIOS = [lambda i=i: axes_scenario(i) for i in range(len(AXES))]

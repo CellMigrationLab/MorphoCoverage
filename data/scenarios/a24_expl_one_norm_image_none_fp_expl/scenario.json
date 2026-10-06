@@ -66,8 +66,11 @@
   },
   "table_column": false,
   "headlines": {
-   "enough": "fingerprint"
+   "enough": "the fingerprint not assessable"
   },
+  "separation_spaces": [
+   "Features"
+  ],
   "html": false
  }
 }

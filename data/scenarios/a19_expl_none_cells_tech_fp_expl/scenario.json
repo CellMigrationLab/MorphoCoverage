@@ -58,8 +58,11 @@
   },
   "table_column": false,
   "headlines": {
-   "enough": "fingerprint"
+   "enough": "the fingerprint within its tolerance"
   },
+  "separation_spaces": [
+   "Features"
+  ],
   "html": false
  }
 }

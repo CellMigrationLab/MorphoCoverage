@@ -32,7 +32,9 @@ The truth (``scenario.json``'s ``truth``) holds:
 - ``untested_across``, ``untested_whole`` (a part of the status), ``left_out``,
   ``compared``, ``tested_features``, ``balanced``: what the tests across repeats, the
   whole-table test, the discovery and the cell-level screen did;
-- ``overview``: parts of the dataset overview;
+- ``overview``: parts of the dataset overview; ``full``: parts of the full report;
+- ``order_free``: the separation scores the same with the feature tables given in the
+  reverse order (the MFA weights do not depend on it);
 - ``planted``, ``null_conditions``, ``null_features``, ``whole_table_planted``: the
   conditions shifted, by feature or table, and those not, checked only where the design
   makes the answer near-certain (a strong effect, five repeats or more);

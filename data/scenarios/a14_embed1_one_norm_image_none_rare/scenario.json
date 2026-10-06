@@ -62,6 +62,9 @@
    "unit": "each field holds one"
   },
   "table_column": false,
+  "separation_spaces": [
+   "DINO1"
+  ],
   "html": true
  }
 }

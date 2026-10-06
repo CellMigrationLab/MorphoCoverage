@@ -49,6 +49,9 @@
    "unit": "each field holds one"
   },
   "table_column": false,
+  "separation_spaces": [
+   "Features"
+  ],
   "html": false
  }
 }

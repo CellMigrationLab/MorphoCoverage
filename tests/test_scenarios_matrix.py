@@ -14,6 +14,7 @@ reasons, not numbers.
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 import sys
 import warnings
@@ -27,6 +28,8 @@ matplotlib.use("Agg")
 import pandas as pd
 import pytest
 
+from morphocoverage.sampling_unit.contrast_repeats import TREND_REPEATS
+from morphocoverage.sampling_unit.reading_text import CONFIRMED, CONSISTENT
 from morphocoverage.workflows import Setup, html_report, report
 from morphocoverage.workflows._html_tests import across_frame
 
@@ -78,6 +81,9 @@ def _sections(result: Any, truth: dict[str, Any]) -> None:
         assert part in result.document.headlines[question]
     for part in truth.get("overview", ()):
         assert part in result.document.overview
+    full = result.summary("full") if "full" in truth else ""
+    for part in truth.get("full", ()):
+        assert part in full, part
     if "controls_status" in truth:
         assert result.results["controls"].status == truth["controls_status"]
     if "contrast_kinds" in truth:
@@ -92,6 +98,11 @@ def _tests(result: Any, truth: dict[str, Any]) -> None:
     """The tests across repeats: what is tested, what is found, what is not."""
     across = across_frame(result)
     whole = result.results.get("whole_table")
+    if not across.empty:  # the trend line from 6 repeats only (owner, 2026-10-06)
+        trend = across["verdict"] == CONSISTENT
+        assert (across.loc[trend, "repeats"] >= TREND_REPEATS).all()
+    if whole is not None and "same way in every" in result.document.headlines["conditions"]:
+        assert (whole.tests["repeats"] >= TREND_REPEATS).any()
     if truth.get("untested_across"):
         assert across.empty or across["adjusted_p"].isna().all()
     if "untested_whole" in truth:
@@ -115,10 +126,12 @@ def _tests(result: Any, truth: dict[str, Any]) -> None:
             row = across[(across["feature"] == feature) & (across["condition"] == condition)]
             assert len(row) == 1 and row["adjusted_p"].iloc[0] <= ALPHA
             assert (row["higher"] == row["repeats"]).all()
+            assert row["verdict"].iloc[0] == CONFIRMED
     if not across.empty:
         nulls = across["condition"].isin(truth.get("null_conditions", ()))
         nulls |= across["feature"].isin(truth.get("null_features", ()))
         assert not (across.loc[nulls, "adjusted_p"] <= ALPHA).any()
+        assert not across.loc[nulls, "verdict"].isin([CONFIRMED, CONSISTENT]).any()
     for table, conditions in truth.get("whole_table_planted", {}).items():
         rows = whole.tests[whole.tests["table"] == table].set_index("condition")
         assert all(rows.loc[c, "q_repeats"] <= ALPHA for c in conditions)
@@ -161,6 +174,13 @@ def test_the_scenario_gives_its_truth(name: str, tmp_path: Path) -> None:
     result = _report(loaded, Setup(**loaded.setup))
     _sections(result, truth)
     _tests(result, truth)
+    if truth.get("order_free"):
+        tables = dict(reversed(loaded.feature_tables.items()))
+        reversed_order = dataclasses.replace(loaded, feature_tables=tables)
+        again = _report(reversed_order, Setup(**loaded.setup))
+        pd.testing.assert_frame_equal(
+            again.results["separation"].table, result.results["separation"].table
+        )
     if truth.get("html"):
         _page(result, loaded, truth, tmp_path)
 
