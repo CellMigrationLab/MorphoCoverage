@@ -166,7 +166,11 @@ in each space apart, the explainable features, each table and the weighted combi
 and each distinct group is reported once, naming the spaces that found it (groups of two
 spaces merged at a Jaccard index of 0.5 or more); a group the explainable features did not
 find has no rule ("found in DINOv2 only; no rule in the explainable features describes it"),
-and the enrichment tests run on the merged list (owner, 2026-10-06). Each group is listed with its share, the
+and the enrichment tests run on the merged list (owner, 2026-10-06). With `normalize`, the
+groups are searched on the normalised features; a cell whose condition has no own control
+in its repeat has no normalised value, and those cells are named once, apart from the cells
+with a missing value ("36 cells of b1 and b2 in R4 left out: no own control"; owner,
+2026-10-06, audit 8). Each group is listed with its share, the
 features that set it apart, its neighbours inside, its rule, the fields and
 repeats it is seen in, and the share of its cells in its largest field (a group
 living mostly in one field may be that image's artefact; the table, `Populations.table`,
@@ -207,7 +211,9 @@ data, in plain language, are in [Objects or fields?](objects_or_fields.md).
 
 With a label and no positive control, question 1 is answered by the label: for each labelled cell, whether
 the nearest cell of another field (on the declared features, robustly
-standardized) is labelled too, against the share labelled overall, with
+standardized as the other explainable spaces are, the SD where the MAD is under a quarter of
+it, each explainable table weighted by MFA when there are two or more; owner, 2026-10-06,
+audit 8) is labelled too, against the share labelled overall, with
 `minimum_detection` as for a positive control. Every labelled cell is looked up
 against its true nearest cell of another field, and the answer gives how many were
 assessed. A declared label the check cannot assess (fewer than 5 labelled cells, no

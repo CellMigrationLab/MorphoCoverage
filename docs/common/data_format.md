@@ -381,9 +381,9 @@ names (DINOv2 `f0`, DINOv3 `f0`) load together this way.
 Every problem is raised at once, naming the table; a column with one value
 everywhere is accepted and listed, as no analysis can use it. In the combined
 space, each table, robustly standardised, is divided by its own first singular
-value (MFA; owner, 2026-10-06), so no table's first axis outweighs another's,
-the explainable features keeping weight 1 (with several explainable tables,
-each is a table of its own there, the first keeping weight 1). An explainable
+value over `sqrt(n - 1)` (MFA; owner, 2026-10-06), so every table's first axis
+has variance 1 and none outweighs another, whatever their order (with several
+explainable tables, each is a table of its own there). An explainable
 table follows the features' normalisation (`Setup.normalize`); a
 non-explainable table is never divided by a control: an embedding has no ratio
 scale; it is centred per repeat instead

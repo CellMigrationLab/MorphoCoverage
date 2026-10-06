@@ -479,7 +479,7 @@ def conditions(
     objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, reasons: dict[str, str]
 ) -> dict[str, Any]:
     """R7: each condition against the control (or each declared comparison), per repeat, on
-    the values ``Setup.compared_values`` gives."""
+    the raw values, each test normalising to its own control itself."""
     if not (
         setup.compares and CONDITION_COLUMN in fovs.columns and fovs[CONDITION_COLUMN].nunique() > 1
     ):

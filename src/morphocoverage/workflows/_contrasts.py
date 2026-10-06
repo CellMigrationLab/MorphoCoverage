@@ -429,8 +429,9 @@ def normalisation_problem(setup: Setup, objects: pd.DataFrame, fovs: pd.DataFram
 def normalised_readers(several: bool = False) -> str:
     """What reads the normalised values and what reads the raw ones, the one list the overview,
     the declaration, ``docs/common/setup.md`` and the docstrings refer to (audit 8B): with one
-    control, or with ``several``, where the fingerprint and the held-back outcomes read the raw
-    values (``Setup.compared_values``)."""
+    control, or with ``several``, each condition then normalised to its own. The fingerprint
+    and the held-back outcomes read the normalised values in both (``Setup.compared_values``;
+    owner, 2026-10-06, audit 8, seed 8)."""
     if not several:
         return (
             "the figures, the normalised maps, the populations, the separation, the "
@@ -440,11 +441,11 @@ def normalised_readers(several: bool = False) -> str:
             "read the raw values"
         )
     return (
-        "the figures, the normalised maps, the populations and the separation read the "
-        "normalised values; the condition contrast, the feature ranking and the discovery read "
-        "the raw values, each normalising to its own control; the fingerprint, the outcomes "
-        "judged on held-back fields, the stopping rules and every other analysis read the raw "
-        "values, where levels across experiments are read"
+        "the figures, the normalised maps, the populations, the separation, the fingerprint "
+        "and the outcomes judged on held-back fields read the normalised values; the condition "
+        "contrast, the feature ranking and the discovery read the raw values, each normalising "
+        "to its own control; the stopping rules and every other analysis read the raw values, "
+        "where levels across experiments are read"
     )
 
 

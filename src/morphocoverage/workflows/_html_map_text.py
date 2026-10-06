@@ -11,7 +11,6 @@ from typing import Any
 from .._wording import count, percent
 from ..feature_tables import EXPLAINABLE
 from ..separation import K, Separation
-from ._feature_space import CENTRED_MIN_CONTROL
 
 # The values views, as their buttons name them.
 VALUE_WORDS = {"raw": "Raw", "normalised": "Normalised", "centred": "Centred per repeat"}
@@ -25,7 +24,8 @@ NEIGHBOURS = (
     "the repeats, so a batch between repeats cannot pass for a separation. Where a condition "
     f"has fewer than {K} such observations in a repeat, the neighbours are as many as the "
     "fewest it has, so a perfect separation reads 100%. Within a condition, the same with "
-    "the repeat: how far the repeats separate, a batch effect. A description, not a test."
+    "the repeat, always on the raw values: how far the repeats separate, a batch effect. A "
+    "description, not a test."
 )
 
 # What the centred view removes, said once (owner, 2026-10-06).
@@ -36,17 +36,10 @@ CENTRED = (
 )
 
 
-def centred_note(unit: str, units: str, left_out: str, line: str = "") -> str:
-    """``CENTRED``, the centring used (``_feature_space.centring_line``), on a control the
-    line on a small control (owner, 2026-10-06) and the repeats left out
-    (``_feature_space.centred_left_out``, empty when none is)."""
-    small = (
-        f"A repeat is centred on its control only when the control holds at least "
-        f"{CENTRED_MIN_CONTROL} {units} there: a small control adds noise that every {unit} of "
-        "the repeat shares."
-    )
-    on_control = "on the median of the control" in line or not line
-    return " ".join(p for p in (CENTRED, line, small if on_control else "", left_out) if p)
+def centred_note(line: str = "") -> str:
+    """``CENTRED`` and the centring used (``_feature_space.centring_line``: which conditions
+    set the centre, the repeats left uncentred; owner, 2026-10-06, audit 8)."""
+    return " ".join(p for p in (CENTRED, line) if p)
 
 
 def combined_words(columns: dict[str, int]) -> str:
@@ -102,9 +95,11 @@ def comparison_table(found: Separation | None) -> str:
         _row(r, f"{r.space}: all the tables at once, not ranked") for r in apart.itertuples()
     )
     batch = [str(name) for name in found.spaces["space"] if found.repeats_first(str(name))]
+    raw = "On the raw values, the" if found.settings.get("repeat_raw") else "The"
     said = (
-        f"<p>The repeats separate more than the conditions in {html.escape(', '.join(batch))}: "
-        "there, a batch between repeats is larger than the difference between conditions.</p>"
+        f"<p>{raw} repeats separate more than the conditions in "
+        f"{html.escape(', '.join(batch))}: there, a batch between repeats is larger than the "
+        "difference between conditions.</p>"
         if batch
         else ""
     )

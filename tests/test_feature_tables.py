@@ -158,8 +158,8 @@ def test_every_problem_is_said_at_once():
 
 
 def test_each_table_is_divided_by_its_first_singular_value():
-    # MFA (owner, 2026-10-06): a table of 16 correlated columns and one of 2 independent
-    # ones end up with the explainable table's first singular value; explainable keeps 1.
+    # MFA (owner, 2026-10-06): every table's first axis ends with variance 1, the explainable
+    # features' too (audit 8: before, the first table kept weight 1 and set the others' scale).
     rng = np.random.default_rng(0)
     explainable = rng.normal(size=(200, 4))
     shared = rng.normal(size=(200, 1))
@@ -169,14 +169,13 @@ def test_each_table_is_divided_by_its_first_singular_value():
     names = [*(f"x{i}" for i in range(4)), *(f"c{i}" for i in range(16)), "s0", "s1"]
     blocks = {"explainable": names[:4], "corr": names[4:20], "small": names[20:]}
     weights = mfa_weights(z, names, blocks)
-    assert weights[:4] == pytest.approx(1.0)
 
     def first(columns: slice) -> float:
         part = (z * weights)[:, columns]
         return float(np.linalg.svd(part - part.mean(axis=0), compute_uv=False)[0])
 
-    assert first(slice(4, 20)) == pytest.approx(first(slice(0, 4)))
-    assert first(slice(20, 22)) == pytest.approx(first(slice(0, 4)))
+    for columns in (slice(0, 4), slice(4, 20), slice(20, 22)):
+        assert first(columns) == pytest.approx(np.sqrt(len(z) - 1))
     # The correlated table, whose first axis held its whole variance, is weighed down most.
     assert weights[4] < weights[20]
 
@@ -394,12 +393,13 @@ def test_the_page_draws_a_map_per_table_the_combined_one_first(combined_report, 
     assert set(data["sets"]["raw"]["noise"]["PCA"]["z"]) == {"f1", "f2", "f3"}
     assert 'aria-label="Feature table"' in text
     # Beside raw and normalised, the other tables centred per repeat (owner, 2026-10-06):
-    # every repeat holds the same conditions, so on all its observations, said in one line.
+    # on the median of the condition medians of those in every repeat, said in one line
+    # (audit 8, owner 2026-10-06).
     # (No normalised view here: the explainable features hold negative values.)
     assert data["values"] == ["raw", "centred"]
     assert set(data["sets"]["centred"]) == {"sep", "noise"}
     assert "Centred: each column of an other feature table minus a median" in text
-    assert "centred on the median of all the cells of their biological repeat" in text
+    assert "centred per biological repeat on the median of the per-condition medians" in text
     # In the interactive maps only: no static figure or CSV of its own.
     assert not (tmp_path / "figures" / "pca_centred_sep.png").exists()
     assert "How far the conditions and the repeats separate in each feature table" in text

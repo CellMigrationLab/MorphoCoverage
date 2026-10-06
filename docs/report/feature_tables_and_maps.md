@@ -44,10 +44,13 @@ implicit explainable table, as before.
   enough?"). With one explainable table, nothing changes.
 - **Novelty, unusual observations and the populations** read the declared explainable
   features. When they come from two tables or more, each table is weighted by MFA
-  (robustly standardised, divided by its first singular value, the first table keeping
-  weight 1), so a table of many columns does not outweigh one of few: unusual observations
-  and the populations on all the observations, the definition of new on the visible fields
-  (`transforms.BlockWeights` after its own transform; its radius as declared). A population
+  (robustly standardised, divided by its first singular value over `sqrt(n - 1)`, so its
+  first axis has variance 1), so a table of many columns does not outweigh one of few:
+  unusual observations and the populations on all the observations, the definition of new
+  on the visible fields (`transforms.BlockWeights` after its own transform). The radius
+  declared for `d` standardised features, `sqrt(d)`, then reads as the square root of the
+  weighted space's total inertia, so the share of new cells stays that of one table rather
+  than depending on how the features are split (owner, 2026-10-06, audit 8). A population
   rule may use any explainable feature, and with several tables names the table of each
   ("length from fiberfeatures, int0 from CellProfiler").
 - **Maps and separation**: with two or more explainable tables, each has its own map and
@@ -92,8 +95,9 @@ every biological repeat? The test, its calibration and its words are in
 [Do the conditions differ?](conditions.md#the-whole-table-test-other-feature-tables). The
 report says once what the tables join: the whole-table test, the maps, the populations, the
 copy checks and their own fingerprints, not novelty or unusual observations, which read the
-explainable features only. With novelty on all the columns, an audit found 99.6% of the
-cells of null data called new and a planted new state missed: in hundreds of dimensions the
+explainable features only (with a readout and no `features` declared, unusual observations
+read the readout alone; owner, 2026-10-06, audit 8). With novelty on all the columns, an
+audit found 99.6% of the cells of null data called new and a planted new state missed: in hundreds of dimensions the
 distance to the nearest cell of another field does not follow a radius set for the
 explainable features. A report with **no explainable feature** at all (an embedding-only
 Setup, `readout=None`, owner 2026-10-06) reads the tables alone: see
@@ -128,20 +132,33 @@ and the report says which space.
   a few images: on the ECM tables the error of the DINO fingerprint read up to 192,282 and
   asked for "1e13 images per group". The principal components are fitted on every
   observation of the table holding all its values, robustly standardised as the maps are,
-  and keep their variance (the first weighs most). The rule for k: at most a fifth of the
-  observations of the smallest group the fingerprint judges (an analysis group of at least
-  4 fields) and at most the table's columns; the line says k ("read on its first 4
-  principal components (k at most a fifth of the smallest group's 23 images and at most its
-  384 columns)"). Below k = 2 the fingerprint is **not assessable**, and the line says why
-  (the smallest group's size, and that 2 components need groups of 10). The explainable
-  features keep today's form when they number at most that fifth, and follow the same rule
-  when they are wider. `optimise` judges the same components on held-back fields
+  and keep their variance (the first weighs most). The rule for k, one k for every group
+  (owner, 2026-10-06, audit 8): at most a fifth of the observations of the median group the
+  fingerprint judges (an analysis group of at least 4 fields) and at most the table's
+  columns; the line says k ("read on its first 4 principal components (k at most a fifth of
+  the median group's 23 images and at most its 384 columns)"). A judged group holding fewer
+  than five times k observations is **not assessable** and named in that line ("not
+  assessable in pilot R1, holding fewer than 5 k, 200 cells"), never lowering k: when k came
+  from the smallest group, a pilot condition of 4 fields of 3 cells took k from 40 to 2 and
+  turned every other group's verdict from 0-17% meeting the tolerance to 100% (with the rule,
+  k stays 40 and the verdicts do not move). Below k = 2 for the median group the fingerprint
+  is not assessable in any group, and the line says why (the median group's size, and that 2
+  components need groups of 10); so it is, for a table's fingerprint, when no group holds 4
+  fields: `optimise` then says it is not assessable rather than judging the full width
+  (seed 9). The explainable features keep today's form when they number at most that fifth,
+  or when no group holds 4 fields, and follow the same rule when they are wider. `optimise`
+  judges the same components on held-back fields, never in a group too small for k (its
+  draws not judged, the group named; `ComponentsError.excluded`)
   (`workflows._fingerprint_space`, `multivariate_outcomes.ComponentsError`).
 
 In the weighted combined space each table, robustly standardised, is divided by its own
-first singular value, as in multiple factor analysis (MFA; owner, 2026-10-06), the
-explainable features keeping weight 1: no table's first axis outweighs another's, however
-many columns it has and however correlated they are. Equal total variance per table, the
+first singular value over `sqrt(n - 1)`, as in multiple factor analysis (MFA; owner,
+2026-10-06): each table's first axis has variance 1, so none outweighs another, however
+many columns it has, however correlated they are and whatever the order of the tables
+(audit 8: when the first table kept weight 1 and set the others' scale, the share of new
+cells went from 2.3% to 8.6% by swapping two tables; the order no longer matters, 3.5%
+either way against 3.6% for the same columns as one table). With one table nothing is
+weighted. Equal total variance per table, the
 earlier weighting, gave the combined PCA to the more correlated table. Under the combined
 PCA, each table's share of each axis shown is said ("PC1: explainable 42%, DINOv2 58%"):
 the sum of its columns' squared loadings. The robust standardisation divides each column by
@@ -156,24 +173,35 @@ An other table is never divided by a control (an embedding has no ratio scale), 
 the same in raw and normalised values. **Batch normalisation** (owner, 2026-10-06): beside
 them, its map **centred per repeat** shows each column minus a median of its biological
 repeat, which removes a shift shared by a whole repeat, a batch, and keeps the differences
-within it. When every biological repeat holds the same set of conditions (a balanced
-design), the median is that of all the repeat's observations; otherwise it is that of the
-repeat's control (each condition's own control with several controls), and a repeat is
-centred only when that control holds at least 5 observations there (`CENTRED_MIN_CONTROL`):
-the median subtracted carries the control's noise into every observation of the repeat, so
-a small control can set a repeat apart. The other repeats are left out of the view and named
-once under the maps ("Left out of the centred view, their control holding fewer than 5
-images in the repeat: R6 of VEC_SiNC (1 image)"), beside one line on the noise a small
-control adds. The page and the text say in one line which centring was used ("Batch: the
-other tables centred on the median of all the cells of their biological repeat, as every
-repeat holds the same conditions; ..."). When normalisation is declared
+within it. The median is the same for every design (owner, 2026-10-06, audit 8; it
+replaces the earlier rule of all the repeat's observations in a balanced design, else the
+control's, from 5 observations): the median of the per-condition medians of the conditions
+present in every biological repeat. No control is needed, and a condition imaged with many
+more cells in one repeat does not move the centre, as it did with the median of all the
+observations; nor does the noise of a small control, which the control's median carried into
+every observation of its repeat and so set the repeats apart (audit 8: a control of one
+field of 5 cells read as a batch in every simulation). When no condition is in every repeat,
+the rule applies within each sub-experiment (the repeats linked by the conditions they
+share), on the conditions in all of its repeats; the repeats of a sub-experiment without
+one are left out of the centred values, and named once in that line: raw values beside
+centred ones would read as a batch in the centred map, the populations and the separation
+(owner, 2026-10-06). With no centre anywhere, there is no centred view and the tables'
+analyses read them as given. The page and the text say in one line which conditions
+set the centre ("Batch: the other tables centred per biological repeat on the median of the
+per-condition medians of ctrl, a and b, the conditions in every repeat; ...").
+When normalisation is declared
 (`normalize="control_mean"`), the tables' analyses read these centred values, as the
 explainable features read their control-normalised ones: the populations, unusual
-observations (in a report without explainable features), the separation scores and the
-centred map; the raw map is still shown. These values never enter a test: the whole-table
+observations (in a report without explainable features), the separation of the conditions
+and the centred map; the raw map is still shown. The combined map, whose space the
+populations search, follows them (owner, 2026-10-06, audit 8, seed 15): with `normalize` its
+normalised view reads the normalised explainable features and the centred tables, and in a
+report without explainable features it has a centred view, the tables' combined space
+centred. These values never enter a test: the whole-table
 test computes its own differences within each repeat on raw values, and the fingerprint
 reads raw values too. On the ECM tables, whose repeats do not all hold the same conditions
-(R4 lacks VEC and THBS5, R5 the SiNC controls), the tables are centred on their controls.
+(R4 lacks VEC and THBS5, R5 the SiNC controls), the tables are centred on the conditions
+imaged in every repeat.
 The live session and `optimise` read the columns already in `objects`: for
 them, attach the tables first (`attach_feature_tables(objects, fovs, tables).objects`).
 
@@ -214,7 +242,26 @@ a description with no p-value:
   share its repeat, against chance, the median over the conditions. When the repeats
   separate more than the conditions in a table (their score goes further from chance
   towards 100%, and at least a tenth of the way), the line says so plainly: there, a batch
-  between repeats is larger than the difference between conditions.
+  between repeats is larger than the difference between conditions. This score always
+  reads the raw values, in every view (owner, 2026-10-06, audit 8): measured on values
+  centred per repeat it would measure a batch after removing it, and a centre with noise of
+  its own read as a batch (a control of one field of 5 cells: "the repeats separate more"
+  in every simulation with no batch). The score by condition reads the view's values; under
+  a normalised or centred map the line says so ("Within a condition, on the raw values, 35%
+  share the repeat ... On the raw values, the repeats separate more than the
+  conditions."), so it does not contradict the centred picture. Cells with every raw value
+  but none in the view are counted apart from the missing values and named: "18 cells of b1
+  in R1 left out: no own control" (or "no condition to centre on", for a repeat left out of
+  the centred values); the populations name them the same way (owner, 2026-10-06, audit 8).
+
+With one well per condition and repeat, or no well column, a difference between wells is
+also a difference between the conditions of a repeat, so the score by condition reads it as
+a separation of the conditions (audit 8: a well shift of 0.5 SD with no condition effect
+took the score 34% of the way from chance to 100%, and "the repeats separate more" in half
+the simulations). One line under the maps says so for such a design ("Each condition is
+imaged in one well per biological repeat, so a difference between wells reads here as a
+separation of the conditions."); with two wells or more per condition and repeat, a well is
+never its own observations' neighbour and the line is left out.
 
 Neighbours never come from the observation's own field, nor from its own well when its
 condition has another well in the repeat, and chance is computed over what remains: cells of

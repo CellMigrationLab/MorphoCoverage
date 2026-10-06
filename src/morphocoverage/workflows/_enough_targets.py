@@ -31,8 +31,9 @@ import pandas as pd
 
 from .._seeds import group_key, group_rng
 from .._style import Status, span, worst, wrap
-from .._wording import count, percent, plural, rate
+from .._wording import count, listing, percent, plural, rate
 from ..evaluator import FovSubsets, iter_analysis_groups
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..schema import validate_input_tables
 from ._fingerprint_space import MIN_FIELDS, fingerprint_space, label, table_of
 from ._fingerprint_space import criterion_columns as _columns
@@ -87,7 +88,18 @@ def fingerprint_precision(
     names = [label(o) for o, r in pairs if r is not None]
     # A criterion whose columns miss values reads the observations holding all of them.
     complete: dict[int, dict[str, Any]] = {}
+    # Normalised with several controls, a condition without its own control in a repeat has
+    # no value there: left out for that, never as a missing value (audit 8, seed 4).
+    uncontrolled: dict[int, dict[Any, int]] = {}
     for i, criterion in enumerate(criteria):
+        held = ~values[_columns(criterion)].isna().any(axis=1)
+        lacking = held.index[(~held & objects[_columns(criterion)].notna().all(axis=1)).to_numpy()]
+        uncontrolled[i] = {}
+        if len(lacking):
+            lone = validate_input_tables(
+                values.loc[lacking], fovs=fovs, feature_cols=setup.judged_columns, **setup.common
+            )
+            uncontrolled[i] = {group_key(g): len(d.objects) for g, d in iter_analysis_groups(lone)}
         held = ~data.objects[_columns(criterion)].isna().any(axis=1)
         if not held.all():
             kept = validate_input_tables(
@@ -117,6 +129,12 @@ def fingerprint_precision(
                 own = complete[i].get(group_key(group))
                 left_out = len(group_data.objects) - (len(own.objects) if own is not None else 0)
                 here = FovSubsets(own) if own is not None and subsets is not None else None
+            no_control = uncontrolled[i].get(group_key(group), 0)
+            left_out -= no_control
+            reading = space.readings.get(names[i])
+            # Too few observations for the common k: not assessable here (audit 8).
+            small = reading is not None and group_key(group) in {k for k, *_ in reading.small}
+            here = None if small else here
             splits = SPLITS if here is not None else 0
             for _ in range(splits):
                 order = rng.permutation(n)
@@ -132,13 +150,13 @@ def fingerprint_precision(
                 else np.nan
             )
             tolerance = float(criterion.threshold)
-            reading = space.readings.get(names[i])
             rows.append(
                 {
                     **group,
                     "criterion": names[i],
                     "table": table_of(_columns(criterion), setup),
                     "left_out": left_out,
+                    "no_own_control": no_control,
                     "tolerance": tolerance,
                     "fields": n,
                     "splits": splits,
@@ -156,6 +174,7 @@ def fingerprint_precision(
                         else np.nan
                     ),
                     "components": reading.components if reading is not None else None,
+                    "small": small,
                     "reading": (
                         reading.words(setup.unit_word, setup.unit_words) if reading else ""
                     ),
@@ -172,16 +191,24 @@ def _unjudged_reasons(missing: pd.DataFrame, fields: str) -> str:
     """Why the groups of ``missing`` (rows without ``met``) were not judged: one reason, or each
     with its count."""
     few = missing["fields"] < MIN_FIELDS
+    small = missing.get("small", pd.Series(False, index=missing.index)).eq(True) & ~few
+    alone = missing.get("no_own_control", pd.Series(0, index=missing.index)) > 0
+    alone &= ~few & ~small & missing["splits"].eq(0)
+    rest = ~few & ~small & ~alone
     reasons = []
     if few.any():
         reasons.append((f"fewer than {MIN_FIELDS} {fields}", int(few.sum())))
-    if not few.all():
-        shares = missing.loc[~few, "undefined_splits"] / missing.loc[~few, "splits"]
+    if alone.any():
+        reasons.append(("no own control in its repeat", int(alone.sum())))
+    if small.any():  # the common k needs five times its observations (audit 8)
+        reasons.append(("too few observations for the common k", int(small.sum())))
+    if rest.any():
+        shares = missing.loc[rest, "undefined_splits"] / missing.loc[rest, "splits"]
         reason = (
             f"no defined error on {span(shares, 'percent')} of the random halves, more than "
             f"{percent(UNDEFINED_TOLERANCE)}"
         )
-        reasons.append((reason, int((~few).sum())))
+        reasons.append((reason, int(rest.sum())))
     if len(reasons) == 1:
         return reasons[0][0]
     return "; ".join(f"{n} with {reason}" for reason, n in reasons)
@@ -246,9 +273,19 @@ def assessable_reason(rows: pd.DataFrame) -> str | None:
 
 
 def _left_out(rows: pd.DataFrame, unit: str) -> str:
-    """``125 cells with a missing value of its columns left out.``, or empty."""
+    """``125 cells with a missing value of its columns left out.``, and apart ``36 cells of
+    b1 in R4 left out: no own control.`` (audit 8, seed 4), or empty."""
     left = int(rows["left_out"].sum()) if "left_out" in rows else 0
-    return f"{count(left, unit)} with a missing value of its columns left out." if left else ""
+    said = f"{count(left, unit)} with a missing value of its columns left out." if left else ""
+    lacking = rows[rows["no_own_control"] > 0] if "no_own_control" in rows else rows.iloc[:0]
+    if not len(lacking):
+        return said
+    where = [
+        f"{r.get(CONDITION_COLUMN, '')} in {r.get(REPEAT_COLUMN, '')}".strip()
+        for _, r in lacking.iterrows()
+    ]
+    number = count(int(lacking["no_own_control"].sum()), unit)
+    return f"{said} {number} of {listing(where, 4)} left out: no own control.".lstrip()
 
 
 def fingerprint_lines(

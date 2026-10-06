@@ -205,7 +205,7 @@ def test_a_wide_correlated_table_weighs_as_much_as_a_narrow_one():
 
     unweighted = 60 / 3
     assert unweighted > 10 and 0.2 < total(wide) / total(narrow) < 2
-    assert weights["a0"] == 1.0
+    assert weights["a0"] != 1.0  # every table weighted, the first too (audit 8)
     # The transform the definition of new gets: the same weights, fitted on the visible.
     novelty = default_novelty(setup.features)
     weighted_novelty, _ = novelty_space(replace(setup, novelty=novelty))

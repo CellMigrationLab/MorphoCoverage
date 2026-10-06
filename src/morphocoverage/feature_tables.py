@@ -44,12 +44,13 @@ Every problem is collected and raised at once (``ValueError``), naming the table
 with one value everywhere is accepted and listed (``constant``): no analysis can use it.
 
 ``mfa_weights`` gives the weight of each column in the weighted combined space (owner,
-2026-10-06): every table, robustly standardised, is divided by its own first singular value,
-as in multiple factor analysis (MFA), so that no table's first axis outweighs another's,
-whatever its number of columns and however correlated they are; the weights are scaled so
-that the explainable features keep weight 1. ``table_shares`` gives each table's share of a
-principal axis of that space. Without other tables nothing is weighted and every analysis is
-as before.
+2026-10-06): every table, robustly standardised, is divided by its own first singular value
+over ``sqrt(n - 1)``, as in multiple factor analysis (MFA), so that each table's first axis
+has variance 1 and none outweighs another, whatever its number of columns, however
+correlated they are and whatever the order of the tables (owner, 2026-10-06, audit 8; before,
+the first table kept weight 1 and set the scale of the others). ``table_shares`` gives each
+table's share of a principal axis of that space. With one table, or without other tables,
+nothing is weighted and every analysis is as before.
 """
 
 from __future__ import annotations
@@ -470,23 +471,22 @@ def mfa_weights(
     z: np.ndarray, features: Sequence[str], blocks: Mapping[str, Sequence[str]]
 ) -> np.ndarray:
     """Each column's weight in the weighted combined space (see the module): ``z`` holds the
-    robustly standardised ``features``, ``blocks`` each table's columns, the explainable
-    features first. A table is weighted by the first block's first singular value over its
-    own (both on the columns centred on their means), so the first block keeps weight 1; a
-    column of no block, or a table none of whose columns is in ``features``, keeps 1."""
+    robustly standardised ``features``, ``blocks`` each table's columns. With two tables or
+    more, a table is weighted ``sqrt(n - 1)`` over the first singular value of its columns
+    centred on their means, so its first axis has variance 1 whatever the order of the
+    tables (owner, 2026-10-06, audit 8); with one, nothing is weighted. A column of no block,
+    or of a table without variance, keeps 1."""
     weights = np.ones(len(features))
     position = {f: i for i, f in enumerate(features)}
-    singular: dict[str, float] = {}
-    for name, columns in blocks.items():
-        index = [position[c] for c in columns if c in position]
-        if index:
-            part = z[:, index] - z[:, index].mean(axis=0)
-            singular[name] = float(np.linalg.svd(part, compute_uv=False)[0]) if len(z) else 0.0
-    reference = next((v for v in singular.values() if v > 0), 0.0)
-    for name, columns in blocks.items():
-        if singular.get(name, 0.0) > 0 and reference > 0:
-            index = [position[c] for c in columns if c in position]
-            weights[index] = reference / singular[name]
+    tables = [[position[c] for c in columns if c in position] for columns in blocks.values()]
+    tables = [index for index in tables if index]
+    if len(tables) < 2:
+        return weights
+    for index in tables:
+        part = z[:, index] - z[:, index].mean(axis=0)
+        singular = float(np.linalg.svd(part, compute_uv=False)[0]) if len(z) else 0.0
+        if singular > 0:
+            weights[index] = np.sqrt(len(z) - 1) / singular
     return weights
 
 

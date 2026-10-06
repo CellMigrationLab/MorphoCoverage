@@ -24,13 +24,14 @@ import pandas as pd
 from .._palette import GREY, condition_palette
 from .._wording import percent
 from ..embedding import MIN_FEATURES, Embedding, embed
+from ..feature_tables import COMBINED
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import control_mean_problem, normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..sampling_unit.populations import MAX_COMPONENTS, VARIANCE
 from ._contrasts import left_out_sentence, normalisation_problem
 from ._feature_space import (
-    centred_left_out,
+    analysed_tables,
     centred_tables,
     centring_line,
     features_words,
@@ -247,8 +248,10 @@ def _find(names: list[str], colours: list[str]) -> str:
 def _tables(
     setup: Any, objects: pd.DataFrame, fovs: pd.DataFrame
 ) -> tuple[dict[str, pd.DataFrame], str | None]:
-    """The values the maps show (raw, and normalised to the control when they can be), and
-    why the normalised ones cannot, or ``None``; any other error raises."""
+    """The values the maps show (raw, normalised to the control when they can be, with
+    ``normalize`` the other tables centred there as the populations read them, audit 8, and
+    the tables centred), and why the normalised ones cannot, or ``None``; any other error
+    raises."""
     tables = {"raw": objects}
     control = setup.figure_control
     unnormalisable = None
@@ -267,6 +270,8 @@ def _tables(
     centred = centred_tables(objects, fovs, setup)  # the other tables only (owner, 2026-10-06)
     if centred is not None:
         tables["centred"] = centred
+    if "normalised" in tables:  # with normalize, the tables centred, as the populations read
+        tables["normalised"] = analysed_tables(tables["normalised"], fovs, setup)
     return tables, unnormalisable
 
 
@@ -284,11 +289,14 @@ def _maps(
     spaces = space_names(setup)
     several = len(spaces) > 1
     own = set(setup.feature_tables or {})
+    # Without explainable features the combined space is the tables' alone: centred, it is
+    # the populations' combined space (audit 8, seed 15).
+    centred = own | ({COMBINED.capitalize()} if not setup.columns else set())
     maps: dict[str, dict[str, Embedding]] = {}
     for values, table in tables.items():
         maps[values] = {}
         for name, (columns, blocks) in spaces.items():
-            if len(columns) < MIN_FEATURES or (values == "centred" and name not in own):
+            if len(columns) < MIN_FEATURES or (values == "centred" and name not in centred):
                 continue
             if name in own and name in maps["raw"] and values != "centred":
                 maps[values][name] = maps["raw"][name]
@@ -335,19 +343,24 @@ def embeddings(
     control = setup.figure_control
     tables, unnormalisable = _tables(setup, objects, fovs)
     maps = _maps(setup, tables, fovs, top, carry)
-    left = centred_left_out(objects, fovs, setup) if "centred" in maps else ""
     ran = "unusual" in result.results
     line = centring_line(objects, fovs, setup, ran) if "centred" in maps else ""
-    centred = centred_note(setup.unit_word, setup.unit_words, left, line)
+    centred = centred_note(line)
     spaces = list(maps["raw"])
     several = len(spaces) > 1
     # How far the conditions separate in each space, under its map (owner, 2026-10-05).
     own = list(setup.feature_tables or {})
     separations = {
-        values: separation_in_report(table, fovs, setup, own if values == "centred" else None)
+        values: separation_in_report(
+            table, fovs, setup, own if values == "centred" else None, raw=objects
+        )
         for values, table in tables.items()
         if values in maps
     }
+    # One well per condition and repeat: a well difference reads as a condition's (audit 8).
+    raw_separation = separations.get("raw")
+    wells = raw_separation.well_line() if raw_separation is not None else ""
+    neighbours = f"{NEIGHBOURS} {wells}".rstrip()
     ranked = list(top) + [f for f in setup.columns if f not in set(top)]
     first = maps["raw"][spaces[0]]
     features = [f for f in ranked if f"z:{f}" in first.points][:MAP_FEATURES]
@@ -488,7 +501,7 @@ def embeddings(
         + (f'<p class="note">{html.escape(note)}</p>' if note else "")
         + comparison
         + f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
-        f'<p class="note">{html.escape(NEIGHBOURS)}</p>'
+        f'<p class="note">{html.escape(neighbours)}</p>'
         + (f'<p class="note">{html.escape(centred)}</p>' if "centred" in maps else "")
         + '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "

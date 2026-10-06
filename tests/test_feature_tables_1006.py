@@ -297,10 +297,10 @@ def test_the_combined_map_says_each_tables_share_of_each_axis():
     ]
 
 
-def test_the_centred_view_subtracts_each_repeats_control_median():
+def test_the_centred_view_subtracts_the_median_of_the_condition_medians_in_every_repeat():
     objects, fovs, rng = _cells(fields=2, cells=3)
-    # Unbalanced (b not imaged in R1): centred on the control (owner, 2026-10-06; a balanced
-    # design is centred on all observations, test_feature_tables_batch).
+    # b not imaged in R1: ctrl and a, in every repeat, set the centre (owner, 2026-10-06,
+    # audit 8; test_feature_tables_batch).
     objects, fovs = _without(objects, "b", "R1"), _without(fovs, "b", "R1")
     values = rng.normal(size=(len(objects), 2))
     table = _table(objects, values, "d")
@@ -310,10 +310,9 @@ def test_the_centred_view_subtracts_each_repeats_control_median():
         readout="x0", control={"condition": "ctrl"}, feature_tables={"DINO": ("d0", "d1")}
     )
     centred = centred_tables(merged, fovs, setup)
-    for (condition, repeat), rows in merged.groupby(["condition", "biological_repeat"]):
-        control = merged[(merged["condition"] == "ctrl") & (merged["biological_repeat"] == repeat)]
-        expected = rows["d0"] - control["d0"].median()
-        np.testing.assert_allclose(centred.loc[rows.index, "d0"], expected)
+    for _, rows in merged.groupby("biological_repeat"):
+        medians = [rows.loc[rows["condition"] == c, "d0"].median() for c in ("ctrl", "a")]
+        np.testing.assert_allclose(centred.loc[rows.index, "d0"], rows["d0"] - np.median(medians))
     assert (centred["x0"] == 1.0).all()  # the explainable features are left as they are
     assert centred_tables(merged, fovs, Setup(readout="x0")) is None
 

@@ -29,8 +29,10 @@ import pandas as pd
 
 from .._wording import count, listing
 from ..feature_tables import COMBINED, EXPLAINABLE
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..sampling_unit.populations import MAX_POINTS, Populations, find_populations
-from ._feature_space import explainable_space, features_words, space, table_of
+from ..schema import validate_input_tables
+from ._feature_space import explainable_space, features_words, space, table_columns, table_of
 
 if TYPE_CHECKING:
     from .setup import Setup
@@ -136,11 +138,55 @@ def _merged(results: dict[str, Populations], index: pd.Index) -> Populations:
     return Populations(labels, table, settings, members)
 
 
+def _left_out(objects: pd.DataFrame, raw: pd.DataFrame | None, columns: list[str]) -> pd.Index:
+    """The observations with every raw value of ``columns`` and not every value in
+    ``objects``: normalised without their own control, or in a repeat with no condition to
+    centre on (audit 8)."""
+    if raw is None or raw is objects or not columns:
+        return pd.Index([])
+    lost = raw[columns].notna().all(axis=1) & objects[columns].isna().any(axis=1)
+    return objects.index[lost.reindex(objects.index, fill_value=False).to_numpy()]
+
+
+def _left_without_control(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, left: pd.Index
+) -> list[tuple[str, list[str]]]:
+    """Each repeat of ``left`` with its conditions, in the order of the observation table."""
+    data = validate_input_tables(
+        objects.loc[left],
+        fovs=fovs,
+        feature_cols=(list(setup.columns) or table_columns(setup))[:1],
+        **setup.common,
+    )
+    frame = data.objects
+    alone = pd.Series("all", index=frame.index)
+    repeat, condition = frame.get(REPEAT_COLUMN, alone), frame.get(CONDITION_COLUMN, alone)
+    return [
+        (str(r), [str(c) for c in pd.unique(condition[repeat == r])]) for r in pd.unique(repeat)
+    ]
+
+
+def no_own_control_words(settings: dict[str, Any], unit: str, units: str) -> str:
+    """``36 cells of b1 and b2 in R4 left out: no own control``, said once for the spaces
+    that read the values concerned (audit 8, seed 4: never a missing value); likewise the
+    repeats with no condition to centre the tables on; empty when none was."""
+    parts = []
+    for found in settings.get("left_out_by") or []:
+        where = "; ".join(f"{listing(c, 4)} in {r}" for r, c in found["where"])
+        spaces = found.get("spaces") or []
+        of = f" of {listing([space_words(s) for s in spaces], 4)}" if len(spaces) > 1 else ""
+        number = count(found["observations"], unit, units)
+        parts.append(f"{number} of {where} left out{of}: {found['reason']}")
+    return "; ".join(parts)
+
+
 def populations_in_spaces(
-    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, raw: pd.DataFrame | None = None
 ) -> Populations | None:
     """The populations of every space, merged (see the module); ``None`` with fewer than two
-    explainable features and no other table."""
+    explainable features and no other table. With ``raw`` (the values before normalisation),
+    the observations left out for want of their own control, or of a condition to centre
+    the tables on, are counted apart from those missing a value (``no_own_control_words``)."""
     spaces = _spaces(setup)
     results = {}
     for name, (columns, blocks, named_by) in spaces.items():
@@ -158,7 +204,33 @@ def populations_in_spaces(
         )
     if not results:
         return None
+    explainable = list(setup.columns)
+    kinds = (
+        []
+        if setup.normalize is None
+        else [
+            ("no own control", explainable),
+            ("no condition to centre on", table_columns(setup)),
+        ]
+    )
+    left_by = []
+    lost: dict[str, pd.Index] = {name: pd.Index([]) for name in results}
+    for reason, columns in kinds:
+        left = _left_out(objects, raw, columns)
+        reading = [n for n in results if set(spaces[n][0]) & set(columns)]
+        if not len(left) or not reading:
+            continue
+        for name in reading:
+            lost[name] = lost[name].union(left)
+        where = _left_without_control(objects, fovs, setup, left)
+        left_by.append(
+            {"reason": reason, "observations": len(left), "where": where, "spaces": reading}
+        )
+    for name, index in lost.items():  # counted apart from the missing values
+        results[name].settings["incomplete_observations"] -= len(index)
     found = results[EXPLAINABLE] if not setup.feature_tables else _merged(results, objects.index)
+    if left_by:
+        found.settings["left_out_by"] = left_by
     owner = table_of(setup)
     if len(set(owner.values())) > 1:  # each rule feature's table named (owner, 2026-10-06)
         found.table["rule_tables"] = [
@@ -241,6 +313,7 @@ __all__ = [
     "SPACE_MAX_POINTS",
     "described",
     "found_words",
+    "no_own_control_words",
     "populations_in_spaces",
     "rule_tables",
     "space_words",

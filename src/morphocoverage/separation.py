@@ -15,7 +15,14 @@ their weighted combined space):
   each observation's neighbours, among the other observations of its condition, that share
   its biological repeat, against chance; the median over the conditions. When the repeats
   separate more than the conditions in a space, the line says so: a batch effect between
-  repeats is then larger there than the difference between conditions.
+  repeats is then larger there than the difference between conditions. It always reads the
+  raw values (``repeat_values``; owner, 2026-10-06, audit 8): a batch measured after a
+  centring that removes it would be circular, and a centre with noise of its own would read
+  as one.
+
+With one well per condition and biological repeat, or wells not given, a difference between
+wells is also a difference between conditions within the repeat: the score by condition
+cannot tell them apart, and ``Separation.well_line`` says so once (audit 8).
 
 Neighbours never come from the observation's own field, nor from its own technical repeat
 (well) when its condition holds another well in that repeat (owner, 2026-10-06): cells of one
@@ -57,7 +64,7 @@ import pandas as pd
 from ._checks import as_count, check_seed
 from ._seeds import group_rng
 from ._style import table
-from ._wording import count, percent
+from ._wording import count, listing, percent
 from .embedding import _sample, _standardised, combined
 from .feature_tables import COMBINED
 from .metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
@@ -119,17 +126,45 @@ class Separation:
             f"{space}: {percent(row['share'])} of neighbours share the condition, against "
             f"{percent(row['chance'])} by chance; {over}."
         )
+        # The repeats on the raw values under a normalised or centred map (audit 8): said.
+        raw = " on the raw values," if self.settings.get("repeat_raw") else ""
         if row["conditions"]:
             text += (
-                f" Within a condition, {percent(row['repeat_share'])} share the repeat, "
+                f" Within a condition,{raw} {percent(row['repeat_share'])} share the repeat, "
                 f"against {percent(row['repeat_chance'])} by chance."
             )
         if self.repeats_first(space):
-            text += " Here the repeats separate more than the conditions."
+            text += (
+                " On the raw values, the repeats separate more than the conditions."
+                if raw
+                else " Here the repeats separate more than the conditions."
+            )
+        unit = self.settings.get("observation_unit", "observation")
         if row["left_out"]:
-            unit = self.settings.get("observation_unit", "observation")
             text += f" {count(int(row['left_out']), unit)} with a missing value left out."
+        dropped = row.get("dropped", 0)
+        if dropped:  # no value in these values only (no own control, no centre; audit 8)
+            where = "; ".join(f"{listing(c, 4)} in {r}" for r, c in row["dropped_where"])
+            why = self.settings.get("dropped_reasons", {}).get(space, "no value here")
+            text += f" {count(int(dropped), unit)} of {where} left out: {why}."
         return text
+
+    def well_line(self) -> str:
+        """With one well per condition and repeat, or wells not given, that a difference
+        between wells reads as a separation of the conditions (see the module); empty with
+        several wells."""
+        wells = self.settings.get("wells")
+        if wells == "one":
+            return (
+                "Each condition is imaged in one well per biological repeat, so a difference "
+                "between wells reads here as a separation of the conditions."
+            )
+        if wells == "unknown":
+            return (
+                "The wells are not given, so a difference between the wells of the conditions "
+                "reads here as a separation of the conditions."
+            )
+        return ""
 
     def ranked(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         """The spaces scored, the most separating first, and the combined space apart: it
@@ -170,6 +205,27 @@ def _blocks(meta: pd.DataFrame, fields: np.ndarray) -> np.ndarray:
         return keys.to_numpy()
     wells = keys.groupby([meta[c].astype(str) for c in group]).transform("nunique")
     return np.where(wells.to_numpy() > 1, "well\x1f" + keys, "field\x1f" + field_ids)
+
+
+def _where(meta: pd.DataFrame) -> list[tuple[str, list[str]]]:
+    """Each repeat of ``meta`` with its conditions, in order."""
+    alone = pd.Series("all", index=meta.index)
+    repeat, condition = meta.get(REPEAT_COLUMN, alone), meta.get(CONDITION_COLUMN, alone)
+    return [
+        (str(r), [str(c) for c in pd.unique(condition[repeat == r])]) for r in pd.unique(repeat)
+    ]
+
+
+def _wells(fovs: pd.DataFrame) -> str:
+    """``one`` when every condition holds at most one well per biological repeat,
+    ``unknown`` without wells, else ``several``."""
+    if TECHNICAL_REPEAT_COLUMN not in fovs or fovs[TECHNICAL_REPEAT_COLUMN].isna().all():
+        return "unknown"
+    group = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN) if c in fovs]
+    if not group:
+        return "one" if fovs[TECHNICAL_REPEAT_COLUMN].nunique() <= 1 else "several"
+    wells = fovs.groupby(group)[TECHNICAL_REPEAT_COLUMN].nunique()
+    return "one" if (wells <= 1).all() else "several"
 
 
 def _scores(
@@ -242,6 +298,31 @@ def _median(rows: pd.DataFrame, column: str) -> float:
     return float(rows[column].median()) if len(rows) else np.nan
 
 
+def _space(
+    values: pd.DataFrame,
+    fovs: pd.DataFrame,
+    features: Sequence[str],
+    combine: tuple[Mapping[str, float] | None, Mapping[str, Sequence[str]] | None],
+    common: dict[str, Any],
+) -> tuple[Any, np.ndarray, pd.DataFrame, np.ndarray, np.ndarray]:
+    """The validated ``values`` of one space, which observations are complete, their
+    metadata and field positions, and their standardised, weighted coordinates (empty when
+    fewer than two are complete or no column varies)."""
+    data = validate_input_tables(
+        values, fovs=fovs, feature_cols=list(dict.fromkeys(features)), **common
+    )
+    positions = fov_positions(data, data.fovs)
+    meta = data.fovs.iloc[positions].reset_index(drop=True)
+    matrix = data.feature_matrix()
+    complete = ~np.isnan(matrix).any(axis=1)
+    z = np.empty((0, 0))
+    if CONDITION_COLUMN in meta and complete.sum() > 1:
+        z, varies = _standardised(matrix[complete])
+        kept = [f for f, v in zip(data.feature_cols, varies, strict=True) if v]
+        z = combined(z, kept, *combine) if kept else np.empty((0, 0))
+    return data, complete, meta, positions, z
+
+
 def separation(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -255,41 +336,53 @@ def separation(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    repeat_values: pd.DataFrame | None = None,
+    dropped_reasons: Mapping[str, str] | None = None,
 ) -> Separation:
     """The separation of the conditions and of the repeats in each of ``spaces`` (a name and
     its features; see the module). ``weights`` gives a space's fixed weight per feature,
-    ``blocks`` its tables, weighted as the combined space weighs them."""
+    ``blocks`` its tables, weighted as the combined space weighs them. ``repeat_values``: the
+    raw values the score by repeat reads when ``objects`` holds centred or normalised ones
+    (default: ``objects``); an observation with every value there but not in ``objects`` is
+    counted apart from the missing values and named, with its space's reason in
+    ``dropped_reasons`` (``no own control``)."""
     k = as_count(k, "k", 1)
     max_points = as_count(max_points, "max_points", 2)
     random_state = check_seed(random_state)
-    rows, summaries, unit = [], [], "observation"
+    common = {
+        "fov_col": fov_col,
+        "group_cols": group_cols,
+        "observation_unit": observation_unit,
+    }
+    rows, summaries, unit, wells = [], [], "observation", "unknown"
+    settings = (k, max_points, random_state)
     for name, features in spaces.items():
-        data = validate_input_tables(
-            objects,
-            fovs=fovs,
-            feature_cols=list(dict.fromkeys(features)),
-            fov_col=fov_col,
-            group_cols=group_cols,
-            observation_unit=observation_unit,
-        )
+        combine = ((weights or {}).get(name), (blocks or {}).get(name))
+        data, complete, meta, positions, z = _space(objects, fovs, features, combine, common)
         unit = unit_words(data.observation_unit, data.observation_unit_declared)[0]
-        positions = fov_positions(data, data.fovs)
-        meta = data.fovs.iloc[positions].reset_index(drop=True)
-        matrix = data.feature_matrix()
-        complete = ~np.isnan(matrix).any(axis=1)
+        wells = _wells(data.fovs)
         found: list[dict[str, Any]] = []
         single = 0
-        if CONDITION_COLUMN in meta and complete.sum() > 1:
-            z, varies = _standardised(matrix[complete])
-            kept = [f for f, v in zip(data.feature_cols, varies, strict=True) if v]
-            z = combined(z, kept, (weights or {}).get(name), (blocks or {}).get(name))
-            if kept:
-                here = meta.loc[complete].reset_index(drop=True)
-                own = _blocks(here, positions[complete])
-                settings = (k, max_points, random_state)
-                found, single = _group_rows(name, "condition", z, here, own, settings)
-                if REPEAT_COLUMN in here:
-                    found += _group_rows(name, "repeat", z, here, own, settings)[0]
+        if z.size:
+            here = meta.loc[complete].reset_index(drop=True)
+            own = _blocks(here, positions[complete])
+            found, single = _group_rows(name, "condition", z, here, own, settings)
+        left_out, dropped, where = int((~complete).sum()), 0, []
+        # By repeat, always on the raw values (owner, 2026-10-06, audit 8).
+        if repeat_values is not None and repeat_values is not objects:
+            view = pd.Series(complete, index=data.objects.index)
+            raw, complete, meta_raw, positions, z = _space(
+                repeat_values, fovs, features, combine, common
+            )
+            given = pd.Series(complete, index=raw.objects.index).reindex(view.index)
+            lost = (given.fillna(False).astype(bool) & ~view).to_numpy()
+            dropped, left_out = int(lost.sum()), left_out - int(lost.sum())
+            where = _where(meta.loc[lost])
+            meta = meta_raw
+        if z.size and REPEAT_COLUMN in meta:
+            here = meta.loc[complete].reset_index(drop=True)
+            own = _blocks(here, positions[complete])
+            found += _group_rows(name, "repeat", z, here, own, settings)[0]
         rows += found
         scored = pd.DataFrame(found, columns=_COLUMNS)
         by_condition = scored[scored["score"] == "condition"]
@@ -304,17 +397,22 @@ def separation(
                 "repeat_share": _median(by_repeat, "share"),
                 "repeat_chance": _median(by_repeat, "chance"),
                 "conditions": len(by_repeat),
-                "left_out": int((~complete).sum()),
+                "left_out": left_out,
+                "dropped": dropped,
+                "dropped_where": where,
                 "single": single,
             }
         )
-    settings = {
+    described = {
         "k": k,
         "max_points": max_points,
         "random_state": random_state,
         "observation_unit": unit,
+        "wells": wells,
+        "repeat_raw": repeat_values is not None and repeat_values is not objects,
+        "dropped_reasons": dict(dropped_reasons or {}),
     }
-    return Separation(pd.DataFrame(rows, columns=_COLUMNS), pd.DataFrame(summaries), settings)
+    return Separation(pd.DataFrame(rows, columns=_COLUMNS), pd.DataFrame(summaries), described)
 
 
 __all__ = ["MAX_POINTS", "NOTABLE", "K", "Separation", "lift", "separation"]

@@ -107,10 +107,10 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
 
 # An embedding-only Setup's normalisation (owner, 2026-10-06).
 TABLES_CENTRED = (
-    "Values: the other feature tables centred per biological repeat, on all its observations "
-    "when every repeat holds the same conditions, else on its control, for the maps, the "
-    "populations, unusual observations and the separation; never divided, and never for a "
-    "test, which reads the raw values."
+    "Values: the other feature tables centred per biological repeat, on the median of the "
+    "per-condition medians of the conditions in every repeat, for the maps, the "
+    "populations, unusual observations and the separation of the conditions; never divided, "
+    "and never for a test, which reads the raw values."
 )
 
 
@@ -179,7 +179,13 @@ def _representation(setup: Setup, per_field: bool = True) -> str:
     with new phenotypes, several observations per field."""
     units = setup.unit_words
     if not setup.features:
-        # Unusual observations and novelty read the declared features only (see report).
+        # Unusual observations and novelty read the declared features only (see report);
+        # beside other tables, unusual observations read the readout alone (audit 8, seed 2).
+        if setup.feature_tables and not _unusual_missing(setup, per_field):
+            return (
+                f"no feature columns declared, so new phenotypes are not assessed; unusual "
+                f"{units} on the readout alone, the other tables never entering them"
+            )
         return (
             f"no feature columns declared, so unusual {units} and new phenotypes are not assessed"
         )

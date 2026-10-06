@@ -3,8 +3,11 @@
 "Can these features detect what I care about?" needs a condition known to change the
 phenotype. A labelled rare state is such a check already (owner, 2026-10-02): its cells
 were told apart by another channel, so the features should place them together. For every
-labelled cell, the nearest cell of another field (on the declared features, each robustly
-standardized: median and MAD over all cells) is looked up: the share of those neighbours
+labelled cell, the nearest cell of another field (on the declared features, robustly
+standardized over all cells as the other explainable spaces are, ``embedding.robust_scale``:
+median and MAD, the SD where the MAD is under a quarter of it, and with features of two
+explainable tables or more each table weighted by MFA; owner, 2026-10-06, audit 8) is looked
+up: the share of those neighbours
 that are labelled says how well the features see the state, against the share labelled
 overall (what a feature set blind to it gives). A cell whose label is missing is unknown: it
 is in neither share (owner, 2026-10-05). Another field, so that cells of one
@@ -30,7 +33,10 @@ from scipy.spatial import cKDTree
 
 from .._style import Status, wrap
 from .._wording import count, listing, percent, plural
+from ..embedding import robust_scale
+from ..feature_tables import mfa_weights
 from ..schema import fov_positions, validate_input_tables
+from ._feature_space import explainable_space
 
 if TYPE_CHECKING:
     from ..retrospective import MicroscopistReport
@@ -61,12 +67,13 @@ class LabelControl:
     reason: str = ""
 
 
-def _robust(matrix: np.ndarray) -> np.ndarray:
-    median = np.nanmedian(matrix, axis=0)
-    scale = 1.4826 * np.nanmedian(np.abs(matrix - median), axis=0)
-    spread = np.nanstd(matrix, axis=0)
-    scale = np.where(scale > 0, scale, np.where(spread > 0, spread, 1.0))
-    return (matrix - median) / scale
+def _robust(matrix: np.ndarray, setup: Setup) -> np.ndarray:
+    """``matrix`` (complete, the declared features) robustly standardised as the other
+    explainable spaces are, each table weighted by MFA with two or more (see the module)."""
+    centre, scale = robust_scale(matrix)
+    z = (matrix - centre) / np.where(scale > 0, scale, 1.0)
+    blocks = explainable_space(setup)[1]
+    return z if blocks is None else z * mfa_weights(z, list(setup.columns), blocks)
 
 
 def _reason(matrix: np.ndarray, marked: np.ndarray, label: str, unit: str) -> str:
@@ -110,7 +117,7 @@ def label_control(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> La
         empty = pd.Series(dtype=float)
         return LabelControl(recognized=np.nan, separation=empty, reason=reason, **declared)
     positions = fov_positions(data, data.fovs)[known]
-    points = _robust(matrix)[known]
+    points = _robust(matrix, setup)[known]
     tree = cKDTree(points)
     own = positions[marked]
     nearest = np.full(len(own), -1)

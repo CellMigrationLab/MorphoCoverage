@@ -262,9 +262,9 @@ def report(
     # Question 10: populations on every condition pooled, then their enrichment.
     # The tables centred per repeat with normalize, as the features are divided.
     analysed = analysed_tables(prepared, fovs, setup)
-    results["populations"] = populations_in_report(analysed, fovs, setup)
+    results["populations"] = populations_in_report(analysed, fovs, setup, objects)
     # Per feature table, how far the conditions separate (descriptive, owner 2026-10-05).
-    results["separation"] = separation_in_report(analysed, fovs, setup)
+    results["separation"] = separation_in_report(analysed, fovs, setup, raw=objects)
     rules, novelty_target = sufficiency_rules(setup)
     if novelty is None:
         novelty_target = None
@@ -476,6 +476,7 @@ def optimise(
     unread = [
         f"The fingerprint, {c}, is not assessable: {r}." for c, r in space.not_assessable.items()
     ]
+    unread += space.small_groups(setup.unit_word, setup.unit_words)  # audit 8
     document = replace(
         with_reasons(document, reasons), title=title, notes=(*document.notes, *unread)
     )

@@ -178,8 +178,8 @@ def embedding_report(
     results["whole_table"] = whole_table_in_report(objects, fovs, setup)
     if setup.fingerprint:
         results["fingerprint_precision"] = fingerprint_precision(objects, fovs, setup)
-    results["populations"] = populations_in_report(analysed, fovs, setup)
-    results["separation"] = separation_in_report(analysed, fovs, setup)
+    results["populations"] = populations_in_report(analysed, fovs, setup, objects)
+    results["separation"] = separation_in_report(analysed, fovs, setup, raw=objects)
     reasons = embedding_reasons(results, setup, fovs, per_field)
     reasons.update({k: v for k, v in side.items() if k not in reasons})
     document = with_reasons(assemble(results, setup, per_field), reasons)
@@ -215,6 +215,7 @@ def embedding_plan(
     unread = [
         f"The fingerprint, {c}, is not assessable: {r}." for c, r in space.not_assessable.items()
     ]
+    unread += space.small_groups(setup.unit_word, setup.unit_words)  # audit 8
     document = replace(
         with_reasons(document, reasons), title=title, notes=(*document.notes, *unread)
     )
