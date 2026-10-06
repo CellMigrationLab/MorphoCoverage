@@ -214,6 +214,15 @@ small, nothing is balanced and only the test as provided is given.
 - **The paired t** assumes the per-repeat differences (raw) or log ratios
   (normalised) are normally distributed and the repeats are independent. It
   pairs each condition with the control of the same repeat.
+- **A shared control** enters every comparison with it, so a control mean off by chance in
+  a repeat moves them all: the false-discovery rate holds, but the conditions' verdicts are
+  not independent. When two or more conditions are significant the same way against a
+  control imaged in fewer than 3 fields in a repeat, the section says so in one line
+  ("Shared small control: on area, siA#1 and siA#2 against siCTRL, 1 field in a repeat";
+  owner, 2026-10-06). Three fields is where the dependence levels off (audit 8, two
+  conditions of 3 fields of 20 cells under no effect: their changes correlate at 0.82 with a
+  control of one field of 4 cells, 0.66 with one field of 20, 0.56 with two, 0.37-0.39 with
+  three or five).
 - **Normalising** assumes a positive feature on a ratio scale. It is not
   computed when a control mean is 0 or below (a signed feature, a difference
   already).

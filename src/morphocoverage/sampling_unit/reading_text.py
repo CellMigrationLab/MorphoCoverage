@@ -308,6 +308,60 @@ def condition_readings(contrast: Any) -> pd.DataFrame:
     return pd.DataFrame(out, columns=columns)
 
 
+# A control with fewer fields than this in a repeat makes the comparisons with it move together
+# (owner, 2026-10-06, audit 8: against a control of 1 field the changes of two conditions of
+# 3 fields correlate at 0.66-0.82, of 2 fields at 0.56, of 3 or 5 fields at 0.37-0.39).
+FEW_CONTROL_FIELDS = 3
+
+
+def _together(contrast: Any, discovery: Any) -> dict[Any, dict[str, list[str]]]:
+    """Per control: the features (``""`` for the readout alone) on which two or more
+    conditions are significant across repeats the same way against it."""
+    if discovery is not None and len(getattr(discovery, "tests", ())):
+        tests = discovery.tests[discovery.tests["confirmed"].fillna(False).astype(bool)]
+        up = tests["higher"] == tests["repeats"]
+        rows = tests.assign(direction=np.where(up, "higher", "lower"))
+    else:
+        readings = condition_readings(contrast)
+        rows = readings[readings["verdict"] == CONFIRMED].assign(feature="")
+    found: dict[Any, dict[str, list[str]]] = {}
+    for (feature, control, _), block in rows.groupby(
+        ["feature", "control_condition", "direction"], sort=False
+    ):
+        if len(block) >= 2:
+            names = [str(c) for c in block["condition"]]
+            found.setdefault(control, {})[feature] = names
+    return found
+
+
+def shared_control_line(contrast: Any, discovery: Any = None) -> str | None:
+    """One line when two or more conditions are significant the same way against a control
+    imaged in fewer than ``FEW_CONTROL_FIELDS`` fields in a repeat (owner, 2026-10-06, audit
+    8): its own noise moves every comparison with it, so they are not independent
+    confirmations; ``None`` otherwise."""
+    table = getattr(contrast, "table", None)
+    if table is None or "control_fields" not in table or not len(table):
+        return None
+    fields = table.groupby("control_condition")["control_fields"].agg(["min", "max"])
+    parts = []
+    for control, by_feature in _together(contrast, discovery).items():
+        if control not in fields.index or fields.loc[control, "min"] >= FEW_CONTROL_FIELDS:
+            continue
+        low, high = (int(v) for v in fields.loc[control])
+        held = count(high, "field") if low == high else f"{low} to {count(high, 'field')}"
+        for feature, names in list(by_feature.items())[:3]:
+            on = f"on {feature}, " if feature else ""
+            parts.append(f"{on}{listing(names, 4)} against {control}, {held} in a repeat")
+    if not parts:
+        return None
+    return (
+        f"Shared small control: {'; '.join(parts)}. These conditions are significant the same "
+        f"way against a control imaged in fewer than {FEW_CONTROL_FIELDS} fields in a repeat: "
+        "a control mean off by chance in a repeat moves every comparison with it, so they are "
+        "not independent confirmations; more control fields would tell them apart."
+    )
+
+
 def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
     """The readings under a one-line heading, then the conditions never compared (empty
     without a contrast to read)."""
@@ -477,6 +531,7 @@ def _cells_headline(contrast: Any) -> str:
 __all__ = [
     "CONFIRMED",
     "CONSISTENT",
+    "FEW_CONTROL_FIELDS",
     "MIXED",
     "NOT_SIGNIFICANT",
     "NOT_TESTED",
@@ -487,5 +542,6 @@ __all__ = [
     "condition_readings",
     "readings_headline",
     "readings_parts",
+    "shared_control_line",
     "unpaired_conditions",
 ]
