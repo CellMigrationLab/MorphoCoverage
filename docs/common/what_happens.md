@@ -196,8 +196,10 @@ in [normalising to the control](setup.md#normalising-to-the-control).
 is centred per biological repeat on the median of the per-condition medians of the
 conditions in every repeat, balanced or not (owner, 2026-10-06, audit 8); without such a
 condition, within each sub-experiment on the conditions in all of its repeats, a
-sub-experiment with none left uncentred and named. One line says which conditions set the
-centre. The centred map view is shown whenever there is a table. With `normalize` the
+sub-experiment with none left out of the centred values and named (raw values in a centred
+space would read as a batch; with no centre at all, the tables are read as given). One line
+says which conditions set the centre. The centred map view is shown whenever there is a
+centre. With `normalize` the
 populations and the separation of the conditions read the centred values, and so do unusual
 observations in an embedding-only report. No test reads them: the whole-table test and the
 fingerprint read raw values. The rule and why are in

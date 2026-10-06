@@ -116,7 +116,7 @@ def test_without_a_condition_in_every_repeat_each_sub_experiment_is_centred_apar
     )
 
 
-def test_a_sub_experiment_with_no_condition_in_all_its_repeats_is_left_uncentred_and_named():
+def test_a_sub_experiment_with_no_condition_in_all_its_repeats_is_not_centred_and_named():
     merged, fovs, names = _batch()
     # R1 holds ctrl and a, R2 a and b, R3 b and ctrl: linked, but none in all three.
     gone = (
@@ -127,13 +127,39 @@ def test_a_sub_experiment_with_no_condition_in_all_its_repeats_is_left_uncentred
     merged = merged[~gone].reset_index(drop=True)
     fovs = fovs[fovs["image_file"].isin(merged["image_file"])].reset_index(drop=True)
     setup = _setup(names)
-    centred = centred_tables(merged, fovs, setup)
-    np.testing.assert_allclose(centred["d0"], merged["d0"])
-    line = centring_line(merged, fovs, setup)
-    assert line.startswith(
-        "Batch: the other tables left uncentred: no condition is in every repeat of a "
-        "sub-experiment"
+    assert centred_tables(merged, fovs, setup) is None
+    assert centring_line(merged, fovs, setup).startswith(
+        "Batch: the other tables are not centred, as no condition is in every repeat of a "
+        "sub-experiment; they are read as given."
     )
+
+
+def test_a_repeat_with_no_condition_to_centre_on_is_left_out_and_named_once():
+    merged, fovs, names = _batch()
+    # R1 and R2 keep ctrl, a and b; R3, R4 and R5 hold x and y, y and z, z and x (linked, no
+    # condition in all three), relabelled copies of the other repeats.
+    keep = merged[merged["biological_repeat"].isin(["R1", "R2"])]
+    parts = [keep]
+    for repeat, source, renamed in (
+        ("R3", "R3", {"ctrl": "x", "a": "y"}),
+        ("R4", "R2", {"ctrl": "y", "a": "z"}),
+        ("R5", "R1", {"ctrl": "z", "a": "x"}),
+    ):
+        rows = merged[merged["biological_repeat"].eq(source) & merged["condition"].ne("b")]
+        rows = rows.assign(
+            biological_repeat=repeat,
+            condition=rows["condition"].map(renamed),
+            image_file=rows["image_file"] + repeat,
+        )
+        parts.append(rows)
+    merged = pd.concat(parts, ignore_index=True)
+    fovs = merged[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    setup = _setup(names)
+    centred = centred_tables(merged, fovs, setup)
+    out = merged["biological_repeat"].isin(["R3", "R4", "R5"])
+    assert centred.loc[out, "d0"].isna().all() and centred.loc[~out, "d0"].notna().all()
+    line = centring_line(merged, fovs, setup)
+    assert "R3, R4 and R5 are left out of the centred values, as no condition is in every" in line
 
 
 def test_a_planted_batch_is_removed_and_a_condition_effect_survives():

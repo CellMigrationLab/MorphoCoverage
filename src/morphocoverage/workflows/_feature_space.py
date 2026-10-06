@@ -432,7 +432,7 @@ class Centring:
     ``values`` the centred columns; ``centres`` each sub-experiment's repeats and the
     conditions in all of them, whose per-condition medians set its repeats' centres;
     ``uncentred`` the repeats of a sub-experiment no condition is in every repeat of, left
-    as given."""
+    out (missing) of the centred values."""
 
     values: pd.DataFrame
     centres: tuple[tuple[tuple[Any, ...], tuple[Any, ...]], ...]
@@ -459,8 +459,10 @@ def _centring(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Centri
     for number in dict.fromkeys(family.values()):
         repeats = [r for r in held if family[r] == number]
         shared = set.intersection(*(held[r] for r in repeats))
-        if not shared:
+        if not shared:  # left out: raw values in a centred space would read as a batch
             uncentred += repeats
+            for r in repeats:
+                shift[(repeat == r).to_numpy()] = np.nan
             continue
         common = tuple(c for c in order if c in shared)
         centres.append((tuple(repeats), common))
@@ -479,12 +481,12 @@ def centred_tables(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> p
     every repeat, balanced or not, so no control and no cell count decides the centre. When
     no condition is in every repeat, within each sub-experiment (repeats linked by the
     conditions they share, ``_experiments``) on the conditions in all of its repeats; a
-    repeat of a sub-experiment without such a condition is left as given and named
+    repeat of a sub-experiment without such a condition is left out (missing) and named
     (``centring_line``). The centred map, and with ``normalize`` the populations, unusual
     observations and the separation of the conditions (``analysed_tables``); never a test.
     ``None`` without other tables."""
     found = _centring(objects, fovs, setup)
-    if found is None:
+    if found is None or not found.centres:
         return None
     shifted = found.values
     return objects.assign(**{c: shifted[c] for c in shifted.columns})
@@ -520,14 +522,17 @@ def centring_line(
     objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, unusual: bool = True
 ) -> str:
     """Which conditions set the centre of the tables, in one line (owner, 2026-10-06, audit
-    8), the repeats left uncentred named, and what reads the centred values; empty without
+    8), the repeats left out named, and what reads the centred values; empty without
     other tables. Unusual observations read the tables only without explainable features,
     and when they run (``unusual``)."""
     found = _centring(objects, fovs, setup)
     if found is None:
         return ""
-    if not found.centres:
-        how = "left uncentred: no condition is in every repeat of a sub-experiment"
+    if not found.centres:  # nothing to centre on: no centred values (``centred_tables``)
+        return (
+            "Batch: the other tables are not centred, as no condition is in every repeat of a "
+            "sub-experiment; they are read as given."
+        )
     else:
         how = "centred per biological repeat on the median of the per-condition medians "
         how += _centre_words(found)
@@ -535,8 +540,8 @@ def centring_line(
         named = listing([str(r) for r in found.uncentred], 8)
         verb = "is" if len(found.uncentred) == 1 else "are"
         how += (
-            f"; {named} {verb} left uncentred, as no condition is in every repeat of "
-            "its sub-experiment"
+            f"; {named} {verb} left out of the centred values, as no condition is in every "
+            "repeat of its sub-experiment"
         )
     unusual = unusual and not setup.columns
     readers = ["the centred map", "the populations", "unusual observations"]

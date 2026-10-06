@@ -181,8 +181,11 @@ observations; nor does the noise of a small control, which the control's median 
 every observation of its repeat and so set the repeats apart (audit 8: a control of one
 field of 5 cells read as a batch in every simulation). When no condition is in every repeat,
 the rule applies within each sub-experiment (the repeats linked by the conditions they
-share), on the conditions in all of its repeats; a sub-experiment without one is left
-uncentred and its repeats are named. The page and the text say in one line which conditions
+share), on the conditions in all of its repeats; the repeats of a sub-experiment without
+one are left out of the centred values, and named once in that line: raw values beside
+centred ones would read as a batch in the centred map, the populations and the separation
+(owner, 2026-10-06). With no centre anywhere, there is no centred view and the tables'
+analyses read them as given. The page and the text say in one line which conditions
 set the centre ("Batch: the other tables centred per biological repeat on the median of the
 per-condition medians of ctrl, a and b, the conditions in every repeat; ...").
 When normalisation is declared
