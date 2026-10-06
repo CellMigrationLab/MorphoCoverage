@@ -31,7 +31,7 @@ Before the analysis
   1. What should the analysis answer: compare the population averages of the conditions, compare
      their phenotypic fingerprints, or check a rare population? Suggested: averages.
      averages: the readout's mean per condition across biological repeats (the default);
-     fingerprint: the distribution of phenotypes over several features, declared as
+     fingerprint: how several features vary together, the covariance fingerprint, declared as
      fingerprint=(OutcomeCriterion(...), ...); rare: whether a rare population was sampled enough,
      declared as rare=RareTarget(...).
   2. Which feature is the readout you report? Options: Area, Perim., Major, Minor, Circ., Feret,

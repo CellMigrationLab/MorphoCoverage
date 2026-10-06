@@ -12,15 +12,16 @@ At a glance
      known to change the phenotype
   ⚠️ 2. Did I image enough? — to compare with the control, within single repeats, of 13 features:
      partly for all 13; 40 comparisons too small to show even with 4 times the fields, over all 13
-     features; of the rest, Median Speed needs the most (about 26 fields a side); each well's own
-     mean meets the default mean-precision rule, per field, 5% in every well for none of the 13
-     features, a different goal from the comparison
-  ⚠️ 3. What limits my sampling? — whole fields 1.0x as variable as random tracks; unusual tracks
-     spread like random tracks in all 9 groups seen
+     features; of the rest, Median Speed needs the most if its difference is real (about 26 fields a
+     side); each well's own mean meets the default mean-precision rule, per field, 5% in every well
+     for none of the 13 features, a different goal from the comparison
+  ⚠️ 3. What limits my sampling? — whole fields 1.0x as variable as random tracks; no clustering
+     shown for unusual tracks in the 2 groups tested
   ⚠️ 6. Which fields should I look at? — 9 fields to reopen in 8 wells (new state in 6, unusual
      count in 3); integrity names 12 fields
-  ✅ 9. Do the conditions differ? — 1 of 13 features significant across repeats (Tortuosity Rolling);
-     12 candidates in the exploratory track-level screen
+  ⚠️ 9. Do the conditions differ? — 1 of 13 features significant across repeats (Tortuosity
+     Rolling); 12 candidates in the exploratory track-level screen; Tortuosity Rolling for siCCT8#5
+     rests on 3 near-identical repeats
   ➖ 10. Groups of tracks? — no group: no candidate group passed the check on these features
   Questions 4, 5, 7 and 8, planning the next experiment, come from workflows.optimise.
 
@@ -39,10 +40,14 @@ At a glance
     measurement, counted 3 times in each test family; keep one of them.
   ❌ Integrity: 6 findings in 12 fields; check them first: siCCT7#3 · repeat CCT7_2 · B5 · B5_04,
      siCCT7#6 · repeat CCT7_3 · B6 · B6_01-1, siCCT7#6 · repeat CCT7_3 · B6 · B6_04-1 and 9 more.
-  ⚠️ Acquisition anomalies (raw values, quality control): 1 field 5 SDs or more from the other
-     fields of their condition and repeat on the raw values: siCTRL · repeat CCT8_3 · B1 · B1_01-2
-     (Directionality Rolling, 5.6 SDs below); an engineering quality-control threshold, never a
-     biological verdict: open their images, 73 fields judged in 9 groups.
+  ⚠️ Acquisition anomalies (quality control): 1 field 5 SDs or more from the other fields of its
+     condition and repeat on the log scale for Mean Speed, Speed Standard Deviation, Mean Speed
+     Rolling, Median Speed Rolling, Max Speed Rolling and 6 more, else on the values:
+     siCCT7#3 · repeat CCT7_2 · B5 · B5_06-1 (Min Speed Rolling Rolling, 5.8 SDs above, +0.158);
+     about 0.00054 expected by chance in the 949 values of a field and feature judged, were the
+     differences Gaussian on these scales; an engineering quality-control threshold, never a
+     biological verdict: open its image, 73 fields judged in 9 groups; 60 fields in 9 groups of
+     fewer than 8 fields counted, not judged.
 
 What this acquisition was asked to preserve
   Population summary: the mean of Mean Speed over all tracks, within 5% and 2.5% (judged on
@@ -92,7 +97,8 @@ What this acquisition was asked to preserve
     variance that lies between fields. Fields that differ: more than random tracks would let them
     (about 5% expected).
   Would the mean-precision count rule hold with whole fields? The tracks it asks for, taken as whole
-    fields in random order, against the mean of all siCTRL tracks of the same biological repeat:
+    fields drawn at random with replacement, against the mean of all siCTRL tracks of the same
+    biological repeat:
     target  held in   tracks asked  fields taken  error: SD/sqrt(n) → real  as fields (upper-95 SD)
     5%      11 of 18         12-71        3-16.5  5% → 2-8% (0.5-1.6x)      2-67 (6-322)
     2.5%    11 of 18        47-281     10.5-63.8  2% → 1-4% (0.5-1.6x)      5-266 (24-1287)
@@ -104,7 +110,9 @@ What this acquisition was asked to preserve
     4 more.
 
 ➖ 1. Can these features detect what I care about?
-  Not assessed: name a condition known to change the phenotype as the positive control (the guided session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again; it can be added after the acquisition, whenever such a condition was imaged.
+  Not assessed: name a condition known to change the phenotype as the positive control (the guided
+    session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again;
+    it can be added after the acquisition, whenever such a condition was imaged.
 
 ⚠️ 2. Did I image enough?
   Each feature alike, 13 features, ordered as in “Do the conditions differ?” (significant across
@@ -122,7 +130,7 @@ What this acquisition was asked to preserve
     Max Speed Rolling                 partly: shown in 5 of 12           about 14-18 fields a side; 4 too small to show  0 of 18 wells
     Speed Standard Deviation Rolling  partly: shown in 4 of 12           about 10-17 fields a side; 4 too small to show  0 of 18 wells
     Speed Standard Deviation          partly: shown in 3 of 12           about 15-25 fields a side; 6 too small to show  1 of 18 wells
-    Directionality Rolling            partly: shown in 5 of 12           about 18-19 fields a side; 5 too small to show  14 of 18 wells
+    Directionality Rolling            partly: shown in 5 of 12           5 too small to show                             14 of 18 wells
 
   The stopping rules, as optimise and live run them (on the readout):
   Analysis groups: condition · biological repeat · technical repeat.
@@ -146,19 +154,19 @@ What this acquisition was asked to preserve
     report.
   The cautions on these rules are in the full report.
   Assumptions: Shown: the 95% interval of d, from resampling the technical repeats and their fields
-    as acquired, empty fields included, excludes 0. The fields a side it would take are projected
-    from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells
-    does not shrink with more fields, and when it alone is as wide as the difference, more fields
-    will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a
-    difference is called too small to show. Mean-precision rule, per field, 5%: in simulations its
-    upper bound, a bootstrap of whole fields, covered the true averaging error about 85-95% of the
-    time with uneven field sizes and 93-99% with Poisson sizes. The next-field bound is approximate:
-    the leave-one-field-out outcomes share their reference fields. The novelty bounds treat fields
-    as independent, representative draws: neighbouring fields acquired in a raster over patchy
-    states make them too low. Every novelty bound holds at a number of fields fixed in advance, not
-    at the first field where it passes: stopping there is premature more often than 5% of the time.
-    A state carried by fewer than 3 similar tracks per field is never counted, however many fields
-    hold it.
+    as acquired, empty fields included, excludes 0. With fewer than 5 fields a side, not assessable.
+    The fields a side it would take are projected from the part of the interval within wells
+    (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when
+    it alone is as wide as the difference, more fields will not resolve it: more wells or biological
+    repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+    Mean-precision rule, per field, 5%: in simulations its upper bound, a bootstrap of whole fields,
+    covered the true averaging error about 85-95% of the time with uneven field sizes and 93-99%
+    with Poisson sizes. The next-field bound is approximate: the leave-one-field-out outcomes share
+    their reference fields. The novelty bounds treat fields as independent, representative draws:
+    neighbouring fields acquired in a raster over patchy states make them too low. Every novelty
+    bound holds at a number of fields fixed in advance, not at the first field where it passes:
+    stopping there is premature more often than 5% of the time. A state carried by fewer than 3
+    similar tracks per field is never counted, however many fields hold it.
 
   Novelty is exploratory: not yet validated by the benchmark of docs/common/validation.md.
 
@@ -167,11 +175,13 @@ What this acquisition was asked to preserve
     (median; 1.0-2.7 over 18 groups); 6% of fields differ more than random tracks would (5%
     expected).
   - Unusual tracks (exploratory, farther from the siCTRL reference than all but 1% of its tracks;
-    0-16% of each group): clustered in a few fields (q ≤ 0.05) in 0 of the 9 groups where seen.
-  - New states come from 6 fields.
+    0-16% of each scored group): clustered in a few fields (q ≤ 0.05) in 0 of the 2 groups where
+    tested, 7 more where seen too few to reach 0.05.
+  - New states come from 6 fields; false alarms alone would give about 6, up to 9, of the 133 fields
+    judged, so these are compatible with chance.
   ⚠️ No field holds at least 3 unusual tracks in siCCT7#3 · repeat CCT7_2 · B5, siCCT7#6 · repeat
      CCT7_2 · B6, siCTRL · repeat CCT7_1 · B4 and 6 more, so no field count is given there.
-  ⚠️ Refits with other reference samples agree on only 0-80% of the unusual tracks in 5 of 18 groups
+  ⚠️ Refits with other reference samples agree on only 0-80% of the unusual tracks in 5 of 9 groups
      (siCTRL · repeat CCT7_1 · B4, siCCT8#5 · repeat CCT8_1 · B2, siCCT8#5 · repeat CCT8_3 · B2 and
      2 more; below 90%): treat those labels as unstable.
   Assumptions: The field counts assume fields from independent technical repeats: a state held by
@@ -199,42 +209,42 @@ What this acquisition was asked to preserve
   Look first at the 12 fields the integrity checks name in the overview: every answer here counts
     them as independent fields.
 
-✅ 9. Do the conditions differ, and how confidently?
+  Novelty is exploratory: not yet validated by the benchmark of docs/common/validation.md.
+
+⚠️ 9. Do the conditions differ, and how confidently?
   Design: 2 sub-experiments, each with its own siCTRL in its own 3 biological repeats (siCCT7#3 and
     siCCT7#6; siCCT8#5 and siCCT8#8). Reading, condition by condition, against siCTRL. Significant
     across repeats: the paired t-test on the biological repeat means (as SuperPlots; values
     normalised to each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg within the
     condition's sub-experiment, over its 13 features and their conditions: this is the result to
-    report. Same direction, not significant: on one side of the control in every repeat without
-    reaching q ≤ 0.05, a consistent trend and not evidence of no effect (with 3 repeats only large,
-    consistent effects reach it), said from 6 repeats: with fewer, every repeat goes the same way by
-    chance too often (1 experiment in 4 with 3 repeats). Beside it, the track-level screen (as
-    Plot&Stats, every track an independent draw) is exploratory: it finds candidates, not effects
-    that repeat:
+    report (with 3 repeats only large, consistent effects reach it). No trend is called below 6
+    repeats: every repeat goes the same way by chance too often (1 experiment in 4 with 3 repeats).
+    Beside it, the track-level screen (as Plot&Stats, every track an independent draw) is
+    exploratory: it finds candidates, not effects that repeat:
     - siCCT7#3 — no consistent direction: lower in 1 and higher in 2 of 3 biological repeats; paired
-      t-test on the 3 repeat means p 0.65, q 0.99; change ×0.904, ×1.31 and ×1.004 in the 3 repeats,
-      ×1.061 overall, 95% t interval ×0.66 to ×1.71; track-level screen (exploratory) q 0.41
-      (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 36% of experiments like
-      this one); the raw pooled test is not read here: it pools the control of repeats this
-      condition was not imaged in; siCCT7#6 (CCT7) agrees in 2 of 3 biological repeats.
+      t-test on the 3 repeat means p 0.65, q 0.99 (screen-wide q 0.90); change ×0.904, ×1.31 and
+      ×1.004 in the 3 repeats, ×1.061 overall, 95% t interval ×0.66 to ×1.71; track-level screen
+      (exploratory) q 0.41 (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 36%
+      of experiments like this one); the raw pooled test is not read here: it pools the control of
+      repeats this condition was not imaged in; siCCT7#6 (CCT7) agrees in 2 of 3 biological repeats.
     - siCCT7#6 — no consistent direction: lower in 2 and higher in 1 of 3 biological repeats; paired
-      t-test on the 3 repeat means p 0.75, q 0.99; change ×0.86, ×1.17 and ×0.90 in the 3 repeats,
-      ×0.966 overall, 95% t interval ×0.64 to ×1.45; track-level screen (exploratory) q 0.87
-      (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 35% of experiments like
-      this one); the raw pooled test is not read here: it pools the control of repeats this
-      condition was not imaged in; siCCT7#3 (CCT7) agrees in 2 of 3 biological repeats.
+      t-test on the 3 repeat means p 0.75, q 0.99 (screen-wide q 0.91); change ×0.86, ×1.17 and
+      ×0.90 in the 3 repeats, ×0.966 overall, 95% t interval ×0.64 to ×1.45; track-level screen
+      (exploratory) q 0.87 (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 35%
+      of experiments like this one); the raw pooled test is not read here: it pools the control of
+      repeats this condition was not imaged in; siCCT7#3 (CCT7) agrees in 2 of 3 biological repeats.
     - siCCT8#5 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.06, mean 35% lower than the control); paired t-test on the 3 repeat means p
-      0.0494, q 0.088; change ×0.62, ×0.79 and ×0.56 in the 3 repeats, ×0.65 overall, 95% t interval
-      ×0.42 to ×0.997; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
-      effect it gives p ≤ 0.05 in about 34% of experiments like this one); siCCT8#8 (CCT8) agrees in
-      3 of 3 biological repeats.
+      0.0494, q 0.088 (screen-wide q 0.18); change ×0.62, ×0.79 and ×0.56 in the 3 repeats, ×0.65
+      overall, 95% t interval ×0.42 to ×0.997; track-level screen (exploratory) q 0.0011 (balanced,
+      normalised; with no real effect it gives p ≤ 0.05 in about 34% of experiments like this one);
+      siCCT8#8 (CCT8) agrees in 3 of 3 biological repeats.
     - siCCT8#8 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.11, mean 36% lower than the control); paired t-test on the 3 repeat means p
-      0.0506, q 0.088; change ×0.70, ×0.71 and ×0.52 in the 3 repeats, ×0.64 overall, 95% t interval
-      ×0.40 to ×1.003; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
-      effect it gives p ≤ 0.05 in about 35% of experiments like this one); siCCT8#5 (CCT8) agrees in
-      3 of 3 biological repeats.
+      0.0506, q 0.088 (screen-wide q 0.18); change ×0.70, ×0.71 and ×0.52 in the 3 repeats, ×0.64
+      overall, 95% t interval ×0.40 to ×1.003; track-level screen (exploratory) q 0.0011 (balanced,
+      normalised; with no real effect it gives p ≤ 0.05 in about 35% of experiments like this one);
+      siCCT8#5 (CCT8) agrees in 3 of 3 biological repeats.
     With 3 biological repeats, very limited biological replication: each verdict gives the change in
     each repeat and the 95% t interval of the change, which is wide; a change that is not
     significant is not evidence of no change.
@@ -271,10 +281,10 @@ What this acquisition was asked to preserve
     q: the version the reading uses (balanced and normalised when given, else normalised) is
       corrected over the 13 features and their conditions of each sub-experiment, as the feature
       ranking; the other columns over this feature's conditions only.
-  No test within a single repeat: each condition has one well there, no within-repeat technical
-    replication, and the tracks of one well are not independent replicates (the track-level screen
-    above treats them as such, and is exploratory). The per-repeat d are in question 2, and every
-    number in the full report (report_full.txt).
+  No test within a single repeat: each condition and its control have one well in each repeat, no
+    within-repeat technical replication. The tracks of one well are not independent replicates (the
+    track-level screen above treats them as such, and is exploratory). The per-repeat d are in
+    question 2, and every number in the full report (report_full.txt).
   Planning the next experiment on Mean Speed (for a new experiment, if the difference and the
     variation seen here recur; not what the current result needs): the biological repeats a paired
     t-test on the repeat means needs for 80% power, corrected over the conditions of its
@@ -300,9 +310,14 @@ What this acquisition was asked to preserve
        4  Mean Speed                   -1.05  siCCT8#8    ×0.64  ×0.70, ×0.71 and ×0.52     ×0.40 to ×1.003           0.0011           0.088  3 of 3 lower
        5  Mean Speed Rolling           -1.04  siCCT8#8    ×0.64  ×0.69, ×0.72 and ×0.52     ×0.41 to ×0.998           0.0011           0.088  3 of 3 lower
     and 7 more ranked features
-    Significant across repeats (paired t-test on the repeat means, q ≤ 0.05): 1 feature (Tortuosity Rolling, for siCCT8#5 ×0.83; not siCCT8#8).
+    Significant across repeats (paired t-test on the repeat means, q ≤ 0.05): 1 feature (Tortuosity
+      Rolling, for siCCT8#5 ×0.83 (screen-wide q 0.0018); not siCCT8#8).
   Not a candidate for any condition (1 feature): Directionality Rolling.
   Plotted by default: up to 5 best-ranked features (the readout when none ranks).
+  ⚠️ Rests on 3 near-identical repeats: Tortuosity Rolling for siCCT8#5 (SD 0.0019, median 0.18).
+     The SD of the log ratios across the repeats is under a fifth of its median over the
+     sub-experiment's features and conditions, so the small p comes from repeats that agree almost
+     exactly, which 3 repeats cannot show to be typical.
   Assumptions: The paired t-test on the repeat means treats each biological repeat as one replicate:
     it keeps false positives at 5%, but with 3 biological repeats only large, consistent effects
     reach q ≤ 0.05. q: Benjamini-Hochberg within each sub-experiment, over its 13 features and their
@@ -315,15 +330,15 @@ What this acquisition was asked to preserve
     tracks from each repeat, its p from labels shuffled within each repeat. Within a repeat the
     conditions are described by their effect sizes; they are tested across repeats (the first
     table). The test and the effect sizes compare means: a difference confined to a subpopulation of
-    tracks or to the shape of the distribution is not tested (see the unusual tracks and the rare
-    label). Repeats needed: for a paired t-test at p ≤ 0.05/m, m the conditions of the
-    sub-experiment (what Benjamini-Hochberg asks at most), on the values that test compares: each
-    repeat's change (its mean over its control's, a fold change; the difference of the means for a
-    feature with a value that is not positive; the table gives their geometric mean, as the verdict
-    does), its spread between the repeats and its sampling error within one. All projected from the
-    repeats here, so the plan is a guide. Candidates come from the track-level test, which treats
-    every observation as an independent draw and so finds differences that may not repeat; only the
-    paired t-test on the repeat means (3 or more repeats) decides significance.
+    tracks or to the shape of the distribution is not tested (see the unusual tracks). Repeats
+    needed: for a paired t-test at p ≤ 0.05/m, m the conditions of the sub-experiment (what
+    Benjamini-Hochberg asks at most), on the values that test compares: each repeat's change (its
+    mean over its control's, a fold change; the difference of the means for a feature with a value
+    that is not positive; the table gives their geometric mean, as the verdict does), its spread
+    between the repeats and its sampling error within one. All projected from the repeats here, so
+    the plan is a guide. Candidates come from the track-level test, which treats every observation
+    as an independent draw and so finds differences that may not repeat; only the paired t-test on
+    the repeat means (3 or more repeats) decides significance.
 
 ➖ 10. Are there groups of tracks, and is a condition enriched in one?
   590 tracks in all, every condition pooled, clustered on the 13 declared features (HDBSCAN on a
@@ -335,9 +350,8 @@ What this acquisition was asked to preserve
     docs/common/validation.md.
 
 What this dataset cannot tell me
-  ➖ 1. Can the features see the phenotype? — not assessed; needs a positive control: a condition
-     known to change the phenotype
-  ➖ 10. Groups of tracks? — no group: no candidate group passed the check on these features
+  ➖ 1. Can the features see the phenotype? — not assessed, see question 1
+  ➖ 10. Groups of tracks? — no conclusion possible here, see question 10
   ❌ Data integrity: the checks in the overview name 12 fields in 6 findings (fields that hold
      another field's observations, or their own twice), and every answer counts them as independent
      fields.
@@ -359,4 +373,5 @@ What this dataset cannot tell me
     assessed. No acquisition order: the recorded order was not replayed, and the random orders treat
     the fields as exchangeable, so a drift or a raster along the acquisition is not seen.
 
-Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.
+Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state);
+  random_state 0.
