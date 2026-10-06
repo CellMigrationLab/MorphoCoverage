@@ -113,11 +113,20 @@ that repeat one measurement, one row per group: copies, exact affine relations s
 1 − x or a change of units, and near copies at |r| ≥ 0.999, so that one measurement counts
 several times in each test family, and with several controls also within each
 experiment, a relation found there only named with where it holds; nothing is dropped,
-keep one of them, owner 2026-10-05); and the **acquisition anomalies**, on the raw values
-as quality control, never a biological verdict: the fields 5 SDs or more (an engineering
-QC threshold) from the other
-fields of their condition and repeat (the larger of their robust SD and SD, in groups of 8
-fields or more; `sampling_unit.acquisition`), and with several controls the controls apart
+keep one of them, owner 2026-10-05); and the **acquisition anomalies**, as quality
+control, never a biological verdict: the fields 5 SDs or more (an engineering QC threshold)
+from the median of the other fields of their condition and repeat, in groups of 8 fields or
+more (`sampling_unit.acquisition`). A feature is read on the scale its tests read: the log
+of the field medians when every value is positive, else the medians, or the scale declared
+in `Setup(scales=...)`; the SD is one robust scale per feature, pooled over the groups:
+1.4826 times the median absolute deviation of every judged field's difference from the
+median of its group's other fields, their SD where that is under a quarter of the SD. Each
+flag gives its relative difference (a fold from twice or half), and the line says how many
+flags chance alone would give, were the differences Gaussian; with one observation per
+field, that it reads single observations, a field it names then not listed again as a new
+state in question 6 (owner, 2026-10-06, audit 10; before, raw values and the larger of the
+robust SD and SD of the 7 other fields, which flagged about 5 of 174 null log-normal fields
+and fields 1% apart). With several controls the controls apart
 in intensity (owner, 2026-10-06, plan v2)
 and a line naming what
 was not declared and so not checked; the tables, what was checked (the

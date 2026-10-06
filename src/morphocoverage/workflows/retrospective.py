@@ -97,7 +97,7 @@ from ._feature_space import (
 )
 from ._fingerprint_space import fingerprint_space
 from ._label_control import label_control
-from ._one_per_field import field_setup, one_per_field, one_per_field_reasons
+from ._one_per_field import field_setup, listed_once, one_per_field, one_per_field_reasons
 from ._populations import populations_in_report
 from ._rare_share import unlabelled_note
 from ._result_influence import influence_on_result, with_result_influence
@@ -321,6 +321,8 @@ def report(
         results["inspection"] = with_result_influence(
             results["inspection"], compared, fovs, results["contrast"], setup
         )
+    if not per_field:  # one per field: a field the acquisition names is not listed again
+        results["inspection"] = listed_once(results["inspection"], results["acquisition"], setup)
     settings = {
         "recorded_order": setup.acquisition_order_col is not None,
         "permuted_orders": REPORT_ORDERS,
