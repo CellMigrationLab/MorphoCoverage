@@ -415,6 +415,11 @@ def separation_in_report(
         spaces = {name: spaces[name] for name in names if name in spaces}
     if not spaces:
         return None
+    reasons = {
+        name: why
+        for name, (columns, _) in spaces.items()
+        if raw is not None and (why := _dropped_reason(objects, raw, columns, setup))
+    }
     return separation(
         objects,
         fovs,
@@ -422,8 +427,25 @@ def separation_in_report(
         blocks={name: blocks for name, (_, blocks) in spaces.items()},
         random_state=setup.random_state,
         repeat_values=raw,
+        dropped_reasons=reasons,
         **setup.common,
     )
+
+
+def _dropped_reason(
+    values: pd.DataFrame, raw: pd.DataFrame, columns: Sequence[str], setup: Setup
+) -> str:
+    """Why observations with every raw value of ``columns`` have none in ``values`` (audit 8):
+    an explainable feature normalised without the own control, a table's repeat with no
+    condition to centre on; empty when none is."""
+    reasons = []
+    for part, why in (
+        ([c for c in columns if c in setup.columns], "no own control"),
+        ([c for c in columns if c not in setup.columns], "no condition to centre on"),
+    ):
+        if part and (values[part].isna().any(axis=1) & raw[part].notna().all(axis=1)).any():
+            reasons.append(why)
+    return " or ".join(reasons)
 
 
 @dataclass(frozen=True)

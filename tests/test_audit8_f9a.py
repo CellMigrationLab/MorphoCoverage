@@ -33,6 +33,7 @@ from morphocoverage.workflows._feature_space import (
     unusual_space,
 )
 from morphocoverage.workflows._fingerprint_space import fingerprint_space
+from morphocoverage.workflows._html_map_text import comparison_table
 from morphocoverage.workflows._html_maps import _maps, _tables
 from morphocoverage.workflows._label_control import _robust
 from morphocoverage.workflows._populations import populations_in_report, populations_text
@@ -167,7 +168,9 @@ def test_the_populations_name_the_cells_without_their_own_control_never_a_missin
         found = populations_in_report(prepared, fovs, setup, merged)
     settings = found.populations.settings
     # b1 in R1, where cB was not imaged: 3 fields of 6 cells (audit 8, seed 4).
-    assert settings["no_own_control"]["observations"] == 18
+    assert [(b["reason"], b["observations"]) for b in settings["left_out_by"]] == [
+        ("no own control", 18)
+    ]
     assert settings["incomplete_observations"] == 5
     text = " ".join(populations_text(found, setup)[2].split())
     assert "(18 cells of b1 in R1 left out: no own control)" in text
@@ -365,4 +368,40 @@ def test_optimise_does_not_judge_a_group_too_small_for_the_common_k_and_names_it
     assert (
         "The fingerprint, DINO covariance within 15%, is not assessable in pilot R1: fewer than "
         "5 k, 150 cells." in plan.document.notes
+    )
+
+
+def test_under_a_centred_map_the_repeat_line_says_it_reads_the_raw_values():
+    merged, fovs, names = _batch()
+    setup = _setup(names)
+    centred = centred_tables(merged, fovs, setup)
+    found = separation_in_report(centred, fovs, setup, ["DINO"], raw=merged)
+    line = found.line("DINO")
+    assert "Within a condition, on the raw values, " in line
+    assert line.endswith("On the raw values, the repeats separate more than the conditions.")
+    plain = separation_in_report(merged, fovs, setup, ["DINO"]).line("DINO")
+    assert "on the raw values" not in plain and "Here the repeats separate more" in plain
+    assert "On the raw values, the repeats separate more than the conditions in DINO" in (
+        comparison_table(found)
+    )
+
+
+def test_the_normalised_map_line_names_the_cells_without_their_own_control():
+    objects, fovs, tables = _several()
+    objects.loc[objects.index[:5], "area"] = np.nan  # a true missing value, counted as one
+    setup = Setup(
+        readout="area",
+        features=("area", "fib_len", "fib_w"),
+        control=SEVERAL,
+        normalize="control_mean",
+        observation_unit="cell",
+    )
+    merged, setup, _ = attached(objects, fovs, setup, {"fiber": tables["fiber"]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        prepared = setup.prepared(merged, fovs)
+    line = separation_in_report(prepared, fovs, setup, raw=merged).line("Explainable")
+    assert (
+        "5 cells with a missing value left out. 18 cells of b1 in R1 left out: no own control."
+        in line
     )

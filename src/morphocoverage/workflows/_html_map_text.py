@@ -95,9 +95,11 @@ def comparison_table(found: Separation | None) -> str:
         _row(r, f"{r.space}: all the tables at once, not ranked") for r in apart.itertuples()
     )
     batch = [str(name) for name in found.spaces["space"] if found.repeats_first(str(name))]
+    raw = "On the raw values, the" if found.settings.get("repeat_raw") else "The"
     said = (
-        f"<p>The repeats separate more than the conditions in {html.escape(', '.join(batch))}: "
-        "there, a batch between repeats is larger than the difference between conditions.</p>"
+        f"<p>{raw} repeats separate more than the conditions in "
+        f"{html.escape(', '.join(batch))}: there, a batch between repeats is larger than the "
+        "difference between conditions.</p>"
         if batch
         else ""
     )
