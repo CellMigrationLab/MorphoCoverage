@@ -192,7 +192,7 @@ def assemble(
     document = with_populations(document, results.get("populations"), setup)
     document = with_label_check(document, results.get("label_control"), results)
     # Beyond the mean, with a fingerprint declared (question 9).
-    document = with_distribution(document, results.get("distribution"), setup.unit_words)
+    document = with_distribution(document, results.get("distribution"), setup.unit_words, setup)
     # Every other table tested whole, beside the features (owner, 2026-10-06).
     return with_whole_table(document, results.get("whole_table"), bool(setup.columns))
 

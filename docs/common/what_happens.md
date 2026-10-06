@@ -104,7 +104,7 @@ flowchart TD
     OWN --> NRM{"normalize?"}
     NRM -- "yes" --> NV["Populations and separation on normalised and centred values"]
     IN --> FP{"Fingerprint?"}
-    FP -- "yes" --> FPT["Fingerprint per table; beyond the mean with a control"]
+    FP -- "yes" --> FPT["Fingerprint per table; beyond the mean on its explainable features, with a control"]
     IN --> LB{"rare_label?"}
     LB -- "yes" --> LBT["Rare clustering; with explainable features, label share tested and label check"]
 ```
@@ -134,7 +134,7 @@ the contrast table, or the one control.
 | "Did I image enough?" per feature | per repeat, the bootstrap interval of d over wells then fields; the mean-precision rules on raw values | repeat and condition; each analysis group | none | fewer than 2 explainable columns: the readout's answer only; no control |
 | Mean-precision stopping rules | the raw readout, upper 95% bound at the first tolerance | analysis group, per object and per field | none | no readout |
 | Fingerprint | as declared, or on the first k principal components when wider than a fifth of the smallest group; divided by the control with one control and `normalize`, raw with several | analysis group of at least 4 fields | none | groups of fewer than 4 fields: not judged |
-| Beyond the mean | per repeat against the own control: SD ratio, 10%, 50% and 90% quantile shifts | biological repeat | its own family per sub-experiment | no fingerprint, of any table; no control |
+| Beyond the mean | the explainable features the fingerprint reads, per repeat against the own control on field-balanced subsamples (owner, 2026-10-06): SD ratio, 10%, 50% and 90% quantile shifts | biological repeat | its own family per sub-experiment | no fingerprint; a fingerprint reading no explainable feature, said once; no control |
 | Rare label | its share compared like a feature; the label check on the nearest cell of another field; clustering in fields | observation, field | the features' family; clustering over groups and states | label check with a positive control declared; without explainable features, clustering only |
 | Populations | the readout and `features` as the figures read them, MFA across two or more explainable tables | observation; enrichment per repeat | groups and conditions per sub-experiment | fewer than 2 columns; enrichment without a control or with fewer than 3 repeats |
 | Unusual observations | the declared `features` raw, MFA across tables, against each own control | observation; clustering per field | groups and states | no control, no `features`, one observation per field |

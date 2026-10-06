@@ -371,16 +371,36 @@ tests keep the cells). The share stays in every family the features are correcte
 main rows and the rows across experiments), and every count names it apart from them: "0
 of 4 features and the mitotic share are candidates", "over its 4 features, the mitotic share
 and their conditions" (owner, 2026-10-06). With a fingerprint, the report also compares
-each feature's distribution beyond the mean: per biological repeat against its own control, the spread (the SD
-ratio) and the 10%, 50% and 90% quantiles (their shift in control SDs), each
-tested across the repeats (Benjamini-Hochberg within each sub-experiment,
-a family of its own). A condition whose distribution differs answers the
-question like a feature significant across repeats. When a condition's cells
-may split into two groups on a feature where the control's do not (Sarle's
+beyond the mean the distribution of each explainable feature the fingerprint reads (none
+for a fingerprint declared on a DINO table alone, which the section says once): per
+biological repeat against its own control, the spread (the SD ratio) and the 10%, 50% and
+90% quantiles (their shift in control SDs), each tested across the repeats
+(Benjamini-Hochberg within each sub-experiment, a family of its own). A condition whose
+distribution differs answers the question like a feature significant across repeats.
+
+Both sides are read on **field-balanced subsamples** (owner, 2026-10-06): per repeat, the
+same number of fields a side, the smaller side's, drawn at random among each side's fields,
+and the same number of cells in each field, the smallest field's of either side (at most
+100), drawn at random; the statistics are averaged over 50 such draws, seeded as every
+draw of the package (one draw when nothing is left out). On the cells pooled, the field
+design read as an effect: a control of one field of 60 cells against three fields of 20
+has no field-to-field variation in its spread. Null calibration
+(`data/simulations/beyond_the_mean.py`, results in
+`data/simulations/results/beyond_the_mean.csv`; 400 datasets per setting, 3 and 6 repeats,
+5 features, field SD 0.5 or 1 cell SD, equal sides, a control of one field of 60 or of 6
+cells, a condition that lost cells, and uneven random counts): each statistic gave
+p ≤ 0.05 in 3.6-5.8% of tests, and any q ≤ 0.05 over the 20 tests in 2.8-7.0% of
+datasets. The same tests on the pooled cells gave up to 56% for the spread and up to 13%
+for the outer quantiles, and up to 31% of datasets with a q ≤ 0.05 (6 repeats, a control of
+one field of 60 cells, field SD 1; audit 8 found 56% and 34% on its own design, now 4%
+and 3%).
+
+When a condition's cells may split into two groups on a feature where the control's do not (Sarle's
 bimodality coefficient above 5/9 for the condition without a heavy tail, excess
 kurtosis at most 2, since a skewed single-peaked feature reaches 5/9 too, and
 below 5/9 for the control, in at least half of its repeats that can be assessed),
-the summary says so and points to its figure: described, not tested. A repeat
+the summary says so and points to its figure: described, not tested, on every observation
+pooled. A repeat
 whose coefficient is undefined, with fewer than 4 cells on a side or no spread,
 leaves the denominator and is named ("1 repeat not assessed: 3 cells"), and a
 condition with no repeat assessed is said not assessed (owner, 2026-10-05).

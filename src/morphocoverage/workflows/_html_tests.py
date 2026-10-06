@@ -503,8 +503,8 @@ def _explainer(result: Any, kinds: Sequence[str], family: str) -> str:
     ]
     if "Beyond the mean" in kinds:
         beyond = (
-            "The spread and the 10%, 50% and 90% quantiles of each condition against its "
-            "control, per repeat, tested across the repeats like the means."
+            "The spread and 10%, 50% and 90% quantiles of each feature the fingerprint reads, per "
+            "repeat on as many fields and observations a field on each side, tested like the means."
         )
         parts.append(("Beyond the mean", beyond))
     if "Reagents" in kinds:
