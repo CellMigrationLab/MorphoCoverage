@@ -139,6 +139,8 @@ def check_controls(setup: Setup) -> None:
         if child in reference:
             raise ValueError(_twice(child, reference[child], target, parents or {}))
         reference[child] = target
+    if not reference and len(spec) > 1 and setup.contrasts is None:
+        raise ValueError(_nothing_under(spec))
     keyed = [(target, key) for _, target, key in found if key is not None]
     twice = [k for i, k in enumerate(keyed) if k in keyed[:i]]
     if twice:
@@ -161,6 +163,18 @@ def check_controls(setup: Setup) -> None:
                     f"control, but the declared controls give {reference[condition]!r}: a "
                     "condition's own control comes from the declaration"
                 )
+
+
+def _nothing_under(spec: Mapping[Any, Any]) -> str:
+    """Why several controls with no condition under any of them, and no parent, are refused:
+    no condition would be compared with its own control (audit 8B)."""
+    names = listing([repr(c) for c in spec], 6)
+    return (
+        f"the controls {names} have no condition under them and no parent, so no condition "
+        "would be compared with its own control: declare each control's conditions, "
+        "control={'condition': {control: [condition, ...], ...}}, or link a control to its "
+        "parent with control_parents={control: parent}"
+    )
 
 
 def _twice(child: Any, first: Any, second: Any, parents: Mapping[Any, Any]) -> str:

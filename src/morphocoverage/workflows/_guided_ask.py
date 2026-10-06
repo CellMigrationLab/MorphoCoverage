@@ -113,13 +113,19 @@ def _selection(answer: str, options: Sequence[Any]) -> list[Any] | str:
 
 
 def choose_many(
-    ask: Ask, say: Say, prompt: str, options: Sequence[Any], default: Sequence[Any] | None = None
+    ask: Ask,
+    say: Say,
+    prompt: str,
+    options: Sequence[Any],
+    default: Sequence[Any] | None = None,
+    *,
+    enter_all: bool = True,
 ) -> list[Any]:
     """Several of ``options``: numbers, ranges or names; Enter takes ``default`` (all of them
-    when ``None``)."""
+    when ``None``, or, with ``enter_all=False``, nothing: the question is asked again)."""
     say(f"{prompt}\n{_numbered(options, None)}")
     if default is None:
-        hint = "'all' (the default)"
+        hint = "'all' (the default)" if enter_all else "'all'"
     else:
         hint = f"'all'; Enter takes {listing([str(d) for d in default], 6)}"
     say(f"  Enter {hint}, numbers and ranges (1,3-5), or names separated by commas.")
@@ -127,6 +133,9 @@ def choose_many(
         answer = ask("> ").strip()
         if not answer and default is not None:
             return list(default)
+        if not answer and not enter_all:
+            _again(say, "Nothing was chosen.")
+            continue
         selected = _selection(answer or "all", options)
         if isinstance(selected, list):
             return selected
