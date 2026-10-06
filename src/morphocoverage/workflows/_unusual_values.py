@@ -7,7 +7,7 @@ repeat, against that control, as the normalised analyses read them:
 
 - with ``normalize`` declared, the values the normalised analyses read (each feature divided
   by its own control's mean in the same repeat, the other tables centred per repeat): the
-  caller passes them;
+  caller passes them, and the words say which (``BATCH_WORDS`` for the tables alone);
 - without it, each feature centred on its own control's mean in the same repeat
   (``centred_on_own_control``), on the scale the main test reads it (``ratio_scale``: its
   declared scale, else the log ratio to that mean when every value of the feature is positive,
@@ -41,6 +41,9 @@ if TYPE_CHECKING:
 
 # Said in the unusual observations' definition: the values they are judged on.
 NORMALISED_WORDS = "each relative to its own control in its repeat, as normalised"
+# An embedding-only report with ``normalize``: the tables are centred per repeat, never
+# divided, and scored against each condition's own control (audit 10, B7 and C11).
+BATCH_WORDS = "centred per biological repeat, against each condition's own control"
 CENTRED_WORDS = (
     "each relative to its own control's mean in its repeat, as a log ratio when the feature is "
     "declared on the ratio scale or, undeclared, every value is positive, else as a difference"
@@ -114,11 +117,12 @@ def biological_values(
     as given with ``normalize`` declared (the caller passes the normalised ones), else
     centred on each own control in its repeat."""
     if setup.normalize is not None:
-        return values, NORMALISED_WORDS
+        return values, NORMALISED_WORDS if setup.columns else BATCH_WORDS
     return centred_on_own_control(values, fovs, setup, columns), CENTRED_WORDS
 
 
 __all__ = [
+    "BATCH_WORDS",
     "CENTRED_WORDS",
     "NORMALISED_WORDS",
     "biological_values",

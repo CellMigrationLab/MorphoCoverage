@@ -196,7 +196,7 @@ def test_seed3_seed18_b12_embedding_only_gives_the_real_reason():
     assert "3. What limits my sampling? — unusual images" in short
     assert "cluster in a few fields is not applicable: each field holds one image" in short
     assert "Foundation. Why count fields? — not applicable: no explainable features" in short
-    assert "unusual images on the 6 columns of T (relative to the control of each repeat" in short
+    assert "unusual images on the 6 columns of T (each relative to its own control's mean" in short
 
 
 def test_b8_b9_embedding_only_values_and_space_are_said_as_they_are():
@@ -205,7 +205,8 @@ def test_b8_b9_embedding_only_values_and_space_are_said_as_they_are():
     assert "Values: as given (not normalised)" not in full
     assert "Values: the other feature tables centred per biological repeat" in full
     # One table: its columns, not a weighted combined space.
-    space = "unusual cells on the 12 columns of DINO (relative to the control of each repeat; "
+    # Centred tables, against each own control: never "as normalised" (audit 10, B7, C11).
+    space = "unusual cells on the 12 columns of DINO (centred per biological repeat, against "
     assert space in full
     assert "exploratory), no definition of new" in full
     assert "weighted combined space" not in full

@@ -1,7 +1,7 @@
 {
  "name": "a12_embed2_none_image_tech_rare",
  "kind": "axes",
- "checks": "embedding-only report; no condition test; the field questions on the images; the rare label's share and clustering",
+ "checks": "embedding-only report; no condition test; the field questions on the images; the rare label in \"Did I image enough?\"",
  "axes": {
   "tables": "embed2",
   "controls": "none",

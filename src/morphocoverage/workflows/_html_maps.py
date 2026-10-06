@@ -43,6 +43,7 @@ from ._html_data import data_buttons, embedding_data, json_island, write_csv
 from ._html_figures import figure_block, file_stem, save
 from ._html_map_text import (
     NEIGHBOURS,
+    ONE_CONDITION,
     VALUE_WORDS,
     centred_note,
     combined_words,
@@ -365,6 +366,9 @@ def embeddings(
     raw_separation = separations.get("raw")
     wells = raw_separation.well_line() if raw_separation is not None else ""
     neighbours = f"{NEIGHBOURS} {wells}".rstrip()
+    one = CONDITION_COLUMN not in fovs or fovs[CONDITION_COLUMN].nunique() < 2
+    if raw_separation is None and one:
+        neighbours = ONE_CONDITION  # nothing to separate, said with why (audit 10, C29)
     ranked = list(top) + [f for f in setup.columns if f not in set(top)]
     first = maps["raw"][spaces[0]]
     features = [f for f in ranked if f"z:{f}" in first.points][:MAP_FEATURES]
@@ -544,10 +548,11 @@ def maps_body(setup: Any, viz: str, static: list[str]) -> str:
 def _batch_words(setup: Any, fovs: pd.DataFrame, unnormalisable: str | None, centred: bool) -> str:
     """The end of the maps' note: which view takes a batch between repeats out."""
     if not setup.columns:  # an embedding-only report: the tables are never divided
+        # The map's view; the separation by condition compares within each repeat already.
         view = (
-            "the centred view takes out"
+            "the centred view takes out of the map"
             if centred
-            else "a control would let the centred view take out"
+            else "a control would let the centred view take out of the map"
         )
         return f"repeats, which {view}.</p></div>"
     if unnormalisable is None:

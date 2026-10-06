@@ -14,10 +14,11 @@ Shared-private: ``declaration`` is used by ``workflows.setup``.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from .._caveats import assumption, caveat_lines
-from .._control import control_text
+from .._control import control_name
 from .._style import rule_label, wrap
 from .._wording import count, listing, percent, plural, rate
 from ..evidence import Component
@@ -25,18 +26,22 @@ from ..order_check import RANDOM_SAMPLE_ASSUMPTION
 from ..results import COMPONENT_WORDS, NO_TARGET_WORDS
 from ..retrospective.replay import strategy_label
 from ..schema import resolve_observation_unit
-from ..statistics import fovs_to_detect
 from ..strategies import ScalarPrecisionStrategy
 from ._contrasts import controls_sentence, normalised_readers
+from ._declaration_rare import rare_line, rare_short
+from ._fingerprint_space import fingerprint_line
 from ._one_per_field import field_unit
 
 if TYPE_CHECKING:
     from .setup import Setup
 
 
-def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
+def declaration(
+    setup: Setup, per_field: bool = True, unassessed: Sequence[str] = ()
+) -> tuple[str, ...]:
     """What ``setup`` asks the acquisition to preserve, in sentences (see the module);
-    ``per_field=False`` (one observation per field) leaves out what then does not run."""
+    ``per_field=False`` (one observation per field) leaves out what then does not run;
+    ``unassessed``: the fingerprint criteria the report could not judge, by label."""
     tolerances = " and ".join(rate(t) for t in setup.tolerances)
     units = setup.unit_words
     lines = [
@@ -48,8 +53,7 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
         )
     ]
     if setup.fingerprint:
-        named = "; ".join(c.description or c.name for c in setup.fingerprint)
-        lines.append(f"Phenotypic fingerprint: {named}; judged on held-back fields.")
+        lines.append(fingerprint_line(setup, unassessed, short=False))
     elif setup.readout is None:
         lines.append(
             "Phenotypic fingerprint: not declared (no distribution criterion in fingerprint), "
@@ -62,7 +66,7 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
             "distribution of phenotypes."
         )
     if setup.rare is not None:
-        lines.append(_rare(setup))
+        lines.append(rare_line(setup))
     else:
         lines.append(
             "Rare phenotype: not declared (no RareTarget in rare), so no answer below "
@@ -93,7 +97,7 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
     elif setup.normalize is not None:
         lines.append(
             "Values: every declared feature divided by the mean of the control "
-            f"{control_text(setup.reference_control)} {units} of the same repeat (of the whole "
+            f"{control_name(setup.reference_control)} {units} of the same repeat (of the whole "
             f"table without a repeat column); {normalised_readers()}; every stopping rule "
             "runs on the raw values in the report, optimise and benchmark as in the live "
             "decision."
@@ -181,7 +185,11 @@ def _representation_line(setup: Setup, per_field: bool = True) -> str:
             f"{next(iter(tables), 'the table')}"
         )
         missing = _unusual_missing(setup, per_field)
-        relative = "relative to the control of each repeat; exploratory"
+        relative = (  # as the values read: centred tables, or each own control's mean (B7)
+            "centred per biological repeat, against each condition's own control; exploratory"
+            if setup.normalize is not None
+            else "each relative to its own control's mean in its repeat; exploratory"
+        )
         unusual = (
             f"{setup.unit_words} {missing}"
             if missing
@@ -296,15 +304,14 @@ def _positive(setup: Setup) -> str:
     # Several own controls are one reference, pooled: named, never as a dict (F10).
     reference = setup.reference_control or {}
     pooled = [str(v) for spec in reference.values() if isinstance(spec, tuple) for v in spec]
-    against = f"the control {control_text(reference)}"
+    against = f"the control {control_name(reference)}"
     if len(pooled) > 1:
         against = f"the controls {listing(pooled)} pooled"
     return (
-        f"Positive control: fields of {dict(positive.selector)} judged against {against} after "
-        f"{count(positive.fovs_seen, 'reference field')}, "
+        f"Positive control: fields of {control_name(positive.selector)} judged against "
+        f"{against} after {count(positive.fovs_seen, 'reference field')}, "
         f"{paired}. If fewer than {percent(setup.minimum_detection)} of its checks are "
-        "recognized (minimum_detection, a provisional preset), every adequacy answer carries "
-        "a warning."
+        "recognized, a provisional threshold, every adequacy answer carries a warning."
     )
 
 
@@ -372,86 +379,6 @@ def _order(setup: Setup) -> str:
     )
 
 
-def _rare(setup: Setup) -> str:
-    target = setup.rare
-    assert target is not None
-    parts = []
-    if target.object_prevalence is not None:
-        parts.append(f"{rate(target.object_prevalence)} of {setup.unit_words}")
-    if target.fov_incidence is not None:
-        parts.append(f"{rate(target.fov_incidence)} of fields")
-    fields = target.min_fov_occurrences
-    line = (
-        f"Rare phenotype: {target.phenotype}, present in {' and '.join(parts)}, to be seen "
-        f"in at least {count(fields, 'field')} with "
-        f"{rate(target.detection_probability)} probability."
-    )
-    if target.fov_incidence is not None:
-        needed = fovs_to_detect(target.fov_incidence, target.detection_probability, fields)
-        line += (
-            f" At that field incidence the binomial plan asks for {needed} independent "
-            "representative fields; fields that cluster the state need more."
-        )
-    elif setup.rare_label is not None:
-        line += (
-            " The fields to see it are counted from the share of fields holding it in the "
-            "data (“Did I image enough?”); object prevalence is never converted to "
-            "field incidence."
-        )
-    else:
-        line += (
-            " Without a field incidence or a label, no field count is planned: object "
-            "prevalence is never converted to field incidence."
-        )
-    if setup.rare_label is not None:
-        line += (
-            f" Judged with the label column {setup.rare_label!r}: in the report from the "
-            "fields acquired (“Did I image enough?”), on held-back fields by optimise "
-            "and benchmark; the report also shows its clustering in few fields."
-        )
-    else:
-        line += " No label column: stated and planned for, not judged on held-back fields."
-    return line
-
-
-def _rare_short(setup: Setup) -> tuple[str | None, list[str]]:
-    """The rare phenotype in one line, and its caveats."""
-    target = setup.rare
-    if target is None:
-        # An option left at its default is a standing note, not a caution about the data.
-        return None, [
-            assumption(
-                "no rare phenotype declared (rare), so no answer says whether a rare state was "
-                "sampled enough"
-            )
-        ]
-    parts = []
-    if target.object_prevalence is not None:
-        parts.append(f"{rate(target.object_prevalence)} of {setup.unit_words}")
-    if target.fov_incidence is not None:
-        parts.append(f"{rate(target.fov_incidence)} of fields")
-    line = (
-        f"Rare phenotype: {target.phenotype} in {' and '.join(parts)}, to be seen in at least "
-        f"{count(target.min_fov_occurrences, 'field')} with "
-        f"{rate(target.detection_probability)} probability"
-    )
-    cautions = []
-    if target.fov_incidence is not None:
-        needed = fovs_to_detect(
-            target.fov_incidence, target.detection_probability, target.min_fov_occurrences
-        )
-        line += f"; the binomial plan asks for {needed} representative fields"
-    elif setup.rare_label is not None:
-        line += "; the fields to see it are counted from the data"
-    if setup.rare_label is not None:
-        line += f"; judged on held-back fields with the label {setup.rare_label!r}"
-    else:
-        cautions.append(
-            "no rare_label column: the rare phenotype is not judged on held-back fields"
-        )
-    return f"{line}.", cautions
-
-
 def _novelty_short(setup: Setup) -> str:
     """The novelty rule in one line."""
     few = f"; seen in few fields: fewer than {setup.resolved_few_fovs} other fields"
@@ -491,7 +418,9 @@ def _order_short(setup: Setup) -> tuple[str | None, list[str]]:
     ]
 
 
-def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> str:
+def declaration_short(
+    setup: Setup, indent: int = 2, per_field: bool = True, unassessed: Sequence[str] = ()
+) -> str:
     """The declaration in a line per target and setting, each caveat once (a missing
     declaration as a ⚠️ line, a standing assumption under "Assumptions:"); ``per_field`` as
     for ``declaration``.
@@ -510,8 +439,7 @@ def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> 
     ]
     cautions = []
     if setup.fingerprint:
-        named = "; ".join(c.description or c.name for c in setup.fingerprint)
-        lines.append(f"Phenotypic fingerprint: {named} (judged on held-back fields by optimise).")
+        lines.append(fingerprint_line(setup, unassessed, short=True))
     else:
         cautions.append(
             assumption(
@@ -523,7 +451,7 @@ def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> 
                 )
             )
         )
-    rare, rare_cautions = _rare_short(setup)
+    rare, rare_cautions = rare_short(setup)
     lines += [rare] if rare else []
     cautions += rare_cautions
     lines.append(_representation_line(setup, per_field))
@@ -535,10 +463,10 @@ def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> 
         positive = setup.positive
         pooled = positive.pair_cols is not None and not positive.pair_cols
         lines.append(
-            f"Positive control: fields of {dict(positive.selector)} against the control "
-            f"{control_text(setup.reference_control)}; below "
-            f"{percent(setup.minimum_detection)} recognized "
-            "(minimum_detection, a provisional preset) every adequacy answer is warned."
+            f"Positive control: fields of {control_name(positive.selector)} against the "
+            f"control {control_name(setup.reference_control)}; below "
+            f"{percent(setup.minimum_detection)} recognized, a provisional threshold, every "
+            "adequacy answer is warned."
         )
         if pooled:
             cautions.append(

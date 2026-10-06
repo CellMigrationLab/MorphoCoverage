@@ -162,7 +162,7 @@ def test_the_documents_open_with_the_declaration_and_judge_every_declared_criter
     text = result.summary(detail="full")
     opening = f"{result.document.statuses['overview'].marker} What is in the dataset"
     assert text.startswith(opening) and DECLARATION_TITLE in text
-    fingerprint_line = text.index("Phenotypic fingerprint: the covariance")
+    fingerprint_line = text.index("Covariance fingerprint: the covariance")  # C22
     assert fingerprint_line < text.index("Foundation: why count")
     plan = optimise(
         objects,

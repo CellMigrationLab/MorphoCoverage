@@ -24,7 +24,7 @@ from typing import Any
 
 import pandas as pd
 
-from .._caveats import assumption
+from .._caveats import assumption, caveat_lines
 from .._control import versus
 from .._style import SINGLE_LEVEL, Status, table, wrap
 from .._wording import count, percent
@@ -256,8 +256,8 @@ def resolved_parts(
     return lines, _notes(contrast)
 
 
-def resolved_full(contrast: Any) -> str:
-    """Every contrast with its interval and answer, then the notes."""
+def resolved_full(contrast: Any, notes: bool = True) -> str:
+    """Every contrast with its interval and answer, then the notes (``notes``)."""
     rows = _table(contrast)
     head = (
         "Within each repeat, does the difference from the control show? "
@@ -266,7 +266,14 @@ def resolved_full(contrast: Any) -> str:
         "from the fields resampled as acquired:"
     )
     body = table(_rows(rows, field_words(contrast)[1]), _columns(contrast), indent=2)
-    return "\n".join([wrap(head, 0, hang=2), body, *(f"  {n}" for n in _notes(contrast))])
+    # ``notes=False``: a report of several features says them once (audit 10, A22).
+    said = [f"  {n}" for n in _notes(contrast)] if notes else []
+    return "\n".join([wrap(head, 0, hang=2), body, *said])
+
+
+def resolved_notes(contrast: Any) -> list[str]:
+    """The notes ``resolved_full`` ends with, wrapped as an "Assumptions:" block."""
+    return caveat_lines(_notes(contrast), indent=2, detail="full")
 
 
 def precision_words(tallies: list[dict[str, Any]], word: str) -> str | None:
@@ -289,5 +296,6 @@ __all__ = [
     "precision_words",
     "resolved_full",
     "resolved_headline",
+    "resolved_notes",
     "resolved_parts",
 ]

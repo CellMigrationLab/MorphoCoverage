@@ -240,14 +240,15 @@ def unusual_objects(
             continue
         scores, threshold, state, calibration = results[0]
         if np.isnan(scores).all():
-            words = observation_words(data)[1]
-            rows.append(
-                {
-                    **row,
-                    "status": f"not assessed: none of its {len(scores)} {words} has a value of "
-                    "every feature",
-                }
-            )
+            # Values relative to the own control are missing where the repeat has none: that
+            # is the reason, not a missing feature (audit 10, B4 and C9).
+            repeat = group.get(REPEAT_COLUMN)
+            if repeat is not None and all(g.get(REPEAT_COLUMN) != repeat for g in others):
+                reason = "its repeat holds no own control"
+            else:
+                words = observation_words(data)[1]
+                reason = f"none of its {len(scores)} {words} has a value of every feature"
+            rows.append({**row, "status": f"not assessed: {reason}"})
             continue
         flagged = scores > threshold
         distances[mine] = scores

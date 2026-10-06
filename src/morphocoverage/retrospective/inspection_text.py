@@ -31,10 +31,16 @@ from ..metadata import TECHNICAL_REPEAT_COLUMN
 
 # Fields listed in the short form; the full form lists every one.
 SHORT_FIELDS = 8
-_NOT_AN_ERROR = (
-    "None of these is called an error: look at the images to see whether it is biology, "
-    "technique or simply a large field."
-)
+
+
+def _not_an_error(result: Any) -> str:
+    """None of these is an error; "a large field" only where a count or an influence is a
+    reason, never for a new state in one observation per field (audit 10, A22)."""
+    large = bool({reason for reason, _ in reason_counts(result)} & {"count", "influence"})
+    what = "biology, technique or simply a large field" if large else "biology or technique"
+    return f"None of these is called an error: look at the images to see whether it is {what}."
+
+
 # Each reason in a few words, for the short form's first line.
 _REASON_WORDS = {
     "new state": "a state no other field shows",
@@ -187,7 +193,7 @@ def inspection_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str]
     if len(listed) > SHORT_FIELDS:
         more = len(listed) - SHORT_FIELDS
         lines.append(" " * (indent + 2) + f"and {fields_text(more)} more (report_full.txt).")
-    lines.append(wrap(_NOT_AN_ERROR, indent, hang=indent + 2))
+    lines.append(wrap(_not_an_error(result), indent, hang=indent + 2))
     return [*lines, *_elsewhere(result, indent)], cautions
 
 
@@ -210,7 +216,7 @@ def _full(result: Any) -> str:
             extra = ", ".join(f"{c} {first[c]}" for c in trace)
             reasons = "; ".join(own["detail"])
             lines.append(wrap(f"{name}{f' ({extra})' if extra else ''}: {reasons}.", 2, hang=4))
-        lines.append(wrap(_NOT_AN_ERROR, 0, hang=2))
+        lines.append(wrap(_not_an_error(result), 0, hang=2))
     lines += _elsewhere(result, 0)
     lines += caveat_lines(_skipped(result, full=True), indent=0, detail="full")
     return "\n".join(lines)

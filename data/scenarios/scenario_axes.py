@@ -26,6 +26,8 @@ SEVERAL_CONTROL = {"condition": {"cA": {"k1": "a1"}, "cB": {"k1": "b1"}}}
 # a and a1 strongly shifted, b1 null; cB a little away from cA.
 SHIFTS = {"a": 0.8, "a1": 0.8, "cB": 0.2}
 EXPLAINABLE = ("area", "length", "ecc")
+# The features no condition shifts (``make_scenarios``: they never depend on the effect).
+NULL_FEATURES = ("ecc", "fib_w", "prof_1")
 
 # A pairwise covering design (audit 8B's, with the fingerprint on explainable features
 # moved to an embedding where there are none, and two cases added for the pairs it then
@@ -185,6 +187,11 @@ def axes_scenario(index: int) -> Scenario:
     )
     truth = axes_truth(axes, tables)
     truth["html"] = index in HTML
+    if controls != "none":  # what is planted and what is null, checked (audit 10, T2)
+        nulls = [f for f in features if f in NULL_FEATURES]
+        truth.update({"null_features": nulls} if nulls else {})
+        if "area" in features and controls == "one" and unit == "cells":  # near-certain
+            truth["planted"] = {"area": ["a"]}
     return Scenario(
         name=name,
         kind="axes",
@@ -202,9 +209,23 @@ TARGET_WORDS = {
     "tol": "the mean's tolerances",
     "fp_expl": "a fingerprint on the explainable features",
     "fp_dino": "a fingerprint on DINO1",
-    "rare": "the rare label's share and clustering",
+    "rare": "the rare label",
     "positive": "a positive control",
 }
+
+
+def _target_words(axes: dict[str, Any]) -> str:
+    """The target in words; for the rare label only what runs (audit 10, C30): its share is
+    compared with explainable features and a control, its clustering in fields needs several
+    observations a field, and otherwise "Did I image enough?" alone reads it."""
+    if axes["target"] != "rare":
+        return TARGET_WORDS[axes["target"]]
+    embedding = str(axes["tables"]).startswith("embed")
+    parts = ["share"] if not embedding and axes["controls"] != "none" else []
+    parts += ["clustering in fields"] if axes["unit"] == "cells" else []
+    if not parts:
+        return 'the rare label in "Did I image enough?"'
+    return f"the rare label's {' and '.join(parts)}"
 
 
 def axes_checks(axes: dict[str, Any], truth: dict[str, Any]) -> str:
@@ -221,7 +242,7 @@ def axes_checks(axes: dict[str, Any], truth: dict[str, Any]) -> str:
         parts.append("normalised and centred views")
     if axes["unit"] == "image":
         parts.append("the field questions on the images")
-    parts.append(TARGET_WORDS[axes["target"]])
+    parts.append(_target_words(axes))
     if truth.get("html"):
         parts.append("the page" + (", its CSVs naming tables" if truth["table_column"] else ""))
     return "; ".join(parts)

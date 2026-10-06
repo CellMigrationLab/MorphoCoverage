@@ -119,6 +119,9 @@
    "across_normalised",
    "own_control"
   ],
-  "html": false
+  "html": false,
+  "null_features": [
+   "fib_w"
+  ]
  }
 }

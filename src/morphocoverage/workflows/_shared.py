@@ -535,6 +535,7 @@ def conditions(
             **setup.contrast_arguments,
             **setup.common,
         )
+        results["ranking"].settings["share"] = share_column(setup)  # counted apart (C20)
     return results
 
 

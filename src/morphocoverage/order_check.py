@@ -155,14 +155,19 @@ class OrderCheck:
         return found
 
     def _clear(self) -> list[str]:
-        clear = []
+        """The tests that flagged nothing, as one phrase with the threshold they were held to:
+        a p of 0.037 is not "no trend", only not flagged after Bonferroni (audit 10, A21)."""
+        names, values = [], []
         if self.spearman_p is not None and not self.trend:
-            clear.append(f"no trend with acquisition order (Spearman p = {_p(self.spearman_p)})")
+            names.append("trend with acquisition order")
+            values.append(f"Spearman p = {_p(self.spearman_p)}")
         if self.moran_p is not None and not self.autocorrelated:
-            clear.append(
-                f"no spatial autocorrelation (Moran's I permutation p = {_p(self.moran_p)})"
-            )
-        return clear
+            names.append("spatial autocorrelation")
+            values.append(f"Moran's I permutation p = {_p(self.moran_p)}")
+        if not names:
+            return []
+        threshold = f"flagged at the Bonferroni threshold of {self.level:g}"
+        return [f"no {' or '.join(names)} {threshold} ({'; '.join(values)})"]
 
     def caution(self, *, rare: bool = False, stop_after: int | None = None) -> str:
         """The sentence printed beside a stop: what was flagged, or the assumption it rests on.

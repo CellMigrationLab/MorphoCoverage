@@ -81,7 +81,7 @@ from .._control import (
     check_comparisons,
     check_contrast_table,
     comparison_pairs,
-    control_text,
+    control_name,
     own_pairs,
 )
 from .._former_repeat import one_warning, read_former
@@ -395,7 +395,7 @@ def condition_contrast(
     )
     if not contrasts:
         settings["reason"] = (
-            f"Every analysis group is the control {control_text(control)}: no other condition "
+            f"Every analysis group is the control, {control_name(control)}: no other condition "
             "to compare."
         )
         return ConditionContrast(pd.DataFrame(), pd.DataFrame(), settings)

@@ -527,5 +527,5 @@ def test_j17_clustering_words_are_proper_plurals():
             group_cols=["condition"],
         ).summary()
         text = " ".join(text.split())
-        assert f"none of the {words} of its 2 fields is labelled" in text
+        assert f"none of the {words} of its 2 fields scored" in text
         assert "patche " not in text

@@ -257,7 +257,9 @@ def test_h9_unusual_thresholds_leave_one_group_out_for_every_group():
     )
     row = one.groups.set_index("condition").loc["drug"]
     assert row["calibration"] == "leave-one-field-out (a single reference group)"
-    assert "With a single reference group the threshold comes from its fields" in one.summary()
+    # The reference named as the reference (audit 10, A24).
+    said = " ".join(one.summary().split())
+    assert "Against a single reference group, ctrl · repeat r0, the threshold comes from" in said
 
 
 def test_h10_whole_field_draws_count_acquired_empty_fields():

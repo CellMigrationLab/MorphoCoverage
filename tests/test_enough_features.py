@@ -67,7 +67,9 @@ def test_each_feature_is_asked_and_the_answer_says_enough_too(result):
         "to compare with the control, within single repeats, of 3 features: enough for 1 "
         "(area); not yet for 2 (speed and aspect)"
     )
-    assert "aspect needs the most (about 10 fields a side)" in headline
+    # aspect differs in no test: no projection of the fields it would need (audit 10, C25).
+    assert "needs the most" not in headline
+    assert not features.table.set_index("feature").loc["aspect", "flagged"]
 
 
 def test_every_feature_enough_is_said_and_marked_enough(result):
@@ -249,11 +251,8 @@ def test_the_top_is_one_sentence_then_a_compact_table(card):
     assert "own mean" not in words and "still needed" not in words
     cells = [html.unescape(c) for c in re.findall(r"<td[^>]*>([^<]*)</td>", top)]
     assert cells[:3] == ["area", "3", "–"]
-    assert cells[6:] == [
-        "aspect",
-        "0",
-        "1 needs about 10 fields a side in its repeat; 2 too small even with 4 times the fields",
-    ]
+    # aspect differs in no test: no projection of its fields (audit 10, C25).
+    assert cells[6:] == ["aspect", "0", "2 too small even with 4 times the fields"]
 
 
 def test_what_every_tab_would_repeat_is_said_once_in_the_help(card):

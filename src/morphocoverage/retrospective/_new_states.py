@@ -16,11 +16,12 @@ Shared-private: used by ``report_profile``.
 
 from __future__ import annotations
 
+from math import ceil
 from typing import Any
 
 from scipy import stats
 
-from .._wording import number, percent
+from .._wording import percent
 from ..bounds import upper_bound
 from ._control_rates import _CONFIDENCE, _false_alarm_rate, _mismatch
 from .controls import ControlResult
@@ -97,7 +98,7 @@ def chance_words(found: int, controls: ControlResult | None, inspection: Inspect
         expected, most, source, judged = null
     verdict = "compatible with chance" if found <= most else "more than chance alone gives"
     return (
-        f"; false alarms alone would give about {number(expected)}, up to {number(most)}, of "
+        f"; false alarms alone would give about {round(expected)}, up to {ceil(most)}, of "
         f"the {judged} fields judged, so these are {verdict}: {source}"
     )
 

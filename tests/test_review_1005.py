@@ -312,7 +312,7 @@ def test_counts_are_each_conditions_own(designs):
     contrast, discovery = designs["E2"]
     text = " ".join(contrast_summary(contrast, "full").split())
     assert "Across the biological repeats, 1-4 per condition (each repeat's value" in text
-    assert "cond2 and cond4, with 2 and 1 biological repeats holding both sides, are" in text
+    assert "With 2 and 1 biological repeats holding both sides, cond2 and cond4 are" in text
     assert "the control as provided is pooled from biological repeats the condition was not" in (
         text
     )

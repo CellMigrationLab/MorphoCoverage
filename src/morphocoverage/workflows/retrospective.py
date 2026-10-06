@@ -386,10 +386,7 @@ def optimise(
     space = fingerprint_space(prepared, fovs, setup)
     criteria = space.setup.criteria()
     if not criteria:  # an embedding-only Setup whose targets cannot be judged
-        unread = [
-            f"The {space.nouns.get(c, 'fingerprint')}, {c}, is not assessable: {r}."
-            for c, r in space.not_assessable.items()
-        ]
+        unread = space.unread()
         if unread:  # declared, as the report says it (tolerances=() or no readout)
             raise ValueError(
                 f"optimise judges the declared targets on held-back fields. {NO_TARGET} "
@@ -494,10 +491,7 @@ def optimise(
         f"{PLAN_TITLE} {DASH} {count(len(objects), unit, setup.unit_words)} in "
         f"{count(len(fovs), 'field')}"
     )
-    unread = [
-        f"The {space.nouns.get(c, 'fingerprint')}, {c}, is not assessable: {r}."
-        for c, r in space.not_assessable.items()
-    ]
+    unread = space.unread()
     unread += space.small_groups(setup.unit_word, setup.unit_words)  # audit 8
     document = replace(
         with_reasons(document, reasons), title=title, notes=(*document.notes, *unread)

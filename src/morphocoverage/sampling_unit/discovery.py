@@ -45,7 +45,7 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._checks import is_number
-from .._control import check_comparisons, compared_name, control_text
+from .._control import check_comparisons, compared_name, control_name
 from .._former_repeat import one_warning, read_former
 from .._parallel import check_n_jobs
 from .._seeds import group_rng
@@ -288,7 +288,7 @@ class FeatureDiscovery:
             else count(n_tests, "test")
         )
         return (
-            f"Which features separate the conditions? {passing} of {self._counted(n)} "
+            f"Which features separate the conditions? {passing} of {self._of(n)} "
             f"{'is a candidate' if passing == 1 else 'are candidates'} in the exploratory "
             f"{self._unit()}-level screen: they differ for at least one condition (each "
             f"condition against {against}: Cohen's d on the observations normalised to each "
@@ -312,6 +312,12 @@ class FeatureDiscovery:
             return ""
         named = [f"{feature}, the {scale}" for feature, scale in scales.items()]
         return f"; declared in the Setup: {'; '.join(named[:6])}"
+
+    def _of(self, n: int) -> str:
+        """``4 features``, or ``4 (3 features and the rare share)``: never "4 of 3 features
+        and the rare share" (audit 10, C20)."""
+        counted = self._counted(n)
+        return counted if counted == count(n, "feature") else f"{n} ({counted})"
 
     def _counted(self, features: list[str] | int) -> str:
         """``features`` (names, or a number of all the features), the labelled state's share
@@ -445,6 +451,8 @@ class FeatureDiscovery:
         list of unranked ones) and its caveats."""
         lines = [wrap(self._head(), indent, hang=indent + 2)]
         if self.tests.empty:
+            if self.settings.get("unpaired"):  # named once, "Not compared" (audit 10, C8)
+                return lines, []
             reason = self.settings.get("reason", "No condition to compare with the control.")
             return [*lines, wrap(reason, indent, hang=indent + 2)], []
         lines += self._table(max_rows, indent + 2)
@@ -537,7 +545,7 @@ def feature_discovery(
         c for c in dict.fromkeys(condition for _, condition in contrasts) if c not in held
     ]
     if not rows:
-        settings["reason"] = f"No condition to compare with the control {control_text(control)}."
+        settings["reason"] = f"No condition to compare with the control, {control_name(control)}."
         empty = pd.DataFrame(columns=RANKING_COLUMNS)  # its columns, for top and the page
         return FeatureDiscovery(pd.DataFrame(columns=TEST_COLUMNS), empty, settings)
     tests = pd.DataFrame(rows).reindex(columns=TEST_COLUMNS)

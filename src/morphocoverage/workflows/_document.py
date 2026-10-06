@@ -28,7 +28,7 @@ from .._style import CAUTION, Status, worst, wrap
 from .._wording import count, fields, listing, number, percent
 from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_report
 from ..retrospective.effort_design import between_technical_repeats
-from ..retrospective.report import QUESTIONS, with_opening
+from ..retrospective.report import questions_for, with_opening
 from ..retrospective.report_profile import sampling_profile
 from ..retrospective.report_sampling import states_lines
 from ..retrospective.report_status import (
@@ -86,15 +86,16 @@ def with_reasons(document: MicroscopistReport, reasons: Mapping[str, str]) -> Mi
     """
     if not reasons:
         return document
-    titles = dict(QUESTIONS)
+    titles = dict(questions_for(document.units))  # "not only images" (audit 10, C18)
     sections, notes = dict(document.sections), list(document.notes)
     short, headlines = dict(document.short), dict(document.headlines)
     for key, reason in reasons.items():
         sentence = f"{reason[:1].upper()}{reason[1:]}."
         if document.inputs.get(key) == "not assessed":
             sections[key] = f"  {sentence}"
-            # The reason is the answer's one line: what it could not assess, and what it needs.
-            headlines[key] = reason
+            # The reason is the answer's one line: what it could not assess, and what it needs;
+            # never a second ➖ inside the answer's ➖ (audit 10, C13, B21).
+            headlines[key] = reason.removeprefix(f"{Status.NOT_ASSESSED.marker} ")
         else:
             wrapped = wrap(sentence, 2, hang=4)
             sections[key] = f"{sections[key]}\n\n{wrapped}"
@@ -104,6 +105,15 @@ def with_reasons(document: MicroscopistReport, reasons: Mapping[str, str]) -> Mi
     return replace(
         document, sections=sections, notes=tuple(notes), short=short, headlines=headlines
     )
+
+
+def _unassessed(precision: Any) -> tuple[str, ...]:
+    """The fingerprint criteria not assessable in any group, by label (the declaration says
+    so, audit 10, B20)."""
+    if not isinstance(precision, pd.DataFrame) or "not_assessable" not in precision:
+        return ()
+    judged = precision.groupby("criterion")["not_assessable"].apply(lambda r: r.notna().all())
+    return tuple(str(c) for c, none in judged.items() if none)
 
 
 def assemble(
@@ -118,13 +128,15 @@ def assemble(
     data-integrity checks name (in the overview, among the fields to look at
     and in the limits).
     """
+    precision = results.get("fingerprint_precision")
+    unassessed = _unassessed(precision)
     document = microscopist_report(
         **{k: v for k, v in results.items() if k not in _EXTRA_RESULTS},
         # One observation per field: what does not run is not declared (audit 8B).
-        declaration=declaration(setup, per_field),
+        declaration=declaration(setup, per_field, unassessed),
         minimum_detection=setup.minimum_detection,
     )
-    short = declaration_short(setup, per_field=per_field)
+    short = declaration_short(setup, per_field=per_field, unassessed=unassessed)
     document = replace(document, short={**document.short, "declaration": short})
     integrity = results.get("integrity")
     if integrity is not None:
@@ -140,7 +152,7 @@ def assemble(
     rare = results.get("rare_clustering")  # clustering in fields needs several a field
     if rare is not None and per_field:
         rows = sampling_profile(None, None, None, None, clustering=rare)
-        lines = "\n".join(f"{r.statement} [{r.where}; {r.source}]" for r in rows.itertuples())
+        lines = "\n".join(f"{r.statement} [{r.where}]" for r in rows.itertuples())
         text = "\n\n".join(part for part in (lines, rare.summary(detail="full")) if part)
         status, glance = profile_status(rows, [rare])
         words = observation_words(rare.settings)[1]

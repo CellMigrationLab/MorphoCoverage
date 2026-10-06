@@ -141,7 +141,8 @@ def test_the_report_says_once_that_the_false_discovery_rate_is_within_each_famil
 
 def test_one_well_per_condition_is_no_within_repeat_technical_replication(screen):
     joined = " ".join(screen.summary().split())
-    assert "each condition has one well there, no within-repeat technical replication" in joined
+    said = "its control have one well in each repeat, no within-repeat technical replication"
+    assert said in joined
 
 
 def test_the_docs_give_the_exact_chance_of_one_direction_in_every_repeat():

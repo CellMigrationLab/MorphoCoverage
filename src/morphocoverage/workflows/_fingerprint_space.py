@@ -34,6 +34,8 @@ report and ``optimise`` judge the same fingerprint; the line of each says ``k``.
 from __future__ import annotations
 
 import copy
+import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -41,6 +43,7 @@ import numpy as np
 import pandas as pd
 
 from .._seeds import group_key
+from .._style import group_label
 from .._wording import count, listing
 from ..embedding import robust_components
 from ..evaluator import iter_analysis_groups
@@ -62,6 +65,46 @@ MIN_FIELDS = 4
 def label(criterion: OutcomeCriterion) -> str:
     """The criterion as the report names it: its description, else its metric's name."""
     return criterion.description or criterion.metric.name
+
+
+# A criterion's label that is its metric's own name (``covariance_error:d0,d1 <= 0.2``, no
+# description given): code, so the report's prose does not repeat it (audit 10, C22).
+_CODE_NAME = re.compile(r"^[a-z_]+:\S")
+
+
+def named(what: str, criterion: str) -> str:
+    """``The covariance fingerprint, <description>,`` or ``The covariance fingerprint`` when
+    the criterion's label is its metric's name (``_CODE_NAME``)."""
+    return f"The {what}" if _CODE_NAME.match(criterion) else f"The {what}, {criterion},"
+
+
+def plain(criterion: OutcomeCriterion) -> str:
+    """The criterion in words: its description, else ``the covariance of d0, d1, d2 and 5
+    more within 0.2`` (never its metric's code name; audit 10, C22)."""
+    if criterion.description:
+        return criterion.description
+    columns = criterion_columns(criterion)
+    what = "the covariance" if noun(criterion) == "covariance fingerprint" else "the error"
+    of = f" of {listing(columns, 3)}" if columns else ""
+    return f"{what}{of} within {criterion.threshold:g}"
+
+
+def fingerprint_line(setup: Setup, unassessed: Sequence[str], short: bool) -> str:
+    """The fingerprint declared, named as the report names it ("Covariance fingerprint" for
+    covariance criteria), and "not assessable here" when the report could judge none of them,
+    never a promise that optimise judges it (audit 10, owner, 2026-10-06, B20 and C22)."""
+    nouns = {noun(c) for c in setup.fingerprint}
+    title = (
+        "Covariance fingerprint"
+        if nouns == {"covariance fingerprint"}
+        else "Phenotypic fingerprint"
+    )
+    named = "; ".join(plain(c) for c in setup.fingerprint)
+    if unassessed and all(label(c) in unassessed for c in setup.fingerprint):
+        return f'{title}: {named} (not assessable here, see "Did I image enough?").'
+    if short:
+        return f"{title}: {named} (judged on held-back fields by optimise)."
+    return f"{title}: {named}; judged on held-back fields."
 
 
 def noun(criterion: OutcomeCriterion) -> str:
@@ -104,6 +147,9 @@ class Reading:
     median: int | None
     reason: str | None = None
     small: tuple[tuple[tuple[Any, ...], str, int], ...] = ()
+    # The names of the small groups that hold enough observations but too few with a value:
+    # no own control in their repeat, or a value missing (audit 10, C28).
+    unvalued: tuple[str, ...] = ()
 
     def words(self, unit: str, units: str) -> str:
         """``read on its first 4 principal components (k at most a fifth of the median
@@ -112,12 +158,18 @@ class Reading:
         if self.components is None or self.median is None:
             return ""
         small = ""
-        if self.small:
-            named = listing([name for _, name, _ in self.small], 4)
-            hold = "holding" if len(self.small) == 1 else "each holding"
+        few = [name for _, name, _ in self.small if name not in self.unvalued]
+        if few:
+            hold = "holding" if len(few) == 1 else "each holding"
             small = (
-                f"; not assessable in {named}, {hold} fewer than {SHARE} k, "
+                f"; not assessable in {listing(few, 4)}, {hold} fewer than {SHARE} k, "
                 f"{count(SHARE * self.components, unit, units)}"
+            )
+        if self.unvalued:
+            their = "its" if len(self.unvalued) == 1 else "their"
+            small += (
+                f"; not assessable in {listing(list(self.unvalued), 4)}, {their} {units} "
+                "without a value here: no own control in the repeat, or a value missing"
             )
         return (
             f"read on its first {self.components} principal components (k at most a fifth "
@@ -143,30 +195,46 @@ class FingerprintSpace:
         """Why each criterion left out is not assessable, by label."""
         return {k: r.reason for k, r in self.readings.items() if r.reason is not None}
 
+    def unread(self) -> list[str]:
+        """``The covariance fingerprint, <criterion>, is not assessable: <why>.``, each."""
+        return [
+            f"{named(self.nouns.get(c, 'fingerprint'), c)} is not assessable: {r}."
+            for c, r in self.not_assessable.items()
+        ]
+
     def small_groups(self, unit: str, units: str) -> list[str]:
         """``The fingerprint, <criterion>, is not assessable in pilot R1: fewer than 5 k,
         200 cells.``: the groups too small for the common k, one sentence per criterion."""
-        return [
-            f"The {self.nouns.get(name, 'fingerprint')}, {name}, is not assessable in "
-            f"{listing([n for _, n, _ in r.small], 4)}: fewer than {SHARE} k, "
-            f"{count(SHARE * int(r.components or 0), unit, units)}."
-            for name, r in self.readings.items()
-            if r.small
-        ]
+        said = []
+        for name, r in self.readings.items():
+            what = named(self.nouns.get(name, "fingerprint"), name)
+            few = [n for _, n, _ in r.small if n not in r.unvalued]
+            if few:
+                said.append(
+                    f"{what} is not assessable in {listing(few, 4)}: fewer than {SHARE} k, "
+                    f"{count(SHARE * int(r.components or 0), unit, units)}."
+                )
+            if r.unvalued:  # enough observations, too few with a value (C28)
+                said.append(
+                    f"{what} is not assessable in {listing(list(r.unvalued), 4)}: {units} "
+                    "without a value here, no own control in the repeat or a value missing."
+                )
+        return said
 
 
 def _judged(
     data: Any, columns: list[str], min_fields: int
-) -> list[tuple[Any, str, int, tuple[tuple[str, str], ...]]]:
+) -> list[tuple[Any, str, int, tuple[tuple[str, str], ...], int]]:
     """Each analysis group of at least ``min_fields`` fields: its key, its name, the
-    observations holding every value of ``columns`` and its ``(column, value)`` pairs."""
+    observations holding every value of ``columns``, its ``(column, value)`` pairs and its
+    observations."""
     sizes = []
     for group, members in iter_analysis_groups(data):
         if len(members.fovs) >= min_fields:
             held = ~members.objects[columns].isna().any(axis=1)
-            name = " ".join(str(value) for value in group.values())
+            name = group_label(group)  # "b1 · repeat R3 · W07" (audit 10, C28)
             pairs = tuple((str(c), str(v)) for c, v in group.items())
-            sizes.append((group_key(group), name, int(held.sum()), pairs))
+            sizes.append((group_key(group), name, int(held.sum()), pairs, len(held)))
     return sizes
 
 
@@ -204,6 +272,7 @@ def _read(
         )
         return None, Reading(None, len(columns), median, reason)
     small = tuple(item[:3] for item in judged if item[2] < SHARE * k)
+    unvalued = tuple(item[1] for item in judged if item[2] < SHARE * k <= item[4])
     excluded = tuple(item[3] for item in judged if item[2] < SHARE * k)
     complete = data.objects[columns].dropna()
     centre, scale, loadings = robust_components(complete.to_numpy(dtype=float), k)
@@ -214,7 +283,8 @@ def _read(
     read = ComponentsError(
         inner, tuple(columns), tuple(centre), tuple(scale), tuple(loadings), excluded
     )
-    return replace(criterion, metric=read), Reading(k, len(columns), median, small=small)
+    reading = Reading(k, len(columns), median, small=small, unvalued=unvalued)
+    return replace(criterion, metric=read), reading
 
 
 def fingerprint_space(
@@ -258,8 +328,11 @@ __all__ = [
     "FingerprintSpace",
     "Reading",
     "criterion_columns",
+    "fingerprint_line",
     "fingerprint_space",
     "label",
+    "named",
     "noun",
+    "plain",
     "table_of",
 ]

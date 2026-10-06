@@ -222,8 +222,9 @@ def test_p6_4_the_unseen_bound_is_adjusted_by_the_planted_rate_when_declared():
     report = microscopist_report(controls=controls)
     note = next(n for n in report.notes if n.startswith("Weak representation"))
     assert "ordinary fields with 5 planted positive-control objects" in note
+    # Without a definition of new, no "nothing new" answer to qualify (audit 10, C24).
     no_control = microscopist_report()
-    assert any("these features and this definition of new" in n for n in no_control.notes)
+    assert not any("these features and this definition of new" in n for n in no_control.notes)
 
 
 def test_p6_4_representation_control_measures_the_planted_rate_leaving_one_field_out():

@@ -120,8 +120,10 @@ and changed only that one thing.
   directly on raw values, as below, `unusual_objects` reads acquisition too: a repeat
   imaged brighter widens its threshold. The report reads each value relative to its own
   control in its repeat (normalised with `normalize`, else the log ratio or the difference
-  to that control's mean), calls the result exploratory, and lists fields far from the rest
-  of their condition and repeat apart, as quality control in "What is in the dataset"
+  to that control's mean; an embedding alone with `normalize` reads its columns centred per
+  biological repeat, against each condition's own control, and says so, never "as
+  normalised": audit 10, owner, 2026-10-06), calls the result exploratory, and lists fields
+  far from the rest of their condition and repeat apart, as quality control in "What is in the dataset"
   (owner, 2026-10-06, plan v2).
 - **Every share reads against the controls' own.** The controls' own share flagged by the
   same rule is always printed beside the shares, as their background (the "all but 1%"

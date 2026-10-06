@@ -118,10 +118,10 @@ maps on raw values, assume the experiments were imaged and processed alike. So t
 are compared with each other on every declared column whose name contains "intensity" (any
 case) and on those listed in `Setup(intensity_features=...)`: when two controls' medians, over
 all their observations, differ 2-fold or more (`_acquisition_gap.GAP_FOLD`), the report says
-so with one ⚠️ caution among the checks of the values ("Controls apart in intensity: VEC_SiNC
-and VEC differ 13-fold in median Intensity (mean); ... 2-fold is an engineering threshold for
-quality control, not a test.") and in "Do the conditions differ?",
-and names each `across_normalised` or `vs_master_raw` row that joins two such controls under
+so once, with one ⚠️ caution in the acquisition block of "What is in the dataset" ("Controls
+apart in intensity: VEC_SiNC and VEC differ 13-fold in median Intensity (mean); ... 2-fold is an
+engineering threshold for quality control, not a test."); "Do the conditions differ?" points to
+it in one ⚠️ line (audit 10, owner, 2026-10-06), and names each `across_normalised` or `vs_master_raw` row that joins two such controls under
 its table, and each main verdict that does, a control against its parent, under the
 readings (owner, 2026-10-05): a ⚠️ caution under the raw rows, `vs_master_raw` and a
 control against its parent, and a softer note under the `across_normalised` rows, whose
@@ -137,7 +137,12 @@ that the experiments were imaged alike (plan v2, owner, 2026-10-06). With one co
 A condition never compared, no repeat holding both it and its own control, is named once,
 its comparison's own reference in the label: "Not compared: THBS5_SiFBN2 vs THBS5_SiNC (no
 biological repeat holds both)." The readings name every control, never one hidden behind
-"and 1 more" (owner, 2026-10-05).
+"and 1 more" (owner, 2026-10-05). In the table within each repeat such a row reads "no own
+control in this repeat", never "0 vs 0" fields; when no repeat holds any condition with its
+control, the answer is ➖ "nothing compared" with that reason, on the page "Nothing
+compared", never "No consistent difference", and the discovery adds no sentence of its own
+(audit 10, owner, 2026-10-06). A control is named by its label, never as a Python
+dictionary.
 
 ### The tests of the secondary rows
 
@@ -219,7 +224,10 @@ the other repeats. A small control repeat is left out of both sides, so each
 condition stays paired with its own repeats' control. When every repeat is that
 small, or all but one, nothing is balanced and only the test as provided is given: one
 repeat alone is not balanced over the repeats, and the reading reads the test as provided,
-never a "balanced" test of one repeat (audit 10, owner, 2026-10-06).
+never a "balanced" test of one repeat. The balance sentence then says that no balanced test
+could be drawn instead of "also given balanced", names no repeat as very small when every
+repeat is, and a condition with neither test is said to have no cell-level test, with why
+(audit 10, owner, 2026-10-06).
 
 ## Assumptions
 
@@ -246,8 +254,8 @@ never a "balanced" test of one repeat (audit 10, owner, 2026-10-06).
   already).
 - **Balancing** assumes the observations of a repeat are exchangeable, so any
   subset of them represents it.
-- **Nothing compared.** When no biological repeat holds a condition and its control, the
-  question reads "➖ nothing compared: no biological repeat holds a condition and its
+- **Nothing compared.** When no biological repeat holds both a condition and its control, the
+  question reads "➖ nothing compared: no biological repeat holds both a condition and its
   control", its chip "Nothing compared", never "No consistent difference" (audit 10, owner,
   2026-10-06).
 - **Benjamini-Hochberg** correction is applied within each sub-experiment
@@ -346,7 +354,11 @@ its fields cannot stand in for wells, and its effect sizes are still
 reported. **Without a unit there is no p-value**, unless
 `Setup(fields_independent=True)` declares the fields independent draws;
 whole fields are then shuffled and the section says the p-value treats them
-so. A d on technical-repeat means is computed only when each side holds 4
+so. When no contrast within a repeat has a test, the short form says why from their
+statuses: the control has one well in each repeat, each condition and its control have one,
+too few wells a side for the test to reach p ≤ 0.05, or no well recorded, so treated as one
+well per condition and repeat (audit 10, owner, 2026-10-06). A d on technical-repeat means is
+computed only when each side holds 4
 or more, since from fewer means a d can be very large by chance. The
 whole-field draws of the JCS effect size take whole technical repeats with
 replacement when both sides have them; otherwise they resample these fields
@@ -389,8 +401,10 @@ When there are wells to shuffle, the section also ranks the features within
 each repeat (`sampling_unit.feature_ranking`), as fiberfeatures scores a
 feature set: the same test for every feature and contrast, Benjamini-Hochberg
 corrected together, a gate at q <= 0.05, and the passing features ordered by
-the largest |d| on field means. The ranking says which features are worth
-plotting. With few technical repeats a side the p-values have a floor, and
+the largest |d| on field means. It is headed "Ranking within repeats (wells as the
+unit)", apart from the discovery's "Which features separate the conditions?", and the
+discovery alone says what is plotted by default; both count a labelled share apart, "1 of 4
+(3 features and the rare share)" (audit 10, owner, 2026-10-06). With few technical repeats a side the p-values have a floor, and
 after the correction a lone contrast at the floor cannot pass: the section
 gives the smallest q the tests can reach and how many must reach the floor
 for one to pass.
@@ -581,7 +595,10 @@ toss, so the exact chance that all `n` repeats go the same way is `2^(1-n)`: 25%
 repeats, 12.5% at 4, 6.25% at 5 and 3.1% at 6, half of that when the direction is stated in
 advance (plan v2, owner, 2026-10-06). 6 is the first number of repeats where this chance is
 below 5%. With fewer the fact is still shown, the direction in each repeat, never as
-evidence.
+evidence. From 6 repeats "At a glance" names such a trend beside the significant features
+("trend: b higher in every repeat (area), not significant"; audit 10, owner, 2026-10-06). The reading's opening explains only what applies to the repeats held (audit 10,
+owner, 2026-10-06): the trend from 6 repeats, "with 3 repeats only large, consistent effects
+reach it" at 3, and with 1 or 2 repeats only that the paired test needs 3.
 
 **Three repeats** (plan v2, owner, 2026-10-06). With exactly 3 biological repeats, the
 fewest the paired t-test needs, each verdict gives the change in each repeat, the change

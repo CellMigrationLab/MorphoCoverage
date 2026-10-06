@@ -84,7 +84,11 @@ clustered in a few (`fov_clustering`, reported under R4; a group whose smallest 
 permutation p, the share of shuffles reaching the fewest fields its objects could fill,
 cannot reach 0.05 after Bonferroni over the tests kept is left out and named, so the q of
 the groups that can is not diluted, and a state not found clustered reads "no clustering
-shown", never "spread like random"; owner, 2026-10-06, audit 10); and, where stage
+shown", never "spread like random"; a group where none was found reads "15 cells scored in
+3 fields, none unusual", a technical repeat holds a state when one of its fields holds at
+least the minimum count of it, and a group whose repeat holds no own control is "not
+assessed: its repeat holds no own control", never said to lack values; owner, 2026-10-06,
+audit 10); and, where stage
 coordinates exist, the distance over which neighbouring fields are alike
 (`redundancy_distance`, reported under P7; not yet run by the `report`
 workflow). Whether the imaged positions were the right ones is a separate
@@ -97,6 +101,16 @@ its objects came as whole fields. It is the first section of
 are in [Objects or fields?](objects_or_fields.md).
 
 ## The page, section by section
+
+The closing section, "What this dataset cannot tell me", lists the same limits in the short
+and the full forms; a stratum where the positive control was not imaged says so, apart from
+one where it was imaged empty, and a single reference group is named as the reference, the
+groups it scores as scored (audit 10, owner, 2026-10-06).
+
+Every prose line of the text report is wrapped at 100 columns, tables apart, and each
+assumption is said once per section, so the "Shown" note of question 2 comes once, not once
+per feature; a field the inspection lists for a new state alone is not said to be "simply a
+large field" (audit 10, owner, 2026-10-06).
 
 `microscopist_report` assembles the answers in the order of the questions above, with
 a sampling profile of measured quantities; a question without its analysis says "not
@@ -267,12 +281,17 @@ Question 2, R2 with the next-field question R3: [Did I image enough?](did_i_imag
 
 ### What limits the sampling? Why count fields?
 
-The sampling profile (R4) and the Foundation above. Their results on the committed
+The sampling profile (R4) and the Foundation above, in the words of the observations
+("not only images", "random images"); with one observation per field the headline says so
+rather than a ratio of 1, the full form gives each measured quantity with where it holds,
+never the name of the function that made it, and question 2 reads "no rule met in any of the
+6 groups" and "1 needs more wells or biological repeats" (audit 10, owner, 2026-10-06).
+Their results on the committed
 data, in plain language, are in [Objects or fields?](objects_or_fields.md).
 
 ### Can these features detect what I care about?
 
-`representation_control` judges declared positive-control FOVs (and positive cells planted into reference FOVs) against random reference FOVs holding observations, paired within `pair_cols`: detection and false-alarm rates, "positive only" without a reference, "not assessed" without a control. It also measures both rates leaving one field out within the analysis groups of the inspection (`lofo_group_cols`), which the report's "expected by chance" clause and its detection-adjusted bound read, pooled over the strata of `pair_cols` and said so ("pooled over all plates", owner, 2026-10-05).
+`representation_control` judges declared positive-control FOVs (and positive cells planted into reference FOVs) against random reference FOVs holding observations, paired within `pair_cols`: detection and false-alarm rates, "positive only" without a reference, "not assessed" without a control. It also measures both rates leaving one field out within the analysis groups of the inspection (`lofo_group_cols`), which the report's chance clause ("false alarms alone would give about 8, up to 25, of the 336 fields judged, so these are compatible with chance"; audit 10, owner, 2026-10-06) and its detection-adjusted bound read, pooled over the strata of `pair_cols` and said so ("pooled over all plates", owner, 2026-10-05).
 A positive control recognized no more often than the reference's false alarms is "cannot
 tell the positive control from the reference with this definition of new", not judged (➖),
 and questions 2, 4 and 5 say so instead of a weak representation: a definition that tells

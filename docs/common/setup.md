@@ -182,7 +182,9 @@ analysis would be worse than stopping), and the report's overview and the
 declaration say that the values are normalised. A control mean that is zero
 (up to rounding), negative or undefined by missing values is refused, naming
 the feature and the repeat: dividing by it has no meaning or flips the sign of
-every effect, so compare a signed feature (a velocity, a log-ratio) raw. When
+every effect, so compare a signed feature (a velocity, a log-ratio) raw: the message says
+what to do, "remove 'velocity' from the features, or set normalize=None to compare every
+feature raw" (audit 10, owner, 2026-10-06). When
 the control objects hold negative values but their mean is positive, the
 values are still divided, with a warning that they are then not multiples of
 the control, and the sentence on normalised values says so (`Caution: ...`). What reads

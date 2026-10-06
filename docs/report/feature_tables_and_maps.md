@@ -138,7 +138,10 @@ and the report says which space.
   columns; the line says k ("read on its first 4 principal components (k at most a fifth of
   the median group's 23 images and at most its 384 columns)"). A judged group holding fewer
   than five times k observations is **not assessable** and named in that line ("not
-  assessable in pilot R1, holding fewer than 5 k, 200 cells"), never lowering k: when k came
+  assessable in pilot R1, holding fewer than 5 k, 200 cells"; a group that holds enough
+  observations but too few with a value, its repeat holding no own control or a value
+  missing, is named for that reason instead, with its labels, audit 10, owner, 2026-10-06),
+  never lowering k: when k came
   from the smallest group, a pilot condition of 4 fields of 3 cells took k from 40 to 2 and
   turned every other group's verdict from 0-17% meeting the tolerance to 100% (with the rule,
   k stays 40 and the verdicts do not move). Below k = 2 for the median group the fingerprint
@@ -239,7 +242,8 @@ normalised to each repeat's control, and draw around points (the lasso is on) to
 see which conditions they come from: their number, their share of the selection,
 the share chance would give and the ratio of the two. Under each map, one line says
 how far the conditions, and the repeats, separate in it (owner, 2026-10-05 and 2026-10-06),
-a description with no p-value:
+a description with no p-value; with one condition the page says there is nothing to separate
+instead of explaining the line (audit 10, owner, 2026-10-06):
 
 - **by condition**: of each observation's 10 nearest neighbours among the other
   observations of its biological repeat, the share that have its condition, against that
@@ -255,8 +259,9 @@ a description with no p-value:
   its own read as a batch (a control of one field of 5 cells: "the repeats separate more"
   in every simulation with no batch). The score by condition reads the view's values; under
   a normalised or centred map the line says so ("Within a condition, on the raw values, 35%
-  share the repeat ... On the raw values, the repeats separate more than the
-  conditions."), so it does not contradict the centred picture. Cells with every raw value
+  share the repeat ..."), so it does not contradict the centred picture, and the two scores,
+  reading different values, are not compared: no "the repeats separate more" under such a
+  map (audit 10, owner, 2026-10-06). Cells with every raw value
   but none in the view are counted apart from the missing values and named: "18 cells of b1
   in R1 left out: no own control" (or "no condition to centre on", for a repeat left out of
   the centred values); the populations name them the same way (owner, 2026-10-06, audit 8).

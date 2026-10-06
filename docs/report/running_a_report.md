@@ -68,7 +68,9 @@ then answers "Do the conditions differ?" with the
 [whole-table test](conditions.md#the-whole-table-test-other-feature-tables) of each table,
 "Did I image enough?" with the fingerprint of each table and the labelled phenotype, and
 says once per section what needs explainable features ("not applicable: no explainable
-features", ➖). In every report with other feature tables, each table is also tested whole
+features", ➖); a question with several reasons gives them in one sentence, "not applicable"
+once and no second ➖, and the closing section repeats that reason, never a list of functions
+to run (audit 10, owner, 2026-10-06). In every report with other feature tables, each table is also tested whole
 beside the per-feature tests, and the page saves the tests as `tests_whole_table.csv`.
 
 ### A guided session

@@ -395,6 +395,7 @@ src/morphocoverage/
         _guided_tables.py  # private: its other feature tables: asked for at load with a path and a name, checked, saved with their checksums
         __main__.py        # python -m morphocoverage.workflows: the guided session from a terminal
         _declaration.py    # private: the Setup's declaration in sentences, every preset printed
+        _declaration_rare.py  # private: the rare phenotype's sentences of the declaration (split out of _declaration)
         retrospective.py   # report, optimise, document: the analyses in question order
         benchmarks.py      # benchmark, Family, default_families: the rule families at matched risk
         _document.py       # private: the assembled report of the workflows, its parts and settings

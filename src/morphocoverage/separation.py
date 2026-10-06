@@ -15,7 +15,9 @@ their weighted combined space):
   each observation's neighbours, among the other observations of its condition, that share
   its biological repeat, against chance; the median over the conditions. When the repeats
   separate more than the conditions in a space, the line says so: a batch effect between
-  repeats is then larger there than the difference between conditions. It always reads the
+  repeats is then larger there than the difference between conditions; under a normalised or
+  centred map the two scores read different values and are not compared (audit 10, owner,
+  2026-10-06). It always reads the
   raw values (``repeat_values``; owner, 2026-10-06, audit 8): a batch measured after a
   centring that removes it would be circular, and a centre with noise of its own would read
   as one.
@@ -102,7 +104,9 @@ class Separation:
         """Whether the repeats separate more than the conditions in ``space`` (see the
         module)."""
         rows = self.spaces[self.spaces["space"] == space]
-        if not len(rows):
+        if not len(rows) or self.settings.get("repeat_raw"):
+            # Raw repeats against normalised or centred conditions: unlike, so not compared
+            # (audit 10, owner, 2026-10-06, B15).
             return False
         row = rows.iloc[0]
         by_repeat = lift(row["repeat_share"], row["repeat_chance"])
@@ -134,11 +138,7 @@ class Separation:
                 f"against {percent(row['repeat_chance'])} by chance."
             )
         if self.repeats_first(space):
-            text += (
-                " On the raw values, the repeats separate more than the conditions."
-                if raw
-                else " Here the repeats separate more than the conditions."
-            )
+            text += " Here the repeats separate more than the conditions."
         unit = self.settings.get("observation_unit", "observation")
         if row["left_out"]:
             text += f" {count(int(row['left_out']), unit)} with a missing value left out."

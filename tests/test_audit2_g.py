@@ -354,8 +354,8 @@ def test_g13_the_chance_expectation_uses_the_leave_one_field_out_rate():
     )
     expected = rates["reference_lofo"] * 60
     # Audit 3 (G-3): from the rate to its upper bound, over the fields judged.
-    # Audit 10 (A20): "false alarms alone would give about 2, up to 8.9, of the 60 fields".
-    assert f"would give about {expected:.0f}, up to " in statement
+    # Audit 10 (A20): "false alarms alone would give about 2, up to 9, of the 60 fields".
+    assert f"would give about {round(expected)}, up to " in statement
     assert "of the 60 fields judged" in statement
     assert f"was {flagged_reference} of 30 fields" in statement
 

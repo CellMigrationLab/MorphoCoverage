@@ -484,11 +484,16 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             lines.append(wrap(line, 4, hang=6))
     lines.append(
         wrap(
-            f"Assumptions: The {units} of every condition are clustered together, then each "
-            f"condition is compared with its own control on its share of {units} in each, "
-            "per biological repeat (paired t-test on the log odds of the repeat shares, "
-            "Benjamini-Hochberg within each sub-experiment over every population and "
-            "condition); the main population, holding most of them, is the rest, listed and "
+            f"Assumptions: The {units} of every condition are clustered together"
+            + (  # compared only where a control is declared (audit 10, C24)
+                f", then each condition is compared with its own control on its share of "
+                f"{units} in each, per biological repeat (paired t-test on the log odds of the "
+                "repeat shares, Benjamini-Hochberg within each sub-experiment over every "
+                "population and condition)"
+                if setup.reference_control is not None
+                else ", and no condition is compared, as no control is declared"
+            )
+            + "; the main population, holding most of them, is the rest, listed and "
             "not tested. A cluster on the UMAP is kept as a group when "
             f"{percent(settings['purity'])} or more of its {units}' "
             f"{settings['neighbours']} nearest neighbours on all the features are in it too "

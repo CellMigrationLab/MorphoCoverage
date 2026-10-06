@@ -1,7 +1,7 @@
 {
  "name": "a14_embed1_one_norm_image_none_rare",
  "kind": "axes",
- "checks": "embedding-only report; each condition against the control; normalised and centred views; the field questions on the images; the rare label's share and clustering; the page",
+ "checks": "embedding-only report; each condition against the control; normalised and centred views; the field questions on the images; the rare label in \"Did I image enough?\"; the page",
  "axes": {
   "tables": "embed1",
   "controls": "one",

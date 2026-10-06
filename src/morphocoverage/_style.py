@@ -436,11 +436,19 @@ def wrap(text: str, indent: int | str = 0, *, hang: int | str | None = None) -> 
             lines.append("")
             continue
         # An emoji in the indent takes two columns but counts one character; a group label
-        # ("MOCK · 1A · B6") is never broken, its separators held by no-break spaces.
+        # ("MOCK · 1A · B6") is never broken, its separators held by no-break spaces. A marker
+        # opening the text is moved into the indent, so its two columns are counted too (no
+        # line one column too wide, audit 10).
+        start = first
+        marker = next(
+            (m for m in (OK, CAUTION, PROBLEM, NOT_ASSESSED) if line.startswith(f"{m} ")), ""
+        )
+        if marker:
+            start, line = f"{first}{marker} ", line[len(marker) + 1 :]
         filled = textwrap.fill(
             line.replace(SEPARATOR, _KEPT),
-            WIDTH - (width(first) - len(first)),
-            initial_indent=first,
+            WIDTH - (width(start) - len(start)),
+            initial_indent=start,
             subsequent_indent=later,
             break_long_words=False,
             break_on_hyphens=False,
@@ -502,6 +510,28 @@ def varying_numbers(texts: Sequence[str]) -> list[str]:
     ]
 
 
+_TABLE_GAP = re.compile(r"\S {2,}\S")  # a table row: columns apart by two spaces or more
+
+
+def fitted(text: str) -> str:
+    """``text`` with every prose line wider than the report's 100 columns wrapped under its
+    own indent, continuations two deeper (three after a marker); table rows are left as
+    they are (audit 10, A22: no unwrapped long line in the report)."""
+    lines = []
+    for line in text.splitlines():
+        if width(line) <= WIDTH or _TABLE_GAP.search(line.strip()):
+            lines.append(line)
+            continue
+        pad = line[: len(line) - len(line.lstrip(" "))]
+        body = line[len(pad) :]
+        marker = next((x.marker for x in Status if body.startswith(f"{x.marker} ")), None)
+        if marker:  # the marker in the indent, where its two columns are counted
+            lines.append(wrap(body[len(marker) + 1 :], f"{pad}{marker} ", hang=pad + "   "))
+        else:
+            lines.append(wrap(body, pad, hang=pad + "  "))
+    return "\n".join(lines)
+
+
 def number_pattern(text: str) -> str:
     """``text`` with every number replaced by ``#``: sentences alike but for their numbers."""
     return _NUMBER.sub("#", text)
@@ -518,6 +548,7 @@ __all__ = [
     "Status",
     "among",
     "check_detail",
+    "fitted",
     "group_columns",
     "group_label",
     "headline",

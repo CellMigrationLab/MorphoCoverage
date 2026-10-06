@@ -67,7 +67,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count, check_seed
-from .._control import control_text
+from .._control import control_name
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_key, group_rng
 from .._style import check_detail, group_label
@@ -187,7 +187,7 @@ def _reference_means(
         means[group_key(group)] = float(values.mean()) if len(values) else None
         negative[group_key(group)] = bool((values < 0).any())
     within = f" of the same {column_word(repeat_col)}" if repeat_col else ""
-    label = f"mean of all objects of the control groups {control_text(control)}{within}"
+    label = f"mean of all objects of the control groups, {control_name(control)}{within}"
     names = {repr(r): str(r) for _, d in all_groups for r in repeats_of(d)}
     # Control means are compared within a sub-experiment only: two sets of a screen, each
     # with its own control and repeats, are not one control drifting (owner, 2026-10-02).

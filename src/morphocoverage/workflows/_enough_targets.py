@@ -35,7 +35,7 @@ from .._wording import count, listing, percent, plural, rate
 from ..evaluator import FovSubsets, iter_analysis_groups
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..schema import validate_input_tables
-from ._fingerprint_space import MIN_FIELDS, fingerprint_space, label, noun, table_of
+from ._fingerprint_space import MIN_FIELDS, fingerprint_space, label, named, noun, table_of
 from ._fingerprint_space import criterion_columns as _columns
 
 if TYPE_CHECKING:
@@ -259,10 +259,11 @@ def fingerprint_title(criterion: str, rows: pd.DataFrame) -> str:
     covariance criterion's is the covariance fingerprint (``_fingerprint_space.noun``)."""
     table = rows["table"].iloc[0] if "table" in rows else None
     what = _noun(rows)
+    shown = named(what, criterion)  # never a metric's code name (audit 10, C22)
     title = (
-        f"The {what} of {table} ({criterion})"
+        f"The {what} of {table}" + ("" if shown == f"The {what}" else f" ({criterion})")
         if isinstance(table, str)
-        else f"The {what}, {criterion}"
+        else shown.rstrip(",")
     )
     reading = rows["reading"].iloc[0] if "reading" in rows else None
     return f"{title}, {reading}" if isinstance(reading, str) and reading else title

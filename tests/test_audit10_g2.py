@@ -586,6 +586,6 @@ def test_nothing_compared_is_said_never_no_consistent_difference() -> None:
     status = result.document.statuses["conditions"]
     headline = result.document.headlines["conditions"]
     assert status is Status.NOT_ASSESSED
-    assert headline.startswith("nothing compared: no biological repeat holds a condition")
+    assert headline.startswith("nothing compared: no biological repeat holds both a condition")
     assert "Nothing compared" in chip(status, "conditions", headline)
     assert "No consistent difference" not in chip(status, "conditions", headline)

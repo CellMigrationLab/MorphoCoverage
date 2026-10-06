@@ -64,6 +64,14 @@
   "separation_spaces": [
    "Explainable"
   ],
-  "html": true
+  "html": true,
+  "null_features": [
+   "fib_w"
+  ],
+  "planted": {
+   "area": [
+    "a"
+   ]
+  }
  }
 }

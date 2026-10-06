@@ -96,8 +96,8 @@ def limits_text(
     lines = []
     for key, title in missing:
         answer = report.headlines.get(key, "")
-        if full and answer.startswith("not applicable"):
-            # This design cannot answer it: its reason, never what to run (audit, 2026-10-02).
+        if full and answer and not answer.startswith("not assessed"):
+            # Its own reason, never what to run (audit, 2026-10-02; audit 10, C13).
             line = f"{NOT_ASSESSED} {title}: {answer}."
         elif full and report.inputs.get(key) == "not assessed":
             line = f"{NOT_ASSESSED} {title}: not assessed; needs: {needs[key]}."
@@ -111,9 +111,8 @@ def limits_text(
     if not missing:
         lines.append(wrap(ASSESSED, 2, hang=4))
     # A reason added to an assessed answer is printed in its section and among the notes.
-    shown = tuple(title for _, title in chosen)
-    notes = [n for n in report.notes if full or not n.startswith(shown)]
-    return "\n".join([*lines, *_notes(notes, detail)])
+    # In the short form too, so the two forms list the same limits (audit 10, A24).
+    return "\n".join([*lines, *_notes(list(report.notes), detail)])
 
 
 __all__ = [
