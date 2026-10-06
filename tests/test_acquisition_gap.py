@@ -65,7 +65,11 @@ def test_the_controls_apart_in_intensity_are_named_with_their_fold():
     assert text.startswith(
         "VEC_SiNC and VEC differ 13-fold in median Intensity (mean); VEC_SiNC and THBS5 13-fold;"
     )
-    assert "raw comparisons across them, and maps on raw values, may show acquisition" in text
+    # Audit 10 (B14): centring per repeat leaves the gap, so its scope names it too.
+    assert (
+        "raw comparisons across them, the maps on raw values or centred per repeat, the "
+        "separation of the conditions and the populations, may show acquisition" in text
+    )
 
 
 def test_a_gap_under_two_fold_or_one_control_says_nothing():
@@ -117,8 +121,13 @@ def test_the_report_says_the_gap_where_the_data_and_the_comparisons_are(gap_repo
     assert f"⚠️ {gap_caution(gap_report.results['contrast'].settings['acquisition_gaps'])}" in (
         section
     )
-    # Beside the row across experiments that joins dim and bright controls, not the others.
+    # Beside the row across experiments that joins dim and bright controls, not the others;
+    # normalised to their own controls, a softer note, no caution (audit 10, C31).
     assert "transfection effect: THBS5_SiNC/THBS5 vs VEC_SiNC/VEC: joins controls apart" in section
+    assert "; each side is normalised to its own control, which takes out a gap that scales" in (
+        section
+    )
+    assert "⚠️ transfection effect: THBS5_SiNC/THBS5 vs VEC_SiNC/VEC: joins" not in section
     assert "THBS5_SiNC vs VEC_SiNC (raw): join" not in section
     gaps = gap_report.results["contrast"].settings["acquisition_gaps"]
     assert len(gaps) == 4
@@ -148,3 +157,18 @@ def test_the_caution_is_beside_a_control_against_its_parent_too(gap_report):
     reading = section[: section.index("Across the biological repeats")]
     assert "VEC_SiNC vs VEC and THBS5_SiNC vs THBS5: join controls apart in intensity" in reading
     assert "VEC_SiCol6a1 vs VEC_SiNC: join" not in reading
+
+
+def test_the_maps_say_the_gap_centring_leaves():
+    """Audit 10 (B14): under the maps, the centred view keeps a gap between experiments
+    within a repeat, as do the separation and the populations."""
+    from morphocoverage.workflows._acquisition_gap import gap_maps_line
+
+    gaps = [{"controls": ("cA", "cB"), "feature": INTENSITY, "fold": 2.4}]
+    line = gap_maps_line(gaps)
+    assert line.startswith("Controls apart in intensity (cA and cB): centring per repeat leaves")
+    assert "the separation of the conditions and the populations may show acquisition" in line
+    assert gap_maps_line(gaps, centred=False).startswith(
+        "Controls apart in intensity (cA and cB): the maps, the separation"
+    )
+    assert gap_maps_line([]) == ""

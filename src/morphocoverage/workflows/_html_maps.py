@@ -29,6 +29,7 @@ from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import control_mean_problem, normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..sampling_unit.populations import MAX_COMPONENTS, VARIANCE
+from ._acquisition_gap import gap_maps_line
 from ._contrasts import left_out_sentence, normalisation_problem
 from ._feature_space import (
     analysed_tables,
@@ -345,7 +346,10 @@ def embeddings(
     maps = _maps(setup, tables, fovs, top, carry)
     ran = "unusual" in result.results
     line = centring_line(objects, fovs, setup, ran) if "centred" in maps else ""
-    centred = centred_note(line)
+    contrast = result.results.get("contrast")
+    gaps = contrast.settings.get("acquisition_gaps", []) if contrast is not None else []
+    centred = " ".join(p for p in (centred_note(line), gap_maps_line(gaps)) if p)
+    uncentred = gap_maps_line(gaps, centred=False)
     spaces = list(maps["raw"])
     several = len(spaces) > 1
     # How far the conditions separate in each space, under its map (owner, 2026-10-05).
@@ -503,6 +507,11 @@ def embeddings(
         + f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
         f'<p class="note">{html.escape(neighbours)}</p>'
         + (f'<p class="note">{html.escape(centred)}</p>' if "centred" in maps else "")
+        + (
+            f'<p class="note">{html.escape(uncentred)}</p>'
+            if uncentred and "centred" not in maps
+            else ""
+        )
         + '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "
         + _batch_words(setup, fovs, unnormalisable, "centred" in maps)

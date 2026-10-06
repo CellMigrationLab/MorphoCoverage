@@ -123,7 +123,14 @@ and VEC differ 13-fold in median Intensity (mean); ... 2-fold is an engineering 
 quality control, not a test.") and in "Do the conditions differ?",
 and names each `across_normalised` or `vs_master_raw` row that joins two such controls under
 its table, and each main verdict that does, a control against its parent, under the
-readings (owner, 2026-10-05). The 2-fold mark is an engineering threshold for quality
+readings (owner, 2026-10-05): a ⚠️ caution under the raw rows, `vs_master_raw` and a
+control against its parent, and a softer note under the `across_normalised` rows, whose
+sides are each normalised to their own control, which takes out a gap that scales every
+value of an experiment alike but not one that differs between conditions (owner, 2026-10-06,
+audit 10). Centring the other tables per repeat leaves the gap between experiments within a
+repeat, so the caution names the maps on raw values or centred per repeat, the separation of
+the conditions and the populations too, and the page says so under the maps. The 2-fold
+mark is an engineering threshold for quality
 control, not a statistical test: it has no error rate, and a smaller gap is not evidence
 that the experiments were imaged alike (plan v2, owner, 2026-10-06). With one control nothing is compared.
 

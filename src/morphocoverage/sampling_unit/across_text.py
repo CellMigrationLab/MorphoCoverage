@@ -9,7 +9,9 @@ comparisons across experiments assume they were imaged and processed alike. Each
 corrected on its own; the rows held in too few repeats are named once as not compared, and
 the rows whose values fell back to differences (a mean that is not positive) are named. With
 controls apart in intensity (``settings["acquisition_gaps"]``, ``workflows._acquisition_gap``)
-the rows that join two of them are named under their table (owner, 2026-10-05).
+the rows that join two of them are named under their table (owner, 2026-10-05): a caution
+for the raw rows, a softer note for the rows normalised to their own controls (owner,
+2026-10-06, audit 10).
 """
 
 from __future__ import annotations
@@ -72,24 +74,42 @@ def _rows(block: pd.DataFrame, feature: bool = False) -> list[list[str]]:
 
 
 def _gap_note(block: pd.DataFrame, gaps: list[dict], indent: int) -> list[str]:
-    """Under a table of secondary rows: those that join two controls apart in intensity."""
-    named, joined = [], []
+    """Under a table of secondary rows: those that join two controls apart in intensity, a
+    ⚠️ caution for raw rows and a softer note for rows normalised to their own controls,
+    which takes out a gap that scales every value of an experiment alike (owner, 2026-10-06,
+    audit 10)."""
+    lines = []
     sides = ["condition", "reference", "condition_control", "reference_control"]
-    for row in block.to_dict("records"):
-        held = {row[c] for c in sides if pd.notna(row.get(c))}
-        found = [" vs ".join(map(str, g["controls"])) for g in gaps if set(g["controls"]) <= held]
-        if found:
-            named.append(row["comparison"])
-            joined += found
-    if not named:
-        return []
-    one = len(named) == 1
-    text = (
-        f"{listing(named, 3)}: {'joins' if one else 'join'} controls apart in intensity "
-        f"({listing(list(dict.fromkeys(joined)), 3)}), so {'it' if one else 'they'} may show "
-        "acquisition rather than biology."
-    )
-    return [wrap(text, f"{' ' * indent}{CAUTION} ", hang=" " * (indent + 3))]
+    for normalised in (False, True):
+        named, joined = [], []
+        for row in block.to_dict("records"):
+            if (row.get("kind") == ACROSS) != normalised:
+                continue
+            held = {row[c] for c in sides if pd.notna(row.get(c))}
+            found = [
+                " vs ".join(map(str, g["controls"])) for g in gaps if set(g["controls"]) <= held
+            ]
+            if found:
+                named.append(row["comparison"])
+                joined += found
+        if not named:
+            continue
+        one = len(named) == 1
+        joins = (
+            f"{listing(named, 3)}: {'joins' if one else 'join'} controls apart in intensity "
+            f"({listing(list(dict.fromkeys(joined)), 3)})"
+        )
+        if normalised:
+            text = (
+                f"{joins}; each side is normalised to its own control, which takes out a gap "
+                "that scales every value of an experiment alike, not one that differs between "
+                "conditions."
+            )
+            lines.append(wrap(text, indent, hang=indent + 2))
+            continue
+        text = f"{joins}, so {'it' if one else 'they'} may show acquisition rather than biology."
+        lines.append(wrap(text, f"{' ' * indent}{CAUTION} ", hang=" " * (indent + 3)))
+    return lines
 
 
 def own_gap_lines(contrast: Any, indent: int = 2) -> list[str]:
