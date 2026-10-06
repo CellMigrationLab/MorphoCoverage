@@ -250,8 +250,8 @@ without explainable features the combined map has a centred view instead (owner,
 | Sign-flip test | biological repeat | the readout's conditions per sub-experiment | in the full report, only where its smallest p can reach 0.05 |
 | `across_normalised`, `vs_master_raw` | biological repeat, from 3 | one family per kind over every feature and row | verdicts across experiments |
 | Whole-table test | biological repeat, from 3 | per table and sub-experiment | the verdict for a table |
-| Beyond the mean | biological repeat | per sub-experiment, its own family | a verdict on the distribution |
-| Population enrichment | biological repeat, from 3 | groups and conditions per sub-experiment | a verdict on a group's share |
+| Beyond the mean | biological repeat | per sub-experiment, its own family | exploratory: on the distribution |
+| Population enrichment | biological repeat, from 3 | groups and conditions per sub-experiment | exploratory: on a group's share |
 | Cell-level screen | observation | the paired t's family | exploratory: candidates |
 | Within one repeat | wells, or fields with `fields_independent` | Bonferroni over the comparisons | descriptive, run only when it can reach 0.05 |
 | Ranking within repeats | wells, or fields | all its tests together | which features to plot |
@@ -259,6 +259,12 @@ without explainable features the combined map has a centred view instead (owner,
 | Whole-table shuffle | wells, else fields | none | exploratory, CSV only |
 | Clustering in fields | field | groups and states | a state called clustered at q 0.05 or less |
 | Acquisition order | field | Bonferroni over its two tests | a caution beside a stop, never a veto |
+
+Exploratory until their module of [the validation protocol](validation.md) validates them
+(plan v2, owner, 2026-10-06): population enrichment, beyond the mean, the covariance
+fingerprint, the rare target and novelty. Each section of the report and of the page that
+answers with one of them says so once, in one sentence pointing to that protocol
+(`workflows._exploratory`).
 
 Benjamini-Hochberg controls the false discovery rate within each family above, never across
 the report: a report of several families can hold more false discoveries overall than any

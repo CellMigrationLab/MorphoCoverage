@@ -37,6 +37,7 @@ from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.distribution import shift_words, spread_words
 from ..sampling_unit.legend_text import described_rows, feature_counts, figure_legend
 from ..sampling_unit.repeat_plan_text import plan_parts
+from ._exploratory import exploratory_html
 from ._families import _CELL_VERSIONS
 from ._feature_space import with_table
 from ._html_across import _across, _direction, _order, _table, across_frame, d_per_repeat
@@ -284,6 +285,7 @@ def _beyond(result: Any, folder: Path) -> str:
         "<p>Per biological repeat against its own control: the spread (the condition's SD "
         "over the control's) and the 10%, 50% and 90% quantiles (their shift in control SDs), "
         "each tested across the repeats like a mean. Differs: adjusted p ≤ 0.05.</p>"
+        + exploratory_html(result, "conditions")
     )
     columns = [
         "feature",

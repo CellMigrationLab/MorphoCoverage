@@ -368,6 +368,10 @@ for one to pass.
 
 ## Beyond the mean, and a labelled share
 
+Beyond the mean is exploratory (plan v2, owner, 2026-10-06): not yet validated by the
+benchmark of [the validation protocol](../common/validation.md); the report and the page say
+so once where it answers.
+
 The report compares a rare label's share between the
 conditions like a feature (`"<label> share"`: the ranking, the heatmap, the
 figures, which plot one point per field, its share of labelled cells, while the

@@ -1,10 +1,9 @@
 """The assembled report of the retrospective workflows (private): parts, reasons, settings.
 
-- ``assemble`` builds the microscopist's report from the results under the
-  setup's declaration and presets (``Setup.minimum_detection``), and adds
-  what ``microscopist_report`` has no argument for: the declared rare
-  phenotype's clustering, the positive control's pairing and the unusual
-  observations' pooled reference;
+- ``assemble`` builds the microscopist's report from the results under the setup's
+  declaration and presets (``Setup.minimum_detection``), and adds what ``microscopist_report``
+  has no argument for: the declared rare phenotype's clustering, the positive control's pairing
+  and the unusual observations' pooled reference, and the exploratory lines (``_exploratory``);
 - ``with_reasons`` adds, by question, why an analysis was not assessed
   (``pooling_reason``, ``protocol_reason``, ``no_hierarchy_reasons``);
 - ``report_settings`` and ``plan_settings`` state the computational settings
@@ -46,6 +45,7 @@ from ._declaration import declaration, declaration_short
 from ._distribution import with_distribution
 from ._enough_features import default_precision, with_features
 from ._enough_targets import with_targets
+from ._exploratory import with_exploratory
 from ._label_control import with_label_check
 from ._populations import with_populations
 from ._whole_table import with_whole_table
@@ -194,7 +194,8 @@ def assemble(
     # Beyond the mean, with a fingerprint declared (question 9).
     document = with_distribution(document, results.get("distribution"), setup.unit_words, setup)
     # Every other table tested whole, beside the features (owner, 2026-10-06).
-    return with_whole_table(document, results.get("whole_table"), bool(setup.columns))
+    document = with_whole_table(document, results.get("whole_table"), bool(setup.columns))
+    return with_exploratory(document, dict(results), setup)  # plan v2 (owner, 2026-10-06)
 
 
 def _with_integrity(document: MicroscopistReport, integrity: Any) -> MicroscopistReport:

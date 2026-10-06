@@ -4,6 +4,7 @@ report without a control."""
 
 import html
 import sys
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,6 +26,12 @@ from morphocoverage.sampling_unit.reading_text import LIMITED_REPLICATION
 from morphocoverage.statistics import repeat_effect
 from morphocoverage.workflows import Setup, guide, load_answers, optimise, report
 from morphocoverage.workflows._acquisition_gap import gap_caution
+from morphocoverage.workflows._exploratory import (
+    VALIDATION,
+    exploratory_html,
+    exploratory_line,
+    exploratory_names,
+)
 from morphocoverage.workflows._fingerprint_space import fingerprint_space, noun
 from morphocoverage.workflows._guided_ask import ask_scales, ask_tolerance
 from morphocoverage.workflows._html_across import _across, across_frame
@@ -32,7 +39,9 @@ from morphocoverage.workflows._html_across import _across, across_frame
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 sys.path.insert(0, str(ROOT / "data" / "lab"))
+sys.path.insert(0, str(ROOT / "data" / "scenarios"))
 import catalog
+import make_scenarios
 
 
 @pytest.fixture(scope="module")
@@ -300,3 +309,55 @@ def test_the_guided_session_proposes_ratios_for_intensities_and_areas_and_saves_
     assert result.setup.scales == {"area": "difference"}
     assert load_answers(tmp_path).scales == {"area": "difference"}
     assert "Tested as differences to the control: area." in result.answers.lines()
+
+
+# --- 5. Exploratory labels -------------------------------------------------------------------
+
+
+def _scenario_report(name):
+    loaded = make_scenarios.load(name)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        setup = Setup(**loaded.setup)
+        return report(loaded.objects, loaded.fovs, setup, feature_tables=loaded.feature_tables)
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        (
+            "a24_expl_one_norm_image_none_fp_expl",
+            {
+                "enough": "The covariance fingerprint is exploratory",
+                "conditions": "Beyond the mean is exploratory",
+                "populations": "Population enrichment is exploratory",
+            },
+        ),
+        ("a02_expl_several_norm_cells_tech_positive", {"enough": "Novelty is exploratory"}),
+        ("a01_tagged_several_image_none_rare", {"enough": "The rare target is exploratory"}),
+    ],
+)
+def test_each_exploratory_analysis_is_said_once_in_its_section(name, expected):
+    result = _scenario_report(name)
+    document = result.document
+    for key, start in expected.items():
+        for form in (document.sections[key], document.short[key]):
+            joined = " ".join(form.split())
+            assert joined.count("exploratory: not yet validated") == 1, key
+            assert f"{start}: not yet validated by the benchmark of {VALIDATION}." in joined
+    said = " ".join(result.summary().split())
+    assert said.count("exploratory: not yet validated") == len(
+        exploratory_names(result.results, result.setup)
+    )
+
+
+def test_the_page_says_it_where_the_section_text_is_not_printed():
+    result = SimpleNamespace(
+        results={"distribution": object(), "populations": None},
+        setup=Setup(readout="area"),
+    )
+    assert "Beyond the mean is exploratory" in exploratory_html(result, "conditions")
+    assert exploratory_html(result, "populations") == ""
+    assert exploratory_line(["the rare target", "novelty"]).startswith(
+        "The rare target and novelty are exploratory"
+    )
