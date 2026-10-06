@@ -79,7 +79,7 @@ def p_value(value: float) -> str:
 
 def change(value: float, values: str = "normalised") -> str:
     """The change against the control the paired t-test compares: a fold change of the means
-    (``×1.25``; three decimals within 10% of no change and five digits within 1%, so a tiny
+    (``×1.25``; three decimals within 10% of no change and five digits within 0.1%, so a tiny
     change never reads ``×1.00``), or with raw ``values`` the difference of the means (``+3.2``);
     ``–`` for NaN."""
     value = float(value)
@@ -88,7 +88,7 @@ def change(value: float, values: str = "normalised") -> str:
     if values != "normalised":
         return f"{value:+.3g}"
     off = abs(value - 1)
-    return f"×{value:.2f}" if off >= 0.1 else f"×{value:.3f}" if off >= 0.01 else f"×{value:.5g}"
+    return f"×{value:.2f}" if off >= 0.1 else f"×{value:.3f}" if off >= 0.001 else f"×{value:.5g}"
 
 
 def contrasts_words(text: str, values: str) -> str:
