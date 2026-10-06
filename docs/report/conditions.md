@@ -57,7 +57,9 @@ setup = Setup(
 A condition belongs to one control at most, a treatment key names one condition of a
 control, a parent may be any condition (a member of another control included) but the links
 may not form a cycle, and every condition named must be in the data; each is refused with a
-message otherwise. The declaration gives the **contrast table** (`Setup.contrast_table`), one
+message otherwise. One control declared this way, as a list, a keyed dict or with itself as
+the master, and without parents, is `{"condition": control}`: the output is identical, every
+other condition compared with it (owner, 2026-10-05). The declaration gives the **contrast table** (`Setup.contrast_table`), one
 row per test, shown in the report and saved as `contrasts.csv`:
 
 - `own_control`, **the main verdicts**: each condition against its own control, and each
@@ -70,29 +72,45 @@ row per test, shown in the report and saved as `contrasts.csv`:
   parents): the two conditions each normalised to its own control, in every repeat holding all
   four the difference of their log ratios, paired across those repeats
   (`SiCol6a1 effect: THBS5_SiCol6a1/THBS5_SiNC vs VEC_SiCol6a1/VEC_SiNC`); a list of
-  conditions gives no such row. One Benjamini-Hochberg family.
+  conditions gives no such row. One Benjamini-Hochberg family over every feature's rows.
 - `vs_master_raw`, only with a master: each other control against it on the raw values, in
   the repeats holding both, unless a parent link joins them already
   (`THBS5_SiNC vs VEC_SiNC (raw)`). The report gives the master's repeats once and says that
   raw comparisons across experiments assume the experiments were imaged and processed alike.
-  One Benjamini-Hochberg family.
+  One Benjamini-Hochberg family over every feature's rows.
 
 For the ECM design above that is 7 + 3 + 1 = 11 rows per feature. The secondary rows are
-tested on the repeat means, with no cell-level test; a row held in fewer than 3 repeats is
-named once as not compared, and where a mean is not positive (a signed feature) the raw
-differences are compared instead of log ratios, and the table says so for that feature.
+tested on the repeat means, with no cell-level test, for every explainable feature (owner,
+2026-10-05): each family is corrected over every feature and its rows, as the main verdicts
+are corrected over the features and conditions of their sub-experiment, and the discovery
+and the heatmap still read the main verdicts only. "Compared across experiments" gives the
+readout's rows first, each with the biological repeats it used and, for an
+`across_normalised` row, which of the two ratios is the larger in how many repeats; then the
+other features' rows at q ≤ 0.05 and a count of them all, and "At a glance" adds
+"across experiments: 1 of 8 significant" when any is. Every row is saved, with its kind,
+label, feature, repeats, change, p and q, as `tests_across_experiments.csv`, with a CSV
+button under the block on the page. A row held in fewer than 3 repeats is named once as not
+compared, and where a mean is not positive (a signed feature) the raw differences are
+compared instead of log ratios, and the table says so for that feature.
 `Setup(contrasts=table)` takes a table of the same columns (`kind`, `condition`,
 `reference`, `condition_control`, `reference_control`, `family`, `label`) in place of the
-generated one.
+generated one. A condition has one `own_control` row: a table giving it two is refused, and
+with declared controls its own control comes from the declaration, so a table giving it
+another one is refused too (owner, 2026-10-05). The "Controls:" line and every analysis then
+read the same own controls.
 
 Only the statistics read the controls: the figures, the PCA and UMAP, the population
 detection and the SuperPlots show every condition under its own name. With `normalize`, the
 normalised views show each condition divided by its own control's mean in its repeat, a
 control by its parent's (else its own, so 1); a condition held in a repeat without its own
 control is left out there, and the report names it once. Levels across experiments are read
-on the raw values. The tests read the raw values and each normalises to its own control.
-Unusual observations and the population enrichment take each condition's own control as the
-reference; the object rules, clustering and a positive control take every control pooled.
+on the raw values. The tests read the raw values and each normalises to its own control;
+with one control too, so their raw columns hold raw values (owner, 2026-10-05; before, with
+`normalize`, the contrast read the normalised values and its "raw" d and paired t were the
+normalised ones). Unusual observations and the population enrichment take each condition's
+own control as the reference ("each against its own control"); the object rules, clustering
+and a positive control take every control pooled. A contrast table alone gives own controls
+too, so the declaration says unusual observations are assessed against them.
 
 **Controls apart in intensity** (owner, 2026-10-05). Raw comparisons across experiments, and
 maps on raw values, assume the experiments were imaged and processed alike. So the controls
@@ -102,7 +120,13 @@ all their observations, differ 2-fold or more (`_acquisition_gap.GAP_FOLD`), the
 so with one ⚠️ caution among the checks of the values ("Controls apart in intensity: VEC_SiNC
 and VEC differ 13-fold in median Intensity (mean); ...") and in "Do the conditions differ?",
 and names each `across_normalised` or `vs_master_raw` row that joins two such controls under
-its table. With one control nothing is compared.
+its table, and each main verdict that does, a control against its parent, under the
+readings (owner, 2026-10-05). With one control nothing is compared.
+
+A condition never compared, no repeat holding both it and its own control, is named once,
+its comparison's own reference in the label: "Not compared: THBS5_SiFBN2 vs THBS5_SiNC (no
+biological repeat holds both)." The readings name every control, never one hidden behind
+"and 1 more" (owner, 2026-10-05).
 
 ### The tests of the secondary rows
 
@@ -386,8 +410,9 @@ condition against the control (● passes the exploratory cell-level screen, ✓
 significant across repeats; hover a cell for its adjusted p-values), with the features
 no condition makes a candidate named under it, then the best-ranked features (the
 readout only when it ranks, or alone when none does), each with its text **for a
-figure legend** folded under it: n biological repeats, wells per condition, cells a well,
-what the points and bars show, the test and its correction family, and per condition
+figure legend** folded under it: n biological repeats, wells per condition, cells a well
+(with several controls, each condition counted in the repeats holding its own reference,
+owner 2026-10-05), what the points and bars show, the test and its correction family, and per condition
 the change, the mean per-repeat d, the adjusted p and p, every number the one the
 Across repeats tab gives for that feature and condition. Then the tests behind the
 reading. These open with **the tests, in short**: the paired t-test on the biological

@@ -11,6 +11,7 @@ import pandas as pd
 from .._style import Status, span
 from .._wording import column_word, count, listing
 from ..sampling_unit._units import opposite_signs
+from ..sampling_unit.across_text import secondary_headline
 from ..sampling_unit.contrast_text import (
     P_ALPHA,
     across_tested,
@@ -144,11 +145,14 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
         parts.insert(
             0,
             f"{len(significant)} of {what} significant across repeats{named}; "
-            f"{passing} candidates in the exploratory {one}-level screen"
+            f"{count(passing, 'candidate')} in the exploratory {one}-level screen"
             if across
             else f"{passing} of {what} candidates in the exploratory {one}-level "
             f"screen, hypotheses for another repeat (no test across repeats: n = {held})",
         )
+        # The secondary rows, when one is significant (owner, 2026-10-05).
+        secondary = secondary_headline(contrast)
+        parts[1:1] = [secondary] if secondary else []
         if across and not significant:
             status = Status.CAUTION
         elif not across and contrast is None:
@@ -172,6 +176,8 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
             status = Status.CAUTION
     if not parts:
         return Status.NOT_ASSESSED, "not assessed"
+    secondary = secondary_headline(contrast)
+    parts[1:1] = [secondary] if secondary else []
     return status, "; ".join(parts)
 
 

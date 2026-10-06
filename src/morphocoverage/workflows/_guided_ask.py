@@ -156,7 +156,7 @@ def ask_control(ask: Ask, say: Say, scan: Any) -> dict[str, Any] | None:
     choice = choose(
         ask,
         say,
-        "Do you have a control you want to log? (the conditions are compared with it)",
+        "Which condition is the control?",
         [*conditions, none],
         guess if guess is not None else none,
     )

@@ -60,6 +60,7 @@ from ._contrasts import (
     contrast_table,
     figure_control,
     normalized_text,
+    one_control,
     own_references,
     reference_control,
     single_control,
@@ -91,7 +92,9 @@ class Setup:
       key to its condition (or listing them), owner 2026-10-05: ``{"condition":
       {"VEC_SiNC": {"SiCol6a1": "VEC_SiCol6a1"}, "VEC": {"THBS5": "THBS5"}}}``; each
       condition is tested against its own control, and the contrast table adds the
-      comparisons across experiments (``_contrasts``).
+      comparisons across experiments (``_contrasts``). One control declared that way (a
+      list, a keyed dict, a master), without parents, is ``{"condition": control}``: every
+      condition is compared with it, as with one control (owner, 2026-10-05).
     - ``control_parents``, ``master_control``: with several controls, a control's parent
       condition (``"VEC"`` or ``("VEC", "transfection")``, a treatment key), tested as a
       main verdict; and the control the other controls are compared with on raw values.
@@ -253,6 +256,10 @@ class Setup:
         if self.control is not None and (not isinstance(self.control, Mapping) or not self.control):
             raise TypeError("control must map FOV-table columns to values")
         check_controls(self)
+        single = one_control(self)
+        if single is not None:  # one control in the new forms is one control
+            object.__setattr__(self, "control", single)
+            object.__setattr__(self, "master_control", None)
         if self.positive is not None and not isinstance(self.positive, PositiveControl):
             raise TypeError("positive must be a PositiveControl")
         if self.positive is not None and self.reference_control is None:

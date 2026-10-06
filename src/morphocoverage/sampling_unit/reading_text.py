@@ -45,6 +45,7 @@ from ..metadata import REPEAT_COLUMN
 from ..schema import observation_words
 from ..statistics import repeat_values
 from ._experiments import bridges, family_words, not_compared
+from .across_text import own_gap_lines
 from .contrast_cells import ALPHA
 from .contrast_repeats import MIN_REPEATS
 
@@ -311,7 +312,11 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
             return []
         control = " · ".join(str(v) for v in contrast.settings["control"].values())
         return [wrap(not_compared(unpaired, control, word), indent, hang=indent + 2)]
-    control = listing(sorted(set(map(str, readings["control_condition"]))), 3)
+    controls = sorted(set(map(str, readings["control_condition"])))
+    control = listing(controls, 3)
+    if contrast.settings.get("comparisons"):
+        # Every control named, never one hidden behind "and 1 more" (owner, 2026-10-05).
+        control = f"its own control, {listing(controls, len(controls))}"
     unit = observation_words(contrast.settings)[0]
     if int(_direction_rows(contrast)["repeats"].max()) == 1:
         # One repeat: no verdict across repeats can occur, so none is explained.
@@ -334,13 +339,15 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
             f"{unit}-level screen (as Plot&Stats, every {unit} an independent draw) is "
             "exploratory: it finds candidates, not effects that repeat:"
         )
-    design = _design(contrast, control)
+    several = bool(contrast.settings.get("comparisons"))
+    design = _design(contrast, "control" if several else control)
     lines = [wrap(design + head, indent, hang=indent + 2)] + [
         wrap(f"- {text}", indent + 2, hang=indent + 4) for text in readings["reading"]
     ]
     if unpaired:
         lines.append(wrap(not_compared(unpaired, control, word), indent + 2, hang=indent + 4))
-    return lines
+    # Main verdicts joining two controls apart in intensity (owner, 2026-10-05).
+    return lines + own_gap_lines(contrast, indent + 2)
 
 
 def _design(contrast: Any, control: str) -> str:

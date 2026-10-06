@@ -89,7 +89,12 @@ the pairs of that figure (a split figure tests its own conditions); (C) the pair
 diagonal and its Benjamini-Hochberg q above (with 3 repeats that imaged both; it
 holds its false-positive rate but has little power on three). A pair imaged in
 different repeats is marked †, since the batch is in its difference
-(`plots_pairwise`). The words are a legend under the panels, "(A)", "(B)", "(C)",
+(`plots_pairwise`). With several controls the normalised values divide each condition by
+its own control, so there only two conditions normalised to the same control are compared:
+every other pair is marked ≠, "different references: not compared", with no d and no test,
+and the raw values compare it; the legend reads "the pair of a condition and its own control
+answers the question" instead of "the row and the column of the control" (owner,
+2026-10-05). The words are a legend under the panels, "(A)", "(B)", "(C)",
 as in a paper. The static figure (PNG and PDF, for papers) is folded
 under each, with the same matrix under the plot.
 

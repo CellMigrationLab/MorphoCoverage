@@ -62,10 +62,18 @@ def _selector(selector: Mapping[str, Any]) -> str:
 # --- Unusual objects -------------------------------------------------------------
 
 
+def reference_words(settings: Mapping[str, Any]) -> str:
+    """The reference of the unusual observations: ``the reference siCTRL``, or with several
+    controls ``each condition's own control`` (owner, 2026-10-05)."""
+    if settings.get("own"):
+        return "each condition's own control"
+    return f"the reference {_selector(settings['reference'])}"
+
+
 def _unusual_head(result: Any, words: str) -> str:
     settings = result.settings
     return (
-        f"Unusual {words}: farther from the reference ({_selector(settings['reference'])}) "
+        f"Unusual {words}: farther from {reference_words(settings)} "
         f"than all but {percent(settings['quantile'])} of reference {words} are from the other "
         f"reference groups ({len(settings['feature_cols'])} standardized features, "
         f"{settings['n_neighbors']} nearest neighbours)"

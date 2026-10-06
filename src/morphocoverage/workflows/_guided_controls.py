@@ -7,7 +7,11 @@ proposal to confirm: which conditions are controls (named like one: ``siCTRL``,
 proposed by stripping the shared stem (``THBS5_SiCol6a1`` under ``THBS5_SiNC`` is
 ``SiCol6a1``; no shared stem keeps the full name); a parent when a control's name extends
 another condition's (``VEC_SiNC`` under ``VEC``, the key ``transfection`` for an siRNA or
-shRNA suffix, else the suffix); and an optional master control. The gate proposes No when
+shRNA suffix, else the suffix); and an optional master control, the control imaged in the
+most biological repeats proposed (ties to the first declared). After the conditions of each
+control, a condition still compared with nothing is asked for its control, none by default,
+so a condition not named like a control can become one (``VEC`` for ``THBS5``; owner,
+2026-10-05). The gate proposes No when
 the likeliest control is missing from biological repeats where other conditions are
 imaged, and then shows the condition by repeat table of images first. Then the contrast
 table the answers give is shown, one test per line.
@@ -116,6 +120,43 @@ def _parent(ask: Ask, say: Say, control: Any, conditions: list[Any]) -> Any:
     return (parent, text(ask, f"Treatment key of {control} under {parent}:", key))
 
 
+def _unlinked(
+    ask: Ask,
+    say: Say,
+    conditions: list[Any],
+    controls: list[Any],
+    found: dict[Any, dict],
+    assigned: set[Any],
+) -> list[Any]:
+    """Each condition not yet compared with anything asked for its control (default none):
+    the one named becomes a control if it was not (``VEC`` for ``THBS5``). The controls, in
+    the declared order, the new ones last."""
+    for condition in conditions:
+        if condition in assigned:
+            continue
+        options = [c for c in conditions if c != condition]
+        prompt = f"Which control should {condition} be compared with?"
+        chosen = choose(ask, say, prompt, [*options, NONE], NONE)
+        if chosen == NONE:
+            continue
+        members = found.setdefault(chosen, {})
+        key = treatment_key(chosen, condition)
+        members[str(condition) if key in members else key] = condition
+        assigned.update((condition, chosen))
+        controls += [] if chosen in controls else [chosen]
+    return controls
+
+
+def most_imaged(scan: Any, controls: list[Any]) -> Any:
+    """The control imaged in the most biological repeats, ties to the first declared: the
+    master proposed (owner, 2026-10-05)."""
+    fields = scan.fovs
+    if REPEAT_COLUMN not in fields or CONDITION_COLUMN not in fields:
+        return controls[0]
+    held = fields.groupby(CONDITION_COLUMN)[REPEAT_COLUMN].nunique()
+    return max(controls, key=lambda c: int(held.get(c, 0)))
+
+
 def ask_several(ask: Ask, say: Say, scan: Any) -> tuple[dict, dict | None, Any]:
     """Several controls: ``(control, control_parents, master_control)`` (see the module)."""
     from .setup import Setup  # setup imports the workflows that import this module
@@ -138,6 +179,7 @@ def ask_several(ask: Ask, say: Say, scan: Any) -> tuple[dict, dict | None, Any]:
             members = [m for m in choose_many(ask, say, prompt, [*left, NONE], near) if m != NONE]
             assigned.update(members)
             found[control] = _keys(ask, say, control, members) if members else {}
+        controls = _unlinked(ask, say, conditions, list(controls), found, assigned)
         spec = {control: found[control] for control in controls}
         parents = {}
         for control in controls:
@@ -145,7 +187,7 @@ def ask_several(ask: Ask, say: Say, scan: Any) -> tuple[dict, dict | None, Any]:
             if found is not None:
                 parents[control] = found
         prompt = "Which control are the others compared with on raw values (the master)?"
-        master = choose(ask, say, prompt, [*controls, NONE], controls[0])
+        master = choose(ask, say, prompt, [*controls, NONE], most_imaged(scan, controls))
         declared = {
             "control": {CONDITION_COLUMN: spec},
             "control_parents": parents or None,
@@ -175,10 +217,12 @@ def contrast_lines(control: Any, parents: Any, master: Any) -> list[str]:
     setup = Setup(readout="_", control=control, control_parents=parents, master_control=master)
     found = setup.contrast_table
     if found is None:
-        name = control[CONDITION_COLUMN]
-        return [f"Each condition against {name}, within each biological repeat (one family)."]
+        name = setup.control[CONDITION_COLUMN]
+        return [f"Each condition against {name}, within each biological repeat."]
     return [
-        f"  {row['label']}: {_KIND_WORDS[row['kind']]} (family {row['family']})"
+        f"  {row['label']}: {_KIND_WORDS[row['kind']]}"
+        + (", corrected within its sub-experiment" if row["kind"] == "own_control" else "")
+        + ("" if row["kind"] == "own_control" else f", corrected in the family {row['family']}")
         for row in found.to_dict("records")
     ]
 
@@ -189,6 +233,7 @@ __all__ = [
     "ask_several",
     "contrast_lines",
     "image_table",
+    "most_imaged",
     "proposed_controls",
     "treatment_key",
 ]

@@ -14,19 +14,44 @@ the rows that join two of them are named under their table (owner, 2026-10-05).
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import pandas as pd
 
-from .._control import ACROSS, MASTER_RAW
+from .._control import ACROSS, MASTER_RAW, OWN, comparison_label
 from .._style import CAUTION, table, wrap
-from .._wording import change, column_word, listing, p_value
+from .._wording import change, column_word, count, listing, p_value
+from ._experiments import ALPHA
 from .contrast_across import NORMALISED, RAW
 from .contrast_repeats import MIN_REPEATS
 from .repeats_text import _direction
 
+# Every secondary row of every feature, saved by the HTML report (owner, 2026-10-05).
+ACROSS_CSV = "tests_across_experiments.csv"
 
-def _rows(block: pd.DataFrame) -> list[list[str]]:
+
+def _repeat_names(row: Mapping[str, Any]) -> str:
+    """The repeats a row compared, named: ``R1, R2, R3, R4 and R6``."""
+    held = row.get("held")
+    return listing([str(r) for r in held], 8) if isinstance(held, list) and held else "–"
+
+
+def _larger(row: Mapping[str, Any]) -> str:
+    """Which of an interaction row's two effects is larger in how many repeats:
+    ``VEC_SiCol6a1/VEC_SiNC in 5 of 5``, or each side's count."""
+    first = f"{row['condition']}/{row['condition_control']}"
+    second = f"{row['reference']}/{row['reference_control']}"
+    n, lower, higher = int(row["repeats"]), int(row["lower"]), int(row["higher"])
+    if higher == n:
+        return f"{first} in {n} of {n}"
+    if lower == n:
+        return f"{second} in {n} of {n}"
+    same = n - lower - higher
+    return f"{first} in {higher}, {second} in {lower}" + (f", equal in {same}" if same else "")
+
+
+def _rows(block: pd.DataFrame, feature: bool = False) -> list[list[str]]:
     rows = []
     for row in block.to_dict("records"):
         # A fold change where every mean is positive, else the difference.
@@ -35,10 +60,12 @@ def _rows(block: pd.DataFrame) -> list[list[str]]:
         tested = pd.notna(row["p_paired_t"])
         rows.append(
             [
+                *([row["feature"]] if feature else []),
                 row["comparison"],
-                _direction(row),
+                _larger(row) if row["kind"] == ACROSS else _direction(row),
                 change(moved, NORMALISED if folded else RAW),
                 f"{p_value(row['p_paired_t'])} ({p_value(row['q_paired_t'])})" if tested else "–",
+                _repeat_names(row),
             ]
         )
     return rows
@@ -65,6 +92,19 @@ def _gap_note(block: pd.DataFrame, gaps: list[dict], indent: int) -> list[str]:
     return [wrap(text, f"{' ' * indent}{CAUTION} ", hang=" " * (indent + 3))]
 
 
+def own_gap_lines(contrast: Any, indent: int = 2) -> list[str]:
+    """Beside the main verdicts: those that join two controls apart in intensity, a control
+    against its parent (owner, 2026-10-05); empty without."""
+    gaps = contrast.settings.get("acquisition_gaps", []) if contrast is not None else []
+    pairs = contrast.settings.get("comparisons") or [] if contrast is not None else []
+    if not gaps or not pairs:
+        return []
+    block = pd.DataFrame(
+        [{"comparison": comparison_label(c, r), "condition": c, "reference": r} for c, r in pairs]
+    )
+    return _gap_note(block, gaps, indent)
+
+
 def _master(contrast: Any, word: str) -> str:
     """``VEC_SiNC was imaged in 5 of the 6 biological repeats (not R5).``"""
     found = contrast.settings.get("master_repeats")
@@ -86,18 +126,69 @@ def contrast_lines(contrast: Any, indent: int = 2) -> list[str]:
     rows = contrast.settings.get("contrasts")
     if rows is None or not len(rows):
         return []
+    every = contrast.settings.get("across_features")
+    features = every["feature"].nunique() if every is not None and len(every) else 1
+    over = f" over the {features} features" if features > 1 else ""
     head = wrap(
-        "The contrasts tested, one row per test (contrasts.csv): the main verdicts "
-        "(own_control), then the secondary ones, each family corrected on its own:",
+        "The contrasts tested, one row per test (contrasts.csv): the main verdicts, "
+        f"own_control, corrected within each sub-experiment{over}; then the secondary ones, "
+        f"each family corrected on its own{over}:",
         indent,
         hang=indent + 2,
     )
-    cells = [[r["kind"], r["label"], r["family"]] for r in rows.to_dict("records")]
-    return [head, table(cells, ["kind", "contrast", "family"], indent=indent + 2)]
+    cells = [
+        [r["kind"], r["label"], "sub-experiment" if r["kind"] == OWN else r["family"]]
+        for r in rows.to_dict("records")
+    ]
+    return [head, table(cells, ["kind", "contrast", "corrected within"], indent=indent + 2)]
+
+
+def _others(contrast: Any, word: str, indent: int) -> list[str]:
+    """The other features' secondary rows with q at most ``ALPHA``, then a count of them
+    all (empty with one feature)."""
+    every = contrast.settings.get("across_features")
+    readout = contrast.settings["feature"]
+    if every is None or every["feature"].nunique() < 2:
+        return []
+    others = every[(every["feature"] != readout) & (every["status"] == "ok")]
+    hits = others[others["q_paired_t"] <= ALPHA]
+    lines = []
+    if len(hits):
+        lines.append(wrap(f"The other features' rows at q ≤ {ALPHA:g}:", indent, hang=indent + 2))
+        columns = ["feature", "comparison", f"by {word}", "change", "paired t: p (q)", f"{word}s"]
+        lines.append(table(_rows(hits, feature=True), columns, indent=indent + 2))
+        lines += _gap_note(hits, contrast.settings.get("acquisition_gaps", []), indent + 2)
+    n_features = every["feature"].nunique() - 1
+    owner = f"other {n_features} features'" if n_features > 1 else "other feature's"
+    found = "none is" if not len(hits) else "1 is" if len(hits) == 1 else f"{len(hits)} are"
+    lines.append(
+        wrap(
+            f"Of the {owner} {count(len(others), 'row')} "
+            f"compared, {found} significant at q ≤ {ALPHA:g}; every row is in "
+            f"{ACROSS_CSV}.",
+            indent,
+            hang=indent + 2,
+        )
+    )
+    return lines
+
+
+def secondary_headline(contrast: Any) -> str:
+    """``across experiments: 1 of 12 significant`` when a secondary row of any feature has
+    q at most ``ALPHA``; empty otherwise."""
+    every = contrast.settings.get("across_features") if contrast is not None else None
+    if every is None:
+        every = getattr(contrast, "across", None)
+    if every is None or not len(every):
+        return ""
+    compared = every[every["status"] == "ok"]
+    hits = int((compared["q_paired_t"] <= ALPHA).sum())
+    return f"across experiments: {hits} of {len(compared)} significant" if hits else ""
 
 
 def across_parts(contrast: Any, indent: int = 2) -> list[str]:
-    """``Compared across experiments`` and its tables, then the contrast table (empty with a
+    """``Compared across experiments`` and its tables, the readout's rows first, then the
+    other features' significant rows and their count, then the contrast table (empty with a
     single control)."""
     across = getattr(contrast, "across", None)
     if across is None or not len(across):
@@ -105,27 +196,35 @@ def across_parts(contrast: Any, indent: int = 2) -> list[str]:
     word = column_word(contrast.settings.get("repeat_col")) or "repeat"
     compared = across[across["status"] == "ok"]
     gaps = contrast.settings.get("acquisition_gaps", [])
+    every = contrast.settings.get("across_features")
+    features = every["feature"].nunique() if every is not None and len(every) else 1
+    readout = contrast.settings["feature"]
+    family = "each family corrected on its own" + (
+        f", over its rows of the {features} features" if features > 1 else ""
+    )
+    lead = f"; first {readout}, the readout:" if features > 1 else ":"
     lines = [
         wrap(
             "Compared across experiments, secondary to the verdicts above: the paired t-test on "
-            f"the {word} means, one value per {word}, each family corrected on its own:",
+            f"the {word} means, one value per {word}, {family}{lead}",
             indent,
             hang=indent + 2,
         )
     ]
-    columns = ["comparison", f"by {word}", "change", "paired t: p (q)"]
+    columns = ["comparison", f"by {word}", "change", "paired t: p (q)", f"{word}s"]
     normalised = compared[compared["kind"] == ACROSS]
     if len(normalised):
         lines.append(
             wrap(
                 "The same treatment in two experiments, each condition normalised to its own "
                 f"control: in every {word} holding all four, the log ratio of each to its "
-                "control, the one minus the other.",
+                "control, the one minus the other; the larger ratio is named.",
                 indent + 2,
                 hang=indent + 4,
             )
         )
-        lines.append(table(_rows(normalised), columns, indent=indent + 4))
+        larger = ["comparison", f"larger ratio, by {word}", *columns[2:]]
+        lines.append(table(_rows(normalised), larger, indent=indent + 4))
         lines += _gap_note(normalised, gaps, indent + 4)
     raw = compared[compared["kind"] == MASTER_RAW]
     if len(raw) or (across["kind"] == MASTER_RAW).any():
@@ -161,7 +260,14 @@ def across_parts(contrast: Any, indent: int = 2) -> list[str]:
                 hang=indent + 4,
             )
         )
+    lines += _others(contrast, word, indent + 2)
     return lines + contrast_lines(contrast, indent)
 
 
-__all__ = ["across_parts", "contrast_lines"]
+__all__ = [
+    "ACROSS_CSV",
+    "across_parts",
+    "contrast_lines",
+    "own_gap_lines",
+    "secondary_headline",
+]

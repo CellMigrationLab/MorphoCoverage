@@ -131,7 +131,8 @@ def test_several_controls_are_checked(kwargs, message):
 
 def test_a_member_absent_from_the_data_is_refused(ecm):
     objects, fovs = ecm
-    control = {"condition": {"VEC_SiNC": ["VEC_SiXX"]}}
+    # Two controls: one control in the new forms is one control (owner, 2026-10-05).
+    control = {"condition": {"VEC_SiNC": ["VEC_SiXX"], "THBS5_SiNC": ["THBS5_SiCol6a1"]}}
     with pytest.raises(ValueError, match="'VEC_SiXX'"):
         report(objects, fovs, Setup(readout="area", control=control))
 
@@ -179,7 +180,9 @@ def test_secondary_rows_are_their_own_families(ecm_report):
     assert across.loc[ACROSS[2], "repeats"] == 3  # R1-R3 hold all four
     planted = across.loc[ACROSS[0]]
     assert planted["values"] == "normalised" and planted["q_paired_t"] <= 0.05
-    for family, block in across.groupby("family"):
+    # Each family is corrected over every feature's rows (owner, 2026-10-05).
+    every = ecm_report.results["contrast"].settings["across_features"]
+    for family, block in every.groupby("family"):
         expected = benjamini_hochberg(block["p_paired_t"].to_numpy(float))
         assert np.allclose(block["q_paired_t"], expected, equal_nan=True), family
 
@@ -309,3 +312,122 @@ def test_the_resolver_names_and_pools_the_controls():
     table = pd.DataFrame({"condition": ["VEC", "VEC_SiNC", "THBS5_SiNC"]})
     pooled = {"condition": ("VEC_SiNC", "THBS5_SiNC")}
     assert control_mask(table, pooled).tolist() == [False, True, True]
+
+
+# --- The audit of 2026-10-05 (owner, 2026-10-05) ----------------------------------------
+
+
+@pytest.mark.parametrize(
+    "declared",
+    [
+        {"control": {"condition": {"VEC_SiNC": ["VEC_SiCol6a1", "VEC_SiFBN2"]}}},
+        {"control": {"condition": {"VEC_SiNC": {"Col6": "VEC_SiCol6a1"}}}},
+        {
+            "control": {"condition": {"VEC_SiNC": ["VEC_SiCol6a1"]}},
+            "master_control": "VEC_SiNC",
+        },
+    ],
+)
+def test_one_control_in_the_new_forms_is_one_control(declared):
+    setup = Setup(readout="area", normalize="control_mean", **declared)
+    old = Setup(readout="area", normalize="control_mean", control={"condition": "VEC_SiNC"})
+    assert setup.control == {"condition": "VEC_SiNC"} and setup.master_control is None
+    assert setup == old
+    assert setup.contrast_table is None and setup.declaration() == old.declaration()
+
+
+def test_a_condition_with_two_own_controls_is_refused():
+    table = pd.DataFrame(
+        {
+            "kind": ["own_control", "own_control"],
+            "condition": ["THBS5_SiCol6a1", "THBS5_SiCol6a1"],
+            "reference": ["THBS5_SiNC", "VEC_SiCol6a1"],
+        }
+    )
+    with pytest.raises(ValueError, match="'THBS5_SiCol6a1' two own controls"):
+        Setup(readout="area", contrasts=table)
+
+
+def test_the_own_control_comes_from_the_declaration():
+    table = _setup().contrast_table
+    row = table["condition"] == "THBS5_SiCol6a1"
+    moved = table.assign(reference=table["reference"].where(~row, "VEC_SiCol6a1"))
+    with pytest.raises(ValueError, match="the declared controls give 'THBS5_SiNC'"):
+        _setup(contrasts=moved)
+    # A table without the row keeps the declared own control, as the Controls line says.
+    kept = _setup(contrasts=table[~row | (table["kind"] != "own_control")])
+    assert kept.own_references["THBS5_SiCol6a1"] == "THBS5_SiNC"
+    assert any("THBS5_SiNC for THBS5_SiCol6a1" in line for line in kept.declaration())
+
+
+def test_the_refusals_say_what_was_declared():
+    with pytest.raises(ValueError, match="'x' is listed twice under control 'A'"):
+        Setup(readout="area", control={"condition": {"A": ["x", "x"], "B": ["y"]}})
+    with pytest.raises(ValueError, match="linked to the parent 'Z'") as raised:
+        Setup(
+            readout="area",
+            control={"condition": {"A": ["B"], "B": ["y"]}},
+            control_parents={"B": "Z"},
+        )
+    assert "control_parents" not in str(raised.value)
+
+
+def test_the_secondary_rows_run_for_every_feature(ecm_report):
+    contrast = ecm_report.results["contrast"]
+    every = contrast.settings["across_features"]
+    assert set(every["feature"]) == {"area", "order"} and len(every) == 8
+    # Each family over every feature and its rows, as the main rows over the features.
+    for family, block in every.groupby("family"):
+        expected = benjamini_hochberg(block["p_paired_t"].to_numpy(float))
+        assert np.allclose(block["q_paired_t"], expected, equal_nan=True), family
+    readout = every[every["feature"] == "area"].reset_index(drop=True)
+    assert np.allclose(contrast.across["q_paired_t"], readout["q_paired_t"], equal_nan=True)
+    # Discovery and the heatmap keep the main rows only.
+    labels = {comparison_label(c, r) for c, r in OWN}
+    assert set(ecm_report.results["discovery"].tests["condition"]) <= labels
+    text = " ".join(ecm_report.summary().split())
+    section = text[text.index("Compared across experiments") :]
+    assert "first area, the readout" in section
+    assert "Of the other feature's 4 rows compared" in section
+    assert "every row is in tests_across_experiments.csv" in section
+    # Each row names its repeats, and an interaction names the larger ratio.
+    assert "R1, R2 and R3" in section and "larger ratio" in section
+    glance = text[: text.index("What is in the dataset")]
+    assert "across experiments: " in glance and " significant" in glance
+
+
+def test_not_compared_names_the_comparison_s_own_reference():
+    from morphocoverage.sampling_unit._experiments import not_compared
+
+    text = not_compared(["THBS5_SiFBN2 vs THBS5_SiNC"], "THBS5, THBS5_SiNC, VEC and 1 more")
+    assert text == "Not compared: THBS5_SiFBN2 vs THBS5_SiNC (no biological repeat holds both)."
+    assert not_compared(["a"], "ctrl") == (
+        "Not compared: a (no biological repeat holds both it and ctrl)."
+    )
+
+
+def test_the_unusual_cells_are_said_against_each_own_control(ecm_report):
+    text = ecm_report.summary(detail="full")
+    assert "('VEC" not in text and "('THBS5" not in text and "()" not in text
+    flat = " ".join(ecm_report.summary().split())
+    assert "each against its own control" in flat
+    assert "against each condition's own control" in flat
+
+
+def test_a_contrast_table_alone_says_the_unusual_cells_it_reports():
+    table = _setup().contrast_table
+    setup = Setup(readout="area", features=("area", "order"), contrasts=table)
+    assert setup.reference_control is not None
+    words = " ".join(setup.declaration())
+    assert "unusual cells are not assessed" not in words
+    assert "for unusual cells (against each condition's own control" in words
+
+
+def test_the_figure_legend_pairs_each_condition_with_its_own_control(ecm, ecm_report):
+    from morphocoverage.workflows._html_tests import figure_legends
+
+    objects, fovs = ecm
+    legends = figure_legends(ecm_report, objects, fovs)
+    # A condition is "not compared" only in repeats without its own reference.
+    assert legends and all(", in repeats without" not in text for text in legends.values())
+    assert "VEC_SiCol6a1: n = " in legends["area"]

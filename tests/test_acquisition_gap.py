@@ -135,3 +135,12 @@ def test_with_one_control_the_report_is_unchanged():
         result = report(objects, fovs, setup)
     assert "apart in intensity" not in result.summary(detail="full")
     assert "acquisition_gaps" not in result.results["contrast"].settings
+
+
+def test_the_caution_is_beside_a_control_against_its_parent_too(gap_report):
+    """A main verdict joining two controls apart in intensity, a control against its parent,
+    is named under the readings too (owner, 2026-10-05)."""
+    section = _flat(gap_report.summary()[gap_report.summary().index("9. Do the conditions") :])
+    reading = section[: section.index("Across the biological repeats")]
+    assert "VEC_SiNC vs VEC and THBS5_SiNC vs THBS5: join controls apart in intensity" in reading
+    assert "VEC_SiCol6a1 vs VEC_SiNC: join" not in reading

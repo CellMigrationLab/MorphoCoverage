@@ -145,15 +145,20 @@ def _sparse(contrast: Any, cells: pd.DataFrame) -> list[str]:
     lines = []
     for (names, kept), conditions in groups.items():
         rest = (
-            f"the balanced test balances the other {count(kept, word)}"
+            f"the balanced test balances the other {word}"
+            if kept == 1
+            else f"the balanced test balances the other {count(kept, word)}"
             if kept
             else "no other repeat is left to balance"
         )
+        one = len(names) == 1
         lines.append(
-            f"{listing(conditions, 3)}: {word} {listing(list(names), 3)} holds very few {words} "
+            f"{listing(conditions, 3)}: {word if one else f'{word}s'} {listing(list(names), 3)} "
+            f"{'holds' if one else 'hold'} very few {words} "
             f"(under {percent(SPARSE)} of the median {word}, or fewer than {MIN_BALANCED}), "
-            "worth checking first. Balancing down to it would leave little of the others, so it "
-            f"is kept in the test as provided and left out of the balanced one: {rest}."
+            f"worth checking first. Balancing down to {'it' if one else 'them'} would leave "
+            f"little of the others, so {'it is' if one else 'they are'} kept in the test as "
+            f"provided and left out of the balanced one: {rest}."
         )
     return lines
 
