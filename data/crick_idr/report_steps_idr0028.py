@@ -33,8 +33,15 @@ development dataset: nothing here is a protocol.
   the MOCK wells (the full tables are written by ``objects_vs_fields.py``).
 - **The report** (``microscopist_report_idr0028.txt``, the short form a user
   reads first; ``microscopist_report_idr0028_full.txt``, every sentence and
-  number; ``sampling_profile_idr0028.csv``): all of the above, question by
-  question.
+  number; ``sampling_profile_idr0028.csv``): ``workflows.report`` on the same
+  data, as a user runs it (readout, the 30 features, MOCK as the control, siYAP
+  as the positive control after 10 fields, the acquisition order and stage
+  coordinates, ``integrity=True``). Since audit 10 (owner, 2026-10-06) the
+  committed report is the workflow's, not one assembled from the steps above
+  with ``microscopist_report``: the step-built report lacked what the workflow
+  adds (the acquisition block, the exploratory labels, the unusual split, the
+  copy checks), so it no longer showed what a user gets. The steps' tables are
+  kept: other entries of ``docs/preliminary_findings.md`` read them.
 
 Usage::
 
@@ -68,13 +75,11 @@ from morphocoverage.retrospective import (
     dataset_overview,
     effort_projection,
     inspect_fovs,
-    microscopist_report,
     order_efficiency,
     protocol_reliability,
     redundancy_distance,
     replay_acquisitions,
     representation_control,
-    stopping_calibration,
 )
 from morphocoverage.sampling_unit import (
     condition_contrast,
@@ -86,6 +91,7 @@ from morphocoverage.sampling_unit import (
 from morphocoverage.strategies import SupportNoveltyEstimator
 from morphocoverage.sufficiency import sufficiency_report
 from morphocoverage.transforms import Standardize
+from morphocoverage.workflows import PositiveControl, Setup, default_novelty, report
 
 GROUPS = ["condition", "biological_repeat", "technical_repeat"]
 STAGE = ("stage_x_um", "stage_y_um")
@@ -301,6 +307,25 @@ def sampling_unit(dataset) -> dict:
     }
 
 
+def workflow_report(dataset):
+    """The report a user gets from ``workflows.report`` on idr0028 (see the module)."""
+    objects, fovs = dataset.tables
+    features = tuple(dataset.features)
+    setup = Setup(
+        readout=dataset.readout,
+        features=features,
+        control={"condition": dataset.control},
+        novelty=default_novelty(features),
+        observation_unit=OBSERVATION_UNIT,
+        positive=PositiveControl({"condition": "YAP"}, fovs_seen=10),
+        acquisition_order_col="acquisition_order",
+        stage_cols=STAGE,
+        random_state=0,
+        n_jobs=-1,
+    )
+    return report(objects, fovs, setup, integrity=True)
+
+
 def main() -> None:
     """Run every part, print its summary and write its tables."""
     dataset = load("idr0028_screenB")
@@ -357,25 +382,14 @@ def main() -> None:
         RESULTS / "contrast_idr0028.csv", index=False, float_format="%.4g"
     )
 
-    # The report: every answer in one document (P1 curves reloaded from their tables).
-    report = microscopist_report(
-        **unit,
-        controls=control_result,
-        sufficiency=sufficiency_result,
-        calibration=stopping_calibration(replay),
-        adequacy=adequacy,
-        reliability=reliability_from_tables(),
-        protocol=protocol_result,
-        inspection=novelty_view,
-        effort=effort_result,
-        efficiency=efficiency,
-        redundancy=redundancy,
-    )
-    (RESULTS / "microscopist_report_idr0028.txt").write_text(report.summary() + "\n")
+    # The report as a user gets it: workflows.report on the same data (audit 10, owner,
+    # 2026-10-06; before, assembled from the steps above with microscopist_report).
+    result = _timed("report", lambda: workflow_report(dataset))
+    (RESULTS / "microscopist_report_idr0028.txt").write_text(result.summary() + "\n")
     (RESULTS / "microscopist_report_idr0028_full.txt").write_text(
-        report.summary(detail="full") + "\n"
+        result.summary(detail="full") + "\n"
     )
-    report.profile.to_csv(RESULTS / "sampling_profile_idr0028.csv", index=False)
+    result.document.profile.to_csv(RESULTS / "sampling_profile_idr0028.csv", index=False)
 
 
 if __name__ == "__main__":

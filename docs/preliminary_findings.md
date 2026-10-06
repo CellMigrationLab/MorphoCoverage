@@ -460,9 +460,11 @@ the same positions have been visited in a better order?
 
 **Method** (`data/crick_idr/report_steps_idr0028.py`, fixed seeds; 100 s in the
 third audit's run, not remeasured; run after the P1 curves of entry
-4). Every table is in `data/crick_idr/results/`,
-and the assembled report is `microscopist_report_idr0028.txt`. idr0028 remains a
-development dataset.
+4). Every table is in `data/crick_idr/results/`.
+The report beside them, `microscopist_report_idr0028.txt`, was assembled from these
+steps until audit 10; since then it is the report `workflows.report` gives on the
+same wells (owner, 2026-10-06), so its sentences can differ from the step results
+quoted below. idr0028 remains a development dataset.
 
 **What this shows**
 

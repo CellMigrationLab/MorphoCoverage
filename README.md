@@ -75,31 +75,32 @@ and never treats cell count alone as a complete description of acquisition effor
 section per question: its answer, a table, the cautions found in these data (⚠️) and the standing
 assumptions it rests on. `summary(detail="full")` gives every sentence and number. Markers: ✅ fine,
 ⚠️ look at this, ❌ a problem that changes how to read the answers, ➖ not assessed. An excerpt of the
-idr0028 report (`data/crick_idr/results/microscopist_report_idr0028.txt`; the full form is
+idr0028 report, as `workflows.report` gives it
+(`data/crick_idr/results/microscopist_report_idr0028.txt`; the full form is
 `microscopist_report_idr0028_full.txt`):
 
 ```text
 Microscopist's report — 9550 nuclei in 336 fields
 
 At a glance
-  ➖ The data — data checks and copy checks not run (report(..., integrity=True) runs both)
+  Key: ✅ yes, or a clear answer · ⚠️ partly, a trend only, or something to look at · ❌ check the
+    data first · ➖ no conclusion possible here. The word beside each marker says which.
+  ⚠️ The data — data checks: no warning; integrity: nothing found; acquisition: 3 fields far from
+     their condition and repeat
   ✅ Foundation. Why count fields? — a mean from whole fields varies 2.1x as much as from random
-     nuclei (median); the mean-precision count rule still held with whole fields in all 12 technical repeats
+     nuclei (median); the mean-precision count rule still held with whole fields in all 12 wells
   ⚠️ 1. Can the features see the phenotype? — YAP fields recognized in 100% of checks; false alarms
-     2%; not judged in biological repeat 2B (no positive-control field with nuclei)
-  ⚠️ 2. Did I image enough? — 3 of 4 rules said enough in every technical repeat; 'nothing new' not
-     yet shown; held-back fields: some rules stopped too early (up to 60%)
+     7%, both pooled over all biological repeats; not judged in biological repeat 2B (the positive
+     control was not imaged here) (exploratory)
   …
 
 ⚠️ 2. Did I image enough?
-  …
-    rule                       met in    recorded order  random orders: median (10-90%)
-    fixed 8 fields             12 of 12  8               8 (8-8)
-    mean-precision rule, per nucleus, 5%  12 of 12  1-2             1 (1-2)
-    mean-precision rule, per field, 5%    12 of 12  3-6             4 (3-5)
-    nothing new (≤5%)          0 of 12   never           never
-  ⚠️ mean-precision rule, per nucleus, 5%, in 7 of 12 groups: the upper-95 SD bound assumes normal values, …
-  Assumptions: …
+  Each feature alike, 31 features, ordered as in “Do the conditions differ?” (significant across
+    repeats first); the rule of the last column: the mean-precision rule, per nucleus, 5%:
+    feature                                             difference from the control shown  to show the rest                             wells whose mean meets the rule
+    Nuclei_Intensity_MedianIntensity_YAPTAZ             partly: shown in 4 of 6            about 44 fields a side; 1 too small to show  12 of 12 wells
+    Nuclei_Intensity_MeanIntensity_YAPTAZ               partly: shown in 4 of 6            about 63 fields a side; 1 too small to show  12 of 12 wells
+    …
 ```
 
 ## Current status

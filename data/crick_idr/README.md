@@ -168,8 +168,16 @@ the repository root, for example `python data/crick_idr/fov_vs_objects.py`.
   `sufficiency_idr0028.csv`, `next_fov_idr0028.csv`, `control_idr0028.csv`,
   `effort_idr0028.csv`, `effort_comparisons_idr0028.csv`,
   `order_efficiency_idr0028.csv`, `redundancy_idr0028.csv`,
-  `contrast_idr0028.csv`, `sampling_profile_idr0028.csv` and the assembled
-  `microscopist_report_idr0028.txt`.
+  `contrast_idr0028.csv`, and the report, `microscopist_report_idr0028.txt`
+  (short) and `microscopist_report_idr0028_full.txt`, with
+  `sampling_profile_idr0028.csv`. Since audit 10 (owner, 2026-10-06) the
+  report is the one `workflows.report` gives a user on these data (MOCK as the
+  control, siYAP as the positive control, the acquisition order and stage
+  coordinates, `integrity=True`), no longer one assembled from the steps with
+  `microscopist_report`: that one lacked the acquisition block, the
+  exploratory labels, the unusual split and the copy checks, so it no longer
+  showed what a user reads. The step tables are kept, as the entries of
+  `docs/preliminary_findings.md` read them.
 - `heldout_idr0139.py` (entry 7): `results/heldout_*_idr0139.csv`.
 - `benchmark.py` (entry 8) with its locked `benchmark_protocol.py`: the
   benchmark score, `results/benchmark_*`.
