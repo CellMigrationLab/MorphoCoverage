@@ -181,7 +181,10 @@ When normalisation is declared
 (`normalize="control_mean"`), the tables' analyses read these centred values, as the
 explainable features read their control-normalised ones: the populations, unusual
 observations (in a report without explainable features), the separation scores and the
-centred map; the raw map is still shown. These values never enter a test: the whole-table
+centred map; the raw map is still shown. The combined map, whose space the populations
+search, follows them (owner, 2026-10-06, audit 8, seed 15): with `normalize` its normalised
+view reads the normalised explainable features and the centred tables, and in a report
+without explainable features it has a centred view, the tables' combined space centred. These values never enter a test: the whole-table
 test computes its own differences within each repeat on raw values, and the fingerprint
 reads raw values too. On the ECM tables, whose repeats do not all hold the same conditions
 (R4 lacks VEC and THBS5, R5 the SiNC controls), the tables are centred on the conditions

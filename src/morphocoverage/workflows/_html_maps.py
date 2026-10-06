@@ -24,12 +24,14 @@ import pandas as pd
 from .._palette import GREY, condition_palette
 from .._wording import percent
 from ..embedding import MIN_FEATURES, Embedding, embed
+from ..feature_tables import COMBINED
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import control_mean_problem, normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..sampling_unit.populations import MAX_COMPONENTS, VARIANCE
 from ._contrasts import left_out_sentence, normalisation_problem
 from ._feature_space import (
+    analysed_tables,
     centred_tables,
     centring_line,
     features_words,
@@ -246,8 +248,10 @@ def _find(names: list[str], colours: list[str]) -> str:
 def _tables(
     setup: Any, objects: pd.DataFrame, fovs: pd.DataFrame
 ) -> tuple[dict[str, pd.DataFrame], str | None]:
-    """The values the maps show (raw, and normalised to the control when they can be), and
-    why the normalised ones cannot, or ``None``; any other error raises."""
+    """The values the maps show (raw, normalised to the control when they can be, with
+    ``normalize`` the other tables centred there as the populations read them, audit 8, and
+    the tables centred), and why the normalised ones cannot, or ``None``; any other error
+    raises."""
     tables = {"raw": objects}
     control = setup.figure_control
     unnormalisable = None
@@ -266,6 +270,8 @@ def _tables(
     centred = centred_tables(objects, fovs, setup)  # the other tables only (owner, 2026-10-06)
     if centred is not None:
         tables["centred"] = centred
+    if "normalised" in tables:  # with normalize, the tables centred, as the populations read
+        tables["normalised"] = analysed_tables(tables["normalised"], fovs, setup)
     return tables, unnormalisable
 
 
@@ -283,11 +289,14 @@ def _maps(
     spaces = space_names(setup)
     several = len(spaces) > 1
     own = set(setup.feature_tables or {})
+    # Without explainable features the combined space is the tables' alone: centred, it is
+    # the populations' combined space (audit 8, seed 15).
+    centred = own | ({COMBINED.capitalize()} if not setup.columns else set())
     maps: dict[str, dict[str, Embedding]] = {}
     for values, table in tables.items():
         maps[values] = {}
         for name, (columns, blocks) in spaces.items():
-            if len(columns) < MIN_FEATURES or (values == "centred" and name not in own):
+            if len(columns) < MIN_FEATURES or (values == "centred" and name not in centred):
                 continue
             if name in own and name in maps["raw"] and values != "centred":
                 maps[values][name] = maps["raw"][name]

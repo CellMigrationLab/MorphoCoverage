@@ -21,12 +21,14 @@ from morphocoverage.separation import separation
 from morphocoverage.transforms import BlockWeights
 from morphocoverage.workflows import Setup, default_novelty, html_report, report
 from morphocoverage.workflows._feature_space import (
+    analysed_tables,
     attached,
     centred_tables,
     novelty_space,
     separation_in_report,
     unusual_space,
 )
+from morphocoverage.workflows._html_maps import _maps, _tables
 from morphocoverage.workflows._label_control import _robust
 from morphocoverage.workflows._populations import populations_in_report, populations_text
 
@@ -199,3 +201,38 @@ def test_the_label_check_reads_the_robust_scale_and_mfa_of_the_other_explainable
     z = (matrix - centre) / scale
     weights = mfa_weights(z, ["a", "b", "c"], {"observation table": ("a", "b"), "T": ("c",)})
     np.testing.assert_allclose(_robust(matrix, two), z * weights)
+
+
+# --- 7. The populations' combined space gets its map ----------------------------------------
+
+
+def test_the_normalised_combined_map_reads_the_centred_tables_as_the_populations_do():
+    objects, fovs, table = _cells()
+    rng = np.random.default_rng(2)
+    objects["area"] = rng.lognormal(3, 0.2, len(objects))
+    objects["shape"] = rng.lognormal(0, 0.2, len(objects))
+    setup = Setup(
+        readout="area",
+        features=("area", "shape"),
+        control={"condition": "ctrl"},
+        normalize="control_mean",
+        observation_unit="cell",
+    )
+    merged, setup, _ = attached(objects, fovs, setup, {"DINO": table})
+    tables, _ = _tables(setup, merged, fovs)
+    read = analysed_tables(setup.prepared(merged, fovs), fovs, setup)
+    pd.testing.assert_frame_equal(tables["normalised"], read)
+    assert not np.allclose(tables["normalised"]["e0"], merged["e0"])  # centred, not raw
+
+
+def test_an_embedding_only_combined_space_has_its_centred_map():
+    objects, fovs, table = _cells()
+    halves = {"D1": table[[*KEY, *(f"e{j}" for j in range(6))]]}
+    halves["D2"] = table[[*KEY, *(f"e{j}" for j in range(6, 12))]]
+    setup = Setup(control={"condition": "ctrl"}, normalize="control_mean", observation_unit="cell")
+    merged, setup, _ = attached(objects, fovs, setup, halves)
+    tables, _ = _tables(setup, merged, fovs)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        maps = _maps(setup, tables, fovs, (), [])
+    assert set(maps["centred"]) == {"Combined", "D1", "D2"}

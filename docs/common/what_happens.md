@@ -216,8 +216,10 @@ populations and the separation. Novelty's radius `sqrt(d)` then reads as the squ
 the weighted space's total inertia. It changes no statistic of the whole-table test.
 
 **The centred map view.** Beside each non-explainable table's raw map, its map on the
-centred values above. The combined map has no centred view; its normalised view divides the
-explainable features and keeps the tables raw.
+centred values above. With `normalize` the combined map's normalised view reads the
+normalised explainable features and the centred tables, the space the populations search;
+without explainable features the combined map has a centred view instead (owner,
+2026-10-06, audit 8).
 
 ## Testing in one place
 
