@@ -147,8 +147,8 @@ the contrast table, or the one control.
 
 With the readout as the only explainable column, its own tests are corrected over its
 conditions per sub-experiment. With no `features` and other tables given, unusual
-observations read the combined space of the readout and the tables, and the report's line
-names only the tables.
+observations read the readout alone, as the declaration and the report say (owner,
+2026-10-06, audit 8).
 
 ### Non-explainable tables
 
@@ -160,7 +160,7 @@ names only the tables.
 | Mean-precision rules | none | | | always |
 | Fingerprint per table | raw columns robustly standardised, the first k principal components fitted on every complete observation | analysis group of at least 4 fields | none | k under 2: not assessable; no group of 4 fields: kept as declared, judged in no group |
 | Populations | each table apart and the combined space, at most 5,000 observations each; raw, centred per repeat with `normalize` | observation | merged with the explainable groups, one family | fewer than 2 columns |
-| Unusual observations | only when no `features` are declared: in an embedding-only report the tables' MFA space, centred with `normalize`; with a readout, the readout and the tables | observation | groups and states | `features` declared; no control; one observation per field |
+| Unusual observations | only when no `features` are declared: in an embedding-only report the tables' MFA space, centred with `normalize`; with a readout, the readout alone | observation | groups and states | `features` declared; no control; one observation per field |
 | Novelty and the positive control | never | | | always |
 | Maps | one per table and a combined MFA map; a centred view per table | observation | none | fewer than 3 columns |
 | Separation scores | each table and the combined space; by condition raw, centred with `normalize`; by repeat always raw | neighbours outside the field | none | one condition; fewer than 3 columns |

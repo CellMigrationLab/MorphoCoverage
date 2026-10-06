@@ -24,6 +24,7 @@ from morphocoverage.workflows._feature_space import (
     centred_tables,
     novelty_space,
     separation_in_report,
+    unusual_space,
 )
 from morphocoverage.workflows._populations import populations_in_report, populations_text
 
@@ -161,3 +162,20 @@ def test_the_populations_name_the_cells_without_their_own_control_never_a_missin
     assert settings["incomplete_observations"] == 5
     text = " ".join(populations_text(found, setup)[2].split())
     assert "(18 cells of b1 in R1 left out: no own control)" in text
+
+
+# --- 5. A readout without features beside other tables: unusual observations on it alone ----
+
+
+def test_a_readout_without_features_beside_a_table_reads_unusual_observations_on_it_alone():
+    objects, fovs, table = _cells()
+    objects["area"] = np.random.default_rng(1).normal(10, 1, len(objects))
+    setup = Setup(readout="area", control={"condition": "ctrl"}, observation_unit="cell")
+    merged, setup, _ = attached(objects, fovs, setup, {"DINO": table})
+    columns, weights, words = unusual_space(merged, fovs, setup)
+    assert (columns, weights, words) == (["area"], None, "the readout area alone")
+    line = next(line for line in setup.declaration() if line.startswith("Representation"))
+    assert line == (
+        "Representation: readout area; no feature columns declared, so new phenotypes are not "
+        "assessed; unusual cells on the readout alone, the other tables never entering them."
+    )

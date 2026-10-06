@@ -95,7 +95,8 @@ every biological repeat? The test, its calibration and its words are in
 [Do the conditions differ?](conditions.md#the-whole-table-test-other-feature-tables). The
 report says once what the tables join: the whole-table test, the maps, the populations, the
 copy checks and their own fingerprints, not novelty or unusual observations, which read the
-explainable features only. With novelty on all the columns, an audit found 99.6% of the
+explainable features only (with a readout and no `features` declared, unusual observations
+read the readout alone; owner, 2026-10-06, audit 8). With novelty on all the columns, an audit found 99.6% of the
 cells of null data called new and a planted new state missed: in hundreds of dimensions the
 distance to the nearest cell of another field does not follow a radius set for the
 explainable features. A report with **no explainable feature** at all (an embedding-only

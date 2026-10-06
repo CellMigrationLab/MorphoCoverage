@@ -168,7 +168,13 @@ def _representation(setup: Setup, per_field: bool = True) -> str:
     with new phenotypes, several observations per field."""
     units = setup.unit_words
     if not setup.features:
-        # Unusual observations and novelty read the declared features only (see report).
+        # Unusual observations and novelty read the declared features only (see report);
+        # beside other tables, unusual observations read the readout alone (audit 8, seed 2).
+        if setup.feature_tables and not _unusual_missing(setup, per_field):
+            return (
+                f"no feature columns declared, so new phenotypes are not assessed; unusual "
+                f"{units} on the readout alone, the other tables never entering them"
+            )
         return (
             f"no feature columns declared, so unusual {units} and new phenotypes are not assessed"
         )

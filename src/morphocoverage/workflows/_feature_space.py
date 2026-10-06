@@ -371,8 +371,10 @@ def unusual_space(
 ) -> tuple[list[str], dict[str, float] | None, str]:
     """The columns unusual observations read, their weights and the space in words: the
     explainable features when there are any, each table weighted by MFA when they come from
-    two tables or more; in an embedding-only report, the MFA-weighted space of the tables,
-    each table divided by its first singular value (owner, 2026-10-06)."""
+    two tables or more; with a readout and no features, the readout alone (owner,
+    2026-10-06, audit 8, seed 2: the other tables never enter unusual observations beside
+    explainable features); in an embedding-only report, the MFA-weighted space of the
+    tables, each table divided by its first singular value (owner, 2026-10-06)."""
     if setup.features or not setup.feature_tables:
         columns, blocks = explainable_space(setup, setup.features)
         words = f"the {count(len(columns), 'explainable feature')}"
@@ -380,6 +382,8 @@ def unusual_space(
             return columns, None, words
         words += f", each of their {len(blocks)} tables weighted by MFA"
         return columns, _mfa(objects, fovs, setup, columns, blocks), words
+    if setup.columns:  # the readout, with no features declared
+        return list(setup.columns), None, f"the readout {setup.readout} alone"
     columns, blocks = space(setup)
     names = listing(list(setup.feature_tables), 4)
     words = (
