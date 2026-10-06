@@ -132,6 +132,14 @@ def _words(result: Any) -> None:
         if result.document.units != "cells":  # C18: the unit's words, never cells
             assert "random cells" not in text and "not only cells" not in text
         assert ", with 2 biological repeats holding both sides" not in text  # C21: no "A, with"
+        if result.setup.reference_control is None:  # C24: generic lines only where they apply
+            assert "compared with its own control" not in text
+        if result.setup.rare_label is None:
+            assert "and the rare label)" not in text
+        if result.setup.novelty is None:
+            assert "No representation control" not in text
+        if not result.setup.columns and result.setup.normalize:  # T10, B7, C11: centred
+            assert "as normalised" not in text
         if "also given balanced" in text:  # C6: only beside a balanced test
             assert contrast.cells["p_balanced"].notna().any()
         if statuses.str.startswith(NO_CONTROL).any():  # B4, C9: the reason is the control
@@ -172,6 +180,8 @@ def _tests(result: Any, truth: dict[str, Any]) -> None:
             assert (row["higher"] == row["repeats"]).all()
             assert row["verdict"].iloc[0] == CONFIRMED
     headline = result.document.headlines.get("conditions", "")
+    if "beyond the mean" in headline:  # C27: the exploratory part marked at a glance
+        assert "beyond the mean (exploratory)" in headline
     for feature, conditions in truth.get("trend", {}).items():
         for condition in conditions:
             row = across[(across["feature"] == feature) & (across["condition"] == condition)]

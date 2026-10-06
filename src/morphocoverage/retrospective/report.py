@@ -123,6 +123,13 @@ GLANCE_KEY = (
 )
 
 
+# Said only where a definition of new ran (audit 10, C24).
+_NO_CONTROL_NOTE = (
+    "No representation control: a 'nothing new' answer says nothing about phenotypes these "
+    "features and this definition of new cannot see."
+)
+
+
 def questions_for(units: str = "cells") -> tuple[tuple[str, str], ...]:
     """The report's questions, keyed, in the words of its observations (``tracks``)."""
     return (
@@ -383,8 +390,13 @@ def microscopist_report(
         "Whether these were the right positions needs every candidate position from an "
         "overview (not available: sampling-frame bias is not assessed)."
     )
+    # Only what was stated: no tolerance or definition of new where none ran (C24, B21).
+    novel = sufficiency is not None and len(sufficiency.next_fov) > 0
+    stated = ["features"]
+    stated += ["tolerances"] if sufficiency is not None and len(sufficiency.enough) else []
+    stated += ["definition of new"] if novel else []
     notes = [
-        assumption("Every answer holds for the stated features, tolerances and definition of new."),
+        assumption(f"Every answer holds for the stated {listing(stated)}."),
         assumption(
             "Replays, draws and hold-outs describe these samples; they are not independent "
             "experiments. Statements across samples count samples or repeats."
@@ -397,12 +409,7 @@ def microscopist_report(
     weakened: list[str] = []
     weak = False
     if controls is None or controls.status == "not assessed":
-        notes.append(
-            assumption(
-                "No representation control: a 'nothing new' answer says nothing about "
-                "phenotypes these features and this definition of new cannot see."
-            )
-        )
+        notes += [assumption(_NO_CONTROL_NOTE)] if novel else []
     else:
         # With planted objects declared, the rare-state rate gates the warning (P6-4); none
         # planted, the gate is not assessed, never read from the whole fields (#270).

@@ -53,8 +53,7 @@ P_ALPHA = 0.05  # the p-value at which contrasts of opposite signs are flagged
 SHORT_CONTRASTS = 12
 _MEANS_ONLY = (
     "The test and the effect sizes compare means: a difference confined to a subpopulation of "
-    "{words} or to the shape of the distribution is not tested (see the unusual {words} and "
-    "the rare label)."
+    "{words} or to the shape of the distribution is not tested (see the unusual {words}{rare})."
 )
 _DECLARED = (
     "whole fields, treated as independent draws as declared (fields_independent; if they came "
@@ -240,7 +239,9 @@ def _cautions(contrast: Any) -> list[str]:
         settings["repeat_col"],
         lambda key: f"{key[0]} differs from the control at p <= {P_ALPHA:g}",
     )
-    cautions.append(assumption(_MEANS_ONLY.format(words=words)))
+    # The rare label named only when one is declared (audit 10, C24).
+    rare = " and the rare label" if contrast.settings.get("family_share") else ""
+    cautions.append(assumption(_MEANS_ONLY.format(words=words, rare=rare)))
     if not contrast.effects.empty:
         whole = contrast.effects[contrast.effects["sampling"] == WHOLE_FOVS]["resampled"]
         resampled = whole.dropna().unique().tolist()

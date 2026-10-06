@@ -28,6 +28,12 @@ NEIGHBOURS = (
     "description, not a test."
 )
 
+# With one condition, instead of ``NEIGHBOURS``: no line under the maps (audit 10, C29).
+ONE_CONDITION = (
+    "No separation of the conditions under the maps: the data hold one condition, so there "
+    "is nothing to separate."
+)
+
 # What the centred view removes, said once (owner, 2026-10-06).
 CENTRED = (
     "Centred: each column of an other feature table minus a median of its biological repeat, "

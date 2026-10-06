@@ -179,7 +179,11 @@ def _representation_line(setup: Setup, per_field: bool = True) -> str:
             f"{next(iter(tables), 'the table')}"
         )
         missing = _unusual_missing(setup, per_field)
-        relative = "relative to the control of each repeat; exploratory"
+        relative = (  # as the values read: centred tables, or each own control's mean (B7)
+            "centred per biological repeat, against each condition's own control; exploratory"
+            if setup.normalize is not None
+            else "each relative to its own control's mean in its repeat; exploratory"
+        )
         unusual = (
             f"{setup.unit_words} {missing}"
             if missing

@@ -185,7 +185,7 @@ observations read the readout alone, as the declaration and the report say (owne
 | Mean-precision rules | none | | | always |
 | Fingerprint per table | raw columns robustly standardised, the first k principal components fitted on every complete observation | analysis group of at least 4 fields | none | one k, a fifth of the median judged group; a group of fewer than 5 k observations not assessable, named; k under 2 or no group of 4 fields: not assessable, `optimise` too |
 | Populations | each table apart and the combined space, at most 5,000 observations each; raw, centred per repeat with `normalize` | observation | merged with the explainable groups, one family | fewer than 2 columns |
-| Unusual observations | only when no `features` are declared: in an embedding-only report the tables' MFA space, centred with `normalize`, else each column relative to its own control's mean in its repeat, as the features; with a readout, the readout alone | observation | groups and states | `features` declared; no control |
+| Unusual observations | only when no `features` are declared: in an embedding-only report the tables' MFA space, centred with `normalize` and said so ("centred per biological repeat, against each condition's own control", owner, 2026-10-06), else each column relative to its own control's mean in its repeat, as the features; with a readout, the readout alone | observation | groups and states | `features` declared; no control |
 | Novelty and the positive control | never | | | always |
 | Maps | one per table and a combined MFA map; a centred view per table | observation | none | fewer than 3 columns |
 | Separation scores | each table and the combined space; by condition raw, centred with `normalize`; by repeat always raw | neighbours outside the field | none | one condition; fewer than 3 columns |
@@ -280,7 +280,9 @@ Exploratory until their module of [the validation protocol](validation.md) valid
 (plan v2, owner, 2026-10-06): population enrichment, beyond the mean, the covariance
 fingerprint, the rare target and novelty. Each section of the report and of the page that
 answers with one of them says so once, in one sentence pointing to that protocol
-(`workflows._exploratory`).
+(`workflows._exploratory`); the positive control's check, which reads the definition of new,
+is one of them, and "At a glance" marks its answer and the "beyond the mean" part of question
+9 "(exploratory)" (owner, 2026-10-06).
 
 Benjamini-Hochberg controls the false discovery rate within each family above, never across
 the report: a report of several families can hold more false discoveries overall than any
