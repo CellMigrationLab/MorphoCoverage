@@ -72,11 +72,12 @@ def _spaces(setup: Setup) -> dict[str, tuple[list[str], Any, list[str] | None]]:
     if not setup.feature_tables:
         return {EXPLAINABLE: (list(setup.columns), None, list(setup.columns))}
     columns, blocks = space(setup)
-    spaces: dict[str, tuple[list[str], Any, list[str] | None]] = {
-        EXPLAINABLE: (list(setup.columns), None, list(setup.columns))
-    }
+    spaces: dict[str, tuple[list[str], Any, list[str] | None]] = {}
+    if setup.columns:  # none in an embedding-only report (owner, 2026-10-06)
+        spaces[EXPLAINABLE] = (list(setup.columns), None, list(setup.columns))
     spaces.update({name: (list(c), None, []) for name, c in setup.feature_tables.items()})
-    spaces[COMBINED] = (columns, blocks, [])
+    if setup.columns or len(setup.feature_tables) > 1:  # one table is its own combined space
+        spaces[COMBINED] = (columns, blocks, [])
     return spaces
 
 

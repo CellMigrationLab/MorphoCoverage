@@ -72,13 +72,21 @@ class Embedding:
     settings: dict[str, Any]
 
 
-def _standardised(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Median and MAD-scaled columns (the SD where the MAD is under ``MAD_FLOOR`` of it), and
-    which columns vary."""
+def robust_scale(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Each column's median and robust scale: its MAD as an SD, or its SD where the MAD is
+    under ``MAD_FLOOR`` of it (see the module); 0 for a column with one value. The one
+    robust standardisation of the maps, the fingerprint of a wide table and the
+    whole-table test (owner, 2026-10-06)."""
     centre = np.median(matrix, axis=0)
     scale = 1.4826 * np.median(np.abs(matrix - centre), axis=0)
     sd = matrix.std(axis=0, ddof=1) if len(matrix) > 1 else np.zeros(matrix.shape[1])
-    scale = np.where(scale >= MAD_FLOOR * sd, scale, sd)
+    return centre, np.where(scale >= MAD_FLOOR * sd, scale, sd)
+
+
+def _standardised(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Median and MAD-scaled columns (the SD where the MAD is under ``MAD_FLOOR`` of it), and
+    which columns vary."""
+    centre, scale = robust_scale(matrix)
     varies = scale > 0
     return (matrix[:, varies] - centre[varies]) / scale[varies], varies
 
@@ -267,4 +275,4 @@ def _umap(z: np.ndarray, n_neighbors: int, min_dist: float, random_state: int) -
         return reducer.fit_transform(z)
 
 
-__all__ = ["MIN_FEATURES", "Embedding", "embed"]
+__all__ = ["MIN_FEATURES", "Embedding", "embed", "robust_scale"]

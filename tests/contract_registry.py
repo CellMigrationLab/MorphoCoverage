@@ -104,6 +104,13 @@ METRICS_UNDER_CONTRACT: list[outcomes.OutcomeMetric] = [
     multivariate_outcomes.EnergyError(FEATURE_COLS, True, 200, 0),
     multivariate_outcomes.MMDError(FEATURE_COLS, True, 200, 0, 1.0),
     multivariate_outcomes.SlicedWassersteinError(FEATURE_COLS, True, 20, 0),
+    multivariate_outcomes.ComponentsError(
+        multivariate_outcomes.CovarianceError(("pc1", "pc2"), False),
+        FEATURE_COLS,
+        (0.0, 0.0),
+        (1.0, 2.0),
+        ((0.6, 0.8), (-0.8, 0.6)),
+    ),
 ]
 METRIC_IDS = [metric.name for metric in METRICS_UNDER_CONTRACT]
 

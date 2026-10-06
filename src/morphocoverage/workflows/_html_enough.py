@@ -43,7 +43,7 @@ from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency_short import field_bound_assumption, rule_tallies, uniformity_assumption
 from ._enough_features import ENOUGH, NOT_YET, PARTLY, FeatureEnough
-from ._enough_targets import fingerprint_lines, rare_lines
+from ._enough_targets import assessable_reason, fingerprint_lines, rare_lines
 from ._html_render import text_html
 from ._html_sections import _resolution
 from ._html_tabs import tabs_html
@@ -276,6 +276,10 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
                 if isinstance(table, str)
                 else ("" if len(criteria) == 1 else f", {criterion},")
             )
+            reason = assessable_reason(rows)
+            if reason is not None:  # a wide table and small groups (owner, 2026-10-06)
+                lines.append(f"The fingerprint{named} is not assessable: {reason}.")
+                continue
             if not len(own):
                 lines.append(f"The fingerprint{named} is not judged in any {word}.")
                 continue
