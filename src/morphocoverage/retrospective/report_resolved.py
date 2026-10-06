@@ -32,6 +32,7 @@ from ..metadata import REPEAT_COLUMN
 from ..sampling_unit.contrast_sampling import LEVEL, MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import observation_words
+from ..sufficiency_short import met_count
 
 # Contrasts listed in full in the short form; beyond, only those not resolved.
 SHORT_ROWS = 8
@@ -232,8 +233,8 @@ def precision_words(tallies: list[dict[str, Any]], word: str) -> str | None:
         return None
     first = data[0]
     return (
-        f"each {word}'s own mean by the {first['label']}: met in {first['met']} of "
-        f"{first['groups']}, a different goal from the comparison"
+        f"each {word}'s own mean by the {first['label']}: met in {met_count(first)}, a "
+        "different goal from the comparison"
     )
 
 

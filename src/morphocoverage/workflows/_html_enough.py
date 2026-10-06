@@ -41,7 +41,12 @@ from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
-from ..sufficiency_short import field_bound_assumption, rule_tallies, uniformity_assumption
+from ..sufficiency_short import (
+    field_bound_assumption,
+    met_count,
+    rule_tallies,
+    uniformity_assumption,
+)
 from ._enough_features import ENOUGH, NOT_YET, PARTLY, FeatureEnough
 from ._enough_targets import (
     NO_TARGET,
@@ -225,7 +230,7 @@ def own_mean_line(feature: str, tally: dict[str, Any] | None, word: str) -> str:
     met, groups = tally["met"], tally["groups"]
     line = (
         f"Enough to pin down each {word}'s own mean of {feature}? The {tally['label']} was met "
-        f"in {met} of {count(groups, word)}"
+        f"in {met_count(tally, word)}"
     )
     return line + (": enough." if met == groups else ".")
 
