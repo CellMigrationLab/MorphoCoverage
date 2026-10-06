@@ -27,7 +27,7 @@ from ..retrospective.replay import strategy_label
 from ..schema import resolve_observation_unit
 from ..statistics import fovs_to_detect
 from ..strategies import ScalarPrecisionStrategy
-from ._contrasts import controls_sentence
+from ._contrasts import controls_sentence, normalised_readers
 
 if TYPE_CHECKING:
     from .setup import Setup
@@ -82,18 +82,16 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
     elif setup.normalize is not None and controls:
         lines.append(
             f"Values: every declared feature divided by the mean of each condition's own "
-            f"control {units} of the same repeat (a control by its parent's), for the plots and "
-            "the populations; the raw values are where levels across experiments are read, "
-            "and the tests read them, each normalising to its own control."
+            f"control {units} of the same repeat (a control by its parent's); "
+            f"{normalised_readers(several=True)}."
         )
     elif setup.normalize is not None:
         lines.append(
             "Values: every declared feature divided by the mean of the control "
             f"{control_text(setup.reference_control)} {units} of the same repeat (of the whole "
-            "table without a repeat column) for the outcomes judged on held-back fields, the "
-            "condition contrast, the feature ranking and the plots; every stopping rule "
-            "runs on the raw values, in the report, optimise and benchmark as in the live "
-            "decision, and so do the other analyses."
+            f"table without a repeat column); {normalised_readers()}; every stopping rule "
+            "runs on the raw values in the report, optimise and benchmark as in the live "
+            "decision."
         )
     objective = setup.objective()
     targets = " and ".join(
@@ -538,15 +536,13 @@ def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> 
         lines.append(_tables_centred(per_field))
     elif setup.normalize is not None and controls:
         lines.append(
-            "Values: each condition divided by its own control's mean in the same repeat for "
-            "the plots and the populations; levels across experiments are read on the raw "
-            "values, which the tests and the stopping rules read."
+            "Values: each condition divided by its own control's mean in the same repeat; "
+            f"{normalised_readers(several=True)}."
         )
     elif setup.normalize is not None:
         lines.append(
-            "Values: features divided by the control mean of the same repeat for the held-back "
-            "outcomes, the contrast, the ranking and the plots; the stopping rules read the "
-            "raw values."
+            f"Values: features divided by the control mean of the same repeat; "
+            f"{normalised_readers()}."
         )
     objective = setup.objective()
     targets = listing(

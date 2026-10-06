@@ -426,6 +426,28 @@ def normalisation_problem(setup: Setup, objects: pd.DataFrame, fovs: pd.DataFram
     return None
 
 
+def normalised_readers(several: bool = False) -> str:
+    """What reads the normalised values and what reads the raw ones, the one list the overview,
+    the declaration, ``docs/common/setup.md`` and the docstrings refer to (audit 8B): with one
+    control, or with ``several``, where the fingerprint and the held-back outcomes read the raw
+    values (``Setup.compared_values``)."""
+    if not several:
+        return (
+            "the figures, the normalised maps, the populations, the separation, the "
+            "fingerprint and the outcomes judged on held-back fields read the normalised "
+            "values; the condition contrast, the feature ranking and the discovery read the raw "
+            "values and normalise them themselves; the stopping rules and every other analysis "
+            "read the raw values"
+        )
+    return (
+        "the figures, the normalised maps, the populations and the separation read the "
+        "normalised values; the condition contrast, the feature ranking and the discovery read "
+        "the raw values, each normalising to its own control; the fingerprint, the outcomes "
+        "judged on held-back fields, the stopping rules and every other analysis read the raw "
+        "values, where levels across experiments are read"
+    )
+
+
 def normalized_text(
     setup: Setup, fovs: pd.DataFrame, objects: pd.DataFrame | None = None
 ) -> str | None:
@@ -437,9 +459,7 @@ def normalized_text(
     if setup.own_references is None:
         assert setup.control is not None
         text = (
-            f"{normalized_sentence(setup.control, setup.repeat_col(fovs))}, for the outcomes "
-            "judged on held-back fields, the condition contrast, the feature ranking and the "
-            "plots; the stopping rules and the other analyses read the raw values"
+            f"{normalized_sentence(setup.control, setup.repeat_col(fovs))}; {normalised_readers()}"
         )
         if objects is not None:
             means = control_means(
@@ -456,9 +476,8 @@ def normalized_text(
     left = left_out_sentence(setup, fovs)
     return (
         "every feature divided by the mean of each condition's own control in the same "
-        "biological repeat (a control by its parent's, else by its own), for the plots and the "
-        "populations; the raw values are where levels across experiments are read, and the "
-        "tests read them too, each normalising to its own control" + (f"; {left}" if left else "")
+        f"biological repeat (a control by its parent's, else by its own); "
+        f"{normalised_readers(several=True)}" + (f"; {left}" if left else "")
     )
 
 
@@ -477,6 +496,7 @@ __all__ = [
     "left_out_sentence",
     "links",
     "normalisation_problem",
+    "normalised_readers",
     "normalized_text",
     "one_control",
     "own_references",

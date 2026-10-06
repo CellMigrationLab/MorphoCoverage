@@ -23,6 +23,8 @@ from morphocoverage.workflows import (
     save_answers,
     scan_design,
 )
+from morphocoverage.workflows._contrasts import normalised_readers
+from morphocoverage.workflows._declaration import declaration_short
 from morphocoverage.workflows._feature_space import centred_left_out, separation_in_report
 
 KEY = ["condition", "biological_repeat", "image_file", "label_id"]
@@ -315,3 +317,20 @@ def test_b5_without_a_technical_repeat_the_fields_alone_are_resampled():
     full = " ".join(result.summary(detail="full").split())
     assert "from resampling the fields as acquired" in full
     assert "resampling the technical repeats" not in full and "within wells" not in full
+
+
+def test_seed7_the_overview_and_the_declaration_print_the_one_list():
+    objects, fovs, _ = _several()
+    one = Setup(
+        readout="area",
+        control={"condition": "cA"},
+        normalize="control_mean",
+        observation_unit="cell",
+    )
+    several = Setup(
+        readout="area", control=SEVERAL, normalize="control_mean", observation_unit="cell"
+    )
+    for setup, words in ((one, normalised_readers()), (several, normalised_readers(True))):
+        assert words in setup.normalized_sentence(fovs, objects)
+        assert words in " ".join(" ".join(setup.declaration()).split())
+        assert words in " ".join(declaration_short(setup).split())

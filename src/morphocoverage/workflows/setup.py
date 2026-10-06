@@ -118,14 +118,12 @@ class Setup:
     - ``normalize``: ``"control_mean"`` divides every feature (the readout
       included) by the mean of the control condition's observations of the
       same repeat (``normalize_to_control``); needs ``control`` to name the
-      condition column. The normalised values are used only where values are
-      compared across repeats: by the outcome criteria judged on held-back
-      fields, the condition contrast, the feature ranking and the plots. Every
-      stopping rule runs on the raw values, in the report, ``optimise`` and
-      ``benchmark`` exactly as in the live session (which sees one field at a
-      time and no control), so one rule gives one verdict whichever workflow
-      runs it; so do the other analyses (variability, controls, inspection,
-      effort projection). ``None`` keeps the values as given.
+      condition column. What reads the normalised values and what the raw ones is
+      listed once, in ``_contrasts.normalised_readers`` (printed by the overview and
+      the declaration). Every stopping rule runs on the raw values, in the report,
+      ``optimise`` and ``benchmark`` exactly as in the live session (which sees one
+      field at a time and no control), so one rule gives one verdict whichever
+      workflow runs it. ``None`` keeps the values as given.
     - ``positive``: a ``PositiveControl``, for the detection check.
     - ``minimum_detection``: the share of positive-control checks the
       representation must recognize before the adequacy answers are read
@@ -357,13 +355,12 @@ class Setup:
         return self.few_fovs if self.few_fovs is not None else self.novelty.min_other_fovs + 2
 
     def prepared(self, objects: pd.DataFrame, fovs: pd.DataFrame) -> pd.DataFrame:
-        """The observation table the outcome criteria, the contrast and the plots read.
+        """The normalised observation table (what reads it: ``_contrasts.normalised_readers``).
 
         With ``normalize="control_mean"`` every declared column is divided by
         its repeat's control mean; otherwise ``objects`` is returned unchanged.
-        A repeat without a control raises (``normalize_to_control``). The
-        stopping rules and the other analyses read the raw values, as live. With several
-        controls, each condition over its own control (``normalize_to_own``), for figures.
+        A repeat without a control raises (``normalize_to_control``). With several
+        controls, each condition over its own control (``normalize_to_own``).
         """
         if self.normalize is None or not self.columns:  # embedding-only: nothing divided
             return objects

@@ -151,8 +151,8 @@ def report(
     with several declared features ``feature_ranking``, the gated ranking
     that chooses what ``plots`` draws by default (R7). The contrast and the
     ranking read the raw values and give their tests raw and normalised to the control of
-    the same repeat (owner, 2026-10-05); every other analysis, the stopping rules included,
-    reads the raw values. The analyses
+    the same repeat (owner, 2026-10-05); what else reads the normalised values is listed
+    once, in ``_contrasts.normalised_readers``. The analyses
     against the control need the control's columns (and, for the contrast, the
     condition and the repeat) kept apart by the analysis groups; with
     ``group_cols`` that pool them they are "not assessed", with the reason.
