@@ -15,6 +15,14 @@ field, alike for reasons of that field, do not recognize each other. The check u
 ``Setup.minimum_detection`` as a positive control does. The features that separate the
 state most are given with their Cohen's d (labelled against the other cells).
 
+The check reads within each condition (owner, 2026-10-06, audit 10, C26): the nearest cell
+is one of another field and the same condition, the chance is the share labelled within the
+labelled cells' own conditions, and the separating features compare labelled and unlabelled
+cells of one condition (each feature centred on its condition's unlabelled cells), so a
+condition that both holds more labelled cells and shifts a feature is not read as the
+features seeing the state (before, a label 25% in a condition and 5% in its control was
+"recognized" through that condition's shift, and its separating feature was the shift).
+
 A declared label always gets an answer (owner, 2026-10-05): when the check cannot run, the
 answer is "declared, not assessable" (➖) with its ``reason`` (too few labelled cells, no
 unlabelled cell to compare, a missing feature value, no labelled cell with a cell of another
@@ -35,6 +43,7 @@ from .._style import Status, wrap
 from .._wording import count, listing, percent, plural
 from ..embedding import robust_scale
 from ..feature_tables import mfa_weights
+from ..metadata import CONDITION_COLUMN
 from ..schema import fov_positions, validate_input_tables
 from ._feature_space import explainable_space
 
@@ -118,27 +127,17 @@ def label_control(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> La
         return LabelControl(recognized=np.nan, separation=empty, reason=reason, **declared)
     positions = fov_positions(data, data.fovs)[known]
     points = _robust(matrix, setup)[known]
-    tree = cKDTree(points)
-    own = positions[marked]
-    nearest = np.full(len(own), -1)
-    todo = np.arange(len(own))
-    k = min(NEIGHBOURS, len(points))
-    # A cell with k closer cells of its own field is looked up again with twice k, so
-    # crowded fields keep their labelled cells (every cell of one field: none is found).
-    while len(todo):
-        found = np.atleast_2d(tree.query(points[marked][todo], k=k)[1])
-        other = positions[found] != own[todo][:, None]
-        hit = other.any(axis=1)
-        nearest[todo[hit]] = found[hit, other[hit].argmax(axis=1)]
-        todo = todo[~hit]
-        if k == len(points):
-            break
-        k = min(2 * k, len(points))
-    neighbours = nearest[nearest >= 0]
-    recognized = float(marked[neighbours].mean()) if len(neighbours) else np.nan
+    conditions = (
+        data.objects[CONDITION_COLUMN][known].astype(str).to_numpy()
+        if CONDITION_COLUMN in data.objects
+        else np.zeros(len(marked), dtype=str)
+    )
+    recognized, chance, assessed = _within_conditions(points, positions, marked, conditions)
+    declared["chance"] = chance
     # Every labelled cell of one field only: no other field to recognize it from.
-    reason = "" if len(neighbours) else f"no labelled {unit} has a {unit} of another field"
+    reason = "" if assessed else f"no labelled {unit} has a {unit} of another field"
     values = pd.DataFrame(matrix[known], columns=features)
+    values = values - _unlabelled_centres(values, marked, conditions)
     inside, outside = values[marked], values[~marked]
     pooled = np.sqrt((inside.var(ddof=1) + outside.var(ddof=1)) / 2)
     separation = ((inside.mean() - outside.mean()) / pooled.replace(0, np.nan)).dropna()
@@ -146,10 +145,69 @@ def label_control(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> La
     return LabelControl(
         recognized=recognized,
         separation=separation,
-        assessed=len(neighbours),
+        assessed=assessed,
         reason=reason,
         **declared,
     )
+
+
+def _nearest_of_another_field(
+    points: np.ndarray, positions: np.ndarray, queries: np.ndarray
+) -> np.ndarray:
+    """For each row of ``queries`` (indices into ``points``), its nearest point of another
+    field, or -1 when every point is of its field."""
+    tree = cKDTree(points)
+    own = positions[queries]
+    nearest = np.full(len(queries), -1)
+    todo = np.arange(len(queries))
+    k = min(NEIGHBOURS, len(points))
+    # A cell with k closer cells of its own field is looked up again with twice k, so
+    # crowded fields keep their labelled cells (every cell of one field: none is found).
+    while len(todo):
+        found = np.atleast_2d(tree.query(points[queries[todo]], k=k)[1])
+        other = positions[found] != own[todo][:, None]
+        hit = other.any(axis=1)
+        nearest[todo[hit]] = found[hit, other[hit].argmax(axis=1)]
+        todo = todo[~hit]
+        if k == len(points):
+            break
+        k = min(2 * k, len(points))
+    return nearest
+
+
+def _within_conditions(
+    points: np.ndarray, positions: np.ndarray, marked: np.ndarray, conditions: np.ndarray
+) -> tuple[float, float, int]:
+    """``(recognized, chance, assessed)`` within each condition (see the module): the share
+    of labelled cells whose nearest cell of another field and the same condition is labelled,
+    the share labelled in their own conditions, and how many had such a neighbour."""
+    hits, expected = [], []
+    for condition in pd.unique(conditions):
+        mine = np.flatnonzero(conditions == condition)
+        queries = np.flatnonzero(marked[mine])
+        if not len(queries) or len(mine) < 2:
+            continue
+        nearest = _nearest_of_another_field(points[mine], positions[mine], queries)
+        found = nearest[nearest >= 0]
+        hits += list(marked[mine][found])
+        expected += [float(marked[mine].mean())] * len(found)
+    if not hits:
+        return np.nan, float(marked.mean()) if len(marked) else np.nan, 0
+    return float(np.mean(hits)), float(np.mean(expected)), len(hits)
+
+
+def _unlabelled_centres(
+    values: pd.DataFrame, marked: np.ndarray, conditions: np.ndarray
+) -> pd.DataFrame:
+    """Each row's condition's mean of its unlabelled cells, per feature (0 for a condition
+    with none), so the separation reads the label within its condition."""
+    centres = pd.DataFrame(0.0, index=values.index, columns=values.columns)
+    for condition in pd.unique(conditions):
+        mine = conditions == condition
+        unlabelled = values[mine & ~marked]
+        if len(unlabelled):
+            centres.loc[mine] = unlabelled.mean().to_numpy()
+    return centres
 
 
 def label_answer(check: LabelControl) -> tuple[Status, str, str]:
@@ -182,12 +240,12 @@ def label_answer(check: LabelControl) -> tuple[Status, str, str]:
         f"Can the features see the labelled state? {check.label.capitalize()} {units}, "
         f"{check.phenotype}: {count(check.labelled, 'labelled ' + unit)} of "
         f"{check.observations}. For {percent(check.recognized)} of {_assessed(check)}, the "
-        "nearest "
-        f"{unit} of another field on the {count(check.features, 'declared feature')} "
-        f"(robustly standardized) is labelled too, against {percent(check.chance)} labelled "
-        f"overall; {percent(check.minimum)} is asked (minimum_detection): {verdict}. The "
-        f"features that separate it most: {listing(named, 3)}. No other positive control was "
-        "declared, so this is the check of the representation."
+        f"nearest {unit} of another field and the same condition on the "
+        f"{count(check.features, 'declared feature')} (robustly standardized) is labelled too, "
+        f"against {percent(check.chance)} labelled within their conditions; "
+        f"{percent(check.minimum)} is asked (minimum_detection): {verdict}. The features that "
+        f"separate it most within its conditions: {listing(named, 3)}. No other positive "
+        "control was declared, so this is the check of the representation."
     )
     return status, headline, text
 
@@ -196,7 +254,7 @@ def _assessed(check: LabelControl) -> str:
     """``them``, or ``the 12 with a cell of another field`` when fewer were assessed."""
     if check.assessed >= check.labelled:
         return "them"
-    return f"the {check.assessed} with a {check.unit} of another field"
+    return f"the {check.assessed} with a {check.unit} of another field and their condition"
 
 
 __all__ = ["LabelControl", "label_answer", "label_control", "with_label_check"]
