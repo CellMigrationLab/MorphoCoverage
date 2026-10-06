@@ -207,11 +207,13 @@ each column is centred on its median and divided by its MAD as an SD, or by its 
 MAD is under a quarter of it: the maps, the populations, the separation, the whole-table
 test and a wide fingerprint read this. Novelty uses its own transform, `RobustStandardize`
 by default, and unusual observations a mean and SD fitted on the reference. MFA weighting
-divides each table by its first singular value so that a wide or correlated table does not
-outweigh another: the explainable tables among themselves when there are two or more, for
-novelty, unusual observations and the populations; every table in the combined space of
-the maps, the populations and the separation. It changes no statistic of the whole-table
-test.
+divides each table by its first singular value over `sqrt(n - 1)`, so every table's first
+axis has variance 1 whatever the order of the tables and a wide or correlated table does not
+outweigh another (owner, 2026-10-06, audit 8; with one table nothing is weighted): the
+explainable tables among themselves when there are two or more, for novelty, unusual
+observations and the populations; every table in the combined space of the maps, the
+populations and the separation. Novelty's radius `sqrt(d)` then reads as the square root of
+the weighted space's total inertia. It changes no statistic of the whole-table test.
 
 **The centred map view.** Beside each non-explainable table's raw map, its map on the
 centred values above. The combined map has no centred view; its normalised view divides the

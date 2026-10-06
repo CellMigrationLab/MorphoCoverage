@@ -44,10 +44,13 @@ implicit explainable table, as before.
   enough?"). With one explainable table, nothing changes.
 - **Novelty, unusual observations and the populations** read the declared explainable
   features. When they come from two tables or more, each table is weighted by MFA
-  (robustly standardised, divided by its first singular value, the first table keeping
-  weight 1), so a table of many columns does not outweigh one of few: unusual observations
-  and the populations on all the observations, the definition of new on the visible fields
-  (`transforms.BlockWeights` after its own transform; its radius as declared). A population
+  (robustly standardised, divided by its first singular value over `sqrt(n - 1)`, so its
+  first axis has variance 1), so a table of many columns does not outweigh one of few:
+  unusual observations and the populations on all the observations, the definition of new
+  on the visible fields (`transforms.BlockWeights` after its own transform). The radius
+  declared for `d` standardised features, `sqrt(d)`, then reads as the square root of the
+  weighted space's total inertia, so the share of new cells stays that of one table rather
+  than depending on how the features are split (owner, 2026-10-06, audit 8). A population
   rule may use any explainable feature, and with several tables names the table of each
   ("length from fiberfeatures, int0 from CellProfiler").
 - **Maps and separation**: with two or more explainable tables, each has its own map and
@@ -139,9 +142,13 @@ and the report says which space.
   (`workflows._fingerprint_space`, `multivariate_outcomes.ComponentsError`).
 
 In the weighted combined space each table, robustly standardised, is divided by its own
-first singular value, as in multiple factor analysis (MFA; owner, 2026-10-06), the
-explainable features keeping weight 1: no table's first axis outweighs another's, however
-many columns it has and however correlated they are. Equal total variance per table, the
+first singular value over `sqrt(n - 1)`, as in multiple factor analysis (MFA; owner,
+2026-10-06): each table's first axis has variance 1, so none outweighs another, however
+many columns it has, however correlated they are and whatever the order of the tables
+(audit 8: when the first table kept weight 1 and set the others' scale, the share of new
+cells went from 2.3% to 8.6% by swapping two tables; the order no longer matters, 3.5%
+either way against 3.6% for the same columns as one table). With one table nothing is
+weighted. Equal total variance per table, the
 earlier weighting, gave the combined PCA to the more correlated table. Under the combined
 PCA, each table's share of each axis shown is said ("PC1: explainable 42%, DINOv2 58%"):
 the sum of its columns' squared loadings. The robust standardisation divides each column by

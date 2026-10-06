@@ -203,13 +203,15 @@ def novelty_space(setup: Setup) -> tuple[SupportNoveltyEstimator | None, list[st
     """The definition of new and the columns it reads: ``Setup.novelty`` on the declared
     features, whatever the other tables (owner, 2026-10-06: they never enter novelty); with
     features of two explainable tables or more, each table weighted by MFA after the
-    definition's own transform, fitted on the visible fields (``BlockWeights``), its radius
-    as declared."""
+    definition's own transform, fitted on the visible fields (``BlockWeights``), the radius
+    declared for the ``d`` standardised features, ``sqrt(d)``, read as the square root of the
+    weighted space's total inertia (owner, 2026-10-06, audit 8); with one table, as
+    declared."""
     novelty, columns = setup.novelty, list(setup.features)
     blocks = explainable_space(setup, columns)[1]
     if novelty is None or blocks is None:
         return novelty, columns
-    weights = BlockWeights(tuple(blocks.values()))
+    weights = BlockWeights(tuple(blocks.values()), inertia_radius=True)
     transform = weights if novelty.transform is None else Chain([novelty.transform, weights])
     return replace(novelty, transform=transform), columns
 

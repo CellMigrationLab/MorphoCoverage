@@ -6,12 +6,23 @@ scale, the combined map, the wide fingerprint's k and the values the fingerprint
 import re
 import warnings
 
+import numpy as np
+import pandas as pd
+import pytest
 from test_embedding_only import _cells
 from test_feature_tables_batch import _batch, _setup
 
+from morphocoverage.feature_tables import mfa_weights
+from morphocoverage.objectives import ObjectiveConfig, SamplingObjective
+from morphocoverage.schema import validate_input_tables
 from morphocoverage.separation import separation
-from morphocoverage.workflows import Setup, html_report, report
-from morphocoverage.workflows._feature_space import centred_tables, separation_in_report
+from morphocoverage.transforms import BlockWeights
+from morphocoverage.workflows import Setup, default_novelty, html_report, report
+from morphocoverage.workflows._feature_space import (
+    centred_tables,
+    novelty_space,
+    separation_in_report,
+)
 
 KEY = ["condition", "biological_repeat", "image_file", "label_id"]
 
@@ -62,3 +73,62 @@ def test_the_page_says_the_repeats_are_scored_on_raw_values_and_the_one_well_lin
     visible = _visible(page.read_text())
     assert "Within a condition, the same with the repeat, always on the raw values" in visible
     assert "The wells are not given, so a difference between the wells" in visible
+
+
+# --- 3. MFA weights free of the tables' order; the novelty radius after weighting -----------
+
+
+def _two_tables(seed: int = 0) -> tuple[np.ndarray, list[str]]:
+    """4 correlated columns (A) and 2 independent ones (B), robustly standardised enough."""
+    rng = np.random.default_rng(seed)
+    latent = rng.normal(size=(300, 1))
+    first = latent + 0.3 * rng.normal(size=(300, 4))
+    return np.hstack([first, rng.normal(size=(300, 2))]), ["a0", "a1", "a2", "a3", "b0", "b1"]
+
+
+def test_the_mfa_weights_do_not_depend_on_the_order_of_the_tables():
+    z, names = _two_tables()
+    first = mfa_weights(z, names, {"A": names[:4], "B": names[4:]})
+    second = mfa_weights(z, names, {"B": names[4:], "A": names[:4]})
+    np.testing.assert_allclose(first, second)
+    # Each table's first axis has variance 1 (audit 8 A1).
+    for columns in (slice(0, 4), slice(4, 6)):
+        part = (z * first)[:, columns]
+        top = np.linalg.svd(part - part.mean(axis=0), compute_uv=False)[0]
+        assert top**2 / (len(z) - 1) == pytest.approx(1.0)
+    # One table: nothing weighted, as before.
+    np.testing.assert_allclose(mfa_weights(z, names, {"A": names}), np.ones(6))
+
+
+def test_the_novelty_radius_reads_the_square_root_of_the_weighted_inertia():
+    z, names = _two_tables()
+    blocks = (tuple(names[:4]), tuple(names[4:]))
+    state, _ = BlockWeights(blocks, inertia_radius=True).fit_matrix(z, tuple(names))
+    plain, _ = BlockWeights(blocks).fit_matrix(z, tuple(names))
+    scaled = np.asarray(state["weights"])
+    # The declared radius sqrt(d) in the scaled space is sqrt(total inertia) in the MFA one.
+    assert (np.var(z * scaled, axis=0, ddof=1)).sum() == pytest.approx(len(names))
+    inertia = (np.var(z * np.asarray(plain["weights"]), axis=0, ddof=1)).sum()
+    np.testing.assert_allclose(scaled, np.asarray(plain["weights"]) * np.sqrt(6 / inertia))
+
+
+def test_novelty_with_two_explainable_tables_does_not_depend_on_their_order():
+    z, names = _two_tables(1)
+    rows = pd.DataFrame(z, columns=names)
+    rows["image_file"] = [f"f{i // 20}" for i in range(len(rows))]
+    rows["label_id"] = np.arange(len(rows)) % 20 + 1
+    rows["condition"], rows["biological_repeat"] = "c", "R1"
+    fovs = rows[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    found = []
+    for tables in ({"TA": names[:4], "TB": names[4:]}, {"TB": names[4:], "TA": names[:4]}):
+        setup = Setup(
+            readout="a0",
+            features=tuple(names),
+            novelty=default_novelty(names),
+            explainable_tables=tables,
+        )
+        estimator, columns = novelty_space(setup)
+        data = validate_input_tables(rows, fovs=fovs, feature_cols=columns)
+        evidence = estimator.estimate(data, objective=ObjectiveConfig(SamplingObjective.POPULATION))
+        found.append(evidence.quantities["lofo_novel_fraction"].value)
+    assert found[0] == pytest.approx(found[1])
