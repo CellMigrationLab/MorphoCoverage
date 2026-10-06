@@ -489,6 +489,7 @@ def conditions(
             fovs,
             features=compared,
             random_state=setup.random_state,
+            n_jobs=setup.n_jobs,
             **setup.contrast_arguments,
             **setup.common,
         )

@@ -43,10 +43,10 @@ from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
 from ..statistics import BIMODAL, bimodality_coefficient, excess_kurtosis, paired_t
 from ._common import groups, validated
+from ._discovery_tests import _pooled
 from ._experiments import corrected, experiments
 from ._units import contrasts_of, describe_groups, resolve_columns
 from .contrast_repeats import MIN_REPEATS
-from .discovery import _pooled
 
 QUANTILES = (0.1, 0.5, 0.9)
 # The statistics compared, in the order the report gives them.

@@ -38,7 +38,8 @@ and the control of a repeat are exchangeable (``tests/test_contrast_cells.py`` s
 it). Normalised, each labelling divides a repeat by the mean of its control as labelled.
 When every repeat holds the fewest on both sides, one draw holds every observation and the
 test is a permutation test stratified by repeat. SciPy's ``permutation_test`` is not used:
-it does not shuffle within strata.
+it does not shuffle within strata. Every labelling's statistic is computed at once, by
+matrix products (``_balanced``).
 
 Balancing down to a repeat that holds very few observations would leave little
 of the others in each draw, so a repeat holding fewer than ``SPARSE`` (a
@@ -93,6 +94,7 @@ count.
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -100,7 +102,9 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .._parallel import map_units
 from ..statistics import cohen_d
+from ._balanced import BalancedDesign, BalancedRerun
 from ._experiments import corrected, experiments, family_sizes
 
 ALPHA = 0.05
@@ -188,86 +192,33 @@ def cell_randomization(
     d = cohen_d(treated, control)
     if not np.isfinite(d):
         return float(d), np.nan
+    # Shifted to their centre (d unchanged), so the sums of squares below do not cancel.
     pooled = np.concatenate([treated, control])
-    n = len(treated)
-    extreme = 0
-    for start in range(0, n_permutations, 256):
-        block = min(256, n_permutations - start)
-        shuffled = pooled[np.argsort(rng.random((block, len(pooled))), axis=1)]
-        a, b = shuffled[:, :n], shuffled[:, n:]
-        pooled_var = ((n - 1) * a.var(axis=1, ddof=1) + (len(b[0]) - 1) * b.var(axis=1, ddof=1)) / (
-            len(pooled) - 2
-        )
-        null = np.abs(a.mean(axis=1) - b.mean(axis=1)) / np.sqrt(pooled_var)
-        extreme += int(np.sum(null >= abs(d) - 1e-12))
-    return float(d), (extreme + 1) / (n_permutations + 1)
-
-
-def _picks(sizes: list[int], keep: int, draws: int, rng: np.random.Generator) -> list[Any]:
-    """Per repeat, which ``keep`` of its ``sizes`` observations each of ``draws`` draws takes
-    (``(draws, keep)`` positions; every one, once, when ``keep`` is all of them)."""
-    if all(n == keep for n in sizes):
-        return [np.arange(n)[None, :] for n in sizes]
-    return [np.argsort(rng.random((draws, n)), axis=1)[:, :keep] for n in sizes]
-
-
-def _median_d(
-    pools: list[np.ndarray],
-    treated_sizes: list[int],
-    picks: tuple[list[Any], list[Any]],
-    normalise: bool,
-    orders: list[np.ndarray] | None,
-) -> np.ndarray:
-    """The balanced statistic, the median Cohen's d over the balanced draws ``picks`` (the
-    treated's and the control's positions in each repeat), per labelling of each repeat's
-    ``pools`` (its treated values first, then its control's): the ``orders`` of a block of
-    shuffles within each repeat, or as observed without them. Normalised, each repeat is
-    divided by the mean of its control as labelled."""
-    treated, control = [], []
-    for index, (pool, n_t) in enumerate(zip(pools, treated_sizes, strict=True)):
-        labelled = pool[None, :] if orders is None else pool[orders[index]]
-        mine, theirs = labelled[:, :n_t], labelled[:, n_t:]
-        if normalise:
-            mean = theirs.mean(axis=1, keepdims=True)
-            mine, theirs = mine / mean, theirs / mean
-        treated.append(mine[:, picks[0][index]])
-        control.append(theirs[:, picks[1][index]])
-    # A side drawn whole holds one draw, broadcast against the other side's.
-    a, b = np.concatenate(treated, axis=2), np.concatenate(control, axis=2)
-    n_a, n_b = a.shape[2], b.shape[2]
-    pooled = ((n_a - 1) * a.var(axis=2, ddof=1) + (n_b - 1) * b.var(axis=2, ddof=1)) / (
-        n_a + n_b - 2
-    )
-    with np.errstate(divide="ignore", invalid="ignore"):
-        d = np.where(pooled > 0, (a.mean(axis=2) - b.mean(axis=2)) / np.sqrt(pooled), np.nan)
-    finite = np.isfinite(d).any(axis=1)
-    median = np.full(len(d), np.nan)
-    median[finite] = np.nanmedian(d[finite], axis=1)
-    return median
-
-
-def _balanced_p(
-    pools: list[np.ndarray],
-    treated_sizes: list[int],
-    picks: tuple[list[Any], list[Any]],
-    normalise: bool,
-    observed: float,
-    n_permutations: int,
-    rng: np.random.Generator,
-) -> float:
-    """The balanced permutation p, ``(extreme + 1) / (B + 1)`` over ``B`` labellings shuffled
-    within each repeat; a labelling whose statistic is undefined counts as extreme."""
-    if not np.isfinite(observed):
-        return np.nan
-    width = sum(len(pool) for pool in pools) * max(len(picks[0][0]), len(picks[1][0]))
-    block = max(1, min(n_permutations, 4_000_000 // width))
+    pooled = pooled - pooled.mean()
+    squared = pooled**2
+    total, total_squared = pooled.sum(), squared.sum()
+    n, size = len(treated), len(pooled)
+    # A labelling only places the n smallest of its keys on the treated side, so a partition
+    # finds them (the same keys and labellings as a sort; a block of any size draws the same
+    # keys), and the control's sums are the totals less the treated's. The smaller side is
+    # summed.
+    small = n <= size - n
+    block = max(1, 2_000_000 // size)
     extreme = 0
     for start in range(0, n_permutations, block):
-        count = min(block, n_permutations - start)
-        orders = [np.argsort(rng.random((count, len(pool))), axis=1) for pool in pools]
-        null = _median_d(pools, treated_sizes, picks, normalise, orders)
-        extreme += int(np.sum(~(np.abs(null) < abs(observed) - 1e-12)))
-    return (extreme + 1) / (n_permutations + 1)
+        keys = rng.random((min(block, n_permutations - start), size))
+        order = np.argpartition(keys, n - 1, axis=1)
+        side = order[:, :n] if small else order[:, n:]
+        first, first_squared = pooled[side].sum(axis=1), squared[side].sum(axis=1)
+        if not small:
+            first, first_squared = total - first, total_squared - first_squared
+        second, second_squared = total - first, total_squared - first_squared
+        pooled_var = (first_squared - first**2 / n + second_squared - second**2 / (size - n)) / (
+            size - 2
+        )
+        null = np.abs(first / n - second / (size - n)) / np.sqrt(pooled_var)
+        extreme += int(np.sum(null >= abs(d) - 1e-12))
+    return float(d), (extreme + 1) / (n_permutations + 1)
 
 
 def balanced_draws(
@@ -281,21 +232,16 @@ def balanced_draws(
     mean of its control, as labelled in each labelling (see the module)."""
     per_t, per_c = min(len(t) for t in treated), min(len(c) for c in control)
     if per_t < 2 or per_c < 2:
-        return np.nan, np.nan, per_t, per_c, lambda count, generator: np.nan
+        return np.nan, np.nan, per_t, per_c, BalancedRerun(None, np.nan)
     pools = [np.concatenate([t, c]) for t, c in zip(treated, control, strict=True)]
-    sizes = [len(t) for t in treated]
     # One set of draws for the observed labelling and every shuffled one: given the draws,
     # the statistic is a fixed function of the labels, so the shuffles test it exactly.
-    picks = (
-        _picks(sizes, per_t, BALANCED_DRAWS, rng),
-        _picks([len(c) for c in control], per_c, BALANCED_DRAWS, rng),
+    design, taken = BalancedDesign.of(
+        pools, [len(t) for t in treated], BALANCED_DRAWS, rng, normalise
     )
-    observed = float(_median_d(pools, sizes, picks, normalise, None)[0])
-
-    def rerun(count: int, generator: np.random.Generator) -> float:
-        return _balanced_p(pools, sizes, picks, normalise, observed, count, generator)
-
-    return observed, rerun(BALANCED_PERMUTATIONS, rng), per_t, per_c, rerun
+    observed = design.observed(taken)
+    p = design.p_value(observed, BALANCED_PERMUTATIONS, rng, taken)
+    return observed, p, per_t, per_c, BalancedRerun(design, observed)
 
 
 def balanced_test(
@@ -315,6 +261,13 @@ def permutations_for(family_size: int, default: int, alpha: float = ALPHA) -> in
     return max(int(default), int(np.ceil(family_size / alpha)))
 
 
+def _rerun(retest: Retest, count: int, rng: np.random.Generator) -> float:
+    """One test's p over ``count`` shuffles (``refined``)."""
+    if callable(retest):
+        return float(retest(count, rng))
+    return float(np.mean([cell_randomization(t, c, count, rng)[1] for t, c in retest]))
+
+
 def refined(
     p_values: pd.Series,
     family: pd.Series,
@@ -322,29 +275,26 @@ def refined(
     retests: Mapping[Any, Retest],
     rng_for: Callable[[Any], np.random.Generator],
     alpha: float = ALPHA,
+    n_jobs: int = 1,
 ) -> tuple[np.ndarray, np.ndarray]:
     """The p-values once every test at ``p <= alpha`` whose family needs more shuffles than
     it ``used`` is rerun on its ``retests`` (samples: the mean p over them; a balanced
     test's ``rerun(B, rng)``: its p over ``B`` labellings), and the shuffles behind each p
     (NaN without one). ``rng_for(index)`` seeds the rerun of the test at ``index`` from its
-    identity (see the module)."""
+    identity (see the module), so ``n_jobs`` worker processes give the same p-values."""
     sizes = family_sizes(p_values, family)
     values = p_values.to_numpy(dtype=float).copy()
     counts = np.where(np.isfinite(values), used.to_numpy(dtype=float), np.nan)
+    rerun: dict[int, tuple[Retest, int, np.random.Generator]] = {}
     for position, index in enumerate(p_values.index):
         pairs = retests.get(index)
         if not pairs or not values[position] <= alpha:
             continue
         needed = permutations_for(int(sizes[position]), int(counts[position]), alpha)
-        if needed <= counts[position]:
-            continue
-        rng = rng_for(index)
-        values[position] = float(
-            pairs(needed, rng)
-            if callable(pairs)
-            else np.mean([cell_randomization(t, c, needed, rng)[1] for t, c in pairs])
-        )
-        counts[position] = needed
+        if needed > counts[position]:
+            rerun[position] = (pairs, needed, rng_for(index))
+    for position, value in zip(rerun, map_units(_rerun, list(rerun.values()), n_jobs), strict=True):
+        values[position], counts[position] = value, rerun[position][1]
     return values, counts
 
 
@@ -376,18 +326,29 @@ def _tests(
     scale: bool,
     n_permutations: int,
     rng: np.random.Generator,
+    balanced_first: bool = False,
 ) -> tuple[float, float, float, float, int, int, dict[str, Retest]]:
     """``(d, p, d balanced, p balanced, cells, control cells, retests)`` on raw values or,
     with ``scale``, normalised ones: every observation pooled, and the balanced permutation
     test over the ``kept`` repeats (none when empty), which normalises each labelling
     itself; ``retests`` holds what ``refined`` reruns, as provided (``"cells"``) and
-    balanced (its ``rerun``)."""
+    balanced (its ``rerun``). ``balanced_first``: the test as provided only when the
+    balanced test gives no p (NaN otherwise), as ``trusted_test`` reads them."""
     pooled_sides = (by_t, every_control)
     if scale:
         pooled_sides = normalised(by_t, every_control), normalised(every_control, every_control)
     treated = np.concatenate(list(pooled_sides[0].values()))
     control = np.concatenate(list(pooled_sides[1].values()))
-    d, p = cell_randomization(treated, control, n_permutations, rng)
+    later = None
+    if kept and balanced_first and hasattr(rng.bit_generator, "advance"):
+        # The keys of the test as provided are skipped rather than drawn (one double each), so
+        # the balanced test draws what it drew after them; that test runs later from a copy.
+        later = copy.deepcopy(rng)
+        if np.isfinite(cohen_d(treated, control)):
+            rng.bit_generator.advance(n_permutations * (len(treated) + len(control)))
+        d = p = np.nan
+    else:
+        d, p = cell_randomization(treated, control, n_permutations, rng)
     per_t = min(len(x) for x in by_t.values())
     per_c = min(len(x) for x in by_c.values())
     d_bal = p_bal = np.nan
@@ -396,6 +357,8 @@ def _tests(
         d_bal, p_bal, per_t, per_c, rerun = balanced_draws(
             [by_t[r] for r in kept], [by_c[r] for r in kept], rng, scale
         )
+    if later is not None and not np.isfinite(p_bal):
+        d, p = cell_randomization(treated, control, n_permutations, later)
     return d, p, d_bal, p_bal, per_t, per_c, {"cells": [(treated, control)], "balanced": rerun}
 
 
@@ -422,7 +385,7 @@ def trusted_test(
     scaled = normalised(by_t, every), normalised(by_c, every), normalised(every, every)
     scale = all(x is not None for x in scaled)
     d, p, d_bal, p_bal, per_t, per_c, retests = _tests(
-        by_t, by_c, every, kept, scale, n_permutations, rng
+        by_t, by_c, every, kept, scale, n_permutations, rng, balanced_first=True
     )
     balanced = bool(kept) and bool(np.isfinite(p_bal))
     if not balanced and len(every) > len(control_sizes):
