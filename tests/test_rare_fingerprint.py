@@ -123,7 +123,7 @@ def test_a_narrower_distribution_with_the_same_mean_is_found_beyond_the_mean(scr
     assert "Beyond the mean (the fingerprint is declared)" in short
     assert "- narrow — differs beyond the mean:" in short
     headline = result.document.headlines["conditions"]
-    assert "beyond the mean, the distribution differs for" in headline
+    assert "beyond the mean (exploratory), the distribution differs for" in headline  # C27
     assert "narrow (area, dna and ratio)" in headline
     assert result.document.statuses["conditions"] is Status.OK
 

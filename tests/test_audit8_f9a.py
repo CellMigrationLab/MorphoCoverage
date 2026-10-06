@@ -294,7 +294,7 @@ def test_a_small_pilot_group_is_not_assessable_and_named_never_lowering_k():
     others = with_pilot[with_pilot["condition"] != "pilot"].reset_index(drop=True)
     assert others["met"].tolist() == alone["met"].tolist()
     text = " ".join(" ".join(fingerprint_lines(with_pilot, "group", "fields", unit="cell")).split())
-    assert "not assessable in pilot R1, holding fewer than 5 k, 150 cells)" in text
+    assert "not assessable in pilot · repeat R1, holding fewer than 5 k, 150 cells)" in text
     assert "Not judged in 1 group: too few observations for the common k." in text
 
 
@@ -367,7 +367,8 @@ def test_optimise_does_not_judge_a_group_too_small_for_the_common_k_and_names_it
     others = curve[curve["condition"] != "pilot"]
     assert (others["defined_draws"] > 0).all()
     assert (
-        "The covariance fingerprint, DINO covariance within 15%, is not assessable in pilot R1: "
+        "The covariance fingerprint, DINO covariance within 15%, is not assessable in "
+        "pilot · repeat R1: "
         "fewer than "
         "5 k, 150 cells." in plan.document.notes
     )
