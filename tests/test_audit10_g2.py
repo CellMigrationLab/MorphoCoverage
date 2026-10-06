@@ -342,7 +342,7 @@ def test_beyond_the_mean_says_not_significant_and_no_trend_from_two_repeats() ->
     text = " ".join(a24.summary().split())
     assert "no difference beyond the mean" not in text
     assert "no difference in the distributions" not in a24.document.headlines["conditions"]
-    assert "beyond the mean, not significant" in a24.document.headlines["conditions"]
+    assert "beyond the mean (exploratory), not significant" in a24.document.headlines["conditions"]
 
 
 def test_the_whole_table_verdict_names_thin_controls_and_the_sign_flip_floor() -> None:
