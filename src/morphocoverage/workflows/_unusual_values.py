@@ -9,9 +9,10 @@ repeat, against that control, as the normalised analyses read them:
   by its own control's mean in the same repeat, the other tables centred per repeat): the
   caller passes them;
 - without it, each feature centred on its own control's mean in the same repeat
-  (``centred_on_own_control``), on the scale the main test reads it (``log_scale``: the log
-  ratio to that mean when every value of the feature is positive, else the difference): a
-  repeat imaged brighter or a staining or plating batch is then not read as unusual biology.
+  (``centred_on_own_control``), on the scale the main test reads it (``ratio_scale``: its
+  declared scale, else the log ratio to that mean when every value of the feature is positive,
+  else the difference): a repeat imaged brighter or a staining or plating batch is then not
+  read as unusual biology.
 
 An observation whose repeat holds no own control has no such value and is not scored (it is
 counted among the observations with a missing value). The threshold is today's (the share
@@ -41,8 +42,8 @@ if TYPE_CHECKING:
 # Said in the unusual observations' definition: the values they are judged on.
 NORMALISED_WORDS = "each relative to its own control in its repeat, as normalised"
 CENTRED_WORDS = (
-    "each relative to its own control's mean in its repeat, as a log ratio when every value is "
-    "positive, else as a difference"
+    "each relative to its own control's mean in its repeat, as a log ratio when the feature is "
+    "declared on the ratio scale or, undeclared, every value is positive, else as a difference"
 )
 
 
@@ -68,17 +69,17 @@ def ratio_scale(setup: Setup, column: str, values: np.ndarray) -> bool:
     """Whether ``column`` is read as a log ratio to its control (else a difference): the one
     place biological unusualness reads a feature's scale, the main test's per feature
     (``_repeat_statistics.log_scale``: every value positive), so a repeat imaged brighter
-    is neither shifted nor wider (owner, 2026-10-06). ``setup`` is passed so that a scale
-    declared per feature in the Setup is read here too."""
-    return log_scale(values)
+    is neither shifted nor wider (owner, 2026-10-06). A scale declared for the feature in the
+    Setup (``Setup.scales``, plan v2) is the one read; undeclared, the automatic rule."""
+    return log_scale(values, setup.scale_of(column), repr(column))
 
 
 def centred_on_own_control(
     objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, columns: Sequence[str]
 ) -> pd.DataFrame:
     """A copy of ``objects`` with ``columns`` relative to the mean of each observation's own
-    control in its repeat, a log ratio for a feature whose every value is positive, else a
-    difference (NaN where the repeat holds none); rows and index kept."""
+    control in its repeat, a log ratio for a feature on the ratio scale (``ratio_scale``), else
+    a difference (NaN where the repeat holds none); rows and index kept."""
     data = validate_input_tables(objects, fovs=fovs, feature_cols=list(columns), **setup.common)
     attached = data.objects
     if len(attached) != len(objects):

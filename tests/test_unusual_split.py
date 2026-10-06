@@ -14,7 +14,7 @@ from morphocoverage.sampling_unit import unusual_objects
 from morphocoverage.sampling_unit.acquisition import acquisition_anomalies
 from morphocoverage.workflows import Setup, report
 from morphocoverage.workflows._shared import control_checks
-from morphocoverage.workflows._unusual_values import centred_on_own_control
+from morphocoverage.workflows._unusual_values import centred_on_own_control, ratio_scale
 
 FEATURES = ("area", "intensity_mean", "ecc")
 # The share of the control's observations called unusual (``unusual_objects``' quantile):
@@ -162,6 +162,34 @@ def test_values_are_relative_to_the_control_of_the_same_repeat_on_the_test_scale
         assert np.exp(relative.loc[mine, "area"]).mean() == pytest.approx(1.0)
         assert relative.loc[mine, "velocity"].mean() == pytest.approx(0.0, abs=1e-12)
     assert relative.index.equals(objects.index)
+
+
+def test_a_declared_scale_is_the_one_biological_unusualness_reads():
+    """Plan v2: ``ratio_scale`` reads the feature's scale declared in the Setup, else the
+    automatic rule; a declared ratio on a value that is not positive is refused."""
+    objects, fovs = _tables(("ctrl", "a"), repeats=2, fields=2, cells=3)
+    columns = list(FEATURES)
+    declared = Setup(
+        readout="area",
+        features=FEATURES,
+        control={"condition": "ctrl"},
+        scales={"area": "difference"},
+    )
+    automatic = Setup(readout="area", features=FEATURES, control={"condition": "ctrl"})
+    values = objects["area"].to_numpy()
+    assert ratio_scale(automatic, "area", values)  # every value positive: a log ratio
+    assert not ratio_scale(declared, "area", values)
+    assert ratio_scale(declared, "ecc", objects["ecc"].to_numpy())  # undeclared: automatic
+    relative = centred_on_own_control(objects, fovs, declared, columns)
+    mine = objects["condition"].eq("ctrl") & objects["biological_repeat"].eq("R1")
+    assert relative.loc[mine, "area"].mean() == pytest.approx(0.0, abs=1e-9)  # a difference
+    shifted = objects.assign(ecc=objects["ecc"] - 1.0)  # signed values
+    ratio = Setup(
+        readout="area", features=FEATURES, control={"condition": "ctrl"}, scales={"ecc": "ratio"}
+    )
+    assert not ratio_scale(automatic, "ecc", shifted["ecc"].to_numpy())
+    with pytest.raises(ValueError, match="ratio scale"):
+        ratio_scale(ratio, "ecc", shifted["ecc"].to_numpy())
 
 
 def test_a_field_far_from_its_condition_and_repeat_is_an_acquisition_anomaly():
