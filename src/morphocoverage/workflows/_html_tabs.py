@@ -117,4 +117,45 @@ def test_blocks(text: str) -> tuple[list[str], dict[str, list[str]], list[str]]:
     return head, blocks, tail
 
 
-__all__ = ["OFF_PAGE", "TABS_AT_MOST", "TEST_KINDS", "tabs_html", "test_blocks"]
+# An embedding-only report has no mean to plan for (owner, 2026-10-06).
+NOTHING = (
+    "Nothing to plan here: without explainable features the targets are the fingerprint of "
+    "each table and a labelled phenotype, and none can be judged here."
+)
+NOTHING_LIVE = (
+    "Without a readout there is no default stopping rule: pass live_session(setup, "
+    "rules=(...)), a FOVBootstrapStrategy on a table's columns or a RareIncidenceStrategy on "
+    "the labelled phenotype."
+)
+
+
+def choose(name: str, label: str, items: Sequence[tuple[str, str]], empty: str = NOTHING) -> str:
+    """A ``<select>`` called ``name`` (an id prefix) and one panel per ``(option, markup)``,
+    the first shown; without any, ``empty`` says why (an embedding-only report)."""
+    if not items:
+        return f'<p class="note">{html.escape(empty)}</p>'
+    options = "".join(
+        f'<option value="{i}"{" selected" if i == 0 else ""}>{html.escape(text)}</option>'
+        for i, (text, _) in enumerate(items)
+    )
+    panels = "".join(
+        f'<div class="choice-panel" id="{name}-panel-{i}"{"" if i == 0 else " hidden"}>'
+        f"{markup}</div>"
+        for i, (_, markup) in enumerate(items)
+    )
+    return (
+        f'<div class="choose"><label for="{name}-pick">{html.escape(label)}</label>'
+        f'<select id="{name}-pick">{options}</select>{panels}</div>'
+    )
+
+
+__all__ = [
+    "NOTHING",
+    "NOTHING_LIVE",
+    "OFF_PAGE",
+    "TABS_AT_MOST",
+    "TEST_KINDS",
+    "choose",
+    "tabs_html",
+    "test_blocks",
+]

@@ -313,8 +313,11 @@ one (the discovery, the heatmap, the SuperPlots, "Did I image enough?" per
 feature). Features that are not read one by one, such as the deep-learning
 embedding of a DINO model, come as **other feature tables**, each with a name
 (owner, 2026-10-05). Several can be loaded side by side, a DINOv2 and a DINOv3
-embedding say, to compare the models. They are never tested feature by feature
-and there is no whole-embedding test; they join the PCA and UMAP (one map per
+embedding say, to compare the models. They are never tested feature by feature:
+each is tested whole, beside the per-feature tests (owner, 2026-10-06,
+[the whole-table test](../report/conditions.md#the-whole-table-test-other-feature-tables)),
+and a dataset may have no explainable feature at all
+([embedding-only reports](setup.md#embedding-only-reports-no-explainable-features)); they join the PCA and UMAP (one map per
 table, and a weighted combined map first), the populations (searched in each
 table, in the explainable features and in the combined space), the copy checks
 (on each table apart) and their own fingerprints, never novelty or unusual

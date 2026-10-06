@@ -59,7 +59,7 @@ from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
 from ._contrasts import declared_conditions
 from ._document import pooling_reason
-from ._feature_space import attached
+from ._feature_space import attached, table_columns, unusual_space
 from ._rare_share import compared_columns, share_column, with_share
 from .setup import Setup, default_novelty
 
@@ -97,7 +97,7 @@ def orders(
 
 def check_workflow_inputs(
     objects: Any, fovs: Any, setup: Any, *, warn: bool = True, tables_given: bool = False
-) -> tuple[pd.DataFrame, pd.DataFrame, DataCheck]:
+) -> tuple[pd.DataFrame, pd.DataFrame, DataCheck | None]:
     """Refuse inputs the workflows cannot use, before any analysis runs, and check the rest.
 
     Returns the tables every analysis of the workflow reads, with the former
@@ -136,8 +136,13 @@ def check_workflow_inputs(
                 f"rare_label {setup.rare_label!r} must hold booleans or 0/1, got "
                 f"{sorted(map(str, labels.unique()))[:5]}"
             )
+    columns = setup.columns
+    if setup.embedding_only:  # the tables' columns, once attached (owner, 2026-10-06)
+        columns = [c for c in table_columns(setup) if c in objects.columns]
+        if not columns:
+            return objects, fovs, None  # report checks them after attaching the tables
     check = _check_tables(
-        objects, fovs, feature_cols=setup.columns, control=setup.reference_control, **setup.common
+        objects, fovs, feature_cols=columns, control=setup.reference_control, **setup.common
     )
     declared = declared_conditions(setup)  # several controls and their conditions
     if declared:
@@ -326,7 +331,8 @@ def unusual_label(objects: pd.DataFrame, setup: Setup) -> str:
 
 def one_per_field(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> bool:
     """Whether every field with observations holds exactly one (one cell per image)."""
-    data = validate_input_tables(objects, fovs=fovs, feature_cols=[setup.readout], **setup.common)
+    columns = setup.columns or table_columns(setup)
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=columns, **setup.common)
     sizes = data.objects.groupby(list(data.fov_key), dropna=False).size()
     return bool(len(sizes)) and int(sizes.max()) == 1
 
@@ -386,8 +392,9 @@ def control_checks(
                 f"unusual {setup.unit_words} and their clustering are", setup, pooled
             )
         return {}
-    results: dict[str, Any] = {
-        "object_rules": object_rule_check(
+    results: dict[str, Any] = {}
+    if setup.readout is not None:
+        results["object_rules"] = object_rule_check(
             objects,
             fovs,
             feature=setup.readout,
@@ -396,24 +403,28 @@ def control_checks(
             random_state=setup.random_state,
             **common,
         )
-    }
-    if setup.features:
-        # On the declared features alone, whatever the other tables (owner, 2026-10-06).
+    # On the explainable features when there are any, whatever the other tables; without
+    # them, on the tables' weighted combined space (owner, 2026-10-06).
+    columns, weights, space = unusual_space(objects, fovs, setup)
+    if columns:
         unusual = unusual_objects(
             objects,
             fovs,
-            feature_cols=list(setup.features),
+            feature_cols=columns,
             reference=reference,
             own=setup.own_references,  # several controls: each against its own
             random_state=setup.random_state,
+            weights=weights,
             **common,
         )
+        if setup.feature_tables:  # which space, said beside the other tables
+            unusual.settings["space"] = space
         results["unusual"] = unusual
         label = unusual_label(objects, setup)
         # The label flags a share of ordinary objects by construction, so a field holds
         # the state only with the novelty rule's m of them, and the control groups'
         # own incidence is printed beside it (P6-1).
-        novelty = setup.novelty or default_novelty(setup.features)
+        novelty = setup.novelty or default_novelty(columns)
         results["clustering"] = fov_clustering(
             objects.assign(**{label: unusual.labels}),
             fovs,

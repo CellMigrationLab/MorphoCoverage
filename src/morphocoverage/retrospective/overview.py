@@ -82,6 +82,10 @@ def _sub_experiments(family: dict[Any, int], compared: dict[Any, list[Any]], con
     return f"{head} with its own {control} in its own repeats: {each}"
 
 
+# An embedding-only report's observation table (owner, 2026-10-06).
+NO_FEATURES = "No explainable features: the other feature tables alone are read."
+
+
 @dataclass(frozen=True)
 class DatasetOverview:
     """Counts of the validated tables and the layout of fields by condition and repeat.
@@ -141,6 +145,8 @@ class DatasetOverview:
         lines.append(
             f"{count(c['features'], 'feature')} "
             f"({_listed(self.features, min(3, max_features_listed))}); {values}."
+            if self.features
+            else NO_FEATURES
         )
         lines += list(settings.get("feature_tables", ()))
         design = self._design_line()
@@ -258,6 +264,8 @@ class DatasetOverview:
             (
                 f"{count(c['features'], 'feature column')}: "
                 f"{_listed(self.features, max_features_listed)}."
+                if self.features
+                else NO_FEATURES
             ),
         ]
         condition_col, repeat_col = self.settings["condition_col"], self.settings["repeat_col"]

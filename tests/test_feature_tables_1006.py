@@ -299,6 +299,9 @@ def test_the_combined_map_says_each_tables_share_of_each_axis():
 
 def test_the_centred_view_subtracts_each_repeats_control_median():
     objects, fovs, rng = _cells(fields=2, cells=3)
+    # Unbalanced (b not imaged in R1): centred on the control (owner, 2026-10-06; a balanced
+    # design is centred on all observations, test_feature_tables_batch).
+    objects, fovs = _without(objects, "b", "R1"), _without(fovs, "b", "R1")
     values = rng.normal(size=(len(objects), 2))
     table = _table(objects, values, "d")
     merged = attach_feature_tables(objects, fovs, {"DINO": table}).objects
@@ -313,6 +316,12 @@ def test_the_centred_view_subtracts_each_repeats_control_median():
         np.testing.assert_allclose(centred.loc[rows.index, "d0"], expected)
     assert (centred["x0"] == 1.0).all()  # the explainable features are left as they are
     assert centred_tables(merged, fovs, Setup(readout="x0")) is None
+
+
+def _without(table: pd.DataFrame, condition: str, repeat: str) -> pd.DataFrame:
+    """``table`` without the rows of ``condition`` in ``repeat``."""
+    gone = (table["condition"] == condition) & (table["biological_repeat"] == repeat)
+    return table[~gone].reset_index(drop=True)
 
 
 # --- Findings 2, 5, 6, 11, 12, 14, 15, 16 ---------------------------------------------------

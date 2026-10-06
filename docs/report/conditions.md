@@ -368,6 +368,72 @@ whose coefficient is undefined, with fewer than 4 cells on a side or no spread,
 leaves the denominator and is named ("1 repeat not assessed: 3 cells"), and a
 condition with no repeat assessed is said not assessed (owner, 2026-10-05).
 
+## The whole-table test: other feature tables
+
+A feature table that is not read one column at a time, such as a DINO embedding, is tested
+whole (owner, 2026-10-06; `sampling_unit.whole_table`, words in `workflows._whole_table`):
+for each condition against its own control, does its centre in the table move away from the
+control's, the same way in every biological repeat? It runs for every other feature table
+of every report, beside the per-feature tests, and is the only test of this question in a
+report without explainable features ([embedding-only
+reports](../common/setup.md#embedding-only-reports-no-explainable-features)). The comparisons
+are the main rows of the contrast table (each condition against its own control, a control
+against its parent); its rows across experiments are tested feature by feature only, as a
+difference of log ratios has no meaning in an embedding, and the report says so once.
+
+The table's columns are robustly standardised on every observation holding all of them, as
+the maps do (median and MAD, the SD where the MAD is under a quarter of it). The MFA
+weighting of the combined space divides a whole table by one number, which changes none of
+the statistics below.
+
+- **Across repeats, the verdict.** The field is the sampling unit: each field's
+  observations are averaged first (a field of one image is that image), and a side's
+  centre in a repeat is the mean of its fields. Per repeat `r`, `Δ_r` = centre(condition) −
+  centre(control); `u_−r`, the other repeats' mean shift, normalised; `s_r = Δ_r · u_−r`,
+  positive when repeat `r` moves the way the others do ("shifted the same way in 4 of 5
+  repeats" counts them). The test is one-sided, that the mean of the `s_r` is above 0, a
+  paired t-test across repeats with its t **corrected for the repeats the projections
+  share**: repeat `q` enters every `u_−r` but its own, so without an effect the `s_r` are
+  positively correlated, by up to `1/(n − 1)` in a table of many effective dimensions, and
+  the plain paired t rejected 8-22% of null datasets at 5% in the simulation below. The t is
+  multiplied by `sqrt((n − 2) / (2 (n − 1)))`, its value at that largest correlation (`n −
+  1` degrees of freedom): calibrated in wide tables, conservative in narrow ones. It needs 3
+  repeats; with fewer, "not tested across repeats, 2 repeats". Benjamini-Hochberg: the tests
+  of one table form one family per sub-experiment, as the per-feature main rows do, never
+  joining the per-feature families.
+- **Field-level, exploratory** (the image-level test; with one image per field the same):
+  the distance between the condition's and the control's centres over the repeats holding
+  both, against the labels of the fields permuted within each repeat (999 permutations, all
+  at once), `p = (extreme + 1) / (B + 1)`, uncorrected. It asks whether these fields differ,
+  not whether the shift repeats.
+- **The effect size**: the length of the mean shift over the repeats in within-group SDs,
+  the root of the summed variances of the observations around their own group's centre (a
+  side in a repeat), the typical distance of an observation from its group's centre. For one
+  column it is a Cohen's d.
+
+The text reads, per table and comparison: "DINO (384 columns): - THBS5_SiCol6a1 vs
+THBS5_SiNC: shifted the same way in 4 of 5 repeats, p 0.03 (q 0.06) across repeats;
+field-level p 0.002, exploratory; the centres 0.41 within-group SDs apart." A shift
+significant across repeats is named in the answer's line, so "At a glance" mentions it,
+and turns the marker to ✅. The page shows the block under "Do the conditions differ?" and
+saves the tests as `tests_whole_table.csv`. Observations missing a value of the table are
+left out, counted. The cost is a few matrix products per comparison: under a second for the
+ECM tables, little beside the per-feature work.
+
+**Calibration** (`data/simulations/whole_table.py`, results in
+`data/simulations/results/whole_table.csv`): 400 datasets per setting, 3, 4 and 6 repeats,
+one image per field (6 a side and repeat) or 20 cells in each of 5 fields, 50 and 384
+correlated columns, with and without a batch (a shift of each repeat and of each well),
+even and uneven counts (2 to 10 fields a side and repeat). Without an effect, the repeat-level
+test rejected 2.3-7.5% at 5% (mean 4.1% without a batch, 4.5% with one; the highest, 7.5%,
+with 3 repeats, within two standard errors of 5%); the plain paired t on the same
+projections 8-22%. The field-level test rejected 2.5-7.8% without a batch, and with one it is
+**anti-conservative**, as the cell-level screen is: 13-22% with one image per field and
+39-58% with 20 cells per field, since a well's own shift counts for it. Power, a shift of
+0.3 within-group SDs in every repeat: 58% with 3 repeats, 79% with 4, 97% with 6 (34%, 57%
+and 86% with a batch); a shift of 0.6: 94% with 3 repeats (82% with a batch) and at least
+98% from 4.
+
 ## Reading them together
 
 With three or more repeats, the paired t answers whether the effect repeats,

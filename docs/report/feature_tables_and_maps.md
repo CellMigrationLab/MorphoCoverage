@@ -23,14 +23,22 @@ Each table is checked against the observation table at loading
 every observation matched exactly once by the same identity, numeric columns, no column
 without a value, missing values counted, constant columns listed, no clashing names, a name
 of its own), and `result.setup.feature_tables` names their columns. They are never tested
-feature by feature, and there is no whole-embedding test: the discovery, the heatmap, the
-SuperPlots, "Did I image enough?" and the contrasts read the explainable features as
-before. The report says once what the tables join (owner, 2026-10-06): the maps, the
-populations, the copy checks and their own fingerprints, not novelty or unusual
-observations, which read the explainable features only. With novelty on all the columns, an
-audit found 99.6% of the cells of null data called new and a planted new state missed: in
-hundreds of dimensions the distance to the nearest cell of another field does not follow a
-radius set for the explainable features.
+feature by feature: the discovery, the heatmap, the SuperPlots, "Did I image enough?" and
+the contrasts read the explainable features as before. Each table is **tested whole**
+instead, beside the per-feature tests (owner, 2026-10-06): for each condition against its
+own control, does its centre in the table move away from the control's, the same way in
+every biological repeat? The test, its calibration and its words are in
+[Do the conditions differ?](conditions.md#the-whole-table-test-other-feature-tables). The
+report says once what the tables join: the whole-table test, the maps, the populations, the
+copy checks and their own fingerprints, not novelty or unusual observations, which read the
+explainable features only. With novelty on all the columns, an audit found 99.6% of the
+cells of null data called new and a planted new state missed: in hundreds of dimensions the
+distance to the nearest cell of another field does not follow a radius set for the
+explainable features. A report with **no explainable feature** at all (an embedding-only
+Setup, `readout=None`, owner 2026-10-06) reads the tables alone: see
+[the Setup](../common/setup.md#embedding-only-reports-no-explainable-features); its unusual
+observations are judged on the tables' weighted combined space (one table: its columns),
+and the report says which space.
 
 - **The maps**: one per table and a weighted combined map, shown first (below).
 - **The populations** are searched in each space apart: the explainable features, each
@@ -54,6 +62,20 @@ radius set for the explainable features.
   verdict and line ("The fingerprint of DINOv2 (...): ..."). A fingerprint on all the
   columns at once needed about three times the fields to meet a tolerance chosen for the
   explainable features.
+- **A wide table's fingerprint reads its first k principal components** (owner,
+  2026-10-06). A covariance or quantiles of 384 columns cannot be estimated from a group of
+  a few images: on the ECM tables the error of the DINO fingerprint read up to 192,282 and
+  asked for "1e13 images per group". The principal components are fitted on every
+  observation of the table holding all its values, robustly standardised as the maps are,
+  and keep their variance (the first weighs most). The rule for k: at most a fifth of the
+  observations of the smallest group the fingerprint judges (an analysis group of at least
+  4 fields) and at most the table's columns; the line says k ("read on its first 4
+  principal components (k at most a fifth of the smallest group's 23 images and at most its
+  384 columns)"). Below k = 2 the fingerprint is **not assessable**, and the line says why
+  (the smallest group's size, and that 2 components need groups of 10). The explainable
+  features keep today's form when they number at most that fifth, and follow the same rule
+  when they are wider. `optimise` judges the same components on held-back fields
+  (`workflows._fingerprint_space`, `multivariate_outcomes.ComponentsError`).
 
 In the weighted combined space each table, robustly standardised, is divided by its own
 first singular value, as in multiple factor analysis (MFA; owner, 2026-10-06), the
@@ -70,13 +92,28 @@ reads the table, the cells left out are counted (its maps, its populations, the 
 score, its fingerprint).
 
 An other table is never divided by a control (an embedding has no ratio scale), so its map is
-the same in raw and normalised values. Beside them, its map **centred on control** shows each
-column minus its median in the control of the same biological repeat (each condition's own
-control with several controls; owner, 2026-10-06): it removes a shift shared by a whole
-repeat, a batch, and keeps the differences within it. It is for the interactive maps only:
-no test reads these values, and it has no static figure or CSV of its own. With few control
-images in a repeat, the median subtracted carries their noise into every image of that
-repeat, so the repeats can sit further apart in this view than in the raw one. The live session and `optimise` read the columns already in `objects`: for
+the same in raw and normalised values. **Batch normalisation** (owner, 2026-10-06): beside
+them, its map **centred per repeat** shows each column minus a median of its biological
+repeat, which removes a shift shared by a whole repeat, a batch, and keeps the differences
+within it. When every biological repeat holds the same set of conditions (a balanced
+design), the median is that of all the repeat's observations; otherwise it is that of the
+repeat's control (each condition's own control with several controls), and a repeat is
+centred only when that control holds at least 5 observations there (`CENTRED_MIN_CONTROL`):
+the median subtracted carries the control's noise into every observation of the repeat, so
+a small control can set a repeat apart. The other repeats are left out of the view and named
+once under the maps ("Left out of the centred view, their control holding fewer than 5
+images in the repeat: R6 of VEC_SiNC (1 image)"), beside one line on the noise a small
+control adds. The page and the text say in one line which centring was used ("Batch: the
+other tables centred on the median of all the cells of their biological repeat, as every
+repeat holds the same conditions; ..."). When normalisation is declared
+(`normalize="control_mean"`), the tables' analyses read these centred values, as the
+explainable features read their control-normalised ones: the populations, unusual
+observations (in a report without explainable features), the separation scores and the
+centred map; the raw map is still shown. These values never enter a test: the whole-table
+test computes its own differences within each repeat on raw values, and the fingerprint
+reads raw values too. On the ECM tables, whose repeats do not all hold the same conditions
+(R4 lacks VEC and THBS5, R5 the SiNC controls), the tables are centred on their controls.
+The live session and `optimise` read the columns already in `objects`: for
 them, attach the tables first (`attach_feature_tables(objects, fovs, tables).objects`).
 
 ## The PCA and UMAP: `embedding_plots`

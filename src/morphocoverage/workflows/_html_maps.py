@@ -29,13 +29,20 @@ from ..normalize import control_mean_problem, normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..sampling_unit.populations import MAX_COMPONENTS, VARIANCE
 from ._contrasts import left_out_sentence, normalisation_problem
-from ._feature_space import centred_tables, features_words, separation_in_report, space_names
+from ._feature_space import (
+    centred_left_out,
+    centred_tables,
+    centring_line,
+    features_words,
+    separation_in_report,
+    space_names,
+)
 from ._html_data import data_buttons, embedding_data, json_island, write_csv
 from ._html_figures import figure_block, file_stem, save
 from ._html_map_text import (
-    CENTRED,
     NEIGHBOURS,
     VALUE_WORDS,
+    centred_note,
     combined_words,
     comparison_table,
     share_lines,
@@ -245,7 +252,8 @@ def _tables(
     tables = {"raw": objects}
     control = setup.figure_control
     unnormalisable = None
-    if control is not None and CONDITION_COLUMN in control:
+    # The explainable features only are divided by a control: none in an embedding-only report.
+    if control is not None and CONDITION_COLUMN in control and setup.columns:
         if setup.own_references is None:
             arguments = {"feature_cols": list(setup.columns), "control": control, **setup.common}
             unnormalisable = control_mean_problem(objects, fovs, **arguments)
@@ -327,6 +335,9 @@ def embeddings(
     control = setup.figure_control
     tables, unnormalisable = _tables(setup, objects, fovs)
     maps = _maps(setup, tables, fovs, top, carry)
+    left = centred_left_out(objects, fovs, setup) if "centred" in maps else ""
+    line = centring_line(objects, fovs, setup) if "centred" in maps else ""
+    centred = centred_note(setup.unit_word, setup.unit_words, left, line)
     spaces = list(maps["raw"])
     several = len(spaces) > 1
     # How far the conditions separate in each space, under its map (owner, 2026-10-05).
@@ -474,15 +485,10 @@ def embeddings(
         + comparison
         + f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
         f'<p class="note">{html.escape(NEIGHBOURS)}</p>'
-        + (f'<p class="note">{html.escape(CENTRED)}</p>' if "centred" in maps else "")
+        + (f'<p class="note">{html.escape(centred)}</p>' if "centred" in maps else "")
         + '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "
-        + (
-            f"repeats, which the normalised values ({_divided(setup, fovs)}) take out.</p></div>"
-            if unnormalisable is None
-            else "repeats; values normalised to each repeat's control mean would take it out, "
-            f"but they are not shown: {html.escape(unnormalisable)}.</p></div>"
-        )
+        + _batch_words(setup, fovs, unnormalisable, "centred" in maps)
         + '<script type="application/json" id="embedding-data">'
         + json_island(data)
         + "</script>"
@@ -495,7 +501,9 @@ def maps_body(setup: Any, viz: str, static: list[str]) -> str:
     the combined one first), the interactive maps, the static figures folded."""
     words = f"every {setup.unit_word} a point"
     intro = f"All {len(setup.columns)} features at once, {words}."
-    if setup.feature_tables:
+    if setup.feature_tables and len(space_names(setup)) == 1:  # one table, nothing else
+        intro = f"All {features_words(setup)} at once, {words}."
+    elif setup.feature_tables:
         intro = (
             f"All {features_words(setup)} ({', '.join(setup.feature_tables)}) at once, "
             f"{words}: the weighted combined map first, then one per table."
@@ -504,6 +512,23 @@ def maps_body(setup: Any, viz: str, static: list[str]) -> str:
         f"<p>{html.escape(intro)}</p>{viz}"
         "<details><summary>Static PCA and UMAP (PNG and PDF)</summary>"
         f'<div class="figures">{"".join(static)}</div></details>'
+    )
+
+
+def _batch_words(setup: Any, fovs: pd.DataFrame, unnormalisable: str | None, centred: bool) -> str:
+    """The end of the maps' note: which view takes a batch between repeats out."""
+    if not setup.columns:  # an embedding-only report: the tables are never divided
+        view = (
+            "the centred view takes out"
+            if centred
+            else "a control would let the centred view take out"
+        )
+        return f"repeats, which {view}.</p></div>"
+    if unnormalisable is None:
+        return f"repeats, which the normalised values ({_divided(setup, fovs)}) take out.</p></div>"
+    return (
+        "repeats; values normalised to each repeat's control mean would take it out, "
+        f"but they are not shown: {html.escape(unnormalisable)}.</p></div>"
     )
 
 

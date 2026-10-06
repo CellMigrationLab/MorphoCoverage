@@ -75,7 +75,7 @@ def _unusual_head(result: Any, words: str) -> str:
     return (
         f"Unusual {words}: farther from {reference_words(settings)} "
         f"than all but {percent(settings['quantile'])} of reference {words} are from the other "
-        f"reference groups ({len(settings['feature_cols'])} standardized features, "
+        f"reference groups ({_space(settings)}, "
         f"{settings['n_neighbors']} nearest neighbours)"
         + (
             ", each group against the reference of its own sub-experiment (the conditions "
@@ -84,6 +84,15 @@ def _unusual_head(result: Any, words: str) -> str:
             else "."
         )
     )
+
+
+def _space(settings: Any) -> str:
+    """The space unusual observations were judged in: ``12 standardized features``, or with
+    other feature tables, which (owner, 2026-10-06: the explainable features, or without them
+    the tables' weighted combined space)."""
+    space = settings.get("space")
+    standardized = f"{len(settings['feature_cols'])} standardized features"
+    return f"on {space}, standardized" if space else standardized
 
 
 def _blind_spot(words: str) -> Any:

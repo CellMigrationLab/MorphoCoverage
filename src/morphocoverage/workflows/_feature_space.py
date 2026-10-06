@@ -22,17 +22,20 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import pandas as pd
 
-from .._wording import count
+from .._wording import count, listing
+from ..embedding import robust_scale
 from ..feature_tables import (
     COMBINED,
     EXPLAINABLE,
     RESERVED_NAMES,
     FeatureTables,
     attach_feature_tables,
+    mfa_weights,
 )
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..schema import validate_input_tables
@@ -129,7 +132,7 @@ def attached(
     return tables.objects, replace(setup, feature_tables=tables.columns), tables
 
 
-def table_lines(setup: Setup, tables: FeatureTables | None = None) -> list[str]:
+def table_lines(setup: Setup, tables: FeatureTables | None = None, centring: str = "") -> list[str]:
     """The overview's sentences on the other tables (what ``tables`` checked, when given),
     none without them."""
     if not setup.feature_tables:
@@ -140,14 +143,22 @@ def table_lines(setup: Setup, tables: FeatureTables | None = None) -> list[str]:
         if tables is not None
         else [f"{name}: {count(len(c), 'feature column')}." for name, c in declared.items()]
     )
+    if not setup.columns:  # an embedding-only report (owner, 2026-10-06)
+        lines.append(
+            f"{features_words(setup)}. With no explainable features, each table is tested "
+            "whole (the whole-table test of question 9) and read by the maps, the populations, "
+            "the copy checks, unusual observations and its own fingerprint; never feature by "
+            "feature."
+        )
+        return [*lines, *([centring] if centring else [])]
     lines.append(
         f"{features_words(setup)}. The other tables are never tested feature by feature: they "
-        "join the maps, the populations, the copy checks and their own fingerprints, not "
-        "novelty or unusual observations, which read the explainable features only; in the "
-        "combined space each table counts as much as the explainable features, its first axis "
-        "weighing as much as theirs."
+        "are tested whole, beside the features, and join the maps, the populations, the copy "
+        "checks and their own fingerprints, not novelty or unusual observations, which read "
+        "the explainable features only; in the combined space each table counts as much as "
+        "the explainable features, its first axis weighing as much as theirs."
     )
-    return lines
+    return [*lines, *([centring] if centring else [])]
 
 
 def features_words(setup: Setup) -> str:
@@ -158,6 +169,9 @@ def features_words(setup: Setup) -> str:
     if not declared:
         return explainable
     columns = count(sum(len(c) for c in declared.values()), "column")
+    if not setup.columns:  # an embedding-only report
+        names = next(iter(declared)) if len(declared) == 1 else f"{len(declared)} tables"
+        return f"{columns} of {names}"
     if len(declared) == 1:
         return f"{explainable} and {columns} of the other table {next(iter(declared))}"
     return f"{explainable} and {columns} of {len(declared)} other tables"
@@ -170,10 +184,40 @@ def space_names(setup: Setup) -> dict[str, tuple[list[str], Blocks | None]]:
     if not setup.feature_tables:
         return {"Features": (list(setup.columns), None)}
     columns, blocks = space(setup)
-    spaces = {COMBINED.capitalize(): (columns, blocks)}
-    spaces[EXPLAINABLE.capitalize()] = (list(setup.columns), None)
+    spaces = {}
+    # Without explainable features (owner, 2026-10-06), one table is its own combined space.
+    if setup.columns or len(setup.feature_tables) > 1:
+        spaces[COMBINED.capitalize()] = (columns, blocks)
+    if setup.columns:
+        spaces[EXPLAINABLE.capitalize()] = (list(setup.columns), None)
     spaces.update({name: (list(c), None) for name, c in setup.feature_tables.items()})
     return spaces
+
+
+def unusual_space(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
+) -> tuple[list[str], dict[str, float] | None, str]:
+    """The columns unusual observations read, their weights and the space in words: the
+    explainable features when there are any; in an embedding-only report, the MFA-weighted
+    space of the tables, each table divided by its first singular value (owner, 2026-10-06)."""
+    if setup.features or not setup.feature_tables:
+        words = f"the {count(len(setup.features), 'explainable feature')}"
+        return list(setup.features), None, words
+    columns, blocks = space(setup)
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=columns, **setup.common)
+    matrix = data.feature_matrix()
+    complete = matrix[~np.isnan(matrix).any(axis=1)]
+    centre, scale = robust_scale(complete)
+    z = (complete - centre) / np.where(scale > 0, scale, 1.0)
+    weights = mfa_weights(z, columns, blocks or {})
+    names = listing(list(setup.feature_tables), 4)
+    words = (
+        f"the weighted combined space of {names} (each table divided by its first singular "
+        "value; there are no explainable features)"
+        if len(setup.feature_tables) > 1
+        else f"the {count(len(columns), 'column')} of {names} (there are no explainable features)"
+    )
+    return columns, dict(zip(columns, map(float, weights), strict=True)), words
 
 
 def separation_in_report(
@@ -200,34 +244,142 @@ def separation_in_report(
     )
 
 
-def centred_tables(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> pd.DataFrame | None:
-    """``objects`` with every other table's column centred on its repeat's control: minus
-    the median of the control's observations in the same biological repeat, each condition's
-    own control with several (``Setup.own_references``; owner, 2026-10-06). For the maps
-    only, never the tests. A condition without a control, or whose control was not imaged in
-    its repeat, has no centred value (missing). ``None`` without other tables or a control."""
+# A repeat is centred on its control only when the control holds at least this many
+# observations there: the control's median is subtracted from every observation of the
+# repeat, so its noise is shared by all of them (owner, 2026-10-06).
+CENTRED_MIN_CONTROL = 5
+# How a repeat is centred (owner, 2026-10-06): on all its observations in a balanced design,
+# else on its control.
+ON_ALL, ON_CONTROL = "all", "control"
+
+
+def balanced(fovs: pd.DataFrame) -> bool:
+    """Whether every biological repeat holds the same set of conditions (fields of the FOV
+    table); true with one repeat or no condition column."""
+    if CONDITION_COLUMN not in fovs or REPEAT_COLUMN not in fovs:
+        return True
+    held = fovs.groupby(REPEAT_COLUMN)[CONDITION_COLUMN].agg(frozenset)
+    return held.nunique() <= 1
+
+
+def _centring(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
+) -> tuple[pd.DataFrame, list[tuple[Any, Any, int]], str] | None:
+    """The centred columns (see ``centred_tables``), the repeats left out, each as
+    ``(control, repeat, observations)``, and the rule (``ON_ALL``, ``ON_CONTROL``); ``None``
+    without other tables, or in an unbalanced design without a control."""
     control = (setup.single_control or {}).get(CONDITION_COLUMN)
     own = setup.own_references
     columns = table_columns(setup)
-    if not columns or (control is None and own is None):
+    on_all = balanced(fovs)
+    if not columns or (not on_all and control is None and own is None):
         return None
     data = validate_input_tables(objects, fovs=fovs, feature_cols=columns, **setup.common)
     frame = data.objects
-    if CONDITION_COLUMN not in frame:
+    if CONDITION_COLUMN not in frame and not on_all:
         return None
-    condition = frame[CONDITION_COLUMN]
     repeat = frame[REPEAT_COLUMN] if REPEAT_COLUMN in frame else pd.Series("all", frame.index)
-    medians = frame[columns].groupby([condition, repeat]).median()
+    if on_all:  # every repeat holds the same conditions: its median over all of them
+        shift = frame[columns].groupby(repeat).transform("median").to_numpy(dtype=float)
+        centred = frame[columns].to_numpy(dtype=float) - shift
+        return pd.DataFrame(centred, index=frame.index, columns=columns), [], ON_ALL
+    condition = frame[CONDITION_COLUMN]
+    grouped = frame[columns].groupby([condition, repeat])
+    medians, sizes = grouped.median(), grouped.size()
     reference = condition.map(own) if own is not None else pd.Series(control, frame.index)
-    shift = medians.reindex(pd.MultiIndex.from_arrays([reference, repeat])).to_numpy()
+    pairs = pd.MultiIndex.from_arrays([reference, repeat])
+    held = sizes.reindex(pairs).fillna(0).to_numpy()
+    shift = medians.reindex(pairs).to_numpy(dtype=float, copy=True)
+    # A control of few observations in a repeat: that repeat is left out of the view.
+    shift[held < CENTRED_MIN_CONTROL] = np.nan
     centred = frame[columns].to_numpy(dtype=float) - shift
-    shifted = pd.DataFrame(centred, index=frame.index, columns=columns)
-    return objects.assign(**{c: shifted[c] for c in columns})
+    few = {(c, r, int(n)) for (c, r), n in zip(pairs, held, strict=True) if 0 < n}
+    small = sorted(
+        (item for item in few if item[2] < CENTRED_MIN_CONTROL),
+        key=lambda item: (str(item[1]), str(item[0])),
+    )
+    return pd.DataFrame(centred, index=frame.index, columns=columns), small, ON_CONTROL
+
+
+def centred_tables(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> pd.DataFrame | None:
+    """``objects`` with every other table's column centred per biological repeat (owner,
+    2026-10-06): when every repeat holds the same conditions, minus the median of all the
+    repeat's observations; otherwise minus the median of the control's observations in the
+    repeat, each condition's own control with several (``Setup.own_references``), a repeat
+    whose control holds fewer than ``CENTRED_MIN_CONTROL`` observations there left out
+    (missing), as is a condition without a control in its repeat (``centred_left_out``). The
+    centred map, and with ``normalize`` the populations, unusual observations and separation
+    of the tables (``analysed_tables``); never a test. ``None`` without other tables, or in
+    an unbalanced design without a control."""
+    found = _centring(objects, fovs, setup)
+    if found is None:
+        return None
+    shifted = found[0]
+    return objects.assign(**{c: shifted[c] for c in shifted.columns})
+
+
+def analysed_tables(values: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> pd.DataFrame:
+    """The values the tables' populations, unusual observations and separation read: with
+    ``normalize`` declared, the tables centred per repeat (``centred_tables``), as the
+    explainable features are divided by their control; ``values`` otherwise. Never a test:
+    the whole-table test and the fingerprint read the raw values."""
+    if setup.normalize is None or not setup.feature_tables:
+        return values
+    centred = centred_tables(values, fovs, setup)
+    return values if centred is None else centred
+
+
+def centred_left_out(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> str:
+    """The repeats the centred view leaves out, their control holding fewer than
+    ``CENTRED_MIN_CONTROL`` observations there, in one sentence; empty when none is."""
+    found = _centring(objects, fovs, setup)
+    if found is None or not found[1]:
+        return ""
+    units = setup.unit_words
+    named = "; ".join(f"{r} of {c} ({count(n, setup.unit_word, units)})" for c, r, n in found[1])
+    return (
+        f"Left out of the centred view, their control holding fewer than "
+        f"{CENTRED_MIN_CONTROL} {units} in the repeat: {named}."
+    )
+
+
+def centring_line(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> str:
+    """Which centring the tables had, in one line (owner, 2026-10-06), and what reads it;
+    empty without one."""
+    found = _centring(objects, fovs, setup)
+    if found is None:
+        return ""
+    units = setup.unit_words
+    if found[2] == ON_ALL:
+        how = (
+            f"on the median of all the {units} of their biological repeat, as every repeat "
+            "holds the same conditions"
+        )
+    else:
+        own = " (each condition's own)" if setup.own_references is not None else ""
+        how = (
+            f"on the median of the control{own} in their biological repeat, as the repeats do "
+            f"not all hold the same conditions, a control of fewer than {CENTRED_MIN_CONTROL} "
+            f"{units} leaving its repeat out"
+        )
+    reads = (
+        "the centred map, the populations, unusual observations and the separation read them"
+        if setup.normalize is not None
+        else "the centred map reads them"
+    )
+    return f"Batch: the other tables centred {how}; {reads}, never a test."
 
 
 __all__ = [
+    "CENTRED_MIN_CONTROL",
+    "ON_ALL",
+    "ON_CONTROL",
+    "analysed_tables",
     "attached",
+    "balanced",
+    "centred_left_out",
     "centred_tables",
+    "centring_line",
     "check_feature_tables",
     "features_words",
     "novelty_space",
@@ -236,4 +388,5 @@ __all__ = [
     "space_names",
     "table_columns",
     "table_lines",
+    "unusual_space",
 ]

@@ -66,6 +66,7 @@ from ..multivariate_outcomes import CovarianceError
 from ..objectives import RareTarget
 from ..retrospective.criteria import OutcomeCriterion
 from . import _guided_ask as q
+from ._feature_space import features_words
 from ._guided_controls import ask_controls, contrast_lines
 from ._guided_tables import Tables, ask_tables, changed, entries, identity, read_tables
 from ._html_data import EMBED_BUDGET
@@ -140,7 +141,7 @@ class Answers:
     control: dict[str, Any] | None
     aim: str
     features: list[str]
-    readout: str
+    readout: str | None
     observation_unit: str
     fingerprint_tolerance: float | None = None
     positive: dict[str, Any] | None = None
@@ -160,10 +161,17 @@ class Answers:
         if self.aim not in q.AIMS:
             raise ValueError(f"aim must be one of {tuple(q.AIMS)}, not {self.aim!r}")
         if not self.features:
-            raise ValueError("choose at least one feature")
-        if self.readout not in self.features:
+            # Embedding-only answers (owner, 2026-10-06): the other tables alone, no readout.
+            if self.readout is not None or self.aim not in q.TABLE_AIMS:
+                raise ValueError(
+                    "choose at least one feature, or, with other feature tables and no "
+                    f"explainable feature, readout=None and an aim among {q.TABLE_AIMS}"
+                )
+            if "label" in self.aim and self.rare_label is None:
+                raise ValueError(f"aim={self.aim!r} needs the phenotype column (rare_label)")
+        elif self.readout not in self.features:
             raise ValueError(f"the readout {self.readout!r} must be one of the features")
-        if self.aim != "population" and self.fingerprint_tolerance is None:
+        if self.aim not in ("population", "label") and self.fingerprint_tolerance is None:
             raise ValueError(f"aim={self.aim!r} needs fingerprint_tolerance")
 
     def fingerprint(
@@ -173,7 +181,7 @@ class Answers:
         explainable features', and with other feature tables (``tables``: each name and its
         columns) one per table, each with its own verdict at the same tolerance (owner,
         2026-10-06)."""
-        if self.aim == "population":
+        if self.aim in ("population", "label"):
             return ()
         tolerance = float(self.fingerprint_tolerance)
         within = f"within {percent(tolerance)}"
@@ -184,6 +192,7 @@ class Answers:
                 "lower_is_better",
                 f"the covariance of the standardised features {within}",
             )
+            for _ in ([1] if self.features else [])  # none without explainable features
         ]
         for name, columns in (tables or {}).items():
             criteria.append(
@@ -209,7 +218,7 @@ class Answers:
         }
         if goal == "fingerprint":
             values["fingerprint"] = self.fingerprint(scan.settings.get("feature_tables"))
-        if goal == "fingerprint" or self.positive is not None:
+        if (goal == "fingerprint" and self.features) or self.positive is not None:
             # A positive control is judged by the definition of new.
             values["novelty"] = default_novelty(tuple(self.features))
         if self.positive is not None:
@@ -250,8 +259,12 @@ class Answers:
         lines = [
             f"Control: {control}.",
             f"Aim: {q.AIM_TEXT[self.aim]}.",
-            f"Features ({len(self.features)}): {', '.join(self.features)}".rstrip(".") + ".",
-            f"Readout: {self.readout}.",
+            (
+                f"Features ({len(self.features)}): {', '.join(self.features)}".rstrip(".") + "."
+                if self.features
+                else "Features: none explainable; the other feature tables alone."
+            ),
+            f"Readout: {self.readout or 'none'}.",
             f"One row is a {self.observation_unit}.",
         ]
         tables = [
@@ -434,12 +447,23 @@ def _questions(
     control, parents, master = ask_controls(ask, say, scan)
     say("The tests that will run:\n" + "\n".join(contrast_lines(control, parents, master)))
     positive = q.ask_positive(ask, say, scan, control)
-    aim = q.ask_aim(ask, say)
-    features = q.ask_features(ask, say, scan.settings["feature_cols"])
-    readout = q.ask_readout(ask, say, features)
-    taken = [*features, *scan.settings["group_cols"], scan.settings["fov_col"]]
-    rare_label = q.ask_rare_label(ask, say, q.label_columns(scan.objects, taken))
-    tolerance = q.ask_tolerance(ask, say, features) if aim != "population" else None
+    tables = scan.settings.get("feature_tables") or {}
+    taken = [*scan.settings["group_cols"], scan.settings["fov_col"], *_table_columns(tables)]
+    labels = q.label_columns(scan.objects, taken)
+    numeric = [c for c in scan.settings["feature_cols"] if c not in labels]
+    if not numeric and tables:
+        # No explainable feature, other tables given (owner, 2026-10-06): no feature or
+        # readout question, the aim among the targets that need no readout.
+        features, readout = [], None
+        rare_label = q.ask_rare_label(ask, say, labels)
+        aim = q.ask_table_aim(ask, say, rare_label)
+    else:
+        aim = q.ask_aim(ask, say)
+        features = q.ask_features(ask, say, scan.settings["feature_cols"])
+        readout = q.ask_readout(ask, say, features)
+        rare_label = q.ask_rare_label(ask, say, q.label_columns(scan.objects, [*features, *taken]))
+    fingerprint = aim not in ("population", "label")
+    tolerance = q.ask_tolerance(ask, say, features) if fingerprint else None
     return Answers(
         loaded_correctly=True,
         control=control,
@@ -454,6 +478,11 @@ def _questions(
         master_control=master,
         rare_label=rare_label,
     ), scan
+
+
+def _table_columns(tables: Mapping[str, Sequence[str]]) -> list[str]:
+    """Every other table's columns: never a phenotype label."""
+    return [c for columns in tables.values() for c in columns]
 
 
 def guide(
@@ -514,7 +543,7 @@ def guide(
     tables = [len(c) for c in (setup.feature_tables or {}).values()]
     estimate = rough_runtime(len(setup.columns), conditions, setup.n_jobs, tables)
     say(
-        f"Running the report for {count(len(setup.columns), 'feature')} and "
+        f"Running the report for {features_words(setup)} and "
         f"{count(conditions, 'condition')}; on {count(cores, 'core')} this takes roughly "
         f"{duration(estimate)}..."
     )

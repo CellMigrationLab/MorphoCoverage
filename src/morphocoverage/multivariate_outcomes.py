@@ -78,11 +78,13 @@ the same statistic, not a resampling of FOVs).
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, ClassVar
 
 import numpy as np
+import pandas as pd
 
 from . import distances
 from ._checks import is_integer
@@ -420,8 +422,89 @@ class SlicedWassersteinError(_MultivariateOutcome):
         return distances.sliced_wasserstein(*pair, directions)
 
 
+@dataclass(frozen=True)
+class ComponentsError(OutcomeMetric):
+    """``metric`` read on fixed principal components of ``features`` (owner, 2026-10-06).
+
+    A wide feature table, such as a 384-column embedding, has far more columns than a group of
+    a few images can estimate a covariance or quantiles of, and its error then reads noise
+    (errors in the hundred thousands on 5 images a group). Its fingerprint reads its first
+    principal components instead: each sample's ``features`` are centred on ``centre``,
+    divided by ``scale`` and projected on ``loadings`` (one row per component, one column per
+    feature), and ``metric`` compares the projections, its own ``features`` naming the
+    components. ``workflows._fingerprint_space`` fits them on every observation of the table,
+    robustly standardised as the maps are, and chooses how many. ``None`` when a selected
+    value is missing, as for every metric here. The parameters keep the table's columns, the
+    number of components, the inner metric and a checksum of the projection.
+    """
+
+    metric: _MultivariateOutcome
+    features: tuple[str, ...]
+    centre: tuple[float, ...]
+    scale: tuple[float, ...]
+    loadings: tuple[tuple[float, ...], ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "features", _feature_tuple(self.features))
+        if not isinstance(self.metric, _MultivariateOutcome):
+            raise TypeError("metric must be one of the multivariate outcome metrics")
+        n = len(self.features)
+        centre = tuple(float(v) for v in self.centre)
+        scale = tuple(float(v) for v in self.scale)
+        loadings = tuple(tuple(float(v) for v in row) for row in self.loadings)
+        if len(centre) != n or len(scale) != n or not all(np.isfinite(v) for v in centre):
+            raise ValueError("centre and scale must hold one finite number per feature")
+        if not all(np.isfinite(v) and v > 0 for v in scale):
+            raise ValueError("scale must hold one positive number per feature")
+        if not loadings or any(len(row) != n for row in loadings):
+            raise ValueError("loadings must hold one row per component, one value per feature")
+        if len(loadings) != len(self.metric.features):
+            raise ValueError("the metric must read one column per component")
+        object.__setattr__(self, "centre", centre)
+        object.__setattr__(self, "scale", scale)
+        object.__setattr__(self, "loadings", loadings)
+
+    @property
+    def name(self) -> str:
+        """The inner metric's name: its family and the components it reads."""
+        return self.metric.name
+
+    @property
+    def min_observations(self) -> int:
+        """As the inner metric."""
+        return self.metric.min_observations
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """The table's columns, the number of components, the inner metric's settings and a
+        checksum of the projection (centre, scale, loadings)."""
+        fitted = np.array([self.centre, self.scale, *self.loadings], dtype=float)
+        return {
+            "features": list(self.features),
+            "components": len(self.loadings),
+            "metric": {"family": self.metric.family, **self.metric.parameters},
+            "projection": hashlib.sha256(np.round(fitted, 12).tobytes()).hexdigest()[:16],
+        }
+
+    def _projected(self, data: ValidatedInput) -> ValidatedInput:
+        """``data`` with its observations on the components, as the inner metric reads them."""
+        position = {f: i for i, f in enumerate(data.feature_cols)}
+        if all(f in position for f in self.features):  # the cached matrix, once
+            values = data.feature_matrix()[:, [position[f] for f in self.features]]
+        else:
+            values = _matrix(data, self.features)
+        points = (values - np.array(self.centre)) / np.array(self.scale) @ np.array(self.loadings).T
+        frame = pd.DataFrame(points, index=data.objects.index, columns=list(self.metric.features))
+        return replace(data, objects=frame, feature_cols=self.metric.features)
+
+    def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
+        """The inner metric on both samples' components."""
+        return self.metric.evaluate(self._projected(full), self._projected(stopped))
+
+
 __all__ = [
     "CentroidError",
+    "ComponentsError",
     "CovarianceError",
     "EnergyError",
     "FrechetError",

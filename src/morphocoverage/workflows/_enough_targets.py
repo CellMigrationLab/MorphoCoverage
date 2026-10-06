@@ -34,13 +34,14 @@ from .._style import Status, span, worst, wrap
 from .._wording import count, percent, plural, rate
 from ..evaluator import FovSubsets, iter_analysis_groups
 from ..schema import validate_input_tables
+from ._fingerprint_space import MIN_FIELDS, fingerprint_space, label, table_of
+from ._fingerprint_space import criterion_columns as _columns
 
 if TYPE_CHECKING:
     from ..retrospective import MicroscopistReport
     from .setup import Setup
 
 SPLITS = 20
-MIN_FIELDS = 4
 # Largest share of the random halves without a defined error that is left out.
 UNDEFINED_TOLERANCE = 0.10
 # The share of a group's fields optimise holds back (reservoir_fraction), as the page's
@@ -48,22 +49,21 @@ UNDEFINED_TOLERANCE = 0.10
 HELD_BACK = 0.35
 
 
-def _columns(criterion: Any) -> list[str]:
-    """The feature columns a criterion's metric reads, from its provenance."""
-    parameters = criterion.metric.parameters
-    named = [*parameters.get("features", []), parameters.get("feature")]
-    return [c for c in dict.fromkeys(named) if isinstance(c, str)]
-
-
-def table_of(columns: list[str], setup: Setup) -> str | None:
-    """The feature table ``columns`` belong to, as the text names it (``the explainable
-    features``, ``DINOv2``), when there are other tables; ``None`` without them or when the
-    columns span several (owner, 2026-10-06: a fingerprint per table)."""
-    if not setup.feature_tables:
-        return None
-    if set(columns) <= set(setup.columns):
-        return "the explainable features"
-    return next((n for n, c in setup.feature_tables.items() if set(columns) <= set(c)), None)
+def _not_assessable(data: Any, criterion: str, reason: str) -> list[dict[str, Any]]:
+    """One row per group for a criterion that is not assessable, with the reason."""
+    return [
+        {
+            **group,
+            "criterion": criterion,
+            "fields": len(group_data.fovs),
+            "splits": 0,
+            "undefined_splits": 0,
+            "error": np.nan,
+            "met": None,
+            "not_assessable": reason,
+        }
+        for group, group_data in iter_analysis_groups(data)
+    ]
 
 
 def fingerprint_precision(
@@ -72,14 +72,19 @@ def fingerprint_precision(
     """Per group and fingerprint criterion: the fields, the estimated error and whether it is
     within the tolerance (see the module); ``None`` without a fingerprint. With other feature
     tables, each criterion's ``table``; observations missing a value a criterion reads are
-    left out of it, counted (``left_out``; owner, 2026-10-06)."""
-    criteria = [c for c in setup.fingerprint if c.direction == "lower_is_better"]
-    if not criteria:
+    left out of it, counted (``left_out``; owner, 2026-10-06). A wide table's criterion is
+    read on its first principal components (``components``, said in ``reading``), or is not
+    assessable (``not_assessable``, the reason; ``_fingerprint_space``)."""
+    if not any(c.direction == "lower_is_better" for c in setup.fingerprint):
         return None
     values = setup.compared_values(objects, fovs)
+    space = fingerprint_space(values, fovs, setup)
     data = validate_input_tables(
         values, fovs=fovs, feature_cols=setup.judged_columns, **setup.common
     )
+    pairs = [(o, r) for o, r in space.pairs if o.direction == "lower_is_better"]
+    criteria = [r for _, r in pairs if r is not None]
+    names = [label(o) for o, r in pairs if r is not None]
     # A criterion whose columns miss values reads the observations holding all of them.
     complete: dict[int, dict[str, Any]] = {}
     for i, criterion in enumerate(criteria):
@@ -93,6 +98,13 @@ def fingerprint_precision(
             )
             complete[i] = {group_key(g): d for g, d in iter_analysis_groups(kept)}
     rows = []
+    for original, read in pairs:
+        reading = space.readings.get(label(original))
+        if read is None and reading is not None:
+            rows += [
+                {**row, "table": table_of(_columns(original), setup)}
+                for row in _not_assessable(data, label(original), str(reading.reason))
+            ]
     for group, group_data in iter_analysis_groups(data):
         n = len(group_data.fovs)
         half = n // 2
@@ -120,10 +132,11 @@ def fingerprint_precision(
                 else np.nan
             )
             tolerance = float(criterion.threshold)
+            reading = space.readings.get(names[i])
             rows.append(
                 {
                     **group,
-                    "criterion": criterion.description or criterion.metric.name,
+                    "criterion": names[i],
                     "table": table_of(_columns(criterion), setup),
                     "left_out": left_out,
                     "tolerance": tolerance,
@@ -141,6 +154,10 @@ def fingerprint_precision(
                         estimate * np.sqrt(n / max(1, int(np.ceil(n * HELD_BACK))))
                         if np.isfinite(estimate)
                         else np.nan
+                    ),
+                    "components": reading.components if reading is not None else None,
+                    "reading": (
+                        reading.words(setup.unit_word, setup.unit_words) if reading else ""
                     ),
                 }
             )
@@ -208,11 +225,24 @@ def held_back_note(judged: pd.DataFrame, word: str, fields: str) -> str:
 
 def fingerprint_title(criterion: str, rows: pd.DataFrame) -> str:
     """``The fingerprint, <criterion>``, or with other feature tables ``The fingerprint of
-    DINOv2 (<criterion>)``: each table its own verdict (owner, 2026-10-06)."""
+    DINOv2 (<criterion>)``: each table its own verdict (owner, 2026-10-06); a wide table's
+    adds how it is read (``read on its first 4 principal components (k at most ...)``)."""
     table = rows["table"].iloc[0] if "table" in rows else None
-    if isinstance(table, str):
-        return f"The fingerprint of {table} ({criterion})"
-    return f"The fingerprint, {criterion}"
+    title = (
+        f"The fingerprint of {table} ({criterion})"
+        if isinstance(table, str)
+        else f"The fingerprint, {criterion}"
+    )
+    reading = rows["reading"].iloc[0] if "reading" in rows else None
+    return f"{title}, {reading}" if isinstance(reading, str) and reading else title
+
+
+def assessable_reason(rows: pd.DataFrame) -> str | None:
+    """Why a criterion's fingerprint is not assessable (rows of one criterion), or ``None``."""
+    if "not_assessable" not in rows:
+        return None
+    reasons = rows["not_assessable"].dropna()
+    return str(reasons.iloc[0]) if len(reasons) else None
 
 
 def _left_out(rows: pd.DataFrame, unit: str) -> str:
@@ -231,6 +261,10 @@ def fingerprint_lines(
     for criterion, rows in table.groupby("criterion", sort=False):
         judged = rows[rows["met"].notna()]
         title = fingerprint_title(criterion, rows)
+        reason = assessable_reason(rows)
+        if reason is not None:  # a wide table and small groups (owner, 2026-10-06)
+            lines.append(wrap(f"{title}: not assessable: {reason}.", 2, hang=4))
+            continue
         left = _left_out(rows, unit)
         if not len(judged):
             text = f"{title}: not judged in any {word}: {_unjudged_reasons(rows, fields)}."
@@ -301,8 +335,14 @@ def targets_status(
         for table, rows in precision.groupby(
             tables if by_table else [0] * len(precision), sort=False
         ):
-            name = f"the fingerprint of {table}" if by_table else "the fingerprint"
+            only = tables.dropna().unique()
+            named = table if by_table else (only[0] if len(only) == 1 else None)
+            name = f"the fingerprint of {named}" if isinstance(named, str) else "the fingerprint"
             judged = rows[rows["met"].notna()]
+            if assessable_reason(rows) is not None:
+                parts.append(f"{name} not assessable")
+                statuses.append(Status.NOT_ASSESSED)
+                continue
             if not len(judged):
                 groups = len(rows) // rows["criterion"].nunique()
                 parts.append(f"{name} judged in none of {groups}")
@@ -331,22 +371,38 @@ def with_targets(
         return document
     paragraph = "\n".join(lines)
     short, sections = dict(document.short), dict(document.sections)
-    stopping = "\n\n  The stopping rules, as optimise and live run them"
-    text = short.get("enough", "")
-    at = text.find(stopping)
-    short["enough"] = (
-        f"{text[:at]}\n{paragraph}{text[at:]}" if at >= 0 else f"{paragraph}\n\n{text}"
-    )
-    full = sections.get("enough", "")
-    first = full.find("\n\n")
-    sections["enough"] = (
-        f"{full[:first]}\n\n{paragraph}{full[first:]}" if first >= 0 else f"{paragraph}\n\n{full}"
-    )
+    inputs = dict(document.inputs)
+    if inputs.get("enough") == "not assessed":
+        # The targets alone answer it (an embedding-only report, owner 2026-10-06).
+        sections["enough"] = short["enough"] = paragraph
+        inputs["enough"] = "given"
+        statuses = {k: v for k, v in document.statuses.items() if k != "enough"}
+        document = replace(
+            document, headlines={**document.headlines, "enough": ""}, statuses=statuses
+        )
+    else:
+        stopping = "\n\n  The stopping rules, as optimise and live run them"
+        text = short.get("enough", "")
+        at = text.find(stopping)
+        short["enough"] = (
+            f"{text[:at]}\n{paragraph}{text[at:]}" if at >= 0 else f"{paragraph}\n\n{text}"
+        )
+        full = sections.get("enough", "")
+        first = full.find("\n\n")
+        sections["enough"] = (
+            f"{full[:first]}\n\n{paragraph}{full[first:]}"
+            if first >= 0
+            else f"{paragraph}\n\n{full}"
+        )
     statuses, parts = targets_status(clustering, precision, setup)
     headline = document.headlines.get("enough", "")
     headlines = {
         **document.headlines,
-        "enough": "; ".join(p for p in (headline, *(f"{p} {word}s" for p in parts)) if p),
+        "enough": "; ".join(
+            p
+            for p in (headline, *(p if p.endswith("assessable") else f"{p} {word}s" for p in parts))
+            if p
+        ),
     }
     current = document.statuses.get("enough")
     status = worst([s for s in (current, *statuses) if s is not None])
@@ -354,12 +410,14 @@ def with_targets(
         document,
         short=short,
         sections=sections,
+        inputs=inputs,
         headlines=headlines,
         statuses={**document.statuses, "enough": status},
     )
 
 
 __all__ = [
+    "assessable_reason",
     "fingerprint_lines",
     "fingerprint_precision",
     "fingerprint_title",

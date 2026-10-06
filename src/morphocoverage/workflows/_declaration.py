@@ -41,11 +41,18 @@ def declaration(setup: Setup) -> tuple[str, ...]:
         (
             f"Population summary: the mean of {setup.readout} over all {units}, within "
             f"{tolerances} of its value on held-back fields."
+            if setup.readout is not None
+            else NO_READOUT
         )
     ]
     if setup.fingerprint:
         named = "; ".join(c.description or c.name for c in setup.fingerprint)
         lines.append(f"Phenotypic fingerprint: {named}; judged on held-back fields.")
+    elif setup.readout is None:
+        lines.append(
+            "Phenotypic fingerprint: not declared (no distribution criterion in fingerprint), "
+            "so no answer below says whether the distribution was sampled enough."
+        )
     else:
         lines.append(
             "Phenotypic fingerprint: not declared (no distribution criterion in "
@@ -59,7 +66,7 @@ def declaration(setup: Setup) -> tuple[str, ...]:
             "Rare phenotype: not declared (no RareTarget in rare), so no answer below "
             "says whether a rare state was sampled enough."
         )
-    lines.append(f"Representation: readout {setup.readout}; {_representation(setup)}.")
+    lines.append(_representation_line(setup))
     controls = controls_sentence(setup)
     if controls:  # several controls (owner, 2026-10-05)
         lines.append(f"{controls}.")
@@ -67,9 +74,12 @@ def declaration(setup: Setup) -> tuple[str, ...]:
         lines.append(_novelty(setup))
     if setup.positive is not None:
         lines.append(_positive(setup))
-    lines.append(_rules(setup))
+    if setup.stopping_rules():  # an embedding-only Setup has none (NO_READOUT says why)
+        lines.append(_rules(setup))
     lines.append(_order(setup))
-    if setup.normalize is not None and controls:
+    if setup.normalize is not None and setup.readout is None:
+        lines.append(TABLES_CENTRED)
+    elif setup.normalize is not None and controls:
         lines.append(
             f"Values: every declared feature divided by the mean of each condition's own "
             f"control {units} of the same repeat (a control by its parent's), for the plots and "
@@ -95,6 +105,31 @@ def declaration(setup: Setup) -> tuple[str, ...]:
         "unsupported rather than assumed adequate."
     )
     return tuple(lines)
+
+
+# An embedding-only Setup's normalisation (owner, 2026-10-06).
+TABLES_CENTRED = (
+    "Values: the other feature tables centred per biological repeat, on all its observations "
+    "when every repeat holds the same conditions, else on its control, for the maps, the "
+    "populations, unusual observations and the separation; never divided, and never for a "
+    "test, which reads the raw values."
+)
+# An embedding-only Setup's population summary, the one place it is said (owner, 2026-10-06).
+NO_READOUT = (
+    "Population summary: none, as there is no readout (no explainable features, an "
+    "embedding-only report), so the mean-precision rules are not applicable; the targets "
+    "are the fingerprint of each feature table and the labelled phenotype, when declared."
+)
+
+
+def _representation_line(setup: Setup) -> str:
+    """``Representation: readout area; ...``, or what an embedding-only Setup reads."""
+    if setup.readout is None:
+        return (
+            "Representation: the other feature tables only; unusual "
+            f"{setup.unit_words} on their weighted combined space, no definition of new."
+        )
+    return f"Representation: readout {setup.readout}; {_representation(setup)}."
 
 
 def _representation(setup: Setup) -> str:
@@ -390,6 +425,8 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
         (
             f"Population summary: the mean of {setup.readout} over all {setup.unit_words}, within "
             f"{tolerances} (judged on held-back fields by optimise)."
+            if setup.readout is not None
+            else NO_READOUT
         )
     ]
     cautions = []
@@ -400,13 +437,17 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
         cautions.append(
             assumption(
                 "no phenotypic fingerprint declared (fingerprint), so the answers speak of the "
-                "mean, not of the distribution of phenotypes"
+                + (
+                    "mean, not of the distribution of phenotypes"
+                    if setup.readout is not None
+                    else "tests between conditions only, not of a distribution sampled enough"
+                )
             )
         )
     rare, rare_cautions = _rare_short(setup)
     lines += [rare] if rare else []
     cautions += rare_cautions
-    lines.append(f"Representation: readout {setup.readout}; {_representation(setup)}.")
+    lines.append(_representation_line(setup))
     controls = controls_sentence(setup)
     lines += [f"{controls}."] if controls else []
     if setup.novelty is not None:
@@ -428,7 +469,8 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
     unit = resolve_observation_unit(setup.observation_unit)[0]
     rules = listing([rule_label(rule, unit) for rule in setup.stopping_rules()], limit=10)
     default = " (the default)" if setup.rules is None else ""
-    lines.append(f"Stopping rules: {rules}{default}; run live, calibrated by optimise.")
+    if setup.stopping_rules():  # an embedding-only Setup has none (NO_READOUT says why)
+        lines.append(f"Stopping rules: {rules}{default}; run live, calibrated by optimise.")
     targets = sorted(
         {r.target_cv for r in setup.stopping_rules() if isinstance(r, ScalarPrecisionStrategy)}
     )
@@ -445,7 +487,9 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
     order, order_cautions = _order_short(setup)
     lines += [order] if order else []
     cautions += order_cautions
-    if setup.normalize is not None and controls:
+    if setup.normalize is not None and setup.readout is None:
+        lines.append(TABLES_CENTRED)
+    elif setup.normalize is not None and controls:
         lines.append(
             "Values: each condition divided by its own control's mean in the same repeat for "
             "the plots and the populations; levels across experiments are read on the raw "

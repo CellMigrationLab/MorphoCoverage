@@ -115,6 +115,20 @@ def warn_novelty_dimension(setup: Setup) -> None:
         )
 
 
+def check_embedding_only(setup: Setup) -> None:
+    """An embedding-only Setup (``readout=None``, owner 2026-10-06) declares no explainable
+    feature, nothing to normalise and no intensity: refused otherwise, with what to do."""
+    if setup.readout is not None:
+        return
+    if setup.features:
+        raise ValueError(
+            "features are explainable features, read one by one: declare the readout among "
+            "them (readout=None declares none, for a report on the other feature tables alone)"
+        )
+    if setup.intensity_features:
+        raise ValueError("intensity_features are explainable features: readout=None has none")
+
+
 def check_few_fovs(setup: Setup) -> None:
     """``few_fovs``: an integer above the definition of new's ``min_other_fovs``."""
     if setup.few_fovs is None:
@@ -135,6 +149,7 @@ def check_few_fovs(setup: Setup) -> None:
 __all__ = [
     "MANY_NOVELTY_FEATURES",
     "PositiveControl",
+    "check_embedding_only",
     "check_few_fovs",
     "check_presets",
     "default_novelty",
