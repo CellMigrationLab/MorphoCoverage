@@ -17,6 +17,7 @@ from morphocoverage.workflows import (
     load_answers,
     report,
     save_answers,
+    scan_design,
 )
 
 MITOTIC = RareTarget(
@@ -93,3 +94,16 @@ def test_b14_saved_answers_with_nothing_under_the_controls_are_refused_on_reload
     path.write_text(json.dumps({**saved, "control": EMPTY}))
     with pytest.raises(ValueError, match=NOTHING_UNDER):
         load_answers(tmp_path)
+
+
+def test_b11_the_scan_accepts_several_controls_as_setup_declares_them():
+    objects, fovs, _ = _cells()
+    controls = {"condition": {"ctrl": ["a"], "b": []}}
+    scan = scan_design(objects, fovs, observation_unit="cell", control=controls)
+    assert scan.data_check.ok and scan.status.marker != "❌"
+    assert scan.design["controls"] == ["ctrl", "b"]
+    text = scan.summary()
+    assert "ctrl (a control)" in text and "b (a control)" in text
+    assert "Several conditions" not in text  # one condition besides the controls
+    setup = scan.setup("mitotic", control_parents={"b": "ctrl"})
+    assert setup.own_references == {"a": "ctrl", "b": "ctrl", "ctrl": "ctrl"}

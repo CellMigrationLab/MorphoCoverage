@@ -127,8 +127,9 @@ class Question:
 class DesignScan:
     """What ``scan_design`` found (see the module).
 
-    - ``design``: the facts, counted (conditions, the control, repeats, technical repeats,
-      fields, observations per field, planes, targets, reagent groups).
+    - ``design``: the facts, counted (conditions, the control, or the ``controls`` declared,
+      repeats, technical repeats, fields, observations per field, planes, targets, reagent
+      groups).
     - ``layout``: observations per condition (rows) and biological repeat (columns).
     - ``findings``: whether the tables were loaded correctly, one ``Finding`` each.
     - ``suggestions``: the columns that would say more, in sentences.
@@ -469,6 +470,11 @@ def scan_design(
     objects = objects.copy()
     control_declared = control is not None
     control_value = dict(control).get(CONDITION_COLUMN) if control else None
+    # Several controls in Setup's form (owner, 2026-10-05): checked as their pool, the first
+    # declared drawn first, as the report does (audit 8B).
+    controls = list(control_value) if isinstance(control_value, Mapping) else []
+    checked_control = {CONDITION_COLUMN: tuple(controls)} if controls else control
+    control_value = controls[0] if controls else control_value
 
     found_fov = _fov_column(objects, fovs, fov_col)
     added_fov = found_fov is None
@@ -503,7 +509,7 @@ def scan_design(
         feature_cols=checked,
         fov_col=found_fov,
         observation_unit=observation_unit,
-        control=control,
+        control=checked_control,
     )
     integrity = None
     if data_check.ok and checked:
@@ -519,6 +525,7 @@ def scan_design(
     # A FOV table that passed the data check lists every field acquired, empty ones included.
     listed = fovs if fovs_given and data_check.ok else None
     design, layout = _design(objects, fov_key, control_value, control_declared, listed)
+    design["controls"] = controls or ([control_value] if control_declared else [])
     design["balance"] = _balance(layout, design["repeats"])
     design["constant"] = _constant(objects, features) if data_check.ok and features_declared else []
     columns = [*objects.columns, *(fovs.columns if fovs is not None else ())]
