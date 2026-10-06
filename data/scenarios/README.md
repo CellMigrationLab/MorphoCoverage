@@ -28,8 +28,9 @@ the effect. Each table is a few hundred rows at most.
   technical repeats) x the target (the default tolerances; a fingerprint on explainable
   features; a fingerprint on an embedding; a labelled rare phenotype; a positive control).
   Every pair of values is in at least one scenario, every value in two or more.
-- **edge** (`e01` to `e13`): designs the axes do not reach.
-- **mistake** (`m01` to `m07`): what users get wrong, and what the package does now.
+- **edge** (`e01` to `e16`): designs and options the axes do not reach (from `e14`: declared
+  scales, a trend over six repeats, the acquisition block).
+- **mistake** (`m01` to `m08`): what users get wrong, and what the package does now.
 
 ## The scenarios
 
@@ -74,6 +75,9 @@ the effect. Each table is a few hundred rows at most.
 | `e11_unequal_fields_per_repeat` | edge | 2 conditions, 4 repeats, 46 fields, 230 rows | very unequal fields per repeat: the cell-level screen also given balanced |
 | `e12_missing_values_in_one_table` | edge | 2 conditions, 4 repeats, 24 fields, 120 rows; DINO1 (non-explainable) | missing values in one table only: counted and kept, each analysis says how many it leaves out |
 | `e13_known_effects_six_repeats` | edge | 3 conditions, 6 repeats, 54 fields, 270 rows; DINO1 (non-explainable) | a strong effect found on the features and the embedding, a null condition not |
+| `e14_declared_scales` | edge | 2 conditions, 4 repeats, 24 fields, 120 rows | scales declared (area on differences, length on ratios), velocity on the automatic rule: each feature tested on its scale, the declaration said |
+| `e15_trend_six_repeats` | edge | 3 conditions, 6 repeats, 54 fields, 270 rows; DINO1 (non-explainable) | a condition higher in each of 6 repeats by very unequal amounts: a trend, not significant; a strong condition beside it significant |
+| `e16_acquisition_block` | edge | 4 conditions, 3 repeats, 96 fields, 288 rows | a field whose areas are 4 times those of the other fields of its condition and repeat, and two controls more than 2-fold apart in intensity: both in the acquisition block |
 | `m01_dino_tagged_explainable` | mistake | 2 conditions, 3 repeats, 18 fields, 90 rows; DINO1 (explainable) | an embedding tagged explainable: run, its columns tested one by one, as declared |
 | `m02_table_keyed_by_wrong_identity` | mistake | 2 conditions, 4 repeats, 24 fields, 120 rows; DINO1 (non-explainable) | a table keyed by the wrong identity (labels from 0): refused, unmatched observations |
 | `m03_unknown_tag` | mistake | 2 conditions, 4 repeats, 24 fields, 120 rows; fiber (explanable) | a misspelt tag: refused, naming the two tags |
@@ -81,6 +85,7 @@ the effect. Each table is a few hundred rows at most.
 | `m05_normalize_without_control` | mistake | 2 conditions, 4 repeats, 24 fields, 120 rows | normalisation without a control: refused at the Setup |
 | `m06_planes_given_as_rows` | mistake | 2 conditions, 4 repeats, 24 fields, 360 rows | one row per cell and plane given as is: refused, naming planes_as_features |
 | `m07_positive_control_seen_too_few_fields` | mistake | 2 conditions, 3 repeats, 36 fields, 180 rows | a positive control after 2 reference fields, where the definition of new needs 5: refused at the Setup, naming the minimum |
+| `m08_ratio_declared_on_signed_feature` | mistake | 2 conditions, 4 repeats, 24 fields, 120 rows | a ratio declared for a signed feature (a velocity): refused, naming the value that is not positive |
 <!-- /scenarios -->
 
 ## How it is used

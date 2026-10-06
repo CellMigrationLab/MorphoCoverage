@@ -1,0 +1,39 @@
+{
+ "name": "e16_acquisition_block",
+ "kind": "edge",
+ "checks": "a field whose areas are 4 times those of the other fields of its condition and repeat, and two controls more than 2-fold apart in intensity: both in the acquisition block",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "intensity_mean"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": {
+    "cA": {
+     "k1": "a1"
+    },
+    "cB": {
+     "k1": "b1"
+    }
+   }
+  },
+  "master_control": "cA"
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "acquisition",
+   "contrast"
+  ],
+  "full": [
+   "a1 \u00b7 repeat 2026_01_05 \u00b7 field_03.tif (area,",
+   "Controls apart in intensity: cA and cB differ"
+  ]
+ }
+}

@@ -128,6 +128,11 @@ def _tests(result: Any, truth: dict[str, Any]) -> None:
             assert len(row) == 1 and row["adjusted_p"].iloc[0] <= ALPHA
             assert (row["higher"] == row["repeats"]).all()
             assert row["verdict"].iloc[0] == CONFIRMED
+    for feature, conditions in truth.get("trend", {}).items():
+        for condition in conditions:
+            row = across[(across["feature"] == feature) & (across["condition"] == condition)]
+            assert len(row) == 1 and row["adjusted_p"].iloc[0] > ALPHA
+            assert row["verdict"].iloc[0] == CONSISTENT
     if not across.empty:
         nulls = across["condition"].isin(truth.get("null_conditions", ()))
         nulls |= across["feature"].isin(truth.get("null_features", ()))

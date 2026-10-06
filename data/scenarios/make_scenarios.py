@@ -8,14 +8,16 @@ features, the analyses that must run, the questions that must say "not applicabl
 why, or the refusal expected. ``tests/test_scenarios_matrix.py`` runs every folder and
 checks the truth; ``README.md`` lists them.
 
-Three kinds of scenario (``scenario_axes.py``, ``scenario_edges.py``):
+Three kinds of scenario (``scenario_axes.py``, ``scenario_edges.py``,
+``scenario_options.py``):
 
 - ``axes``: the tables (explainable only, two tagged explainable tables, one or two
   embeddings, a mix) x the controls (none, one, several) x normalisation x the unit (cells,
   one image per field) x the wells x the target (tolerances, a fingerprint on the
   explainable features or on an embedding, a labelled rare phenotype, a positive control),
   every pair of values in at least one scenario;
-- ``edge``: designs the axes do not reach (two repeats, one condition, a screen, ...);
+- ``edge``: designs and options the axes do not reach (two repeats, one condition, a screen,
+  declared scales, a trend over six repeats, the acquisition block, ...);
 - ``mistake``: what users get wrong, and what the package does with it now.
 
 The truth (``scenario.json``'s ``truth``) holds:
@@ -37,7 +39,8 @@ The truth (``scenario.json``'s ``truth``) holds:
   reverse order (the MFA weights do not depend on it);
 - ``planted``, ``null_conditions``, ``null_features``, ``whole_table_planted``: the
   conditions shifted, by feature or table, and those not, checked only where the design
-  makes the answer near-certain (a strong effect, five repeats or more);
+  makes the answer near-certain (a strong effect, five repeats or more); ``trend``: by
+  feature, the conditions the same way in every one of 6 repeats or more, not significant;
 - ``html``: whether the test also builds the page, and ``table_column`` whether its CSVs
   name each feature's table.
 
@@ -93,6 +96,7 @@ class Design:
     repeat_sd: float = 0.1
     field_sd: float = 0.05
     seed: int = SEED
+    repeat_shifts: Mapping[str, tuple[float, ...]] = field(default_factory=dict)
 
 
 @dataclass
@@ -144,6 +148,8 @@ def acquisition(design: Design) -> tuple[pd.DataFrame, pd.DataFrame, np.ndarray]
                         + well_effect
                         + rng.normal(0, design.field_sd)
                     )
+                    if condition in design.repeat_shifts:
+                        effect += design.repeat_shifts[condition][r]
                     for label in range(1, design.cells + 1):
                         rows.append({**key, "label_id": label})
                         effects.append(effect)
@@ -387,9 +393,11 @@ def main(root: Path = HERE) -> list[Scenario]:
     try:
         from scenario_axes import SCENARIOS as AXES_SCENARIOS
         from scenario_edges import SCENARIOS as EDGE_SCENARIOS
+        from scenario_options import SCENARIOS as OPTION_SCENARIOS
     finally:
         sys.path.remove(str(HERE))
-    scenarios = [build() for build in (*AXES_SCENARIOS, *EDGE_SCENARIOS)]
+    builders = (*AXES_SCENARIOS, *EDGE_SCENARIOS, *OPTION_SCENARIOS)
+    scenarios = sorted((build() for build in builders), key=lambda s: s.name)
     for scenario in scenarios:
         write(scenario, root)
     readme = (HERE / "README.md").read_text() if (HERE / "README.md").exists() else ""
