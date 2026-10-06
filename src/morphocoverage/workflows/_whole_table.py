@@ -42,6 +42,12 @@ ACROSS_NOT_TESTED = (
     "The rows across experiments of the contrast table are tested feature by feature only: a "
     "difference of log ratios has no meaning in a table such as an embedding."
 )
+# The same without explainable features: nothing tests those rows (audit 8B).
+ACROSS_NO_FEATURES = (
+    "The rows across experiments of the contrast table are not tested: a difference of log "
+    "ratios has no meaning in a table such as an embedding, and there are no explainable "
+    "features to test them on."
+)
 
 
 def table_pairs(setup: Setup, fovs: pd.DataFrame) -> list[tuple[Any, Any]]:
@@ -75,7 +81,8 @@ def whole_table_in_report(
     )
     table = setup.contrast_table
     across = table is not None and bool((table["kind"] != "own_control").any())
-    result.settings["across_not_tested"] = across
+    said = ACROSS_NOT_TESTED if setup.columns else ACROSS_NO_FEATURES
+    result.settings["across_not_tested"] = said if across else ""
     return result
 
 
@@ -132,7 +139,7 @@ def whole_table_lines(result: WholeTable, indent: int = 2) -> list[str]:
     )
     lines.append(wrap(how, indent))
     if result.settings.get("across_not_tested"):
-        lines.append(wrap(ACROSS_NOT_TESTED, indent))
+        lines.append(wrap(result.settings["across_not_tested"], indent))
     return lines
 
 

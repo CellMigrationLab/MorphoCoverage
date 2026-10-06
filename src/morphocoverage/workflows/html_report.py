@@ -292,7 +292,7 @@ def _condition_extras(result: Report, feature_blocks: list[str], folder: Path) -
         )
     across = across_parts(contrast, indent=0) if contrast is not None else []
     if across:  # several controls: the secondary rows, the contrast table (owner, 2026-10-05)
-        buttons = data_buttons(across_data(contrast, folder))
+        buttons = data_buttons(across_data(contrast, folder, result.setup))
         extra += "<h3>Compared across experiments</h3>" + _html("\n".join(across))
         extra += f'<p class="tools">{buttons}</p>' if buttons else ""
     # Every other table tested whole (owner, 2026-10-06), its data as CSV.

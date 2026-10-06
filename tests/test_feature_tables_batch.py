@@ -71,7 +71,8 @@ def test_an_unbalanced_design_is_centred_on_its_control():
         np.testing.assert_allclose(centred.loc[rows.index, "d0"], rows["d0"] - control)
     line = centring_line(merged, fovs, setup)
     assert "on the median of the control in their biological repeat" in line
-    assert "the populations, unusual observations and the separation read them" in line
+    # Unusual observations read the explainable features here (audit 8B, seed 6).
+    assert "the populations and the separation read them" in line
 
 
 def test_a_planted_batch_is_removed_and_a_condition_effect_survives():

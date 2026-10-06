@@ -25,14 +25,17 @@ details of each analysis are on the page it links to. It describes the code as b
 
 - `readout`: the one column the stopping rules, the Foundation, the object rules and the
   fields to check read.
-- `features`: the other explainable columns, tested one by one with the readout. Novelty
-  and unusual observations read `features` without the readout; the populations, the maps
-  and the separation read the readout and `features`.
+- `features`: the explainable columns tested one by one with the readout. Novelty and
+  unusual observations read `features`, the readout only when it is listed among them (the
+  guided session always lists it); the populations, the maps and the separation read the
+  readout and `features`.
 - `observation_unit`: the word for a row, and the default rules: per object and per field
   for objects, cells and nuclei, per field only for any other unit.
 - One observation per field is read from the data, not declared: the Foundation and the
   spread over fields are then not applicable, and unusual observations and the object rules
-  are not run.
+  are not run; nor are novelty and the positive control when a new state needs several
+  similar observations in one field (the default definition of new). The report and the
+  declaration say so, with this reason.
 
 **The control.**
 
@@ -44,6 +47,9 @@ details of each analysis are on the page it links to. It describes the code as b
   one control ([several controls](../report/conditions.md#several-controls)).
 - A positive control: `positive=PositiveControl(...)`, which needs the control, `features`
   and `novelty`.
+- Several controls with no condition under any of them and no parent compare nothing with
+  its own control: the Setup refuses them, naming what to declare, and the guided session
+  asks again. `scan_design` takes the several-controls form as the Setup does.
 
 **Normalisation.** `normalize="control_mean"` needs a control named by condition. It divides
 the explainable features and centres the non-explainable tables, both described
@@ -81,7 +87,7 @@ flowchart TD
     EX -- "yes" --> RUL["Stopping rules, Foundation, fields to check, duplicated features"]
     EX -- "no" --> EMB["Embedding-only: per-feature parts not applicable"]
     IN --> NE{"Non-explainable tables?"}
-    NE -- "yes" --> TAB["A map and a centred view per table"]
+    NE -- "yes" --> TAB["A map per table, a centred view when one is possible"]
     IN --> CT{"Control?"}
     CT -- "none" --> NOC["No condition test; groups not compared"]
     CT -- "one or several" --> OWN["Each condition against its own control"]
@@ -98,11 +104,12 @@ flowchart TD
     IN --> FP{"Fingerprint?"}
     FP -- "yes" --> FPT["Fingerprint per table; beyond the mean with a control"]
     IN --> LB{"rare_label?"}
-    LB -- "yes" --> LBT["Label share tested, label check, rare clustering"]
+    LB -- "yes" --> LBT["Rare clustering; with explainable features, label share tested and label check"]
 ```
 
-Maps need 3 columns in a space, populations 2, the separation 2 conditions; the object
-rules need a readout; the label check runs when no positive control is declared.
+Maps need 3 columns in a space, populations 2, the separation 2 conditions and a space with
+a map; the object rules need a readout; the label check runs when no positive control is
+declared and there are explainable features.
 
 ## Per feature type
 
@@ -126,12 +133,12 @@ the contrast table, or the one control.
 | Mean-precision stopping rules | the raw readout, upper 95% bound at the first tolerance | analysis group, per object and per field | none | no readout |
 | Fingerprint | as declared, or on the first k principal components when wider than a fifth of the smallest group; divided by the control with one control and `normalize`, raw with several | analysis group of at least 4 fields | none | groups of fewer than 4 fields: not judged |
 | Beyond the mean | per repeat against the own control: SD ratio, 10%, 50% and 90% quantile shifts | biological repeat | its own family per sub-experiment | no fingerprint, of any table; no control |
-| Rare label | its share compared like a feature; the label check on the nearest cell of another field; clustering in fields | observation, field | the features' family; clustering over groups and states | label check with a positive control declared |
+| Rare label | its share compared like a feature; the label check on the nearest cell of another field; clustering in fields | observation, field | the features' family; clustering over groups and states | label check with a positive control declared; without explainable features, clustering only |
 | Populations | the readout and `features` as the figures read them, MFA across two or more explainable tables | observation; enrichment per repeat | groups and conditions per sub-experiment | fewer than 2 columns; enrichment without a control or with fewer than 3 repeats |
 | Unusual observations | the declared `features` raw, MFA across tables, against each own control | observation; clustering per field | groups and states | no control, no `features`, one observation per field |
-| Novelty and the positive control | the declared `features` raw, MFA across tables, fitted on the visible fields | field | none | no `novelty` |
+| Novelty and the positive control | the declared `features` raw, MFA across tables, fitted on the visible fields | field | none | no `novelty`; one observation per field when a new state needs several in one field |
 | Maps PCA and UMAP | raw, and divided by the own control whenever a control is declared; robustly standardised | observation | none | fewer than 3 columns in the space |
-| Separation scores | as the figures read them | neighbours outside the field, per repeat | none, descriptive | one condition |
+| Separation scores | as the figures read them | neighbours outside the field, per repeat | none, descriptive | one condition; a space of fewer than 3 columns, which has no map |
 | Copy checks | each explainable table apart, or the features as one table | field | none, exact | `integrity=True` not given; the guided session gives it |
 | Duplicated or derived features | every declared column, on all rows and within each experiment | column pair | none, a caution | none |
 | Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap | one control |
@@ -156,7 +163,7 @@ names only the tables.
 | Unusual observations | only when no `features` are declared: in an embedding-only report the tables' MFA space, centred with `normalize`; with a readout, the readout and the tables | observation | groups and states | `features` declared; no control; one observation per field |
 | Novelty and the positive control | never | | | always |
 | Maps | one per table and a combined MFA map; a centred view per table | observation | none | fewer than 3 columns |
-| Separation scores | each table and the combined space; raw, centred with `normalize` | neighbours outside the field | none | one condition |
+| Separation scores | each table and the combined space; raw, centred with `normalize` | neighbours outside the field | none | one condition; fewer than 3 columns |
 | Copy checks | each table apart, the union named by table | field | none | `integrity=True` not given |
 | Duplicated features, acquisition gap | never | | | always |
 | `optimise` | the fingerprint on the same components, on held-back fields | analysis group | none | no fingerprint and no labelled phenotype |
@@ -175,20 +182,21 @@ observations in the same biological repeat; the control's own values too, so the
 With several controls each condition is divided by its own control, a control by its
 parent, else by itself; a condition held in a repeat without its own control is missing
 there and named once. With one control a repeat without control observations, or a control
-mean that is zero, negative or undefined, stops the report. What reads these values with
-`normalize`: the SuperPlots, the populations, the separation scores and, with one control,
-the fingerprint and `optimise`'s criteria. The maps show them whenever a control is declared. The tests
-read raw values and normalise each comparison to its own control themselves; the stopping
-rules, the fields to check, unusual observations, novelty, the Foundation and the live
-session read raw values. The rules are in
-[normalising to the control](setup.md#normalising-to-the-control).
+mean that is zero, negative or undefined, stops the report. What reads these values is
+listed once, in `_contrasts.normalised_readers`, which the overview and the declaration
+print: with `normalize`, the figures, the normalised maps, the populations, the separation
+scores and, with one control, the fingerprint and `optimise`'s criteria. The maps show
+them whenever a control is declared. The tests read raw values and normalise each
+comparison to its own control themselves; the stopping rules, the fields to check, unusual
+observations, novelty, the Foundation and the live session read raw values. The rules are
+in [normalising to the control](setup.md#normalising-to-the-control).
 
 **Batch centring of the non-explainable tables.** A table is never divided. Each column
 is centred per biological repeat: on the median of all the repeat's observations when
 every repeat holds the same conditions in the FOV table, otherwise on the median of the
 control, each condition's own with several. On a control the repeat is centred only when
-the control holds at least 5 observations there; repeats with 1 to 4 are left out and
-named, and a repeat with none is left out without being named. The centred map view is
+the control holds at least 5 observations there; repeats with fewer, none included, are
+left out and named. The centred map view is
 shown whenever a centring is possible. With `normalize` the populations and the separation
 of the tables read the centred values, and so do unusual observations in an embedding-only
 report. No test reads them: the whole-table test and the fingerprint read raw values.

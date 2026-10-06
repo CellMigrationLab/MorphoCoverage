@@ -336,7 +336,8 @@ def embeddings(
     tables, unnormalisable = _tables(setup, objects, fovs)
     maps = _maps(setup, tables, fovs, top, carry)
     left = centred_left_out(objects, fovs, setup) if "centred" in maps else ""
-    line = centring_line(objects, fovs, setup) if "centred" in maps else ""
+    ran = "unusual" in result.results
+    line = centring_line(objects, fovs, setup, ran) if "centred" in maps else ""
     centred = centred_note(setup.unit_word, setup.unit_words, left, line)
     spaces = list(maps["raw"])
     several = len(spaces) > 1
@@ -368,8 +369,11 @@ def embeddings(
         if CONDITION_COLUMN in points
         else [len(points)]
     )
-    # The populations counted the PCs of the declared values: said on their set only.
-    declared = "normalised" if setup.normalize is not None else "raw"
+    # The populations counted the PCs of the declared values: said on their set only. An
+    # embedding-only report has no normalised set: with normalize, its tables are centred.
+    declared = "raw"
+    if setup.normalize is not None:
+        declared = next((v for v in ("normalised", "centred") if v in maps), "raw")
     held = _held(result)
 
     def built(values: str, space: str) -> dict[str, Any]:
@@ -428,7 +432,7 @@ def embeddings(
         if values == "raw" or (values == "normalised" and space not in own)
     ]
     data_files = embedding_data(
-        {f"{values}, {s}" if several else values: e for values, s, e in shown}, folder
+        {f"{values}, {s}" if several else values: e for values, s, e in shown}, folder, setup
     )
     comparison = comparison_table(separations[declared]) if several else ""
     if separations[declared] is not None:

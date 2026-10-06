@@ -107,8 +107,10 @@ html_report(result, fovs, fovs, "results", feature_tables={"DINO": dino})
 ```
 
 `readout=None` (its default) with no `features` makes such a Setup (`Setup.embedding_only`);
-features without a readout, `normalize` or `intensity_features` are refused, since the
-other tables are never divided by a control. The targets are the user's choice among those
+features without a readout and `intensity_features` are refused. `normalize` is accepted:
+it centres the tables per biological repeat (for the maps, the populations, unusual
+observations and the separation, never a test) and never divides them, since the other
+tables are never divided by a control. The targets are the user's choice among those
 that need no single readout: the **whole distribution**, the fingerprint of each table
 (read on its first principal components,
 [feature tables](../report/feature_tables_and_maps.md#other-feature-tables-embeddings)), a
@@ -154,13 +156,21 @@ the feature and the repeat: dividing by it has no meaning or flips the sign of
 every effect, so compare a signed feature (a velocity, a log-ratio) raw. When
 the control objects hold negative values but their mean is positive, the
 values are still divided, with a warning that they are then not multiples of
-the control, and the sentence on normalised values says so (`Caution: ...`). The normalised values are used
-only where values are compared across repeats: the outcome criteria judged on
-held-back fields, the condition contrast, the feature ranking and the plots. The condition
-contrast reads the raw values and normalises them itself, so its raw columns hold raw values
-and its normalised ones the values divided by the control mean of the same repeat (owner,
-2026-10-05; before, it read the normalised values, so its "raw" d and paired t were the
-normalised ones).
+the control, and the sentence on normalised values says so (`Caution: ...`). What reads
+the normalised values is listed once, in `_contrasts.normalised_readers`, which the
+overview and the declaration print (audit 8B). With one control, the figures, the
+normalised maps, the populations, the separation, the fingerprint and the outcomes judged
+on held-back fields read the normalised values; the condition contrast, the feature
+ranking and the discovery read the raw values and normalise them themselves; the stopping
+rules and every other analysis read the raw values. With several controls, the figures,
+the normalised maps, the populations and the separation read the normalised values; the
+condition contrast, the feature ranking and the discovery read the raw values, each
+normalising to its own control; the fingerprint, the outcomes judged on held-back fields,
+the stopping rules and every other analysis read the raw values, where levels across
+experiments are read. The condition contrast reads the raw values and normalises them
+itself, so its raw columns hold raw values and its normalised ones the values divided by
+the control mean of the same repeat (owner, 2026-10-05; before, it read the normalised
+values, so its "raw" d and paired t were the normalised ones).
 
 Several controls are declared as `control={"condition": {control: {treatment: condition}
 or [conditions], ...}}`, with `control_parents` and `master_control`

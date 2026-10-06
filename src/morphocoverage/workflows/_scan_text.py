@@ -33,9 +33,12 @@ def _conditions_line(scan: Any) -> str | None:
     if not conditions:
         return None
     control, guess = design["control"], design.get("control_guess")
+    controls = design.get("controls") or []
     names = []
     for condition in conditions:
-        if control is not None and condition == control:
+        if len(controls) > 1 and condition in controls:
+            names.append(f"{condition} (a control)")
+        elif control is not None and condition == control:
             names.append(f"{condition} (the control)")
         elif control is None and guess is not None and condition == guess:
             names.append(f"{condition} (named like a control; not declared)")

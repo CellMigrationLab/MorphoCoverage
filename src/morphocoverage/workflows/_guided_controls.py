@@ -164,7 +164,9 @@ def ask_several(ask: Ask, say: Say, scan: Any) -> tuple[dict, dict | None, Any]:
     conditions = list(scan.design["conditions"])
     while True:
         proposal = proposed_controls(scan) or None
-        controls = choose_many(ask, say, "Which conditions are controls?", conditions, proposal)
+        # No default of every condition: with nothing under any control, nothing is compared.
+        prompt = "Which conditions are controls?"
+        controls = choose_many(ask, say, prompt, conditions, proposal, enter_all=False)
         found: dict[Any, dict] = {}
         assigned = set(controls)
         named = set(proposal or [])

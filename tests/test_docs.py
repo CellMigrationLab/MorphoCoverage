@@ -153,3 +153,13 @@ def test_every_relative_link_of_the_documentation_points_to_a_file():
             elif anchor and linked.suffix == ".md" and anchor not in _anchors(linked):
                 broken.append(f"{page.relative_to(ROOT)}: {target} (no such heading)")
     assert not broken, "broken links:\n" + "\n".join(broken)
+
+
+def test_setup_md_says_what_reads_the_normalised_values_as_the_code_does():
+    # One list, in _contrasts.normalised_readers, printed by the overview and the declaration
+    # (audit 8B): the page quotes it, with one control and with several.
+    from morphocoverage.workflows._contrasts import normalised_readers
+
+    text = " ".join((ROOT / "docs" / "common" / "setup.md").read_text().split())
+    assert f"With one control, {normalised_readers()}." in text
+    assert f"With several controls, {normalised_readers(several=True)}." in text

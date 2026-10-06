@@ -168,6 +168,9 @@ class Answers:
             self.control_parents = {
                 c: tuple(p) if isinstance(p, list) else p for c, p in self.control_parents.items()
             }
+        if self.control is not None:  # controls nothing could be compared with are refused
+            parents, master = self.control_parents, self.master_control
+            Setup(readout="_", control=self.control, control_parents=parents, master_control=master)
         if self.aim not in q.AIMS:
             raise ValueError(f"aim must be one of {tuple(q.AIMS)}, not {self.aim!r}")
         if not self.features:

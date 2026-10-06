@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 
 from .._wording import count, listing
-from ..embedding import robust_scale
+from ..embedding import MIN_FEATURES, robust_scale
 from ..feature_tables import (
     COMBINED,
     EXPLAINABLE,
@@ -275,9 +275,12 @@ def explainable_line(setup: Setup) -> str:
     )
 
 
-def table_lines(setup: Setup, tables: FeatureTables | None = None, centring: str = "") -> list[str]:
+def table_lines(
+    setup: Setup, tables: FeatureTables | None = None, centring: str = "", unusual: bool = True
+) -> list[str]:
     """The overview's sentences on the feature tables (what ``tables`` checked, when given),
-    none without them."""
+    none without them; ``unusual=False`` when unusual observations do not run (no control,
+    one observation per field)."""
     if not setup.feature_tables and not setup.explainable_tables:
         return []
     declared = {**(setup.explainable_tables or {}), **(setup.feature_tables or {})}
@@ -291,11 +294,11 @@ def table_lines(setup: Setup, tables: FeatureTables | None = None, centring: str
     if not setup.feature_tables:
         return lines
     if not setup.columns:  # an embedding-only report (owner, 2026-10-06)
+        read = "the copy checks, unusual observations" if unusual else "the copy checks"
         lines.append(
             f"{features_words(setup)}. With no explainable features, each table is tested "
-            "whole (the whole-table test of question 9) and read by the maps, the populations, "
-            "the copy checks, unusual observations and its own fingerprint; never feature by "
-            "feature."
+            f"whole (the whole-table test of question 9) and read by the maps, the populations, "
+            f"{read} and its own fingerprint; never feature by feature."
         )
         return [*lines, *([centring] if centring else [])]
     others = "non-explainable" if setup.explainable_tables else "other"
@@ -391,14 +394,17 @@ def separation_in_report(
     setup: Setup,
     names: Sequence[str] | None = None,
 ) -> Separation | None:
-    """The separation of the conditions and of the repeats in each space (``space_names``,
-    or those of ``names``), on the values the figures read; ``None`` with one condition or
-    no condition column."""
+    """The separation of the conditions and of the repeats in each space with a map
+    (``space_names``, or those of ``names``), on the values the figures read; ``None`` with
+    one condition, no condition column or no space of ``MIN_FEATURES`` columns."""
     if CONDITION_COLUMN not in fovs or fovs[CONDITION_COLUMN].nunique() < 2:
         return None
-    spaces = space_names(setup)
+    # Only the spaces with a map (``MIN_FEATURES`` columns), so every score has its map.
+    spaces = {n: s for n, s in space_names(setup).items() if len(s[0]) >= MIN_FEATURES}
     if names is not None:
         spaces = {name: spaces[name] for name in names if name in spaces}
+    if not spaces:
+        return None
     return separation(
         objects,
         fovs,
@@ -458,7 +464,9 @@ def _centring(
     # A control of few observations in a repeat: that repeat is left out of the view.
     shift[held < CENTRED_MIN_CONTROL] = np.nan
     centred = frame[columns].to_numpy(dtype=float) - shift
-    few = {(c, r, int(n)) for (c, r), n in zip(pairs, held, strict=True) if 0 < n}
+    # A repeat whose control holds no observation is left out too, and named (audit 8B); a
+    # condition with no control at all has none to name.
+    few = {(c, r, int(n)) for (c, r), n in zip(pairs, held, strict=True) if pd.notna(c)}
     small = sorted(
         (item for item in few if item[2] < CENTRED_MIN_CONTROL),
         key=lambda item: (str(item[1]), str(item[0])),
@@ -508,9 +516,12 @@ def centred_left_out(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) ->
     )
 
 
-def centring_line(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> str:
+def centring_line(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, unusual: bool = True
+) -> str:
     """Which centring the tables had, in one line (owner, 2026-10-06), and what reads it;
-    empty without one."""
+    empty without one. Unusual observations read the tables only without explainable
+    features, and when they run (``unusual``)."""
     found = _centring(objects, fovs, setup)
     if found is None:
         return ""
@@ -527,11 +538,11 @@ def centring_line(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> st
             f"not all hold the same conditions, a control of fewer than {CENTRED_MIN_CONTROL} "
             f"{units} leaving its repeat out"
         )
-    reads = (
-        "the centred map, the populations, unusual observations and the separation read them"
-        if setup.normalize is not None
-        else "the centred map reads them"
-    )
+    unusual = unusual and not setup.columns
+    readers = ["the centred map", "the populations", "unusual observations", "the separation"]
+    readers = [r for r in readers if unusual or r != "unusual observations"]
+    reads = f"{listing(readers)} read them" if setup.normalize is not None else ""
+    reads = reads or "the centred map reads them"
     return f"Batch: the other tables centred {how}; {reads}, never a test."
 
 

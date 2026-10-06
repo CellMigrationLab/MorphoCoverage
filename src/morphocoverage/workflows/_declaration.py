@@ -27,14 +27,15 @@ from ..retrospective.replay import strategy_label
 from ..schema import resolve_observation_unit
 from ..statistics import fovs_to_detect
 from ..strategies import ScalarPrecisionStrategy
-from ._contrasts import controls_sentence
+from ._contrasts import controls_sentence, normalised_readers
 
 if TYPE_CHECKING:
     from .setup import Setup
 
 
-def declaration(setup: Setup) -> tuple[str, ...]:
-    """What ``setup`` asks the acquisition to preserve, in sentences (see the module)."""
+def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
+    """What ``setup`` asks the acquisition to preserve, in sentences (see the module);
+    ``per_field=False`` (one observation per field) leaves out what then does not run."""
     tolerances = " and ".join(rate(t) for t in setup.tolerances)
     units = setup.unit_words
     lines = [
@@ -66,34 +67,31 @@ def declaration(setup: Setup) -> tuple[str, ...]:
             "Rare phenotype: not declared (no RareTarget in rare), so no answer below "
             "says whether a rare state was sampled enough."
         )
-    lines.append(_representation_line(setup))
+    lines.append(_representation_line(setup, per_field))
     controls = controls_sentence(setup)
     if controls:  # several controls (owner, 2026-10-05)
         lines.append(f"{controls}.")
-    if setup.novelty is not None:
+    if novelty_runs(setup, per_field):  # the positive control is judged by it
         lines.append(_novelty(setup))
-    if setup.positive is not None:
-        lines.append(_positive(setup))
+        lines += [_positive(setup)] if setup.positive is not None else []
     if setup.stopping_rules():  # an embedding-only Setup has none (NO_READOUT says why)
         lines.append(_rules(setup))
     lines.append(_order(setup))
     if setup.normalize is not None and setup.readout is None:
-        lines.append(TABLES_CENTRED)
+        lines.append(_tables_centred(per_field))
     elif setup.normalize is not None and controls:
         lines.append(
             f"Values: every declared feature divided by the mean of each condition's own "
-            f"control {units} of the same repeat (a control by its parent's), for the plots and "
-            "the populations; the raw values are where levels across experiments are read, "
-            "and the tests read them, each normalising to its own control."
+            f"control {units} of the same repeat (a control by its parent's); "
+            f"{normalised_readers(several=True)}."
         )
     elif setup.normalize is not None:
         lines.append(
             "Values: every declared feature divided by the mean of the control "
             f"{control_text(setup.reference_control)} {units} of the same repeat (of the whole "
-            "table without a repeat column) for the outcomes judged on held-back fields, the "
-            "condition contrast, the feature ranking and the plots; every stopping rule "
-            "runs on the raw values, in the report, optimise and benchmark as in the live "
-            "decision, and so do the other analyses."
+            f"table without a repeat column); {normalised_readers()}; every stopping rule "
+            "runs on the raw values in the report, optimise and benchmark as in the live "
+            "decision."
         )
     objective = setup.objective()
     targets = " and ".join(
@@ -114,6 +112,15 @@ TABLES_CENTRED = (
     "populations, unusual observations and the separation; never divided, and never for a "
     "test, which reads the raw values."
 )
+
+
+def _tables_centred(per_field: bool) -> str:
+    """``TABLES_CENTRED``, without unusual observations when one per field leaves them out."""
+    if per_field:
+        return TABLES_CENTRED
+    return TABLES_CENTRED.replace("populations, unusual observations and", "populations and")
+
+
 # An embedding-only Setup's population summary, the one place it is said (owner, 2026-10-06).
 NO_READOUT = (
     "Population summary: none, as there is no readout (no explainable features, an "
@@ -122,18 +129,43 @@ NO_READOUT = (
 )
 
 
-def _representation_line(setup: Setup) -> str:
+def novelty_runs(setup: Setup, per_field: bool = True) -> bool:
+    """Whether new phenotypes are judged: a definition of new, and not one observation per
+    field when a new state needs several similar ones in one field (``_shared``'s
+    ``one_per_field_reasons``)."""
+    needed = int(getattr(setup.novelty, "min_novel_observations", 1))
+    return setup.novelty is not None and (per_field or needed <= 1)
+
+
+def _unusual_missing(setup: Setup, per_field: bool) -> str:
+    """Why unusual observations are not assessed (empty when they are): they need the
+    control and several observations per field."""
+    if setup.reference_control is None:
+        return "not assessed without a control"
+    return "" if per_field else f"not assessed, as each field holds one {setup.unit_word}"
+
+
+def _representation_line(setup: Setup, per_field: bool = True) -> str:
     """``Representation: readout area; ...``, or what an embedding-only Setup reads."""
     if setup.readout is None:
-        return (
-            "Representation: the other feature tables only; unusual "
-            f"{setup.unit_words} on their weighted combined space, no definition of new."
+        tables = setup.feature_tables or {}
+        space = (
+            "their weighted combined space"
+            if len(tables) > 1
+            else f"the {count(sum(len(c) for c in tables.values()), 'column')} of "
+            f"{next(iter(tables), 'the table')}"
         )
-    return f"Representation: readout {setup.readout}; {_representation(setup)}."
+        missing = _unusual_missing(setup, per_field)
+        unusual = f"{setup.unit_words} {missing}" if missing else f"{setup.unit_words} on {space}"
+        then = "; no" if missing else ", no"
+        tables_only = "Representation: the other feature tables only"
+        return f"{tables_only}; unusual {unusual}{then} definition of new."
+    return f"Representation: readout {setup.readout}; {_representation(setup, per_field)}."
 
 
-def _representation(setup: Setup) -> str:
-    """What the declared features are used for; unusual observations need the control."""
+def _representation(setup: Setup, per_field: bool = True) -> str:
+    """What the declared features are used for; unusual observations need the control and,
+    with new phenotypes, several observations per field."""
     units = setup.unit_words
     if not setup.features:
         # Unusual observations and novelty read the declared features only (see report).
@@ -144,6 +176,18 @@ def _representation(setup: Setup) -> str:
     # 2026-10-06): the declared features alone.
     columns = count(len(setup.features), "declared feature column")
     against = "each condition's own control" if setup.contrast_table is not None else "the control"
+    if not per_field:  # one observation per field (``_shared.one_per_field_reasons``)
+        one = f"each field holds one {setup.unit_word}"
+        unusual = f"unusual {units} are not assessed" + (
+            " without a control" if setup.reference_control is None else f", as {one}"
+        )
+        if setup.novelty is None:
+            new = "new phenotypes are not assessed (no definition of new: novelty)"
+            return f"{columns}; {unusual}; {new}"
+        new = f"new phenotypes (new: {_new_words(setup)})"
+        if novelty_runs(setup, per_field):
+            return f"{columns} for {new}; {unusual}"
+        return f"{columns}; {unusual}; {new} are not assessed, as {one}"
     if setup.novelty is None:
         new = "new phenotypes are not assessed (no definition of new: novelty)"
         # A contrast table alone gives own controls: unusual observations read them.
@@ -413,9 +457,10 @@ def _order_short(setup: Setup) -> tuple[str | None, list[str]]:
     ]
 
 
-def declaration_short(setup: Setup, indent: int = 2) -> str:
+def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> str:
     """The declaration in a line per target and setting, each caveat once (a missing
-    declaration as a ⚠️ line, a standing assumption under "Assumptions:").
+    declaration as a ⚠️ line, a standing assumption under "Assumptions:"); ``per_field`` as
+    for ``declaration``.
 
     The report's short form of "What this acquisition was asked to preserve";
     ``declaration(setup)`` keeps every sentence.
@@ -447,12 +492,12 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
     rare, rare_cautions = _rare_short(setup)
     lines += [rare] if rare else []
     cautions += rare_cautions
-    lines.append(_representation_line(setup))
+    lines.append(_representation_line(setup, per_field))
     controls = controls_sentence(setup)
     lines += [f"{controls}."] if controls else []
-    if setup.novelty is not None:
+    if novelty_runs(setup, per_field):
         lines.append(_novelty_short(setup))
-    if setup.positive is not None:
+    if setup.positive is not None and novelty_runs(setup, per_field):
         positive = setup.positive
         pooled = positive.pair_cols is not None and not positive.pair_cols
         lines.append(
@@ -488,18 +533,16 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
     lines += [order] if order else []
     cautions += order_cautions
     if setup.normalize is not None and setup.readout is None:
-        lines.append(TABLES_CENTRED)
+        lines.append(_tables_centred(per_field))
     elif setup.normalize is not None and controls:
         lines.append(
-            "Values: each condition divided by its own control's mean in the same repeat for "
-            "the plots and the populations; levels across experiments are read on the raw "
-            "values, which the tests and the stopping rules read."
+            "Values: each condition divided by its own control's mean in the same repeat; "
+            f"{normalised_readers(several=True)}."
         )
     elif setup.normalize is not None:
         lines.append(
-            "Values: features divided by the control mean of the same repeat for the held-back "
-            "outcomes, the contrast, the ranking and the plots; the stopping rules read the "
-            "raw values."
+            f"Values: features divided by the control mean of the same repeat; "
+            f"{normalised_readers()}."
         )
     objective = setup.objective()
     targets = listing(
@@ -513,4 +556,4 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
     return "\n".join([*text, *caveat_lines(cautions, indent=indent)])
 
 
-__all__ = ["declaration", "declaration_short"]
+__all__ = ["declaration", "declaration_short", "novelty_runs"]

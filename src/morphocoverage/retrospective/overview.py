@@ -317,7 +317,7 @@ class DatasetOverview:
             lines.append("; ".join(parts) + ".")
             arrangement = self.arrangement()
             if arrangement:
-                lines.append(f"{arrangement[:1].upper()}{arrangement[1:]}.")
+                lines.append(f"{arrangement}.")  # it may start with a label: never capitalised
             table = self.layout.copy()
             if len(table) <= 40:
                 header = [col for col in (condition_col, repeat_col) if col is not None]

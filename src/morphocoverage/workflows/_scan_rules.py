@@ -74,9 +74,9 @@ def unit_words(scan: DesignScan) -> tuple[str, str]:
 
 
 def compared(scan: DesignScan) -> list[Any]:
-    """The conditions compared with the control (all of them when there is no control)."""
-    control = scan.design.get("control_guess")
-    return [c for c in scan.design["conditions"] if c != control]
+    """The conditions compared with a control (all of them when there is no control)."""
+    controls = scan.design.get("controls") or [scan.design.get("control_guess")]
+    return [c for c in scan.design["conditions"] if c not in controls]
 
 
 def _check_findings(scan: DesignScan) -> list[Finding]:
@@ -201,6 +201,7 @@ def _target_suggestion(scan: DesignScan) -> str | None:
     text = (
         f"Several conditions are compared ({len(others)}"
         + (" besides the control" if scan.design.get("control_guess") is not None else "")
+        + ("s" if len(scan.design.get("controls") or []) > 1 else "")
         + "): add a 'target' column naming what each acts on, if some should have the same "
         "effect; the report then says whether they agree."
     )
@@ -344,9 +345,12 @@ def repeat_lines(scan: DesignScan) -> list[str]:
         return [f"{head}; every condition in every repeat."]
     lines = [f"{head}, holding different conditions (separate acquisitions):"]
     control = design.get("control_guess")
+    controls = design.get("controls") or [control]
     for entry in sets:
-        held = [c for c in entry["conditions"] if c != control]
-        shared = " with the control" if control in entry["conditions"] else ""
+        held = [c for c in entry["conditions"] if c not in controls]
+        mine = [c for c in controls if c in entry["conditions"]]
+        shared = f" with {listing(mine)}" if len(controls) > 1 and mine else ""
+        shared = shared or (" with the control" if control in entry["conditions"] else "")
         what = f"{listing(held, 6)}{shared}" if held else "the control only"
         lines.append(f"  {listing(entry['repeats'], 4)}: {what}")
     held_in = scan.layout.notna().sum(axis=1)

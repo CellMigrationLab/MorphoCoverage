@@ -151,8 +151,8 @@ def report(
     with several declared features ``feature_ranking``, the gated ranking
     that chooses what ``plots`` draws by default (R7). The contrast and the
     ranking read the raw values and give their tests raw and normalised to the control of
-    the same repeat (owner, 2026-10-05); every other analysis, the stopping rules included,
-    reads the raw values. The analyses
+    the same repeat (owner, 2026-10-05); what else reads the normalised values is listed
+    once, in ``_contrasts.normalised_readers``. The analyses
     against the control need the control's columns (and, for the contrast, the
     condition and the repeat) kept apart by the analysis groups; with
     ``group_cols`` that pool them they are "not assessed", with the reason.
@@ -210,7 +210,8 @@ def report(
         results["label_control"] = label_control(objects, fovs, setup)
     # "New" is judged on the declared features alone, whatever the tables (owner, 2026-10-06).
     combined, novelty_cols = novelty_space(setup)
-    if setup.positive is not None:  # Setup guarantees features and novelty with it
+    # Setup guarantees features and novelty with it; judged only where novelty is.
+    if setup.positive is not None and novelty is not None:
         positive = setup.positive
         results["controls"] = representation_control(
             objects,
@@ -318,7 +319,8 @@ def report(
         "permuted_orders": REPORT_ORDERS,
         "random_state": setup.random_state,
     }
-    document = with_gap_caution(with_reasons(assemble(results, setup), reasons), gaps)
+    document = assemble(results, setup, per_field)
+    document = with_gap_caution(with_reasons(document, reasons), gaps)
     unlabelled = unlabelled_note(objects, setup)
     if unlabelled:
         # Said once, where the label is used: the notes every answer is read with.

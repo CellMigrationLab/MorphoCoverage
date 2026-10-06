@@ -370,6 +370,12 @@ def one_per_field_reasons(setup: Setup) -> dict[str, str]:
             f"whether unseen {unit} states remain is not asked: a new state needs {needed} "
             f"similar {words} in one field, and each field holds one"
         )
+        if setup.positive is not None:  # judged by the definition of new
+            reasons["controls"] = (
+                f"not applicable: the positive control is judged by the definition of new, "
+                f"and a new state needs {needed} similar {words} in one field, while each "
+                "field holds one"
+            )
     return reasons
 
 
