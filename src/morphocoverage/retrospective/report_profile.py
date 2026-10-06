@@ -18,13 +18,14 @@ Shared-private: ``_control_rate``, ``_detection_adjusted_bounds`` and ``_false_a
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
 
-from .._wording import count, number, percent
+from .._wording import count, percent
 from ..bounds import lower_bound, upper_bound
 from ..sampling_unit._state_text import CLUSTER_ALPHA
 from ..sampling_unit._state_text import clustered as clustered_rows
@@ -506,7 +507,9 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     ]
 
 
-def _chance_clause(controls: ControlResult | None, inspection: InspectionResult) -> str:
+def _chance_clause(
+    controls: ControlResult | None, inspection: InspectionResult, found: int = 0
+) -> str:
     """How many new-state fields the declared reference's false alarms expect, or why not.
 
     The rate is judged the same way (each field against the other fields of
@@ -533,17 +536,21 @@ def _chance_clause(controls: ControlResult | None, inspection: InspectionResult)
     pooled = f", {over}," if over else ","
     if "judged_new" not in row.index or "candidates" not in row.index:
         return (
-            f" (about {number(rate * judged)} of the {judged} fields judged expected by chance "
-            f"at the {percent(rate)} false-alarm rate of the declared reference{pooled} each "
-            "field judged against the other fields of its group)"
+            f"; false alarms alone would give about {round(rate * judged)} of the {judged} "
+            f"fields judged, at the {percent(rate)} false-alarm rate of the declared "
+            f"reference{pooled} each field judged against the other fields of its group"
         )
     new, total = int(row["judged_new"]), int(row["candidates"])
     high = upper_bound(new, total, _CONFIDENCE)
+    # "false alarms alone would give about 8, up to 25": never "8 to 24.5 ... expected by
+    # chance" (audit 10, A20); whether the fields found exceed that, said.
+    verdict = "so these are compatible with chance" if found <= high * judged else "more were found"
     return (
-        f" ({number(rate * judged)} to {number(high * judged)} of the {judged} fields judged "
-        f"expected by chance: the declared reference's false-alarm rate{pooled} each "
-        f"field judged against the other fields of its group, was {new} of {total} fields "
-        f"({percent(rate)}; at most {percent(high)} at {percent(_CONFIDENCE)} confidence))"
+        f"; false alarms alone would give about {round(rate * judged)}, up to "
+        f"{math.ceil(high * judged)}, of the {judged} fields judged, {verdict}: the declared "
+        f"reference's false-alarm rate{pooled} each field judged against the other fields of "
+        f"its group, was {new} of {total} fields, {percent(rate)}, at most {percent(high)} at "
+        f"{percent(_CONFIDENCE)} confidence"
     )
 
 
@@ -558,7 +565,7 @@ def _new_state_rows(
         return []
     keys = [c for c in inspection.settings.get("fov_key", []) if c in new.columns]
     count = new[keys].drop_duplicates().shape[0]
-    statement = f"new states come from {count} fields" + _chance_clause(controls, inspection)
+    statement = f"new states come from {count} fields" + _chance_clause(controls, inspection, count)
     return [
         {
             "item": "new states",

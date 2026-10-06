@@ -234,7 +234,7 @@ data, in plain language, are in [Objects or fields?](objects_or_fields.md).
 
 ### Can these features detect what I care about?
 
-`representation_control` judges declared positive-control FOVs (and positive cells planted into reference FOVs) against random reference FOVs holding observations, paired within `pair_cols`: detection and false-alarm rates, "positive only" without a reference, "not assessed" without a control. It also measures both rates leaving one field out within the analysis groups of the inspection (`lofo_group_cols`), which the report's "expected by chance" clause and its detection-adjusted bound read, pooled over the strata of `pair_cols` and said so ("pooled over all plates", owner, 2026-10-05).
+`representation_control` judges declared positive-control FOVs (and positive cells planted into reference FOVs) against random reference FOVs holding observations, paired within `pair_cols`: detection and false-alarm rates, "positive only" without a reference, "not assessed" without a control. It also measures both rates leaving one field out within the analysis groups of the inspection (`lofo_group_cols`), which the report's chance clause ("false alarms alone would give about 8, up to 25, of the 336 fields judged, so these are compatible with chance"; audit 10, owner, 2026-10-06) and its detection-adjusted bound read, pooled over the strata of `pair_cols` and said so ("pooled over all plates", owner, 2026-10-05).
 
 With a label and no positive control, question 1 is answered by the label: for each labelled cell, whether
 the nearest cell of another field (on the declared features, robustly

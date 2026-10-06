@@ -359,7 +359,7 @@ def _short_statement(row: Any) -> str:
     """A profile statement without the clause that repeats its method (full keeps it)."""
     text = str(row.statement)
     if row.source == "inspect_fovs" and ": the declared reference's" in text:
-        text = text.split(": the declared reference's")[0] + ")"
+        text = text.split(": the declared reference's")[0]
     return text
 
 

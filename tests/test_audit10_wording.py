@@ -13,6 +13,7 @@ import pandas as pd
 
 from morphocoverage.order_check import OrderCheck
 from morphocoverage.sampling_unit._units import NOT_INDEPENDENT
+from morphocoverage.sampling_unit.acquisition import AcquisitionAnomalies
 from morphocoverage.sampling_unit.contrast import UNREACHABLE
 from morphocoverage.sampling_unit.contrast_text import _no_within_test
 from morphocoverage.workflows._enough_features import _needed
@@ -52,4 +53,16 @@ def test_one_comparison_needs_more_wells_a19():
     assert _needed(row, "fields") == "2 too small to show; 1 needs more wells or biological repeats"
     assert _needed({**row, "between_wells": 2}, "fields").endswith(
         "2 need more wells or biological repeats"
+    )
+
+
+def test_the_fields_not_judged_for_quality_control_are_counted_beside_those_judged_a18():
+    groups = pd.DataFrame(
+        {"condition": ["a", "b", "c"], "fields": [9, 5, 6], "judged": [9, 0, 0], "anomalies": 0}
+    )
+    anomalies = AcquisitionAnomalies(pd.DataFrame(), groups, ("condition",), {})
+    line = anomalies.line()
+    assert line.endswith(
+        "9 fields judged in 1 group; 11 fields in 2 groups of fewer than 8 fields counted, "
+        "not judged"
     )

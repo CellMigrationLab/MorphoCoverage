@@ -91,6 +91,13 @@ class AcquisitionAnomalies:
             if judged
             else f"no field judged, as no condition and repeat holds {MIN_OTHER_FIELDS + 1} fields"
         )
+        small = self.groups[self.groups["judged"] == 0] if judged else self.groups.iloc[:0]
+        if len(small):  # the fields not judged, counted beside those judged (audit 10, A18)
+            scope += (
+                f"; {count(int(small['fields'].sum()), 'field')} in "
+                f"{count(len(small), 'group')} of fewer than {MIN_OTHER_FIELDS + 1} fields "
+                "counted, not judged"
+            )
         far = f"{number(ANOMALY_Z)} SDs or more from the other fields of"
         if not self.found:
             return f"none: no field {far} its condition and repeat on the raw values, {scope}"
