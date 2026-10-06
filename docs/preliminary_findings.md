@@ -817,7 +817,11 @@ per well).
   the complete plates); the SD of that average is the real averaging error.
   The JCB formula with the field as the unit (SD of field means, point and
   upper-95 as the paper's calculator gives) says how many fields the rule
-  would ask for.
+  would ask for. **Made with the earlier minimum of 2 fields a well:** since
+  audit 10, `object_rule_check` judges a group only from 5 fields with
+  objects, so with its defaults every idr0139 well (4 fields) is "fewer than 5
+  fields with cells", not assessable; the idr0139 columns below come from the
+  earlier minimum, reproduced with `min_fields=2` (owner, 2026-10-06).
 - **JCS Fig. 2A** (`descriptor_spread_check`). For `n` from 10 to 500
   objects, 100 samples of `n` objects; max − min of the mean, median, SD and
   IQR. Field samples take distinct fields in random order until `n` objects,

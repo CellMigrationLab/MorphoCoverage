@@ -141,7 +141,9 @@ and changed only that one thing.
   replacement, as from a well with many pictures like these, so the pictures it takes can
   outnumber those acquired, and the report says so; a group of fewer than 5 pictures with
   objects is not assessable, its draws mostly repeating its own few pictures (audit 10,
-  owner, 2026-10-06).
+  owner, 2026-10-06). The minimum of 5 stays; the idr0139 finding of
+  `docs/preliminary_findings.md` entry 9, on wells of 4 fields, was made with the earlier
+  minimum of 2 and is labelled so (owner, 2026-10-06).
 - **Some measures shift between runs.** The JCS stability measure varies from
   run to run, so only its direction is reliable: pictures are less stable
   than random objects.
