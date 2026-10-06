@@ -139,9 +139,7 @@ def _draws(
     return np.array(sampled, dtype=float)
 
 
-def noncentral_d_interval(
-    d: float, n1: int, n2: int, level: float = LEVEL
-) -> tuple[float, float]:
+def noncentral_d_interval(d: float, n1: int, n2: int, level: float = LEVEL) -> tuple[float, float]:
     """The exact ``level`` interval of Cohen's d of two independent normal samples of ``n1``
     and ``n2`` values (Hedges and Olkin 1985; Steiger and Fouladi 1997): ``t = d sqrt(n1 n2 /
     (n1 + n2))`` follows the noncentral t with ``n1 + n2 - 2`` degrees of freedom, and the
