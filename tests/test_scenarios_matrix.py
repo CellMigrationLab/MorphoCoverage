@@ -30,6 +30,7 @@ matplotlib.use("Agg")
 import pandas as pd
 import pytest
 
+from morphocoverage.retrospective.report_status_conditions import NOTHING_COMPARED
 from morphocoverage.sampling_unit.contrast_repeats import TREND_REPEATS
 from morphocoverage.sampling_unit.contrast_text import ONE_UNIT
 from morphocoverage.sampling_unit.reading_text import CONFIRMED, CONSISTENT, NO_CONTROL
@@ -238,6 +239,9 @@ def test_the_page_says_nothing_was_compared_when_no_repeat_holds_a_condition_and
     _page(result, loaded, {"table_column": False}, tmp_path)
     page = (tmp_path / "report.html").read_text()
     assert "Not compared: a (no " in page
+    # Nothing was compared: ➖ with the reason, never "No consistent difference" (F12).
+    assert result.document.headlines["conditions"] == NOTHING_COMPARED
+    assert "Nothing compared" in page and "No consistent difference" not in page
 
 
 def test_the_committed_scenarios_are_what_the_generator_writes(tmp_path: Path) -> None:
