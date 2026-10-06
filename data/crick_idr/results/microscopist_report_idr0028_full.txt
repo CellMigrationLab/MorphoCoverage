@@ -1645,8 +1645,8 @@
       test about 5%. Balancing removes the weight of the repeats holding more, not the independence
       assumption.
     - No well-level test within a repeat in all 6 contrasts: only one technical repeat (well) with
-      observations on one side: the fields of one well are not independent replicates, so there is
-      no test.
+      observations on one side, no within-repeat technical replication: the fields of one well are
+      not independent replicates, so there is no test.
     - The test and the effect sizes compare means: a difference confined to a subpopulation of
       nuclei or to the shape of the distribution is not tested (see the unusual nuclei and the rare
       label).
