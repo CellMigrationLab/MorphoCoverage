@@ -21,7 +21,7 @@ import pandas as pd
 
 from .._style import Status, table, wrap
 from .._wording import count, listing, p_value
-from ..sampling_unit.contrast_repeats import MIN_REPEATS
+from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.distribution import (
     DRAWS,
     DistributionContrast,
@@ -70,11 +70,12 @@ def distribution_by_feature(
 
 
 def _consistent(rows: pd.DataFrame, tested: bool = True) -> pd.DataFrame:
-    """Statistics on one side of the control in every repeat, tested and not significant
-    (or, with ``tested=False``, not tested: fewer than ``MIN_REPEATS`` usable repeats)."""
+    """Statistics on one side of the control in every repeat, tested and not significant,
+    from ``TREND_REPEATS`` repeats, as the per-feature trend (owner, 2026-10-06, audit 8);
+    or, with ``tested=False``, not tested: fewer than ``MIN_REPEATS`` usable repeats."""
     alpha = 0.05
     same = (rows["lower"] == rows["repeats"]) | (rows["higher"] == rows["repeats"])
-    kept = rows["q"].notna() if tested else rows["q"].isna()
+    kept = rows["q"].notna() & (rows["repeats"] >= TREND_REPEATS) if tested else rows["q"].isna()
     return rows[same & (rows["repeats"] > 1) & kept & ~(rows["q"] <= alpha)]
 
 

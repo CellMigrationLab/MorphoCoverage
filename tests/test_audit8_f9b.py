@@ -401,3 +401,19 @@ def test_item10_one_image_per_field_leaves_the_rare_clustering_out_of_question_3
             short = " ".join(report(objects, fovs, setup, feature_tables=tables).summary().split())
             assert "3. What limits my sampling? — not applicable: with one image per field" in short
             assert "spread like random images" not in short
+
+
+def test_beyond_the_mean_trend_only_from_six_repeats():
+    # The trend line from TREND_REPEATS repeats, as per feature (owner, 2026-10-06, audit 8).
+    from morphocoverage.workflows._distribution import _consistent
+
+    rows = pd.DataFrame(
+        {
+            "feature": ["a", "b"],
+            "repeats": [3, 6],
+            "lower": [3, 6],
+            "higher": [0, 0],
+            "q": [0.4, 0.4],
+        }
+    )
+    assert list(_consistent(rows)["feature"]) == ["b"]
