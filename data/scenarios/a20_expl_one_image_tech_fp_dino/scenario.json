@@ -1,0 +1,94 @@
+{
+ "name": "a20_expl_one_image_tech_fp_dino",
+ "kind": "axes",
+ "checks": "features; each condition against the control; the questions about fields not applicable; a fingerprint on DINO1",
+ "axes": {
+  "tables": "expl",
+  "controls": "one",
+  "normalize": false,
+  "unit": "image",
+  "wells": "tech",
+  "target": "fp_dino"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "image",
+  "control": {
+   "condition": "ctrl"
+  },
+  "fingerprint": [
+   {
+    "metric": "covariance",
+    "columns": [
+     "d0",
+     "d1",
+     "d2",
+     "d3",
+     "d4",
+     "d5",
+     "d6",
+     "d7"
+    ],
+    "tolerance": 0.2
+   }
+  ],
+  "feature_tables": {
+   "DINO1": [
+    "d0",
+    "d1",
+    "d2",
+    "d3",
+    "d4",
+    "d5",
+    "d6",
+    "d7"
+   ]
+  }
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery",
+   "distribution",
+   "enough_features",
+   "fingerprint_precision",
+   "inspection",
+   "overview",
+   "populations",
+   "ranking",
+   "separation",
+   "sufficiency",
+   "whole_table"
+  ],
+  "absent": [
+   "clustering",
+   "label_control",
+   "object_rules",
+   "rare_clustering",
+   "unusual",
+   "variability"
+  ],
+  "not_applicable": {
+   "profile": "one image per field",
+   "unit": "each field holds one"
+  },
+  "table_column": false,
+  "headlines": {
+   "enough": "fingerprint"
+  },
+  "html": false
+ }
+}

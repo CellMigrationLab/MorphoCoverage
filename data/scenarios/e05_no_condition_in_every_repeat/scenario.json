@@ -1,0 +1,36 @@
+{
+ "name": "e05_no_condition_in_every_repeat",
+ "kind": "edge",
+ "checks": "no condition in every repeat: compared where both are; tables centred on the control",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "whole_table"
+  ],
+  "untested_across": true,
+  "overview": [
+   "Batch:"
+  ]
+ }
+}

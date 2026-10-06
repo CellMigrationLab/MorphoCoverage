@@ -1,0 +1,29 @@
+{
+ "name": "e08_counts_with_many_zeros",
+ "kind": "edge",
+ "checks": "a count feature, mostly zeros, beside the readout: compared like any feature; two columns, so no separation score",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "count"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery"
+  ],
+  "absent": [
+   "separation"
+  ]
+ }
+}

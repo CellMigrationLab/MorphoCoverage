@@ -1,0 +1,26 @@
+{
+ "name": "e09_signed_feature_normalised",
+ "kind": "edge",
+ "checks": "a signed feature divided by its control mean: refused, the mean is negative",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "velocity"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  },
+  "normalize": "control_mean"
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "refused",
+  "at": "report",
+  "error": "ValueError",
+  "match": "negative"
+ }
+}

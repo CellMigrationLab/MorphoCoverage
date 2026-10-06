@@ -1,0 +1,99 @@
+{
+ "name": "a03_mix_one_norm_image_none_fp_dino",
+ "kind": "axes",
+ "checks": "features; each condition against the control; normalised and centred views; the questions about fields not applicable; a fingerprint on DINO1",
+ "axes": {
+  "tables": "mix",
+  "controls": "one",
+  "normalize": true,
+  "unit": "image",
+  "wells": "none",
+  "target": "fp_dino"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "fib_len"
+  ],
+  "observation_unit": "image",
+  "control": {
+   "condition": "ctrl"
+  },
+  "normalize": "control_mean",
+  "fingerprint": [
+   {
+    "metric": "covariance",
+    "columns": [
+     "d0",
+     "d1",
+     "d2",
+     "d3",
+     "d4",
+     "d5",
+     "d6",
+     "d7"
+    ],
+    "tolerance": 0.2
+   }
+  ],
+  "feature_tables": {
+   "DINO1": [
+    "d0",
+    "d1",
+    "d2",
+    "d3",
+    "d4",
+    "d5",
+    "d6",
+    "d7"
+   ]
+  }
+ },
+ "feature_tables": {
+  "fiber": {
+   "file": "fiber.csv",
+   "tag": "explainable"
+  },
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": "non-explainable"
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery",
+   "distribution",
+   "enough_features",
+   "fingerprint_precision",
+   "inspection",
+   "overview",
+   "populations",
+   "ranking",
+   "separation",
+   "sufficiency",
+   "whole_table"
+  ],
+  "absent": [
+   "clustering",
+   "label_control",
+   "object_rules",
+   "rare_clustering",
+   "unusual",
+   "variability"
+  ],
+  "not_applicable": {
+   "profile": "one image per field",
+   "unit": "each field holds one"
+  },
+  "table_column": true,
+  "headlines": {
+   "enough": "fingerprint"
+  },
+  "html": false
+ }
+}

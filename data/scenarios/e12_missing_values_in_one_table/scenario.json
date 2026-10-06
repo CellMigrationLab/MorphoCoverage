@@ -1,0 +1,36 @@
+{
+ "name": "e12_missing_values_in_one_table",
+ "kind": "edge",
+ "checks": "missing values in one table only: counted and kept, each analysis says how many it leaves out",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "whole_table"
+  ],
+  "overview": [
+   "missing value"
+  ],
+  "left_out": true
+ }
+}

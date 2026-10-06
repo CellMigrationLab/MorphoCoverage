@@ -1,0 +1,93 @@
+{
+ "name": "a11_mix_several_image_none_positive",
+ "kind": "axes",
+ "checks": "features; own controls and the rows across experiments; the questions about fields not applicable; a positive control",
+ "axes": {
+  "tables": "mix",
+  "controls": "several",
+  "normalize": false,
+  "unit": "image",
+  "wells": "none",
+  "target": "positive"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "fib_len"
+  ],
+  "observation_unit": "image",
+  "control": {
+   "condition": {
+    "cA": {
+     "k1": "a1"
+    },
+    "cB": {
+     "k1": "b1"
+    }
+   }
+  },
+  "control_parents": {
+   "cB": "cA"
+  },
+  "master_control": "cA",
+  "positive": {
+   "selector": {
+    "condition": "a1"
+   },
+   "fovs_seen": 2,
+   "draws": 5
+  },
+  "novelty": "default"
+ },
+ "feature_tables": {
+  "fiber": {
+   "file": "fiber.csv",
+   "tag": "explainable"
+  },
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": "non-explainable"
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery",
+   "enough_features",
+   "inspection",
+   "overview",
+   "populations",
+   "ranking",
+   "separation",
+   "sufficiency",
+   "whole_table"
+  ],
+  "absent": [
+   "clustering",
+   "controls",
+   "distribution",
+   "fingerprint_precision",
+   "label_control",
+   "object_rules",
+   "rare_clustering",
+   "unusual",
+   "variability"
+  ],
+  "not_applicable": {
+   "controls": "judged by the definition of new",
+   "enough": "is not asked",
+   "profile": "one image per field",
+   "unit": "each field holds one"
+  },
+  "table_column": true,
+  "contrast_kinds": [
+   "across_normalised",
+   "own_control"
+  ],
+  "html": false
+ }
+}

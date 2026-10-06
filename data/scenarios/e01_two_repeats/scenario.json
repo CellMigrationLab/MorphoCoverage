@@ -1,0 +1,35 @@
+{
+ "name": "e01_two_repeats",
+ "kind": "edge",
+ "checks": "two repeats: the paired tests and the whole-table test need 3, said, nothing tested",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery",
+   "whole_table"
+  ],
+  "untested_across": true,
+  "untested_whole": "2 repeats"
+ }
+}

@@ -1,0 +1,31 @@
+{
+ "name": "m03_unknown_tag",
+ "kind": "mistake",
+ "checks": "a misspelt tag: refused, naming the two tags",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {
+  "fiber": {
+   "file": "fiber.csv",
+   "tag": "explanable"
+  }
+ },
+ "truth": {
+  "outcome": "refused",
+  "at": "report",
+  "error": "ValueError",
+  "match": "explainable"
+ }
+}
