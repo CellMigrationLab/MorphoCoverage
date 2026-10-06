@@ -66,16 +66,17 @@ def test_the_field_questions_run_on_the_rows_as_fields(cdm):
 
 def test_new_is_judged_across_fields(cdm):
     _, setup, result = cdm
-    # A new state needs 3 similar cells: on fields of one cell, 3 other fields.
+    # A new state needs 3 similar cells in one field: on fields of one cell, a cell no other
+    # field holds within the radius, a state seen once (owner, 2026-10-06).
     field = field_novelty(setup.novelty)
-    assert (field.min_novel_observations, field.min_other_fovs) == (1, 3)
+    assert (field.min_novel_observations, field.min_other_fovs) == (1, 1)
     assert "enough" not in one_per_field_reasons(setup)
     assert "controls" not in one_per_field_reasons(setup)
     enough = " ".join(result.summary().split("2. Did I image enough?")[2].split())
     assert "nothing new (≤5%)" in enough
-    assert "'New': a cell that fewer than 3 other fields show" in enough
+    assert "'New': a cell that no other field shows" in enough
     declaration = " ".join(result.summary().split("What this acquisition was asked")[1].split())
-    assert "new phenotypes (new: a cell that fewer than 3 other fields show)" in declaration
+    assert "new phenotypes, exploratory (new: a cell that no other field shows)" in declaration
     assert "unusual images (against the control" in declaration
 
 

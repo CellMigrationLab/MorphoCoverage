@@ -10,10 +10,10 @@ coincide, and the questions about fields are asked of the rows as fields:
   unusual observations;
 - novelty across fields and the positive control judged by it: the definition of new needs
   ``m`` similar observations in one field, which a field of one cannot hold, so its field
-  version (``field_novelty``) counts the ``m`` similar observations across fields instead: a
-  field's observation is new when fewer than ``m`` other fields hold one within the same
-  radius (each field one observation), so a new state is one seen in at most ``m`` fields;
-  scattered outliers are then new too, as each field shows one observation;
+  version (``support_novelty.per_field``, which the estimator itself applies on such data,
+  so the report, ``optimise``, ``benchmark`` and a live session agree) calls a field's
+  observation new when no other field holds one within the radius: a state seen once,
+  exploratory (module P10 of the validation protocol);
 - "Did I image enough?" per field, with that definition.
 
 Only the ideas within a field stay not applicable (``one_per_field_reasons``): unusual cells
@@ -34,7 +34,11 @@ import pandas as pd
 
 from ..data_check import validate_input_tables
 from ..schema import OBJECT_LIKE_UNITS, resolve_observation_unit
-from ..strategies.support_novelty import SupportNoveltyEstimator
+from ..strategies.support_novelty import (
+    SupportNoveltyEstimator,
+    SupportNoveltyStrategy,
+    per_field,
+)
 from ._feature_space import table_columns
 
 if TYPE_CHECKING:
@@ -61,34 +65,29 @@ def field_unit(setup: Setup) -> str | None:
 
 
 def field_novelty(novelty: SupportNoveltyEstimator) -> SupportNoveltyEstimator:
-    """The definition of new on fields of one observation (see the module): the ``m`` similar
-    observations of a new state counted across fields, so support needs ``m`` other fields
-    and a field's one observation can be new; the radius, transform and confidence kept."""
-    needed = novelty.min_novel_observations
-    if needed <= 1:
-        return novelty
-    others = max(novelty.min_other_fovs, needed)
-    return replace(
-        novelty,
-        min_other_fovs=others,
-        min_fovs=max(novelty.min_fovs, others + 1),
-        min_novel_observations=1,
-    )
+    """The definition of new on fields of one observation (``support_novelty.per_field``: new
+    when no other field holds one within the radius), the estimator's own, so the report,
+    ``optimise``, ``benchmark`` and a live session give one verdict."""
+    return per_field(novelty)
 
 
 def field_setup(setup: Setup) -> Setup:
-    """``setup`` with the field version of its definition of new (``field_novelty``); a
-    declared count of states seen in few fields is raised past its ``min_other_fovs`` when
-    needed, the default follows it; unchanged without a definition of new."""
+    """``setup`` with the field version of its definition of new and of any novelty rule it
+    declares (``per_field``), so the report's words and its rules name what is judged;
+    unchanged without a definition needing several observations in one field."""
+    rules = setup.rules
+    changed = rules is not None and any(isinstance(r, SupportNoveltyStrategy) for r in rules)
     novelty = setup.novelty
-    if novelty is None or novelty.min_novel_observations <= 1:
+    if (novelty is None or novelty.min_novel_observations <= 1) and not changed:
         return setup
-    field = field_novelty(novelty)
-    few = setup.few_fovs
-    few = None if few is None else max(few, field.min_other_fovs + 1)
+    fields = {"novelty": None if novelty is None else per_field(novelty)}
+    if changed:
+        fields["rules"] = tuple(
+            per_field(r) if isinstance(r, SupportNoveltyStrategy) else r for r in rules
+        )
     with warnings.catch_warnings():  # the Setup warned once, when it was made
         warnings.simplefilter("ignore")
-        return replace(setup, novelty=field, few_fovs=few)
+        return replace(setup, **fields)
 
 
 def one_per_field_reasons(setup: Setup) -> dict[str, str]:

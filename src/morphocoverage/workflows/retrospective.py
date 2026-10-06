@@ -373,6 +373,9 @@ def optimise(
     only once it holds on samples it was not chosen on.
     """
     objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
+    # One observation per field: the field version of new, as the report and the estimator
+    # read it (plan v2); the Plan keeps the declared Setup.
+    declared, setup = setup, field_setup(setup) if one_per_field(objects, fovs, setup) else setup
     common = setup.common
     hierarchy = setup.resolved_hierarchy(objects, fovs)
     strata = setup.resolved_effort_strata(fovs)
@@ -466,7 +469,9 @@ def optimise(
             random_state=setup.random_state,
             observation_unit=setup.observation_unit,
         )
-    document = assemble({k: v for k, v in results.items() if k != "calibration"}, setup)
+    document = assemble(
+        {k: v for k, v in results.items() if k != "calibration"}, setup, setup is declared
+    )
     settings = {
         **settings,
         "reservoir_fovs": reservoir_sizes(replay),
@@ -486,7 +491,7 @@ def optimise(
     document = replace(
         with_reasons(document, reasons), title=title, notes=(*document.notes, *unread)
     )
-    return Plan(results, document, setup, reasons, settings)
+    return Plan(results, document, declared, reasons, settings)
 
 
 def _same_setup(first: Setup, other: Setup) -> bool:

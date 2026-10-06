@@ -64,6 +64,15 @@ def _own_mask(attached: pd.DataFrame, setup: Setup) -> dict[Any, tuple[np.ndarra
     }
 
 
+def ratio_scale(setup: Setup, column: str, values: np.ndarray) -> bool:
+    """Whether ``column`` is read as a log ratio to its control (else a difference): the one
+    place biological unusualness reads a feature's scale, the main test's per feature
+    (``_repeat_statistics.log_scale``: every value positive), so a repeat imaged brighter
+    is neither shifted nor wider (owner, 2026-10-06). ``setup`` is passed so that a scale
+    declared per feature in the Setup is read here too."""
+    return log_scale(values)
+
+
 def centred_on_own_control(
     objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, columns: Sequence[str]
 ) -> pd.DataFrame:
@@ -86,9 +95,9 @@ def centred_on_own_control(
                 with warnings.catch_warnings():  # a feature with no control value: NaN
                     warnings.simplefilter("ignore", RuntimeWarning)
                     centres[here & centred] = np.nanmean(reference, axis=0)
-    # The main test's scale per feature (``log_scale``): a log ratio to the control's mean
-    # when every value is positive, so a repeat imaged brighter is not wider either.
-    logged = np.array([log_scale(values[:, j]) for j in range(values.shape[1])], dtype=bool)
+    logged = np.array(
+        [ratio_scale(setup, c, values[:, j]) for j, c in enumerate(columns)], dtype=bool
+    )
     relative = values - centres
     with np.errstate(divide="ignore", invalid="ignore"):
         relative[:, logged] = np.log(values[:, logged] / centres[:, logged])
@@ -108,4 +117,10 @@ def biological_values(
     return centred_on_own_control(values, fovs, setup, columns), CENTRED_WORDS
 
 
-__all__ = ["CENTRED_WORDS", "NORMALISED_WORDS", "biological_values", "centred_on_own_control"]
+__all__ = [
+    "CENTRED_WORDS",
+    "NORMALISED_WORDS",
+    "biological_values",
+    "centred_on_own_control",
+    "ratio_scale",
+]

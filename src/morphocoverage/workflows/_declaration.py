@@ -211,7 +211,9 @@ def _representation(setup: Setup, per_field: bool = True) -> str:
         if setup.reference_control is None:
             return f"{columns}; {new}, and unusual {units} are not assessed without a control"
         return f"{columns} for {unusual}; {new}"
-    new = f"new phenotypes (new: {_new_words(setup)})"
+    # One observation per field: a state seen once, exploratory (module P10, plan v2).
+    seen = "new phenotypes" if per_field else "new phenotypes, exploratory"
+    new = f"{seen} (new: {_new_words(setup)})"
     if setup.reference_control is None:
         return f"{columns} for {new}; unusual {units} are not assessed without a control"
     return f"{columns} for {unusual} and {new}"
@@ -219,7 +221,7 @@ def _representation(setup: Setup, per_field: bool = True) -> str:
 
 def _new_words(setup: Setup) -> str:
     """What counts as new, plainly: ``at least 3 similar cells that no other field shows``, or
-    on fields of one observation ``a cell that fewer than 3 other fields show``."""
+    on fields of one observation ``a cell that no other field shows``."""
     least = getattr(setup.novelty, "min_novel_observations", None)
     similar = f"at least {least} similar {setup.unit_words}" if least else "similar observations"
     one = f"{'an' if setup.unit_word[:1] in 'aeiou' else 'a'} {setup.unit_word}"

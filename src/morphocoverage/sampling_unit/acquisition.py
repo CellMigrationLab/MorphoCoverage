@@ -4,7 +4,7 @@ raw values (quality control; owner, 2026-10-06, plan v2).
 Unusual observations are split in two. Biological unusualness reads values made relative to
 each observation's own control in its repeat (``unusual_objects`` on those values, in the
 report). An acquisition anomaly reads the raw values, as quality control, and is reported
-apart, in "What is in the dataset": never a biological claim, since a field imaged out of
+apart, in "What is in the dataset": never a biological verdict, since a field imaged out of
 focus, at another exposure or on debris differs from its neighbours whatever the biology.
 
 Per condition and biological repeat (a field's own group, whatever the analysis groups),
@@ -99,7 +99,8 @@ class AcquisitionAnomalies:
         listed = listing([*named, *([f"{more} more"] if more > 0 else [])])
         return (
             f"{count(self.found, 'field')} {far} their condition and repeat on the raw values: "
-            f"{listed}; quality control, never a biological claim: open their images, {scope}"
+            f"{listed}; an engineering quality-control threshold, never a biological verdict: "
+            f"open their images, {scope}"
         )
 
     def summary(self, detail: str = "short") -> str:
