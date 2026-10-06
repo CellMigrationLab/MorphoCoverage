@@ -95,7 +95,8 @@ once. A declared ratio on a feature with a value that is not positive is refused
 
 **Repeats and wells.**
 
-- `biological_repeat`: the replicate of every verdict; paired tests need 3 repeats.
+- `biological_repeat`: the replicate of every verdict; paired tests need 3 repeats, and
+  the repeats the plan asks for start at 3 (audit 10, owner, 2026-10-06).
 - `technical_repeat`, the wells: part of each analysis group by default, and the unit
   resampled or shuffled first wherever one is.
 - `fields_independent=True`: without a well column, the tests within one repeat and the

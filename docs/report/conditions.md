@@ -526,7 +526,8 @@ provided; a pilot of 1 or 2 repeats included): per condition, the fields a side 
 needs to resolve the difference (projected from its interval: fewer than acquired where it
 is resolved), led by the repeats a paired test needs for 80% power at 0.05/m, m the
 conditions of the sub-experiment (what Benjamini-Hochberg asks at most), with the fields per
-repeat as now and twice as many (`sampling_unit.repeat_plan`). No verdict on what limits it
+repeat as now and twice as many (`sampling_unit.repeat_plan`). The count starts at 3, the
+paired test's minimum, never 2 (audit 10, owner, 2026-10-06). No verdict on what limits it
 is printed (owner, 2026-10-02): from 3 repeats it contradicted the readings, and telling the
 variation between repeats from the sampling within them is P10's question, which needs 5 or
 more units.
