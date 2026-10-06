@@ -40,6 +40,7 @@ from morphocoverage.sampling_unit.contrast_sampling import (
     noncentral_d_interval,
     sampling_row,
 )
+from morphocoverage.sampling_unit.distribution import distribution_contrast
 from morphocoverage.statistics import cohen_d
 from morphocoverage.sufficiency_short import met_count
 from morphocoverage.workflows import Setup, plots, report
@@ -265,3 +266,74 @@ def test_the_count_rule_with_whole_fields_says_its_draws_repeat_fields() -> None
     full = " ".join(result.summary("full").split())
     assert "drawn at random with replacement" in short
     assert "with replacement, until that many, so it can exceed the fields acquired" in full
+
+
+def _distribution_tables(factor: float, spread: float = 1.0) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Three repeats of 6 fields of 20 cells a side: ``a`` the control's lognormal cells
+    times ``factor``, their log spread times ``spread``."""
+    rng = np.random.default_rng(13)
+    rows = []
+    for repeat in ("r1", "r2", "r3"):
+        for condition in ("ctrl", "a"):
+            for field in range(6):
+                logs = rng.normal(0, 0.5, 20)
+                if condition == "a":
+                    logs = logs * spread + np.log(factor)
+                for label, value in enumerate(np.exp(logs)):
+                    rows.append(
+                        {
+                            "condition": condition,
+                            "biological_repeat": repeat,
+                            "image_file": f"{repeat}_{condition}_{field}.tif",
+                            "label_id": label,
+                            "area": 100 * value,
+                        }
+                    )
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    return objects, fovs
+
+
+def test_beyond_the_mean_takes_out_the_mean_shift_on_the_features_scale() -> None:
+    # C2: a condition that only moved its mean read "differs beyond the mean", the quantile
+    # shifts holding the mean's shift (a25), and a fold change moves every quantile of a raw
+    # positive feature.
+    objects, fovs = _distribution_tables(2.2)
+    result = distribution_contrast(
+        objects, fovs, features=["area"], control={"condition": "ctrl"}, observation_unit="cell"
+    )
+    assert result.settings["log_scale"] == {"area": True}
+    shifts = result.tests[result.tests["statistic"].isin(["q10", "q50", "q90"])]
+    assert (shifts["mean"].abs() < 0.2).all()
+    assert result.differing().empty
+    # On the difference scale, the quantile shifts beyond the mean are the skew's alone.
+    raw = distribution_contrast(
+        objects,
+        fovs,
+        features=["area"],
+        control={"condition": "ctrl"},
+        observation_unit="cell",
+        scales={"area": "difference"},
+    )
+    assert raw.settings["log_scale"] == {"area": False}
+    # A wider distribution, the same median on the log scale: its spread differs.
+    objects, fovs = _distribution_tables(1.0, spread=2.0)
+    wide = distribution_contrast(
+        objects, fovs, features=["area"], control={"condition": "ctrl"}, observation_unit="cell"
+    )
+    assert set(wide.differing()["statistic"].iloc[0]) >= {"spread"}
+
+
+def test_beyond_the_mean_says_not_significant_and_no_trend_from_two_repeats() -> None:
+    # C16: "the same way in every repeat, not tested (fewer than 3 repeats)" read as a trend
+    # from 2 repeats (a25); C2: "no difference" for "not significant" (a24).
+    a25 = " ".join(_scenario_report("a25_mix_several_norm_cells_tech_fp_expl").summary().split())
+    beyond = a25[a25.index("Beyond the mean") :]
+    assert "differs beyond the mean" not in beyond
+    assert "the same way in every repeat, not tested" not in beyond
+    assert "in both repeats" in beyond
+    a24 = _scenario_report("a24_expl_one_norm_image_none_fp_expl")
+    text = " ".join(a24.summary().split())
+    assert "no difference beyond the mean" not in text
+    assert "no difference in the distributions" not in a24.document.headlines["conditions"]
+    assert "beyond the mean, not significant" in a24.document.headlines["conditions"]

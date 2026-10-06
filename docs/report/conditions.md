@@ -390,9 +390,16 @@ and their conditions" (owner, 2026-10-06). With a fingerprint, the report also c
 beyond the mean the distribution of each explainable feature the fingerprint reads (none
 for a fingerprint declared on a DINO table alone, which the section says once): per
 biological repeat against its own control, the spread (the SD ratio) and the 10%, 50% and
-90% quantiles (their shift in control SDs), each tested across the repeats
-(Benjamini-Hochberg within each sub-experiment, a family of its own). A condition whose
-distribution differs answers the question like a feature significant across repeats.
+90% quantiles (their shift beyond the shift of the mean, in control SDs), each on the
+feature's scale, the log of its values when its tests read log ratios, and each tested
+across the repeats (Benjamini-Hochberg within each sub-experiment, a family of its own). A
+condition that only moves its mean, or changes every value by one factor, shifts no
+quantile beyond it (audit 10, owner, 2026-10-06; before, the quantile shifts held the mean's
+and a pure shift read "differs beyond the mean"). A condition whose distribution differs
+answers the question like a feature significant across repeats; nothing significant reads
+"not significant", never "no difference"; the same direction in every repeat is a trend
+only from 6 repeats, and with 2 repeats "lower (higher) in both repeats", not tested (audit
+10, owner, 2026-10-06).
 
 Both sides are read on **field-balanced subsamples** (owner, 2026-10-06): per repeat, the
 same number of fields a side, the smaller side's, drawn at random among each side's fields,
@@ -406,7 +413,8 @@ has no field-to-field variation in its spread. Null calibration
 5 features, field SD 0.5 or 1 cell SD, equal sides, a control of one field of 60 or of 6
 cells, a condition that lost cells, and uneven random counts): each statistic gave
 p ≤ 0.05 in 3.6-5.8% of tests, and any q ≤ 0.05 over the 20 tests in 2.8-7.0% of
-datasets. The same tests on the pooled cells gave up to 56% for the spread and up to 13%
+datasets (measured before the quantile shifts were taken beyond the mean's, on the feature's
+scale; not rerun since). The same tests on the pooled cells gave up to 56% for the spread and up to 13%
 for the outer quantiles, and up to 31% of datasets with a q ≤ 0.05 (6 repeats, a control of
 one field of 60 cells, field SD 1; audit 8 found 56% and 34% on its own design, now 4%
 and 3%).

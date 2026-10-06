@@ -6,7 +6,14 @@ phenotypic fingerprint declared, the report also compares the distributions (own
 2026-10-02), per biological repeat against the control of the same repeat:
 
 - **the spread**: the condition's SD over the control's (its log is tested);
-- **the quantiles**: the shift of the 10%, 50% and 90% quantiles, in control SDs.
+- **the quantiles**: the shift of the 10%, 50% and 90% quantiles beyond the shift of the
+  mean, in control SDs, so a condition that only moves its mean shifts no quantile (audit 10,
+  owner, 2026-10-06; before, the quantile shifts held the mean's shift and a pure shift read
+  "differs beyond the mean").
+
+Every statistic reads the feature on its scale, the one its tests across repeats read
+(``statistics.log_scale``: declared in ``scales``, else the log when every observation is
+positive): on the log of the values, a change by a factor moves the mean alone.
 
 Both are read on **field-balanced subsamples** (owner, 2026-10-06, audit 8): per repeat,
 each side keeps the same number of fields, the smaller side's (drawn at random among its
@@ -50,7 +57,7 @@ from .._seeds import group_rng
 from .._wording import count, listing, plural
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
-from ..statistics import BIMODAL, bimodality_coefficient, excess_kurtosis, paired_t
+from ..statistics import BIMODAL, bimodality_coefficient, excess_kurtosis, log_scale, paired_t
 from ._common import groups, validated
 from ._experiments import corrected, experiments
 from ._units import (
@@ -239,11 +246,14 @@ def _drawn(fields: list[np.ndarray], n: int, m: int, draws: int, rng: Any) -> np
 
 
 def _statistics(
-    treated: list[np.ndarray], control: list[np.ndarray], rng: Any
+    treated: list[np.ndarray], control: list[np.ndarray], rng: Any, log: bool = False
 ) -> dict[str, float] | None:
-    """The spread (log SD ratio) and the quantile shifts in control SDs on field-balanced
-    subsamples of the fields ``treated`` and ``control`` (see the module), averaged over the
-    draws; ``None`` without two values a side or spread in the control."""
+    """The spread (log SD ratio) and the quantile shifts beyond the mean's, in control SDs,
+    on field-balanced subsamples of the fields ``treated`` and ``control`` (see the module),
+    on the log of the values with ``log``, averaged over the draws; ``None`` without two
+    values a side or spread in the control."""
+    if log:
+        treated, control = [np.log(f) for f in treated], [np.log(f) for f in control]
     n = min(len(treated), len(control))
     m = min(CELLS_CAP, *(len(f) for f in [*treated, *control])) if n else 0
     if n * m < 2:
@@ -257,7 +267,8 @@ def _statistics(
         return None
     t, c, sd = t[kept], c[kept], sd[kept]
     ratio = t.std(axis=1, ddof=1) / sd
-    shifts = (np.quantile(t, QUANTILES, axis=1) - np.quantile(c, QUANTILES, axis=1)) / sd
+    moved = t.mean(axis=1) - c.mean(axis=1)
+    shifts = (np.quantile(t, QUANTILES, axis=1) - np.quantile(c, QUANTILES, axis=1) - moved) / sd
     values = {"spread": float(np.log(ratio).mean()) if (ratio > 0).all() else np.nan}
     values.update(
         {f"q{round(q * 100)}": float(s.mean()) for q, s in zip(QUANTILES, shifts, strict=True)}
@@ -291,13 +302,13 @@ def _fields(
 
 
 def _rows(
-    feature: str, condition: Any, side: dict[str, Any], random_state: int
+    feature: str, condition: Any, side: dict[str, Any], random_state: int, log: bool = False
 ) -> list[dict[str, Any]]:
     per_repeat = {}
     for repeat, treated in side["by_t"].items():
         key = {"feature": feature, "condition": condition, "repeat": repeat}
         rng = group_rng(random_state, {**key, "test": "beyond the mean"})
-        values = _statistics(treated, side["by_c"][repeat], rng)
+        values = _statistics(treated, side["by_c"][repeat], rng, log)
         if values is not None:
             per_repeat[repeat] = values
     rows = []
@@ -338,10 +349,12 @@ def distribution_contrast(
     observation_unit: str | None = None,
     comparisons: Sequence[tuple[Any, Any]] | None = None,
     random_state: int = 0,
+    scales: Mapping[str, str] | None = None,
 ) -> DistributionContrast:
     """Compare each feature's distribution with the control's (see the module); arguments
     follow ``feature_discovery`` (``comparisons``: each condition against its reference;
-    ``random_state`` seeds the field-balanced draws)."""
+    ``random_state`` seeds the field-balanced draws; ``scales``: each feature's declared
+    scale, else the automatic rule)."""
     random_state = check_seed(random_state)
     if comparisons is not None:
         comparisons = check_comparisons(comparisons)
@@ -355,13 +368,15 @@ def distribution_contrast(
     all_groups = groups(data)
     described = describe_groups(all_groups, condition_col, repeat_col, control, comparisons)
     contrasts = contrasts_of(described)
-    rows, held, shapes = [], {}, []
+    rows, held, shapes, logs = [], {}, [], {}
     for feature in features:
+        declared = (scales or {}).get(feature)
+        logs[feature] = log_scale(data.feature_values(feature), declared, repr(feature))
         for condition, side in _fields(
             all_groups, described, contrasts, feature, technical_col
         ).items():
             held.setdefault(condition, set()).update(side["by_t"])
-            rows.extend(_rows(feature, condition, side, random_state))
+            rows.extend(_rows(feature, condition, side, random_state, logs[feature]))
             # The split into two groups reads every observation, pooled.
             for repeat, fields in side["by_t"].items():
                 cells, controls = np.concatenate(fields), np.concatenate(side["by_c"][repeat])
@@ -395,6 +410,7 @@ def distribution_contrast(
         "random_state": random_state,
         "draws": DRAWS,
         "cells_cap": CELLS_CAP,
+        "log_scale": logs,
     }
     return DistributionContrast(tests, settings, pd.DataFrame(shapes, columns=SHAPE_COLUMNS))
 
