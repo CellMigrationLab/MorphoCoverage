@@ -184,3 +184,33 @@ def test_normalize_sends_the_centred_tables_to_the_analyses_never_to_the_tests()
     raw = whole_table_in_report(merged, fovs, plain).tests
     again = whole_table_in_report(merged, fovs, normalised).tests
     pd.testing.assert_frame_equal(raw, again)
+
+
+def test_a_sub_experiment_of_one_condition_says_centring_erases_its_difference():
+    """Audit 10 (C33; owner, 2026-10-06): in e02 each sub-experiment holds one condition,
+    which sets its centre, so the centred view erases the difference between them; one line
+    says so."""
+    import sys
+    import warnings
+    from pathlib import Path
+
+    from morphocoverage.workflows import Setup
+    from morphocoverage.workflows._feature_space import attached, centring_line
+
+    folder = Path(__file__).resolve().parents[1] / "data" / "scenarios"
+    sys.path.insert(0, str(folder))
+    try:
+        import make_scenarios
+    finally:
+        sys.path.remove(str(folder))
+    loaded = make_scenarios.load("e02_control_in_other_repeats")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        objects, setup, _ = attached(
+            loaded.objects, loaded.fovs, Setup(**loaded.setup), loaded.feature_tables
+        )
+    line = centring_line(objects, loaded.fovs, setup)
+    assert (
+        "ctrl in 2026_01_05 and 2026_01_12; a in 2026_01_19 and 2026_01_26, so the centred " in line
+    )
+    assert "view shows no difference between these conditions" in line

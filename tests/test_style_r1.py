@@ -256,7 +256,7 @@ def test_clustering_short_answers_per_state_and_full_keeps_every_number(states):
     clustering, _ = states
     short = _flat(clustering.summary())
     assert "Are the state cells spread over the fields?" in short
-    assert "in 1 of 2 groups where seen (MOCK · repeat r1)" in short
+    assert "in 1 of 2 groups where tested (MOCK · repeat r1)" in short
     full = clustering.summary(detail="full")
     for row in clustering.table[clustering.table["state_objects"] > 0].to_dict("records"):
         for value in (

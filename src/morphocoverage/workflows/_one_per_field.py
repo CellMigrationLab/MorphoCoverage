@@ -16,6 +16,11 @@ coincide, and the questions about fields are asked of the rows as fields:
   exploratory (module P10 of the validation protocol);
 - "Did I image enough?" per field, with that definition.
 
+The acquisition anomalies then read single observations too, so a field they name is not
+listed again as a new state in question 6 (``listed_once``; owner, 2026-10-06, audit 10: 8
+of 9 such fields were also "new states", one list calling them never biological, the other
+a new biological state).
+
 Only the ideas within a field stay not applicable (``one_per_field_reasons``): unusual cells
 or a labelled state clustering in a few fields (a field of one holds a state or not), and
 the mean-precision count rule checked with whole fields (random cells and whole fields are
@@ -32,6 +37,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from .._wording import count
 from ..data_check import validate_input_tables
 from ..schema import OBJECT_LIKE_UNITS, resolve_observation_unit
 from ..strategies.support_novelty import (
@@ -42,6 +48,8 @@ from ..strategies.support_novelty import (
 from ._feature_space import table_columns
 
 if TYPE_CHECKING:
+    from ..retrospective.inspection import InspectionResult
+    from ..sampling_unit.acquisition import AcquisitionAnomalies
     from .setup import Setup
 
 # The word for an observation that is a whole field (one cell per image).
@@ -112,11 +120,38 @@ def one_per_field_reasons(setup: Setup) -> dict[str, str]:
     return reasons
 
 
+def listed_once(
+    inspection: InspectionResult | None, anomalies: AcquisitionAnomalies | None, setup: Setup
+) -> InspectionResult | None:
+    """Question 6 without the new states of the fields the acquisition anomalies name, said
+    in one sentence (``settings["listed_elsewhere"]``): with one observation per field both
+    read the same single observations (see the module). Unchanged when none is named."""
+    if inspection is None or anomalies is None or not anomalies.found or inspection.fovs.empty:
+        return inspection
+    keys = [c for c in anomalies.settings["fov_key"] if c in inspection.fovs.columns]
+    named = set(map(tuple, anomalies.fields[keys].astype(str).to_numpy()))
+    own = pd.Series(list(map(tuple, inspection.fovs[keys].astype(str).to_numpy())))
+    drop = (inspection.fovs["reason"] == "new state").to_numpy() & own.isin(named).to_numpy()
+    if not drop.any():
+        return inspection
+    fields = len(set(own[drop]))
+    unit, units = setup.unit_word, setup.unit_words
+    sentence = (
+        f"{count(fields, 'field')} named among the acquisition anomalies "
+        f"{'is' if fields == 1 else 'are'} not listed again as new states: each field holds one "
+        f"{unit}, so both read the same single {units}."
+    )
+    settings = {**inspection.settings, "listed_elsewhere": sentence}
+    kept = inspection.fovs[~drop].reset_index(drop=True)
+    return replace(inspection, fovs=kept, settings=settings)
+
+
 __all__ = [
     "FIELD_UNIT",
     "field_novelty",
     "field_setup",
     "field_unit",
+    "listed_once",
     "one_per_field",
     "one_per_field_reasons",
 ]

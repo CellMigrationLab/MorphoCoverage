@@ -64,11 +64,12 @@ TITLES = {
 INTROS = {
     "overview": "What the tables hold, and whether they read cleanly (missing values, copies).",
     "inspect": (
-        "Fields that move a summary strongly, hold an unusual count or a state no other field "
-        "shows, or that the copy checks name. Each may be an "
+        "Fields far from the other fields of their condition and repeat, that move the result "
+        "strongly or hold an unusual count, or that the copy checks name. Each may be an "
         "artefact (out of focus, debris, a field exported twice) or real biology: open their "
         "images before trusting the answers below. Focus and segmentation are not checked, so "
-        "a field not flagged is not thereby a good image."
+        "a field not flagged is not thereby a good image. Fields holding a new state are "
+        "apart, under the next card."
     ),
     "dataset": (
         "Every cell on all the features at once, as a PCA and a UMAP: where the conditions "

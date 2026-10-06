@@ -112,7 +112,7 @@ experiment, names the Benjamini-Hochberg families, by default the sub-experiment
 flowchart TD
     IN["Tables and Setup"] --> ALL["Overview, data check; maps, populations, separation"]
     IN --> EX{"Explainable features?"}
-    EX -- "yes" --> RUL["Stopping rules, Foundation, fields to check, duplicated features, acquisition anomalies on raw values"]
+    EX -- "yes" --> RUL["Stopping rules, Foundation, fields to check, duplicated features, acquisition anomalies"]
     EX -- "no" --> EMB["Embedding-only: per-feature parts not applicable"]
     IN --> NE{"Non-explainable tables?"}
     NE -- "yes" --> TAB["A map per table and its centred view"]
@@ -162,16 +162,16 @@ the contrast table, or the one control.
 | Mean-precision stopping rules | the raw readout, upper 95% bound at the first tolerance; the count across groups says how many were judged, "0 of 27 judged; 12 too few fields; 1 undefined" (audit 10, owner, 2026-10-06) | analysis group, per object and per field | none | no readout |
 | Fingerprint | as declared, or on the first k principal components when wider than a fifth of the median judged group; divided by the own control with `normalize`, whatever the number of controls | analysis group of at least 4 fields | none | groups of fewer than 4 fields: not judged; on components, groups of fewer than 5 k observations: not assessable, named |
 | Beyond the mean | the explainable features the fingerprint reads, per repeat against the own control on field-balanced subsamples (owner, 2026-10-06): SD ratio, 10%, 50% and 90% quantile shifts beyond the mean's shift, on the feature's scale, in control SDs; "not significant", never "no difference"; a trend from 6 repeats, "lower in both repeats" at 2 (audit 10, owner, 2026-10-06) | biological repeat | its own family per sub-experiment | no fingerprint; a fingerprint reading no explainable feature, said once; no control |
-| Rare label | its share compared like a feature; the label check on the nearest cell of another field; clustering in fields | observation, field | the features' family; clustering over groups and states | label check with a positive control declared; without explainable features, clustering only; one observation per field: no clustering in question 3, the one-per-field reason instead (owner, 2026-10-06) |
-| Populations | the readout and `features` as the figures read them, MFA across two or more explainable tables | observation; enrichment per repeat | groups and conditions per sub-experiment | fewer than 2 columns; enrichment without a control or with fewer than 3 repeats |
-| Unusual observations, biological | the declared `features` relative to each own control in its repeat: divided by its mean with `normalize`, else the log ratio to its mean or the difference, on the feature's declared scale, undeclared the log ratio when every value is positive; MFA across tables; against each own control, today's threshold, exploratory (owner, 2026-10-06, plan v2) | observation; clustering per field | groups and states | no control, no `features`; one observation per field: unusual images, no clustering |
-| Acquisition anomalies | raw field medians of the readout and `features`, each field against the other fields of its condition and repeat: 5 SDs or more, the larger of their robust SD and SD, engineering QC thresholds (owner, 2026-10-06, plan v2) | field | none: quality control in "What is in the dataset", never a biological verdict | no explainable column; a condition and repeat of fewer than 8 fields: counted, not judged |
-| Novelty and the positive control | the declared `features`, MFA across tables, fitted on the visible fields; with `normalize`, normalised for the positive control and the fields to check, raw for the novelty rule, as every stopping rule reads raw values, as live does (the same reading when an analysis group lies in one repeat, the default definition standardising within the group); one observation per field: its field version | field | none | no `novelty` |
+| Rare label | its share compared like a feature; the label check on the nearest cell of another field and the same condition, against the share labelled within the conditions (owner, 2026-10-06, audit 10); clustering in fields | observation, field | the features' family; clustering over groups and states | label check with a positive control declared; without explainable features, clustering only; one observation per field: no clustering in question 3, the one-per-field reason instead (owner, 2026-10-06) |
+| Populations | the readout and `features` as the figures read them, MFA across two or more explainable tables; with several controls and no `normalize`, normalised to each own control; each group described against the control its cells are compared with, "mostly one condition: its shift, not a subpopulation" at 90%, enrichment ⚠️ "more common (exploratory)", a trend from 6 repeats (owner, 2026-10-06, audit 10) | observation; enrichment per repeat | groups and conditions per sub-experiment | fewer than 2 columns; enrichment without a control or with fewer than 3 repeats |
+| Unusual observations, biological | the declared `features` relative to each own control in its repeat: divided by its mean with `normalize`, else the log ratio to its mean or the difference, on the feature's declared scale, undeclared the log ratio when every value is positive; MFA across tables; against each own control, today's threshold, exploratory (owner, 2026-10-06, plan v2); the controls' own share flagged always printed as the background, the shares of each scored group, one feature "not informative beyond the mean shift in question 9" with no share (owner, 2026-10-06, audit 10) | observation; clustering per field | groups and states | no control, no `features`; one observation per field: unusual images, no clustering |
+| Acquisition anomalies | field medians of the readout and `features` on each feature's test scale (the log when every value is positive, else the values, or as declared), each field against the median of the other fields of its condition and repeat: 5 SDs or more of one robust scale per feature pooled over the groups' within-group differences, engineering QC thresholds (owner, 2026-10-06, plan v2); each flag's relative difference and the count expected by chance said; with one observation per field, said to read single observations, its fields not listed again as new states (owner, 2026-10-06, audit 10) | field | none: quality control in "What is in the dataset", never a biological verdict | no explainable column; a condition and repeat of fewer than 8 fields: counted, not judged |
+| Novelty and the positive control | the declared `features`, MFA across tables, fitted on the visible fields; with `normalize`, normalised for the positive control and the fields to check, raw for the novelty rule, as every stopping rule reads raw values, as live does (the same reading when an analysis group lies in one repeat, the default definition standardising within the group); one observation per field: its field version; exploratory; a group's new states not listed, "not informative with n fields in d features", when the definition calls more than 20% of a homogeneous population's fields new at that size (simulated, `strategies.novelty_null`), the count chance alone gives said beside them; a positive control recognized no more often than the false alarms "cannot tell", not judged (owner, 2026-10-06, audit 10) | field | none | no `novelty` |
 | Maps PCA and UMAP | raw, and divided by the own control whenever a control is declared; robustly standardised | observation | none | fewer than 3 columns in the space |
 | Separation scores | by condition as the figures read them; by repeat always raw; one line with one well per condition and repeat, no within-repeat technical replication | neighbours outside the field, per repeat | none, descriptive | one condition; a space of fewer than 3 columns, which has no map |
 | Copy checks | each explainable table apart, or the features as one table | field | none, exact | `integrity=True` not given; the guided session gives it |
 | Duplicated or derived features | every declared column, on all rows and within each experiment | column pair | none, a caution | none |
-| Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap, an engineering threshold for quality control, not a test, in the acquisition block of "What is in the dataset" | one control |
+| Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap, an engineering threshold for quality control, not a test, in the acquisition block of "What is in the dataset", naming raw comparisons, the maps raw or centred per repeat, the separation and the populations; under the rows across experiments a caution for raw rows, a softer note for rows normalised to their own controls (owner, 2026-10-06, audit 10) | one control |
 | `optimise` | criteria on held-back fields, divided as the fingerprint, a fingerprint's components refitted on the fields not held back; the rules replayed raw | analysis group | none | no target it can judge |
 | `live_session` | the raw columns of each field | analysis group | none | no target declared: "no target: nothing decides a stop" (audit 10, owner, 2026-10-06) |
 
@@ -235,7 +235,9 @@ conditions in every repeat, balanced or not (owner, 2026-10-06, audit 8); withou
 condition, within each sub-experiment on the conditions in all of its repeats, a
 sub-experiment with none left out of the centred values and named (raw values in a centred
 space would read as a batch; with no centre at all, the tables are read as given). One line
-says which conditions set the centre. The centred map view is shown whenever there is a
+says which conditions set the centre, and when each sub-experiment is centred on one
+condition, that the centred view shows no difference between those conditions (owner,
+2026-10-06, audit 10). The centred map view is shown whenever there is a
 centre. With `normalize` the
 populations and the separation of the conditions read the centred values, and so do unusual
 observations in an embedding-only report. No test reads them: the whole-table test and the
@@ -278,7 +280,7 @@ without explainable features the combined map has a centred view instead (owner,
 | Ranking within repeats | wells, or fields | all its tests together | which features to plot |
 | Pairwise panels | observation | the pairs of one figure | descriptive |
 | Whole-table shuffle | wells, else fields | none | exploratory, CSV only |
-| Clustering in fields | field | groups and states | a state called clustered at q 0.05 or less |
+| Clustering in fields | field | groups and states that can reach 0.05: a group whose smallest possible p cannot is left out, "not tested", and a state not found clustered reads "no clustering shown" (owner, 2026-10-06, audit 10) | a state called clustered at q 0.05 or less |
 | Acquisition order | field | Bonferroni over its two tests | a caution beside a stop, never a veto |
 
 Exploratory until their module of [the validation protocol](validation.md) validates them
@@ -315,7 +317,7 @@ features=(...), control={"condition": "ctrl"}, normalize="control_mean")`.
   heatmap and the SuperPlots of normalised values, in one family per sub-experiment.
 - "Did I image enough?" per feature and the mean-precision rules on the raw readout.
 - Unusual observations, exploratory, on the normalised `features` against the control,
-  and their clustering in fields; the acquisition anomalies on the raw values, apart.
+  and their clustering in fields; the acquisition anomalies on the test scales, apart.
 - The maps raw and normalised, the populations and the separation on normalised values.
 - No whole-table test, no rows across experiments.
 

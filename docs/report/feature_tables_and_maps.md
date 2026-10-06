@@ -192,7 +192,10 @@ centred ones would read as a batch in the centred map, the populations and the s
 (owner, 2026-10-06). With no centre anywhere, there is no centred view and the tables'
 analyses read them as given. The page and the text say in one line which conditions
 set the centre ("Batch: the other tables centred per biological repeat on the median of the
-per-condition medians of ctrl, a and b, the conditions in every repeat; ...").
+per-condition medians of ctrl, a and b, the conditions in every repeat; ..."). When each
+sub-experiment is centred on one condition, a control imaged in other repeats than its
+condition, say, the line adds that the centred view shows no difference between those
+conditions, as each is its own centre (owner, 2026-10-06, audit 10).
 When normalisation is declared
 (`normalize="control_mean"`), the tables' analyses read these centred values, as the
 explainable features read their control-normalised ones: the populations, unusual

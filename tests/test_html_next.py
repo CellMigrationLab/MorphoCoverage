@@ -8,6 +8,7 @@ import re
 import warnings
 from dataclasses import replace
 
+import numpy as np
 import pandas as pd
 import pytest
 from test_rare_fingerprint import _screen, _setup
@@ -160,7 +161,11 @@ def test_the_fields_next_step_runs_the_report_without_the_fields(screen, monkeyp
     # The sentence says what to do once the images confirm it; the code is folded.
     assert "If you confirm that some should be excluded" in _words(markup)
     assert "<details><summary>Show the code</summary><pre><code>" in markup
+    # Removing a field is opt-in (audit 10): as given, the code removes none.
     _run(markup, {"result": result, "objects": objects, "fovs": fovs})
+    assert len(seen["fovs"]) == len(fovs)
+    # Each line uncommented, the fields are left out.
+    _run(markup.replace("    # (", "    ("), {"result": result, "objects": objects, "fovs": fovs})
     assert len(seen["fovs"]) == len(fovs) - 2
     gone = set(fovs["image_file"].head(2))
     assert not gone & set(seen["objects"]["image_file"])
@@ -240,3 +245,48 @@ def test_conditions_with_nothing_to_say_share_one_line():
     words = _words(significant_summary(_Result(pd.DataFrame(rows)), str))
     assert "5 conditions : no feature significant across repeats (siGENE001" in words
     assert words.count("siGENE000") == 1 and "1 feature" in words
+
+
+def test_quality_control_fields_and_new_states_are_two_cards():
+    """Audit 10 (A14, B3; owner, 2026-10-06): "Fields to check (quality control)" lists the
+    acquisition anomalies and the other reasons, its code removes none until a line is
+    uncommented, and the new states are a card of their own, exploratory, never removed."""
+    from types import SimpleNamespace
+
+    from morphocoverage.retrospective import inspect_fovs
+    from morphocoverage.sampling_unit.acquisition import acquisition_anomalies
+    from morphocoverage.workflows import default_novelty
+    from morphocoverage.workflows._html_fields import NEW_STATES, NEW_STATES_TITLE, fields_cards
+
+    rng = np.random.default_rng(1)
+    rows = []
+    for field in range(12):
+        values = rng.normal(10, 1, (30, 3))
+        if field == 3:
+            values[:, 0] *= 20  # far from the other fields: an acquisition anomaly
+        if field == 7:
+            values[:8] = rng.normal([30, 2, 25], 0.1, (8, 3))  # a state no other field shows
+        frame = pd.DataFrame(values, columns=["x", "y", "w"])
+        rows.append(frame.assign(condition="ctrl", biological_repeat="R1", position_id=field))
+    objects = pd.concat(rows, ignore_index=True)
+    fovs = objects[["condition", "biological_repeat", "position_id"]].drop_duplicates()
+    features = ["x", "y", "w"]
+    unit = {"observation_unit": "cell"}
+    novelty = default_novelty(features)
+    inspection = inspect_fovs(
+        objects, fovs, feature_cols=features, novelty=novelty, count_ratio=None, **unit
+    )
+    anomalies = acquisition_anomalies(objects, fovs, feature_cols=features, **unit)
+    result = SimpleNamespace(results={"inspection": inspection, "acquisition": anomalies})
+
+    def card(key, title, chip_html, body):
+        return f"<section id={key}><h2>{title}</h2>{body}</section>"
+
+    markup = fields_cards(result, "", "", "", card, lambda text: text, "Fields to check")
+    qc, new = markup.split(f"<section id={NEW_STATES}>")
+    assert "far from its condition and repeat: x" in qc and "ctrl · repeat R1 · 3" in qc
+    assert "ctrl · repeat R1 · 7" not in qc
+    code = html.unescape(re.search(r"<pre><code>(.*?)</code></pre>", qc, re.DOTALL).group(1))
+    assert "    # ('ctrl', 'R1', '3')," in code
+    assert NEW_STATES_TITLE in new and "ctrl · repeat R1 · 7" in new
+    assert "Novelty is exploratory" in new

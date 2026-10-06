@@ -39,7 +39,10 @@ The rules, question by question:
   fields; groups that could not be checked are counted apart (owner, 2026-10-05).
 - **1. Controls** (``controls_status``): ❌ when the declared positive control (the planted
   objects when declared) was recognized in fewer than ``minimum_detection`` of checks (weak
-  representation); ⚠️ when a stratum could not be judged (named, with the reason), the
+  representation); ➖ "cannot tell the positive control from the reference with this
+  definition of new", not judged, when it was recognized no more often than the reference's
+  false alarms (owner, 2026-10-06, audit 10; ``report_status_controls``); ⚠️ when a stratum
+  could not be judged (named, with the reason), the
   false-alarm rate was not assessed or is above ``FALSE_ALARM_CAUTION``; ➖ without a control; ✅
   otherwise. The rates are pooled over the control's strata, and the headline says so (owner,
   2026-10-05).
@@ -156,8 +159,7 @@ from ..schema import observation_words
 from ..sufficiency_short import rule_tallies
 from ._text import rule_names
 from .calibration import PREMATURE_CAUTION
-from .controls_text import _selected, pooled_over
-from .inspection import SMALL_GROUP
+from .inspection import SKIPPED_KEYS, SMALL_GROUP
 from .inspection_text import reason_counts, tally
 from .order_text import group_comparison
 from .report_resolved import has_resolution, precision_words, resolved_headline
@@ -167,12 +169,12 @@ from .report_sampling import (
     profile_answer,
     rule_held,
     rule_unchecked,
-    skipped_strata,
     spread_headline,
     unstable_labels,
     unusual_alone,
 )
 from .report_status_conditions import conditions_status
+from .report_status_controls import FALSE_ALARM_CAUTION, controls_status
 from .report_status_plan import (
     FEW_UNITS,
     RELIABLE_SHARE,
@@ -181,9 +183,6 @@ from .report_status_plan import (
     next_time_status,
 )
 
-# Above this false-alarm rate of the declared reference, the control answer asks the reader
-# to look (a provisional preset, as minimum_detection).
-FALSE_ALARM_CAUTION = 0.1
 # The reasons of question 6 in a word or two, for its headline.
 _REASONS = {"count": "unusual count", "neighbours": "unlike neighbours"}
 
@@ -312,58 +311,6 @@ def unit_status(variability: Any, object_rules: Any, descriptor_spread: Any) -> 
         status = Status.CAUTION if never else status
         parts += [phrase] if phrase else []
     return status, "; ".join(parts) or "assessed"
-
-
-def _rate(controls: Any, kind: str) -> float | None:
-    rates = controls.pooled.set_index("candidate")["rate"]
-    return None if kind not in rates.index or pd.isna(rates[kind]) else float(rates[kind])
-
-
-def controls_status(controls: Any, minimum_detection: float = 0.9) -> Answer:
-    """1. Can these features detect what I care about? (see the module)."""
-    if controls is None:
-        return Status.NOT_ASSESSED, "no positive control declared"
-    if controls.status == "not assessed":
-        declared = controls.settings.get("reason") != "none"
-        if declared:
-            return Status.CAUTION, "a control was declared, but could not be judged"
-        return Status.NOT_ASSESSED, "no positive control declared"
-    words = observation_words(controls.settings)[1]
-    control = controls.settings.get("control") or {}
-    planted = control.get("planted_objects")
-    kind = "planted" if planted and _rate(controls, "planted") is not None else "positive"
-    detection = _rate(controls, kind)
-    what = f"{planted} planted {words}" if kind == "planted" else "positive-control fields"
-    if detection is None:
-        return Status.CAUTION, f"{what}: not judged"
-    # The rates are pooled over the control's strata, and the headline says so (#253).
-    pooled = pooled_over(controls)
-    over = f", {pooled}" if pooled else ""
-    if detection < float(minimum_detection):
-        return (
-            Status.PROBLEM,
-            f"weak representation: {what} recognized in {percent(detection)} of checks{over}",
-        )
-    # The headline leads with the positive control itself; the planted rate gates the status.
-    positive = _rate(controls, "positive")
-    name = _selected(control.get("positive")) or "positive-control"
-    headline = (
-        f"{name} fields recognized in {percent(positive)} of checks"
-        if positive is not None
-        else f"{what} recognized in {percent(detection)} of checks"
-    )
-    false_alarm = _rate(controls, "reference")
-    status = Status.OK
-    if false_alarm is None:
-        status, headline = Status.CAUTION, f"{headline}{over}; false alarms not assessed"
-    else:
-        headline += f"; false alarms {percent(false_alarm)}{over and f', both {pooled}'}"
-        if false_alarm > FALSE_ALARM_CAUTION:
-            status = Status.CAUTION
-    if controls.settings.get("skipped_strata"):
-        status = Status.CAUTION
-        headline += f"; {skipped_strata(controls)}"
-    return status, headline
 
 
 def _premature(calibration: Any) -> float | None:
@@ -499,10 +446,7 @@ def inspect_status(inspection: Any) -> Answer:
     if inspection is None:
         return Status.NOT_ASSESSED, "not assessed"
     settings = inspection.settings
-    skipped = sum(
-        len(settings.get(key, []))
-        for key in ("skipped_summaries", "skipped_neighbours", "skipped_novelty")
-    )
+    skipped = sum(len(settings.get(key, [])) for key in (*SKIPPED_KEYS, "uninformative_novelty"))
     small = settings.get("skipped_small", [])
     if inspection.fovs.empty:
         if settings.get("checked") == []:

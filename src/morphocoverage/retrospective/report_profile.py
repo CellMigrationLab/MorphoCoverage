@@ -12,25 +12,26 @@ times larger (41% against 0% on one plate). A rate is combined with another anal
 both used the same definition of new, on the same features, within the same analysis groups;
 otherwise the report says why it was not.
 
-Shared-private: ``_control_rate``, ``_detection_adjusted_bounds`` and ``_false_alarm_rate``
-(used by ``report``).
+Shared-private: ``_detection_adjusted_bounds`` (used by ``report_enough``); the control's
+rates are in ``_control_rates`` and the new states' row in ``_new_states``.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
-from .._wording import count, number, percent
-from ..bounds import lower_bound, upper_bound
+from .._wording import count, percent
+from ..bounds import lower_bound
 from ..sampling_unit._state_text import CLUSTER_ALPHA
 from ..sampling_unit._state_text import clustered as clustered_rows
 from ..sampling_unit._unit_text import one_per_field_rows
 from ..schema import observation_words
 from ..sufficiency import SufficiencyReport
+from ._control_rates import _CONFIDENCE, _control_rate, _mismatch
+from ._new_states import new_state_rows as _new_state_rows
 from .controls import ControlResult
 from .controls_text import pooled_over
 from .effort import EffortResult, design_effect
@@ -41,51 +42,6 @@ if TYPE_CHECKING:  # the report takes these as results; only their types are nee
     from ..sampling_unit import FOVClustering, FOVVariability
 
 PROFILE_COLUMNS = ["item", "where", "value", "statement", "source"]
-# Confidence of the upper bound printed with the false-alarm rate.
-_CONFIDENCE = 0.95
-
-
-def _control_rate(controls: ControlResult | None, kind: str) -> float | None:
-    """A pooled rate of the declared control (``positive``, ``reference_lofo``...), if measured."""
-    if controls is None or controls.status == "not assessed":
-        return None
-    rates = controls.pooled.set_index("candidate")["rate"]
-    if kind not in rates.index or pd.isna(rates[kind]):
-        return None
-    return float(rates[kind])
-
-
-def _false_alarm_rate(controls: ControlResult | None) -> float | None:
-    """The declared reference's false-alarm rate, judged as ``inspect_fovs`` judges a field."""
-    return _control_rate(controls, "reference_lofo")
-
-
-def _mismatch(
-    controls: ControlResult, definition: str | None, groups: Sequence[str] | None
-) -> str | None:
-    """Why the control's rates do not describe another analysis's judgements, or None.
-
-    The rates hold for one definition of new, on its features, judged within
-    the control's analysis groups; a result that records another definition
-    or other groups is not compared with them. What a result does not record
-    is not checked.
-    """
-    settings = getattr(controls, "settings", {}) or {}
-    own = settings.get("novelty_definition")
-    if own is not None and definition is not None and own != definition:
-        return "the control used another definition of new, or other features"
-    lofo = settings.get("lofo_group_cols")
-    if lofo is not None and groups is not None and list(lofo) != list(groups):
-        return (
-            f"the control's rates were measured within {_groups(lofo)}, this answer within "
-            f"{_groups(groups)}"
-        )
-    return None
-
-
-def _groups(columns: Sequence[str]) -> str:
-    """``the groups condition, repeat``, or ``whole strata`` when there are none."""
-    return f"the groups {', '.join(columns)}" if len(columns) else "whole strata"
 
 
 def _detection(controls: ControlResult) -> tuple[str, int, int] | None:
@@ -249,10 +205,11 @@ def _clustering_rows(clustering: FOVClustering | None, observations: str) -> lis
         if not len(seen):
             continue
         clustered = seen[clustered_rows(seen)]
+        run = int(pd.to_numeric(seen["p_clustered"], errors="coerce").notna().sum())
         statement = (
             f"{clustering.state_name(state)}: clustered in a few fields "
-            f"(q <= {CLUSTER_ALPHA:g}) in {len(clustered)} of the {len(seen)} groups where it was "
-            "seen"
+            f"(q <= {CLUSTER_ALPHA:g}) in {len(clustered)} of the {run} groups where it could be "
+            f"tested, of {len(seen)} where it was seen"
         )
         # Fields holding the state (at least m of its objects, for unusual labels);
         # a group where no field holds it has no field count to compare.
@@ -502,70 +459,6 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
             "value": float(len(alike)),
             "statement": statement,
             "source": "redundancy_distance",
-        }
-    ]
-
-
-def _chance_clause(controls: ControlResult | None, inspection: InspectionResult) -> str:
-    """How many new-state fields the declared reference's false alarms expect, or why not.
-
-    The rate is judged the same way (each field against the other fields of
-    its analysis group) and only for the fields of the groups where new states
-    were looked for. It is the count of reference fields called new over those
-    judged, so the expected count is given from the point estimate to the
-    one-sided upper bound of the rate.
-    """
-    rate = _false_alarm_rate(controls)
-    if rate is None:
-        return ""
-    settings: dict[str, Any] = inspection.settings
-    judged = settings.get("n_fovs_judged", settings.get("n_fovs"))
-    if not judged:
-        return ""
-    different = _mismatch(
-        controls, settings.get("novelty_definition"), getattr(inspection, "group_cols", None)
-    )
-    if different is not None:
-        return f" (not compared with the declared reference's false alarms: {different})"
-    row = controls.pooled.set_index("candidate").loc["reference_lofo"]
-    # One rate for the fields of every group: pooled over the control's strata, said so (#253).
-    over = pooled_over(controls)
-    pooled = f", {over}," if over else ","
-    if "judged_new" not in row.index or "candidates" not in row.index:
-        return (
-            f" (about {number(rate * judged)} of the {judged} fields judged expected by chance "
-            f"at the {percent(rate)} false-alarm rate of the declared reference{pooled} each "
-            "field judged against the other fields of its group)"
-        )
-    new, total = int(row["judged_new"]), int(row["candidates"])
-    high = upper_bound(new, total, _CONFIDENCE)
-    return (
-        f" ({number(rate * judged)} to {number(high * judged)} of the {judged} fields judged "
-        f"expected by chance: the declared reference's false-alarm rate{pooled} each "
-        f"field judged against the other fields of its group, was {new} of {total} fields "
-        f"({percent(rate)}; at most {percent(high)} at {percent(_CONFIDENCE)} confidence))"
-    )
-
-
-def _new_state_rows(
-    inspection: InspectionResult | None, controls: ControlResult | None
-) -> list[dict]:
-    """How many fields hold the new states, beside what the reference's false alarms expect."""
-    if inspection is None or not len(inspection.fovs):
-        return []
-    new = inspection.fovs[inspection.fovs["reason"] == "new state"]
-    if not len(new):
-        return []
-    keys = [c for c in inspection.settings.get("fov_key", []) if c in new.columns]
-    count = new[keys].drop_duplicates().shape[0]
-    statement = f"new states come from {count} fields" + _chance_clause(controls, inspection)
-    return [
-        {
-            "item": "new states",
-            "where": "all groups",
-            "value": float(count),
-            "statement": statement,
-            "source": "inspect_fovs",
         }
     ]
 

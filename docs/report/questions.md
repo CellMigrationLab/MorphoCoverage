@@ -80,7 +80,11 @@ differ more than random objects would (`sampling_unit.fov_variability`); the
 mean-precision rule and the JCS stabilisation, each run with random objects and with
 whole fields (`object_rule_check`, `descriptor_spread_check`; also P5);
 whether labelled rare or unusual states are spread over the fields or
-clustered in a few (`fov_clustering`, reported under R4); and, where stage
+clustered in a few (`fov_clustering`, reported under R4; a group whose smallest possible
+permutation p, the share of shuffles reaching the fewest fields its objects could fill,
+cannot reach 0.05 after Bonferroni over the tests kept is left out and named, so the q of
+the groups that can is not diluted, and a state not found clustered reads "no clustering
+shown", never "spread like random"; owner, 2026-10-06, audit 10); and, where stage
 coordinates exist, the distance over which neighbouring fields are alike
 (`redundancy_distance`, reported under P7; not yet run by the `report`
 workflow). Whether the imaged positions were the right ones is a separate
@@ -113,11 +117,20 @@ that repeat one measurement, one row per group: copies, exact affine relations s
 1 − x or a change of units, and near copies at |r| ≥ 0.999, so that one measurement counts
 several times in each test family, and with several controls also within each
 experiment, a relation found there only named with where it holds; nothing is dropped,
-keep one of them, owner 2026-10-05); and the **acquisition anomalies**, on the raw values
-as quality control, never a biological verdict: the fields 5 SDs or more (an engineering
-QC threshold) from the other
-fields of their condition and repeat (the larger of their robust SD and SD, in groups of 8
-fields or more; `sampling_unit.acquisition`), and with several controls the controls apart
+keep one of them, owner 2026-10-05); and the **acquisition anomalies**, as quality
+control, never a biological verdict: the fields 5 SDs or more (an engineering QC threshold)
+from the median of the other fields of their condition and repeat, in groups of 8 fields or
+more (`sampling_unit.acquisition`). A feature is read on the scale its tests read: the log
+of the field medians when every value is positive, else the medians, or the scale declared
+in `Setup(scales=...)`; the SD is one robust scale per feature, pooled over the groups:
+1.4826 times the median absolute deviation of every judged field's difference from the
+median of its group's other fields, their SD only where that is 0 (most of them tied). Each
+flag gives its relative difference (a fold from twice or half), and the line says how many
+flags chance alone would give, were the differences Gaussian; with one observation per
+field, that it reads single observations, a field it names then not listed again as a new
+state in question 6 (owner, 2026-10-06, audit 10; before, raw values and the larger of the
+robust SD and SD of the 7 other fields, which flagged about 5 of 174 null log-normal fields
+and fields 1% apart). With several controls the controls apart
 in intensity (owner, 2026-10-06, plan v2)
 and a line naming what
 was not declared and so not checked; the tables, what was checked (the
@@ -125,9 +138,15 @@ declaration in short lines) and the declaration in full are under "Show more".
 
 ### Fields to check
 
-"Fields to check" lists each field to open and why: the fields the integrity
-checks name, then those that sway the result, have an unusual count or show a
-state no other field shows. A field sways the result when leaving it out moves its
+"Fields to check (quality control)" lists each field to open and why: the fields the
+integrity checks name, those far from the other fields of their condition and repeat (the
+acquisition anomalies), then those that sway the result or have an unusual count. Its code
+runs the report again without the fields the images show to be artefacts, every field
+listed commented out, to uncomment: removing a field is opt-in. The fields that show a
+state no other field shows are a card of their own, "Fields to look at (new states,
+exploratory)", to look at and never among the fields to remove (owner, 2026-10-06, audit
+10; before, one card listed them with the others and its code removed every listed field
+unless its line was deleted). A field sways the result when leaving it out moves its
 condition's mean in its repeat, every cell weighing one as in the paired t-test, by
 10% or more, and that change stands out from the other fields' of its group: more than
 3 robust SDs (1.4826 times the median absolute deviation) from the group's median
@@ -138,6 +157,17 @@ change against the control and the paired t-test's p with the field and without 
 control field: the condition it moves most), on the values the test compares (raw with
 several controls). Without a control, it is the field-weighted mean of its group, by the
 same rule.
+
+The new states are exploratory, said once in the section, and judged against the definition
+of new's own null rate (`strategies.novelty_null`): the share of a homogeneous population's
+fields it calls new at the group's size, the same fields and observation counts with
+independent Gaussian features, through the same transform, simulated and cached. Above 20%
+the group's new states are not listed: "not informative with 8 fields in 17 features" (17
+features, one image per field and a radius of sqrt(17) called 81-99% of null fields new).
+Beside the fields that hold new states, the count false alarms alone would give: from the
+declared reference's false-alarm rate with a positive control, else from that null rate,
+"new states come from 4 fields; false alarms alone would give about 8, up to 25, ..., so
+these are compatible with chance" (owner, 2026-10-06, audit 10).
 
 `inspect_fovs` lists fields to reopen, one reason per line with its numbers: a new state (support novelty), influence on a declared FOV-weighted summary (mean or an interpolated quantile) that also stands out from the group's other fields (`influence_spread`, 3 robust SDs from the median change; groups of fewer than 4 fields not judged; owner, 2026-10-05), an observation count far from the median, or a difference from the nearest stage neighbours. `novelty_cols` names the features the new-state reason is judged on, so the other reasons can read the readout. There is no combined score and no FOV is called an artifact.
 
@@ -170,9 +200,9 @@ and the share right of those it picks when the same procedure is refitted with w
 fields held out (5 folds of fields, scikit-learn's `StratifiedGroupKFold`, fewer
 with fewer fields; cells held out for a group in one field, and the report says so):
 these describe the procedure, not the exact thresholds shown (owner, 2026-10-05);
-"What to do next" names the fields
-that hold most of it, to validate on the images, and gives the code that labels
-it with the rule and declares it as the rare phenotype. A cluster holding most
+"What to do next" names a few
+of its fields, to validate on the images, and gives the code that labels
+it with the rule and declares it as the rare phenotype (see below for when). A cluster holding most
 cells is the main population (`P1`), the rest of the cells. On constructed data
 this finds no group in a Gaussian, a separate blob as a group its rule finds,
 and the end of a straight line at most as a group; groups overlapping strongly
@@ -208,6 +238,23 @@ entry to hide it), can be coloured by condition, population or any feature, and,
 around points drawn with the lasso, list the conditions and populations they
 come from and the features that set them apart (Cohen's d).
 
+Read against the conditions (owner, 2026-10-06, audit 10): a condition more or less common
+in a group across repeats is "more common in a1 (exploratory; 90% vs 4.2%, q 0.024)", ⚠️,
+never "significant across repeats" nor ✅, the page's chip "More common (exploratory)"; a
+group of which one condition holds 90% or more of the cells is "mostly a1, 99% of its
+cells: its shift, not a subpopulation"; a group's defining features are its cells' d
+against the cells of the control they are compared with (a group mostly of a control,
+against every other cell), and with several controls and no `normalize` the groups are
+found on the values normalised to each own control, as the experiments have their own
+controls, so raw values pooled across experiments do not make a group "low area" while
+question 9 reads the condition higher. The most different condition is the one of the
+smallest q, then of the largest effect; a condition on one side in every repeat reads as a
+trend only from 6 repeats, as for the features, and with fewer than 3 repeats "not tested"
+("higher in both repeats, not tested"). A rule that thresholds a feature with few distinct
+values says so. "What to do next" names a few of the group's fields with how many of its
+cells they hold, and suggests declaring the group as the rare phenotype only when it holds
+at most 10% of the cells and is not mostly one condition.
+
 ### Do the conditions differ?
 
 Question 9, each condition against its control: [Do the conditions
@@ -226,13 +273,21 @@ data, in plain language, are in [Objects or fields?](objects_or_fields.md).
 ### Can these features detect what I care about?
 
 `representation_control` judges declared positive-control FOVs (and positive cells planted into reference FOVs) against random reference FOVs holding observations, paired within `pair_cols`: detection and false-alarm rates, "positive only" without a reference, "not assessed" without a control. It also measures both rates leaving one field out within the analysis groups of the inspection (`lofo_group_cols`), which the report's "expected by chance" clause and its detection-adjusted bound read, pooled over the strata of `pair_cols` and said so ("pooled over all plates", owner, 2026-10-05).
+A positive control recognized no more often than the reference's false alarms is "cannot
+tell the positive control from the reference with this definition of new", not judged (➖),
+and questions 2, 4 and 5 say so instead of a weak representation: a definition that tells
+nothing apart says nothing about the features (owner, 2026-10-06, audit 10; before, ❌ weak
+representation at 20% against 20%).
 
 With a label and no positive control, question 1 is answered by the label: for each labelled cell, whether
 the nearest cell of another field (on the declared features, robustly
 standardized as the other explainable spaces are, the SD where the MAD is under a quarter of
 it, each explainable table weighted by MFA when there are two or more; owner, 2026-10-06,
-audit 8) is labelled too, against the share labelled overall, with
-`minimum_detection` as for a positive control. Every labelled cell is looked up
+audit 8) and of the same condition is labelled too, against the share labelled within the
+labelled cells' own conditions, with `minimum_detection` as for a positive control; the
+features that separate it compare labelled and unlabelled cells of one condition, each
+feature centred on its condition's unlabelled cells (owner, 2026-10-06, audit 10: a label
+more common in a condition that shifts a feature was otherwise read through that shift). Every labelled cell is looked up
 against its true nearest cell of another field, and the answer gives how many were
 assessed. A declared label the check cannot assess (fewer than 5 labelled cells, no
 unlabelled cell to compare, a missing feature value, or no labelled cell with a cell

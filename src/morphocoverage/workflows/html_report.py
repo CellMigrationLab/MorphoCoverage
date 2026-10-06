@@ -55,8 +55,6 @@ from ._feature_space import attached, space
 from ._html_cards import (
     check_rows,
     chip_words,
-    fields_table,
-    flagged_fields,
     help_icon,
     readout_summary,
     significant_summary,
@@ -72,9 +70,10 @@ from ._html_data import (
     page_files,
 )
 from ._html_enough import enough_body, enough_help
+from ._html_fields import NEW_STATES, NEW_STATES_HELP, fields_cards, has_new_states
 from ._html_figures import feature_figures
 from ._html_maps import embeddings, maps_body
-from ._html_next import fields_next, populations_next
+from ._html_next import populations_next
 from ._html_plan import PLAN_TITLE, plan_card
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
@@ -252,20 +251,9 @@ def _data_card(result: Report, doc: Any, status: Status | None, fields_named: bo
 
 
 def _fields_card(result: Report, status: Status | None, short: str, full: str) -> str:
-    """The fields to check, and why; the report's text under "Show more"."""
-    rows, identities, key = flagged_fields(result)
-    if rows:
-        body = (
-            "<p>Please check these fields of view, and why:</p>"
-            + fields_table(rows, _TERMS.annotate)
-            + '<p class="note">None of these is called an error: look at the images to see '
-            "whether it is biology, technique or simply a large field.</p>"
-        )
-    else:
-        body = _html(short)
-    body += f"<details><summary>Show more</summary>{_html(full)}</details>"
-    body += fields_next(identities, key)
-    return _card("inspect", TITLES["inspect"], chip(status, "inspect", short), body)
+    """The fields to check, and why, and the new states apart (``_html_fields``)."""
+    chip_html, title = chip(status, "inspect", short), TITLES["inspect"]
+    return fields_cards(result, chip_html, _html(short), _html(full), _card, _TERMS.annotate, title)
 
 
 def _dataset_card(result: Report, viz: str, static: list[str]) -> str:
@@ -380,7 +368,7 @@ def html_report(
     # The "?" help in the report's words for its observations (tracks, patches).
     _INTROS.clear()
     units, one = result.setup.unit_words, result.setup.unit_word
-    _INTROS.update(intros_for(units, one, **enough_help(result)))
+    _INTROS.update(intros_for(units, one, **enough_help(result)), **{NEW_STATES: NEW_STATES_HELP})
     _WORDS.clear()
     _WORDS.update(chip_words(result))
     _UNITS.update(words=units, one=one)
@@ -416,6 +404,10 @@ def html_report(
             f'<a href="#{key}"><span class="icon" aria-hidden="true">{icon}</span>'
             f"<span>{html.escape(titles[key])}</span></a>"
         )
+        if key == "inspect" and has_new_states(result):  # the new states' card (audit 10)
+            nav.append(
+                f'<a href="#{NEW_STATES}"><span class="icon"></span><span>New states</span></a>'
+            )
         if status is not None:
             glance.append(
                 f'<a class="glance-row" href="#{key}"><span class="q">{html.escape(titles[key])}'

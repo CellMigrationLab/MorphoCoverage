@@ -1,7 +1,7 @@
 """The values biological unusualness reads (private; owner, 2026-10-06, plan v2).
 
 Unusual observations are split in two (``docs/common/what_happens.md``): an acquisition
-anomaly is read on the raw values, as quality control (``sampling_unit.acquisition``), and
+anomaly is read on the values themselves, as quality control (``sampling_unit.acquisition``), and
 biological unusualness on values made relative to each observation's own control in its
 repeat, against that control, as the normalised analyses read them:
 
