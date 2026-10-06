@@ -65,6 +65,8 @@ def shared_family(contrast: Any, discovery: Any, readout: str) -> Any:
         if pd.notna(test.get("p_paired_raw")):
             repeats.loc[index, "p_paired_t"] = test["p_paired_raw"]
             repeats.loc[index, "q_paired_t"] = test["q_paired_raw"]
+        if "q_screen" in test:  # over the features too (audit 10, owner, 2026-10-06)
+            repeats.loc[index, "q_screen"] = test["q_screen"]
     cells = contrast.cells.copy() if contrast.cells is not None else None
     if cells is not None and len(cells):
         for index, row in cells.iterrows():

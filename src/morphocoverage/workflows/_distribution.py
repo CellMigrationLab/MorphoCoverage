@@ -67,6 +67,7 @@ def distribution_by_feature(
         features=features,
         random_state=setup.random_state,
         scales=setup.scales,
+        families=setup.families(fovs),
         **setup.contrast_arguments,
         **setup.common,
     )

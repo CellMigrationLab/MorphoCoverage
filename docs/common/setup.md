@@ -81,6 +81,14 @@ experiments and the pairwise panels, and the test descriptions name it. The guid
 proposes `"ratio"` for the features named like an intensity or an area whose values are all
 positive, asks to confirm ("No" declares `"difference"`), and saves the answer.
 
+`experiment` names the Benjamini-Hochberg families (audit 10, owner, 2026-10-06): a column
+of the FOV table holding each condition's experiment, `Setup(experiment="set")`, or a
+mapping, `Setup(experiment={"THBS5": "untransfected", "VEC_SiA": "siRNA"})`. Each declared
+experiment is one family; a condition it does not name keeps its sub-experiment; a control
+holding several values of the column is left out, a test belonging to its condition's
+experiment, and any other condition holding several is refused. By default (`None`), the
+families are the sub-experiments the design gives. The declaration says so once.
+
 `fields_independent` (default `False`) declares that the fields are
 independent draws of their condition. Only then do the condition contrast and
 the feature ranking give a p-value when the fields have no unit to shuffle

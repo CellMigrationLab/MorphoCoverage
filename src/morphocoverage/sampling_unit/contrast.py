@@ -317,6 +317,7 @@ def condition_contrast(
     comparisons: Sequence[tuple[Any, Any]] | None = None,
     contrasts: pd.DataFrame | None = None,
     scale: str | None = None,
+    families: Mapping[Any, Any] | None = None,
 ) -> ConditionContrast:
     """Each condition against the control condition, per repeat, with objects and with fields.
 
@@ -343,7 +344,8 @@ def condition_contrast(
     comparisons (its ``own_control`` rows) and the secondary rows, tested on the repeat means
     (``contrast_across``, the table ``across``). ``scale``, the feature's declared scale
     (``Setup.scales``: ``"ratio"`` or ``"difference"``; plan v2, owner, 2026-10-06), replaces the
-    automatic rule (``statistics.log_scale``) for the paired test across repeats.
+    automatic rule (``statistics.log_scale``) for the paired test across repeats. ``families``,
+    each condition's declared experiment (``Setup.experiment``), sets the correction families.
     """
     declared = None if contrasts is None else check_contrast_table(contrasts)
     comparisons = comparisons if declared is None else own_pairs(declared)
@@ -473,7 +475,7 @@ def condition_contrast(
         tested, np.minimum(1.0, table["p_value"] * int(tested.sum())), np.nan
     )
     log = settings["log_scale"]
-    repeats = across_repeats(table, repeat_col, random_state, log)
+    repeats = across_repeats(table, repeat_col, random_state, log, families)
     held = (all_groups, described, feature, technical_col)
     between = across_table(held, declared, random_state, log)
     settings.update(between.attrs)  # the contrast table and the master's repeats
@@ -496,6 +498,7 @@ def condition_contrast(
             lambda condition, values: group_rng(
                 random_state, {"condition": condition, "test": "cells", "values": values}
             ),
+            families,
         )
         if pooled and cell_test
         else pd.DataFrame(columns=CELL_COLUMNS)

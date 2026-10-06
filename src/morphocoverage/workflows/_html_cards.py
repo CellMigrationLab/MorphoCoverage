@@ -191,6 +191,9 @@ def _change(row: Any) -> str:
 
 def _significant(row: Any, unit: str) -> str:
     q = f"adjusted p {p_value(row.q_paired)}" if np.isfinite(row.q_paired) else ""
+    # Beside it, over every test against a control label several families share (audit 10).
+    screen = getattr(row, "q_screen", np.nan)
+    q += f" (screen-wide {p_value(screen)})" if q and pd.notna(screen) else ""
     size = ", ".join(x for x in (_change(row), q) if x)
     # The direction and its count from the repeats, as the test across repeats reads them.
     word = "higher" if row.higher >= row.lower else "lower"

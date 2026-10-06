@@ -11,6 +11,7 @@ import sys
 import warnings
 from functools import cache
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import matplotlib
@@ -43,9 +44,10 @@ from morphocoverage.sampling_unit.contrast_sampling import (
 from morphocoverage.sampling_unit.discovery import feature_discovery
 from morphocoverage.sampling_unit.distribution import distribution_contrast
 from morphocoverage.sampling_unit.whole_table import sign_floor, whole_table_tests
-from morphocoverage.statistics import cohen_d
+from morphocoverage.statistics import benjamini_hochberg, cohen_d
 from morphocoverage.sufficiency_short import met_count
 from morphocoverage.workflows import Setup, attach_feature_tables, plots, report
+from morphocoverage.workflows._guided_controls import ask_experiment
 from morphocoverage.workflows._whole_table import across_reason, whole_table_lines
 
 SCENARIOS = Path(__file__).resolve().parents[1] / "data" / "scenarios"
@@ -442,3 +444,135 @@ def test_the_moderated_paired_t_borrows_the_familys_variance() -> None:
         ).values()
     ]
     assert 0.03 <= np.mean(rejected) <= 0.07
+
+
+def _sets(layout: dict[str, list[str]], shifts: dict[str, float]) -> tuple[pd.DataFrame, ...]:
+    """Conditions imaged in the repeats ``layout`` gives, 3 fields of 20 cells each, two
+    lognormal features; ``shifts``: each condition's log shift of both."""
+    rng = np.random.default_rng(16)
+    rows = []
+    for condition, repeats in layout.items():
+        for repeat in repeats:
+            batch = rng.normal(0, 0.1)
+            for field in range(3):
+                for label in range(20):
+                    row = {
+                        "condition": condition,
+                        "biological_repeat": repeat,
+                        "image_file": f"{condition}_{repeat}_{field}.tif",
+                        "label_id": label,
+                    }
+                    for feature in ("area", "length"):
+                        noise = rng.normal(0, 0.3) + batch + shifts.get(condition, 0.0)
+                        row[feature] = 10 * np.exp(noise)
+                    rows.append(row)
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    return objects, fovs
+
+
+SCREEN = {
+    "ctrl": ["R1", "R2", "R3", "R4", "R5", "R6"],
+    "siA": ["R1", "R2", "R3"],
+    "siB": ["R4", "R5", "R6"],
+}
+
+
+def test_a_screen_against_one_control_gives_the_screen_wide_q_beside_each_verdict() -> None:
+    # A11: the filopodia hits were significant within families of 2 tests each; over the
+    # 12 tests against siCTRL, q 0.063 and 0.054.
+    objects, fovs = _sets(SCREEN, {"siA": 0.4, "siB": 0.3})
+    common = {"features": ["area", "length"], "observation_unit": "cell", "n_permutations": 199}
+    apart = feature_discovery(objects, fovs, control={"condition": "ctrl"}, **common)
+    tests = apart.tests
+    assert tests["experiment"].nunique() == 2
+    expected = benjamini_hochberg(tests["p_paired"].to_numpy(float))
+    assert tests["q_screen"].to_numpy() == pytest.approx(expected)
+    assert "(screen-wide q " in " ".join(apart.summary().split())
+    # Declared one experiment (a screen): one family, its q the screen's, none beside it.
+    one = feature_discovery(
+        objects,
+        fovs,
+        control={"condition": "ctrl"},
+        families={"siA": "screen", "siB": "screen"},
+        **common,
+    )
+    assert one.tests["experiment"].nunique() == 1
+    assert one.tests["q_paired"].to_numpy() == pytest.approx(expected)
+    assert one.tests["q_screen"].isna().all()
+    # The readout's reading carries it too.
+    setup = Setup(readout="area", features=("area", "length"), control={"condition": "ctrl"})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        text = " ".join(report(objects, fovs, setup).summary("full").split())
+    assert "(screen-wide q " in text
+
+
+def test_declared_experiments_are_the_correction_families() -> None:
+    # B11: THBS5 vs VEC (untransfected) was corrected with the siRNA set imaged in the same
+    # repeats; declared apart, each experiment is its own family.
+    layout = {
+        "VEC": ["R1", "R2", "R3"],
+        "THBS5": ["R1", "R2", "R3"],
+        "VEC_SiNC": ["R1", "R2", "R3", "R4"],
+        "VEC_SiA": ["R1", "R2", "R3", "R4"],
+        "VEC_SiB": ["R1", "R2", "R3", "R4"],
+    }
+    objects, fovs = _sets(layout, {"THBS5": 0.3, "VEC_SiA": 0.5})
+    fovs = fovs.assign(set=np.where(fovs["condition"].isin(["VEC", "THBS5"]), "untr", "siRNA"))
+    control = {"condition": {"VEC": ["THBS5"], "VEC_SiNC": ["VEC_SiA", "VEC_SiB"]}}
+    declared = Setup(readout="area", features=("area", "length"), control=control)
+    assert declared.families(fovs) is None
+    setup = Setup(readout="area", features=("area", "length"), control=control, experiment="set")
+    families = setup.families(fovs)
+    assert families["THBS5"] == "untr" and families["VEC_SiA"] == "siRNA"
+    assert "VEC" not in families or families["VEC"] == "untr"
+    common = {"features": ["area", "length"], "observation_unit": "cell", "n_permutations": 199}
+    common |= setup.contrast_arguments
+    together = feature_discovery(objects, fovs, **common).tests
+    apart = feature_discovery(objects, fovs, families=families, **common).tests
+    assert together["experiment"].nunique() == 1
+    split = apart.groupby("experiment")["condition"].agg(lambda c: tuple(sorted(set(c))))
+    assert sorted(split) == [("THBS5 vs VEC",), ("VEC_SiA vs VEC_SiNC", "VEC_SiB vs VEC_SiNC")]
+    mine = apart[apart["condition"].astype(str).str.startswith("THBS5")]
+    expected = benjamini_hochberg(mine["p_paired"].to_numpy(float))
+    assert mine["q_paired"].to_numpy() == pytest.approx(expected)
+    words = " ".join(setup.declaration())
+    assert "Experiments: declared by the column 'set', each corrected on its own." in words
+    with pytest.raises(TypeError, match="experiment must be"):
+        Setup(readout="area", control={"condition": "VEC"}, experiment=3)
+    with pytest.raises(ValueError, match="not a column of the FOV table"):
+        Setup(readout="area", control=control, experiment="plate").families(fovs)
+
+
+def test_the_report_runs_with_declared_experiments_and_the_guided_session_asks() -> None:
+    # B11: the Setup's experiment column reaches every family; the guided session asks
+    # whether sets of conditions are separate experiments, No by default.
+    layout = {"ctrl": SCREEN["ctrl"], "siA": SCREEN["siA"], "siB": SCREEN["siB"]}
+    objects, fovs = _sets(layout, {"siA": 0.4, "siB": 0.3})
+    fovs = fovs.assign(screen="one")
+    setup = Setup(
+        readout="area",
+        features=("area", "length"),
+        control={"condition": "ctrl"},
+        experiment="screen",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup)
+    tests = result.discovery.tests
+    assert tests["experiment"].nunique() == 1 and tests["q_screen"].isna().all()
+    assert "screen-wide" not in result.summary("full")
+    scan = SimpleNamespace(fovs=fovs)
+    prompts: list[str] = []
+
+    def answer(text: str) -> str:
+        prompts.append(text)
+        return "y"
+
+    found = ask_experiment(answer, lambda text: None, scan, {"condition": "ctrl"})
+    assert found == {"siA": "screen", "siB": "screen"}
+    assert prompts[0].startswith("Are they one experiment against ctrl")
+    assert ask_experiment(lambda text: "", print, scan, {"condition": "ctrl"}) is None
+    several = {"condition": {"c1": ["a"], "c2": {"k": "b"}}}
+    assert ask_experiment(answer, print, scan, several) == {"a": "c1", "b": "c2"}

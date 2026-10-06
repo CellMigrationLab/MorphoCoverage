@@ -69,7 +69,8 @@ from ..objectives import RareTarget
 from ..retrospective.criteria import OutcomeCriterion
 from . import _guided_ask as q
 from ._feature_space import features_words
-from ._guided_controls import ask_controls, contrast_lines
+from ._guided_controls import ask_controls, ask_experiment, contrast_lines
+from ._guided_runtime import rough_runtime
 from ._guided_tables import (
     Tables,
     ask_tables,
@@ -94,37 +95,6 @@ POSITIVE_FIELDS = 10
 # The rare target of a phenotype column (presets, as the page's suggested code uses them).
 RARE_DETECTION = 0.95
 RARE_FIELDS = 3
-# A rough runtime of report() and html_report() together (owner, 2026-10-05: "acceptable,
-# say it up front"), from the stress runs of 2026-10-02 and 2026-10-05 on 4 cores (5 to 300
-# features, 3 to 151 conditions): seconds per feature and condition (the tests), per
-# condition (the page's figures) and for the UMAP and the rest.
-SECONDS_PER_PAIR = 0.6
-SECONDS_PER_CONDITION = 8.0
-SECONDS_FIXED = 60.0
-# Each other feature table (owner, 2026-10-06): its populations, maps and copy checks, a
-# fixed part and a part per column, from a report and page of 5,000 cells with a table of
-# 400 and of 1,500 columns on 3 processes (65 s and 129 s more than without; 2026-10-06).
-SECONDS_PER_TABLE = 40.0
-SECONDS_PER_TABLE_COLUMN = 0.06
-
-
-def rough_runtime(
-    n_features: int, n_conditions: int, n_jobs: int = 4, tables: Sequence[int] = ()
-) -> float:
-    """The seconds a report and its page take, roughly: ``SECONDS_PER_PAIR`` for each
-    feature and condition on 4 cores (fewer cores slower), ``SECONDS_PER_CONDITION`` for
-    each condition and ``SECONDS_FIXED``; and for each other feature table (``tables``: its
-    number of columns) ``SECONDS_PER_TABLE`` and ``SECONDS_PER_TABLE_COLUMN`` a column."""
-    cores = (os.cpu_count() or 1) if n_jobs < 1 else n_jobs
-    per_pair = SECONDS_PER_PAIR * 4 / max(1, min(cores, 4))
-    conditions = max(1, n_conditions)
-    others = sum(SECONDS_PER_TABLE + SECONDS_PER_TABLE_COLUMN * columns for columns in tables)
-    return (
-        per_pair * max(1, n_features) * conditions
-        + SECONDS_PER_CONDITION * conditions
-        + SECONDS_FIXED
-        + others
-    )
 
 
 def table_checksum(table: pd.DataFrame) -> str:
@@ -146,7 +116,8 @@ class Answers:
     ``dataset`` records the tables the answers were given for: paths, rows, the observation table's
     ``checksum`` and the FOV table's ``fovs_checksum`` (``None`` without one). ``scales``: the
     features named like an intensity or an area and the scale confirmed (``ask_scales``; plan v2,
-    owner, 2026-10-06).
+    owner, 2026-10-06). ``experiment``: each condition's experiment when the user said sets are
+    separate experiments, or one screen (``ask_experiment``; audit 10, owner, 2026-10-06).
     """
 
     loaded_correctly: bool
@@ -164,6 +135,7 @@ class Answers:
     master_control: Any = None
     rare_label: str | None = None
     scales: dict[str, str] | None = None
+    experiment: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.control_parents:
@@ -244,6 +216,7 @@ class Answers:
         if self.rare_label is not None:
             values["rare"], values["rare_label"] = self.rare_target(scan), self.rare_label
         values["scales"] = self.scales or None
+        values["experiment"] = self.experiment or None
         values.update(fields)
         with warnings.catch_warnings():
             # A control the user chose to leave out is an answer, not a guess to warn about.
@@ -301,6 +274,9 @@ class Answers:
             )
         if self.fingerprint_tolerance is not None:
             lines.append(f"Fingerprint tolerance: {percent(self.fingerprint_tolerance)}.")
+        if self.experiment:
+            named = listing(sorted({str(e) for e in self.experiment.values()}), 4)
+            lines.append(f"Experiments, each corrected on its own: {named}.")
         return lines + q.scale_lines(self.scales or {})
 
 
@@ -465,6 +441,7 @@ def _questions(
         scan = rescan(unit)
     control, parents, master = ask_controls(ask, say, scan)
     say("The tests that will run:\n" + "\n".join(contrast_lines(control, parents, master)))
+    experiment = ask_experiment(ask, say, scan, control)
     positive = q.ask_positive(ask, say, scan, control)
     tables = scan.settings.get("feature_tables") or {}
     taken = [*scan.settings["group_cols"], scan.settings["fov_col"], *_table_columns(tables)]
@@ -498,6 +475,7 @@ def _questions(
         master_control=master,
         rare_label=rare_label,
         scales=scales or None,
+        experiment=experiment,
     ), scan
 
 

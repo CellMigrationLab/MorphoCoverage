@@ -243,7 +243,17 @@ never a "balanced" test of one repeat (audit 10, owner, 2026-10-06).
   (the conditions that share their biological repeats and their control, as
   when a screen runs target by target), each test separately: one part of a
   screen does not dilute another (owner, 2026-10-01). The tests within one
-  repeat keep their Bonferroni correction.
+  repeat keep their Bonferroni correction. `Setup(experiment=...)`, a column of the FOV
+  table or a mapping condition -> experiment, names the families instead: each declared
+  experiment is one family, so an untransfected pair imaged in the same repeats as an siRNA
+  set is not corrected with it, and a screen declared as one experiment is corrected as one
+  (audit 10, owner, 2026-10-06). When the tests against one control label fall into two or
+  more families (a screen run target by target against one siCTRL), the screen-wide q, over
+  every test against that label, is given beside each verdict ("screen-wide q 0.054"; the
+  CSV's `q_screen`, `screen_wide_adjusted_p`). The guided session asks, with several
+  controls, whether each control's conditions are a separate experiment, and with one
+  control whose conditions fall into sets imaged in separate repeats, whether they are one
+  screen; No, the default, keeps the design's families.
 
 ## Limitations
 

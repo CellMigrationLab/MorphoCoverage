@@ -59,7 +59,7 @@ from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
 from ..statistics import BIMODAL, bimodality_coefficient, excess_kurtosis, log_scale, paired_t
 from ._common import groups, validated
-from ._experiments import corrected, experiments
+from ._experiments import corrected, declared, experiments
 from ._units import (
     contrasts_of,
     control_label,
@@ -350,11 +350,12 @@ def distribution_contrast(
     comparisons: Sequence[tuple[Any, Any]] | None = None,
     random_state: int = 0,
     scales: Mapping[str, str] | None = None,
+    families: Mapping[Any, Any] | None = None,
 ) -> DistributionContrast:
     """Compare each feature's distribution with the control's (see the module); arguments
     follow ``feature_discovery`` (``comparisons``: each condition against its reference;
     ``random_state`` seeds the field-balanced draws; ``scales``: each feature's declared
-    scale, else the automatic rule)."""
+    scale, else the automatic rule; ``families``: each condition's declared experiment)."""
     random_state = check_seed(random_state)
     if comparisons is not None:
         comparisons = check_comparisons(comparisons)
@@ -370,8 +371,8 @@ def distribution_contrast(
     contrasts = contrasts_of(described)
     rows, held, shapes, logs = [], {}, [], {}
     for feature in features:
-        declared = (scales or {}).get(feature)
-        logs[feature] = log_scale(data.feature_values(feature), declared, repr(feature))
+        scale = (scales or {}).get(feature)
+        logs[feature] = log_scale(data.feature_values(feature), scale, repr(feature))
         for condition, side in _fields(
             all_groups, described, contrasts, feature, technical_col
         ).items():
@@ -396,7 +397,7 @@ def distribution_contrast(
     columns += ["mean", "low", "high", "lower", "higher", "p", "q", "experiment"]
     tests = pd.DataFrame(rows).reindex(columns=columns)
     if len(tests):
-        tests["experiment"] = tests["condition"].map(experiments(held))
+        tests["experiment"] = tests["condition"].map(declared(experiments(held), families))
         tests["q"] = corrected(tests["p"], tests["experiment"])
     settings = {
         "features": features,

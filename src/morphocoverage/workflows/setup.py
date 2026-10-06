@@ -67,11 +67,13 @@ from ._feature_space import check_feature_tables, table_columns
 from ._setup_parts import (
     PositiveControl,
     check_embedding_only,
+    check_experiment,
     check_few_fovs,
     check_positive,
     check_presets,
     check_scales,
     default_novelty,
+    experiment_families,
     setup_objective,
     warn_novelty_dimension,
 )
@@ -110,6 +112,9 @@ class Setup:
     - ``scales``: each explainable feature's scale for the tests across repeats, ``{"area":
       "ratio", "velocity": "difference"}`` (plan v2, owner, 2026-10-06; ``check_scales``);
       a feature not named keeps the automatic rule (log ratio when every value is positive).
+    - ``experiment``: the correction families, a FOV-table column naming each condition's
+      experiment or a mapping condition -> experiment; each declared experiment is corrected
+      on its own (audit 10, owner, 2026-10-06); ``None``, the sub-experiments of the design.
     - ``feature_tables``: the non-explainable feature tables, each name with its columns,
       such as a DINO embedding (owner, 2026-10-05): never tested feature by feature, they
       join the maps, the populations, the copy checks and their own fingerprints, never
@@ -222,6 +227,7 @@ class Setup:
     intensity_features: tuple[str, ...] = ()
     explainable_tables: Mapping[str, tuple[str, ...]] | None = None
     scales: Mapping[str, str] | None = None
+    experiment: str | Mapping[Any, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.readout is not None and (not isinstance(self.readout, str) or not self.readout):
@@ -288,6 +294,7 @@ class Setup:
         warn_novelty_dimension(self)
         check_feature_tables(self)
         check_scales(self)
+        check_experiment(self)
         if set(self.intensity_features) - set(self.columns):
             raise ValueError("intensity_features must be declared columns (readout or features)")
         undeclared = set(self.criterion_columns) - {*self.columns, *table_columns(self)}
@@ -304,6 +311,10 @@ class Setup:
     def scale_of(self, feature: str | None) -> str | None:
         """The declared scale of ``feature`` (``scales``), ``None`` for the automatic rule."""
         return (self.scales or {}).get(feature) if feature is not None else None
+
+    def families(self, fovs: pd.DataFrame) -> dict[Any, Any] | None:
+        """Each condition's declared experiment (``experiment``), ``None`` without one."""
+        return experiment_families(self, fovs)
 
     @property
     def columns(self) -> list[str]:

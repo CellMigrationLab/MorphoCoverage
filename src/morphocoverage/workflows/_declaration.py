@@ -72,6 +72,10 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
     controls = controls_sentence(setup)
     if controls:  # several controls (owner, 2026-10-05)
         lines.append(f"{controls}.")
+    if setup.experiment is not None:  # declared correction families (audit 10, 2026-10-06)
+        name = setup.experiment
+        how = f"by the column {name!r}" if isinstance(name, str) else "condition by condition"
+        lines.append(f"Experiments: declared {how}, each corrected on its own.")
     if novelty_runs(setup, per_field):  # the positive control is judged by it
         lines.append(_novelty(setup))
         lines += [_positive(setup)] if setup.positive is not None else []

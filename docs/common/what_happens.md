@@ -93,6 +93,10 @@ once. A declared ratio on a feature with a value that is not positive is refused
   declared target can be judged, and `optimise` refuses with the same words. Without
   explainable features the aims are the whole distribution, the labelled phenotype, or both.
 
+**Correction families.** `experiment`, a column of the FOV table or a mapping condition ->
+experiment, names the Benjamini-Hochberg families, by default the sub-experiments
+([testing in one place](#testing-in-one-place); audit 10, owner, 2026-10-06).
+
 **Repeats and wells.**
 
 - `biological_repeat`: the replicate of every verdict; paired tests need 3 repeats, and
@@ -146,7 +150,7 @@ the contrast table, or the one control.
 
 | Analysis | Values it reads | Level | Correction family | Not run, or not applicable, when |
 | --- | --- | --- | --- | --- |
-| Paired t across repeats, the main rows | raw means per repeat; tested on the scale declared in `Setup(scales=...)` (plan v2, owner, 2026-10-06), else on the log ratio to the own control when every observation of the feature is positive, else the difference, one scale per feature for every condition (owner, 2026-10-06); raw beside | biological repeat | Benjamini-Hochberg over every explainable feature, the label share and every main row, per sub-experiment | fewer than 3 repeats: direction and d only; no repeat holds both: "Not compared" |
+| Paired t across repeats, the main rows | raw means per repeat; tested on the scale declared in `Setup(scales=...)` (plan v2, owner, 2026-10-06), else on the log ratio to the own control when every observation of the feature is positive, else the difference, one scale per feature for every condition (owner, 2026-10-06); raw beside | biological repeat | Benjamini-Hochberg over every explainable feature, the label share and every main row, per sub-experiment | fewer than 3 repeats: direction and d only; no repeat holds both: "Not compared", and when no condition is compared at all, "➖ nothing compared" (audit 10, owner, 2026-10-06) |
 | `across_normalised` rows | per repeat, each condition's log ratio to its own control, their difference | repeats holding all four | one family over every feature and row of this kind | fewer than 3 repeats: named, not compared; no treatment key: no row |
 | `vs_master_raw` rows | per repeat, a control against the master, not normalised, on the feature's scale: the log ratio of their means, else the difference, so the fold change shown is what is tested (audit 10, owner, 2026-10-06) | repeats holding both | one family over every feature and row of this kind | no master; a pair joined by a parent link |
 | Cell-level screen | observations pooled over repeats, divided by the same repeat's control mean when every control mean is positive; balanced when the repeats are unbalanced and at least 2 repeats are left to balance, else as provided (audit 10, owner, 2026-10-06) | observation | the same family as the paired t | the control pooled from other repeats with no balanced test possible |
@@ -283,7 +287,11 @@ fingerprint, the rare target and novelty. Each section of the report and of the 
 answers with one of them says so once, in one sentence pointing to that protocol
 (`workflows._exploratory`).
 
-Benjamini-Hochberg controls the false discovery rate within each family above, never across
+A declared `experiment` replaces the sub-experiment wherever a family above reads "per
+sub-experiment": the paired t, the cell-level screen, the whole-table test and beyond the
+mean (populations and the plan's 0.05/m keep the sub-experiments); the screen-wide q is given
+beside each verdict whose control label several families share (audit 10, owner,
+2026-10-06). Benjamini-Hochberg controls the false discovery rate within each family above, never across
 the report: a report of several families can hold more false discoveries overall than any
 one family allows. The report says so once, where it explains its q-values (plan v2, owner,
 2026-10-06).

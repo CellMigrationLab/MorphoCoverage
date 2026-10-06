@@ -75,7 +75,7 @@ from .._seeds import group_rng
 from ..embedding import robust_scale
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, empty_values
 from ..schema import ValidatedInput, validate_input_tables
-from ._experiments import corrected, experiments
+from ._experiments import corrected, declared, experiments
 
 MIN_REPEATS = 3
 # The distinct label assignments a shuffle needs for a p of 0.05: the distance is the same
@@ -326,9 +326,11 @@ def whole_table_tests(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    families: Mapping[Any, Any] | None = None,
 ) -> WholeTable:
     """The whole-table tests of every table (``tables``: each name and its columns) for each
-    ``(condition, control)`` of ``pairs`` (see the module)."""
+    ``(condition, control)`` of ``pairs`` (see the module); ``families``, each condition's
+    declared experiment (``Setup.experiment``), sets the correction families."""
     rows: list[dict[str, Any]] = []
     left: dict[str, int] = {}
     for name, columns in tables.items():
@@ -366,6 +368,7 @@ def whole_table_tests(
         # The sub-experiments: the conditions linked by the repeats they were compared in.
         held = fovs.groupby(CONDITION_COLUMN)[REPEAT_COLUMN].agg(set).to_dict()
         numbers = experiments({c: held.get(c, set()) & held.get(k, set()) for c, k in pairs})
+        numbers = declared(numbers, families)
         tests["experiment"] = tests["condition"].map(numbers)
         family = tests["table"].astype(str) + "\x1f" + tests["experiment"].astype(str)
         tests["q_repeats"] = corrected(tests["p_repeats"], family)

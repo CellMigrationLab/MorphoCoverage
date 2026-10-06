@@ -40,18 +40,23 @@ def _cells(seed=0):
 # The scale question of plan v2 (owner, 2026-10-06), asked for features named like an area or
 # an intensity: answered with its default, Enter, unless a test scripts it (``scales=False``).
 SCALE_PROMPT = "Test the changes of "
+# Whether sets of conditions are separate experiments (audit 10, owner, 2026-10-06): answered
+# with its default, No, unless a test scripts it (``experiments=False``).
+EXPERIMENT_PROMPTS = ("Are the conditions of each control a separate", "Are they one experiment")
 
 
 class Script:
     """Answers the prompts in order and records what was said."""
 
-    def __init__(self, answers, scales=True):
+    def __init__(self, answers, scales=True, experiments=True):
         self.answers, self.said, self.prompts = list(answers), [], []
-        self.scales = scales
+        self.scales, self.experiments = scales, experiments
 
     def ask(self, prompt):
         self.prompts.append(prompt)
         if self.scales and prompt.startswith(SCALE_PROMPT):
+            return ""
+        if self.experiments and prompt.startswith(EXPERIMENT_PROMPTS):
             return ""
         if not self.answers:
             raise AssertionError(f"no scripted answer left for {prompt!r}")

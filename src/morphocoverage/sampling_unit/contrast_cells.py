@@ -105,7 +105,7 @@ from scipy import stats
 from .._parallel import map_units
 from ..statistics import cohen_d
 from ._balanced import BalancedDesign, BalancedRerun
-from ._experiments import corrected, experiments, family_sizes
+from ._experiments import corrected, declared, experiments, family_sizes
 
 ALPHA = 0.05
 # Balanced resamples per condition, and the shuffles of the randomization test in each.
@@ -419,6 +419,7 @@ def cell_table(
     plan: pd.DataFrame,
     n_permutations: int,
     rng_for: Any,
+    families: Mapping[Any, Any] | None = None,
 ) -> pd.DataFrame:
     """One row per condition: the cell-level test pooled as provided, the balance check and,
     when unbalanced, the balanced test over the repeats that are not sparse, each on raw and
@@ -520,7 +521,7 @@ def cell_table(
     family = experiments(
         {condition: list(side["treated_by_repeat"]) for condition, side in pooled.items()}
     )
-    table["experiment"] = table["condition"].map(family)
+    table["experiment"] = table["condition"].map(declared(family, families))
     table = table.set_index("condition", drop=False)
     # A test as provided whose control pools repeats the condition lacks is withheld, so it
     # leaves the correction family: q only over the tests reported (owner, 2026-10-05).
