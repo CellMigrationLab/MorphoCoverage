@@ -146,7 +146,7 @@ the contrast table, or the one control.
 | Copy checks | each explainable table apart, or the features as one table | field | none, exact | `integrity=True` not given; the guided session gives it |
 | Duplicated or derived features | every declared column, on all rows and within each experiment | column pair | none, a caution | none |
 | Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap | one control |
-| `optimise` | criteria on held-back fields, divided as the fingerprint; the rules replayed raw | analysis group | none | no target it can judge |
+| `optimise` | criteria on held-back fields, divided as the fingerprint, a fingerprint's components refitted on the fields not held back; the rules replayed raw | analysis group | none | no target it can judge |
 | `live_session` | the raw columns of each field | analysis group | none | none |
 
 With the readout as the only explainable column, its own tests are corrected over its

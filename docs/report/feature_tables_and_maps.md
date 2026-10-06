@@ -147,9 +147,13 @@ and the report says which space.
   fields: `optimise` then says it is not assessable rather than judging the full width
   (seed 9). The explainable features keep today's form when they number at most that fifth,
   or when no group holds 4 fields, and follow the same rule when they are wider. `optimise`
-  judges the same components on held-back fields, never in a group too small for k (its
-  draws not judged, the group named; `ComponentsError.excluded`)
-  (`workflows._fingerprint_space`, `multivariate_outcomes.ComponentsError`).
+  judges the same number of components on held-back fields, never in a group too small for
+  k (its draws not judged, the group named; `ComponentsError.excluded`)
+  (`workflows._fingerprint_space`, `multivariate_outcomes.ComponentsError`). There the
+  components are refitted in each split on the group's fields that are not held back, so no
+  held-back field enters the fit that it judges (owner, 2026-10-06, plan v2: a fit on every
+  field let the reference shape its own axes); the report's reading, from random halves of
+  all the fields with nothing held back, keeps the fit on every observation.
 
 In the weighted combined space each table, robustly standardised, is divided by its own
 first singular value over `sqrt(n - 1)`, as in multiple factor analysis (MFA; owner,

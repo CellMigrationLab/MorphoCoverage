@@ -1,9 +1,8 @@
 """Benchmark protocol: declared dataset roles, acquisition orders and one record per run.
 
-Nothing here selects a winner. It fixes how runs are recorded so that
-strategies can be compared on strategy-independent outcome metrics
-(``outcomes.py``), with tuning kept apart from the data used to claim
-success:
+Nothing here selects a winner. It fixes how runs are recorded so that strategies can be
+compared on strategy-independent outcome metrics (``outcomes.py``), with tuning kept apart
+from the data used to claim success:
 
 - **Dataset roles.** Every dataset is registered as ``development`` or
   ``held_out``. Configurations may be tuned only on development data; a run
@@ -393,10 +392,10 @@ def _record_run(
 ) -> BenchmarkRecord:
     """Find the stop in one strategy's history on one group and score it against ``scored_against``.
 
-    ``full`` is everything the replay could reveal (the group, or its stream).
-    ``stop_on`` is ``"decision"`` or ``"rule"`` (see ``run_benchmark``); the
-    recorded ``final_decision`` is the decision it reads. The stop prefix is
-    scored in acquisition order, as the replay revealed it.
+    ``full`` is everything the replay could reveal (the group, or its stream, on which alone
+    a fitted outcome is fitted against a held-out reservoir). ``stop_on`` is ``"decision"``
+    or ``"rule"`` (see ``run_benchmark``); the recorded ``final_decision`` is the decision it
+    reads. The stop prefix is scored in acquisition order, as the replay revealed it.
     """
 
     def read(result: StrategyResult) -> Decision | None:
@@ -423,6 +422,7 @@ def _record_run(
     used_times = times[: last_index + 1]
     used_decisions = decisions[: last_index + 1]
     configuration = last.result.configuration
+    fitted = [(m, m if scored_against is full else m.trained(full)) for m in metrics]
     return BenchmarkRecord(
         dataset=dataset.name,
         role=dataset.role,
@@ -444,7 +444,7 @@ def _record_run(
         total_fovs=len(full.fovs),
         total_observations=len(full.objects),
         total_area=_area(full, dataset.area_col),
-        outcomes={metric.name: metric.evaluate(scored_against, stopped) for metric in metrics},
+        outcomes={metric.name: m.evaluate(scored_against, stopped) for metric, m in fitted},
         outcome_ids={metric.name: metric.config_id for metric in metrics},
         compute_seconds_to_stop=float(sum(used_times)),
         max_compute_seconds=float(max(used_times)),

@@ -225,10 +225,13 @@ def replay_rules(
     checked at every prefix of every run with a fingerprint of the reservoir
     and the revealed fields' keys (``_RevealedFields``), besides the stream
     sizes and stage travel. The first replay judges only that fingerprint and
-    the second runs only a fixed-count rule, whose decisions are discarded.
+    the second runs only a fixed-count rule, whose decisions are discarded. So it is when a
+    criterion reads columns the rules do not (another table's fingerprint): the second replay
+    reads them too, the rules never.
     """
     common = {"feature_cols": setup.columns, "objective": setup.objective(), **setup.common}
-    if prepared is raw:
+    judged = [*setup.columns, *(c for c in setup.judged_columns if c not in setup.columns)]
+    if prepared is raw and judged == setup.columns:
         return replay_acquisitions(
             raw, fovs, strategies=strategies, criteria=criteria, **common, **settings
         )
@@ -240,7 +243,7 @@ def replay_rules(
         fovs,
         strategies=[FixedFOVStrategy(1)],
         criteria=[*criteria, _REVEALED],
-        **common,
+        **{**common, "feature_cols": judged},
         **{**settings, "keep_results": False},
     )
     revealed = scored.outcomes["criterion"] == _REVEALED.name
@@ -265,7 +268,11 @@ def replay_rules(
             **decided.settings,
             "criteria": [c.parameters for c in criteria],
             "labels": {c.name: c.label for c in criteria},
-            "values": "stopping rules on raw values; outcome criteria on normalised values",
+            **(
+                {"values": "stopping rules on raw values; outcome criteria on normalised values"}
+                if prepared is not raw
+                else {}
+            ),
         },
     )
 

@@ -296,6 +296,9 @@ def _score(
         travel = stage_travel(ordered[list(stage_cols)].to_numpy(dtype=float))
         paths = [{**where, "fovs": i + 1, "travel": float(t)} for i, t in enumerate(travel)]
     outcomes = []
+    # A fitted outcome (a wide table's components) is fitted on the stream, never on the
+    # held-back fields that judge it (owner, 2026-10-06).
+    criteria = [criterion.trained(acquisition.data) for criterion in criteria]
     for step in range(1, acquisition.n_fovs + 1):
         prefix = acquisition.prefix(step)
         for criterion in criteria:

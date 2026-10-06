@@ -71,6 +71,13 @@ class OutcomeMetric(ABC):
         """
         return 1
 
+    def trained(self, training: ValidatedInput) -> OutcomeMetric:
+        """The metric with any fitted state fitted on ``training`` alone: the fields of a
+        group that are not held back, when held-back fields judge a stop
+        (``sampling_reliability``, ``replay_acquisitions``), so no held-back field enters a
+        fit (owner, 2026-10-06). The metric itself when it has no fitted state (the default)."""
+        return self
+
     @abstractmethod
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """Outcome of stopping at ``stopped``, judged against ``full``; ``None`` if undefined."""

@@ -11,6 +11,8 @@ a few images cannot estimate that: the error of its fingerprint reads noise (err
   maps are (``embedding.robust_scale``: median and MAD, the SD where the MAD is under a
   quarter of it); the components keep their variance, so the first weighs most
   (``multivariate_outcomes.ComponentsError``, the inner metric not standardised again);
+  where held-back fields judge them (``optimise``), they are refitted in each split on the
+  fields not held back (``ComponentsError.trained``; owner, 2026-10-06, plan v2);
 - one common ``k`` for every group: at most a fifth (``SHARE``) of the observations of the
   median group the fingerprint judges (an analysis group of at least ``MIN_FIELDS`` fields,
   the observations holding every value of the table), and at most the table's columns
@@ -39,7 +41,7 @@ import pandas as pd
 
 from .._seeds import group_key
 from .._wording import count, listing
-from ..embedding import robust_scale
+from ..embedding import robust_components
 from ..evaluator import iter_analysis_groups
 from ..multivariate_outcomes import ComponentsError
 from ..schema import validate_input_tables
@@ -156,25 +158,6 @@ def _judged(
     return sizes
 
 
-def _components(matrix: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Centre, scale and the first ``k`` loadings of the robustly standardised ``matrix``
-    (complete rows), the centre folding in the standardised columns' means; a column with
-    one value gets scale 1 and no weight."""
-    centre, scale = robust_scale(matrix)
-    varies = scale > 0
-    scale = np.where(varies, scale, 1.0)
-    z = (matrix - centre) / scale
-    means = z.mean(axis=0)
-    _, _, vt = np.linalg.svd((z - means)[:, varies], full_matrices=False)
-    loadings = np.zeros((k, matrix.shape[1]))
-    loadings[:, varies] = vt[:k]
-    # One sign for one data set: the largest loading of each component is positive.
-    for row in loadings:
-        if row[np.argmax(np.abs(row))] < 0:
-            row *= -1
-    return centre + means * scale, scale, loadings
-
-
 def _read(
     criterion: OutcomeCriterion, data: Any, setup: Setup, min_fields: int
 ) -> tuple[OutcomeCriterion | None, Reading | None]:
@@ -211,7 +194,7 @@ def _read(
     small = tuple(item[:3] for item in judged if item[2] < SHARE * k)
     excluded = tuple(item[3] for item in judged if item[2] < SHARE * k)
     complete = data.objects[columns].dropna()
-    centre, scale, loadings = _components(complete.to_numpy(dtype=float), k)
+    centre, scale, loadings = robust_components(complete.to_numpy(dtype=float), k)
     prefix = table_of(columns, setup) if other else "explainable"
     names = tuple(f"{prefix} PC{i + 1}" for i in range(k))
     inner = replace(metric, features=names, standardize=False, weights=None)
