@@ -3,19 +3,19 @@ Microscopist's report — 1686 cells in 1686 fields
 At a glance
   Key: ✅ yes, or a clear answer · ⚠️ partly, a trend only, or something to look at · ❌ check the
     data first · ➖ no conclusion possible here. The word beside each marker says which.
-  ✅ The data — data checks: no warning; integrity: no copied rows; copied fields not checkable here
-     (fields too small or too few features to compare)
-  ➖ Foundation. Why count fields? — not applicable: each field holds one cell, so fields and cells
-     coincide and every per-cell answer is also the per-field one
+  ⚠️ The data — data checks: no warning; integrity: no copied rows; copied fields not checkable here
+     (fields too small or too few features to compare); acquisition: 1 field far from their
+     condition and repeat
+  ✅ Foundation. Why count fields? — each field holds one of the cells, so fields and cells coincide
   ➖ 1. Can the features see the phenotype? — not assessed; needs a positive control: a condition
      known to change the phenotype
   ⚠️ 2. Did I image enough? — to compare with the control, within single repeats: shown in 28 of 36
      comparisons; 6 would need about 14-98 cells a side; 2 too small to show with more cells; each
      well's own mean by the default mean-precision rule, per cell, 5%: met in 0 of 54, a different
      goal from the comparison
-  ➖ 3. What limits my sampling? — not applicable: with one cell per field, how cells spread over
-     fields cannot be measured
-  ✅ 6. Which fields should I look at? — no field stands out
+  ⚠️ 3. What limits my sampling? — whole fields 1.0x as variable as random cells; unusual images
+     0-71% of each group (exploratory)
+  ⚠️ 6. Which fields should I look at? — 22 fields to reopen in 19 wells (new state in 22)
   ✅ 9. Do the conditions differ? — Filopodia number, 12 conditions against the control, each in 3
      biological repeats (18 in all): significant across repeats: siCCT8#5, siCCT8#8, siCSNK1A1#11,
      siCSNK1A1#5, siSCRIB#6 and siSCRIB#7 (lower); siMAP4K4#5 (higher); not significant across
@@ -24,7 +24,7 @@ At a glance
   ➖ 10. Groups of cells? — not assessed; needs at least two declared features
   Questions 4, 5, 7 and 8, planning the next experiment, come from workflows.optimise.
 
-✅ What is in the dataset
+⚠️ What is in the dataset
   1686 cells in 1686 fields (one cell per field), none empty.
   1 feature (Filopodia number); values as given (not normalised).
   13 conditions (siCTRL, siCCT8#5, siCCT8#8, siCSNK1A1#11, siCSNK1A1#5, siMAP4K4#5 and 7 more), 18
@@ -35,13 +35,20 @@ At a glance
   ✅ Data checks: no warning.
   ➖ Integrity: no copied rows; copied fields not checkable here (fields too small or too few
      features to compare).
+  ⚠️ Acquisition anomalies (raw values, quality control): 1 field 5 SDs or more from the other
+     fields of their condition and repeat on the raw values: siCTRL · repeat
+     siSCRIB_1 · siSCRIB|siCTRL|siSCRIB_1|cell010 (Filopodia number, 5.7 SDs above, 3.4 times); an
+     engineering quality-control threshold, never a biological verdict: open their images, 1686
+     fields judged in 54 groups.
 
 What this acquisition was asked to preserve
   Population summary: the mean of Filopodia number over all cells, within 5% and 2.5% (judged on
     held-back fields by optimise).
-  Representation: readout Filopodia number; 1 declared feature column; unusual cells are not
-    assessed, as each field holds one cell; new phenotypes (new: at least 3 similar cells that no
-    other field shows) are not assessed, as each field holds one cell.
+  Representation: readout Filopodia number; 1 declared feature column for unusual images (against
+    the control, every value relative to the control of its repeat) and new phenotypes (new: a cell
+    that no other field shows), both exploratory.
+  Report-only rule: nothing new ≤5%, judged by the report only (not live, not calibrated by optimise
+    and benchmark); seen in few fields: fewer than 3 other fields.
   Stopping rules: mean-precision rule, per cell, 5% and mean-precision rule, per field, 5% (the
     default); run live, calibrated by optimise.
   Live decision: a stop needs every declared target (population summary); a target no rule decides
@@ -55,8 +62,69 @@ What this acquisition was asked to preserve
     of the well's positions; a raster over a spatial trend can stop early; image fields in a random
     or dispersed order.
 
-➖ Foundation: why count fields, and not only cells?
-  Not applicable: each field holds one cell, so fields and cells coincide and every per-cell answer is also the per-field one.
+✅ Foundation: why count fields, and not only cells?
+  How variable are the fields (Filopodia number)? Each field holds one cell, so fields and cells
+    coincide: a mean from whole fields is a mean of as many random cells (design effect 1), and SD /
+    sqrt(n), n the fields, is its error. The fields spread by 24-59% of their mean (the SD over
+    fields; median 37%, over 54 groups).
+    group                              fields  mean  SD over fields   CV
+    siCCT8#5 · repeat siCCT8_1             34  32.2              15  47%
+    siCCT8#5 · repeat siCCT8_2             49  35.9            21.1  59%
+    siCCT8#5 · repeat siCCT8_3             30  38.4            11.5  30%
+    siCCT8#8 · repeat siCCT8_1             31  32.2            14.9  46%
+    siCCT8#8 · repeat siCCT8_2             38  44.7            19.3  43%
+    siCCT8#8 · repeat siCCT8_3             31  28.7            11.8  41%
+    siCTRL · repeat siCCT8_1               33  49.8            16.8  34%
+    siCTRL · repeat siCCT8_2               39  79.9            31.9  40%
+    siCTRL · repeat siCCT8_3               32  62.5            18.4  29%
+    siCSNK1A1#11 · repeat siCSNK1A1_1      34  36.9            12.5  34%
+    siCSNK1A1#11 · repeat siCSNK1A1_2      34  31.4            9.81  31%
+    siCSNK1A1#11 · repeat siCSNK1A1_3      34  29.4            10.7  36%
+    siCSNK1A1#5 · repeat siCSNK1A1_1       35  32.8              16  49%
+    siCSNK1A1#5 · repeat siCSNK1A1_2       34  32.4            12.1  37%
+    siCSNK1A1#5 · repeat siCSNK1A1_3       34  26.5            9.92  37%
+    siCTRL · repeat siCSNK1A1_1            31  61.7            21.6  35%
+    siCTRL · repeat siCSNK1A1_2            33  62.7            20.1  32%
+    siCTRL · repeat siCSNK1A1_3            33  62.6            18.9  30%
+    siCTRL · repeat siMAP4K4_1             30  40.3            13.8  34%
+    siCTRL · repeat siMAP4K4_2             32  45.4            12.3  27%
+    siCTRL · repeat siMAP4K4_3             31  40.2            16.5  41%
+    siMAP4K4#5 · repeat siMAP4K4_1         31  55.9            17.1  31%
+    siMAP4K4#5 · repeat siMAP4K4_2         13  56.3            22.2  39%
+    siMAP4K4#5 · repeat siMAP4K4_3         32  53.2            17.2  32%
+    siMAP4K4#6 · repeat siMAP4K4_1         37  75.7            19.3  25%
+    siMAP4K4#6 · repeat siMAP4K4_2         29  57.7            15.3  27%
+    siMAP4K4#6 · repeat siMAP4K4_3         32  69.1            29.4  43%
+    siCTRL · repeat siMINK1_1              34  48.7            18.3  38%
+    siCTRL · repeat siMINK1_2              32  59.7              19  32%
+    siCTRL · repeat siMINK1_3              18  63.2            24.7  39%
+    siMINK1#10 · repeat siMINK1_1          33  41.5            18.9  46%
+    siMINK1#10 · repeat siMINK1_2          29  39.2            19.8  50%
+    siMINK1#10 · repeat siMINK1_3          27    41            12.6  31%
+    siMINK1#3 · repeat siMINK1_1           38  36.4            15.5  42%
+    siMINK1#3 · repeat siMINK1_2           27  50.7              24  47%
+    siMINK1#3 · repeat siMINK1_3           20  55.8            21.6  39%
+    siCTRL · repeat siNF2_1                31    54            20.5  38%
+    siCTRL · repeat siNF2_2                29  63.3            18.6  29%
+    siCTRL · repeat siNF2_3                31  42.5            11.1  26%
+    siNF2#17 · repeat siNF2_1              32  57.8            27.8  48%
+    siNF2#17 · repeat siNF2_2              31  69.8            17.5  25%
+    siNF2#17 · repeat siNF2_3              30    56            13.6  24%
+    siNF2#7 · repeat siNF2_1               30  62.4            24.9  40%
+    siNF2#7 · repeat siNF2_2               31  68.8            18.7  27%
+    siNF2#7 · repeat siNF2_3               31  54.7            13.3  24%
+    siCTRL · repeat siSCRIB_1              30  57.5              28  49%
+    siCTRL · repeat siSCRIB_2              26  65.1            19.2  29%
+    siCTRL · repeat siSCRIB_3              30  64.4              19  29%
+    siSCRIB#6 · repeat siSCRIB_1           30  35.5            16.9  48%
+    siSCRIB#6 · repeat siSCRIB_2           31  34.8            11.4  33%
+    siSCRIB#6 · repeat siSCRIB_3           28  31.3            14.7  47%
+    siSCRIB#7 · repeat siSCRIB_1           33  32.6            12.3  38%
+    siSCRIB#7 · repeat siSCRIB_2           29  39.2            16.9  43%
+    siSCRIB#7 · repeat siSCRIB_3           29  32.1            11.4  35%
+
+  The mean-precision count rule is not checked with whole fields: each field holds one cell, so
+    random cells and whole fields are the same draws.
 
 ➖ 1. Can these features detect what I care about?
   Not assessed: name a condition known to change the phenotype as the positive control (the guided session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again; it can be added after the acquisition, whenever such a condition was imaged.
@@ -80,8 +148,20 @@ What this acquisition was asked to preserve
     rule                                met with the fields acquired  fields needed in random orders: median (10-90%)
     mean-precision rule, per cell, 5%   0 of 54                       never in 267 of 270 orders; 17 (11-25) in the 3 that met it
     mean-precision rule, per field, 5%  0 of 54                       never in 267 of 270 orders; 20 (14-29) in the 3 that met it
+    nothing new (≤5%)                   0 of 54                       never
   Fields when first met in random orders; random: the median of the groups' medians, 10-90% from the
     lowest to the highest group.
+  One more field: fields with a state counted as new in 19 of 54 groups: siCCT8#5 · repeat siCCT8_2
+    (1 field), siCCT8#5 · repeat siCCT8_3 (1 field), siCCT8#8 · repeat siCCT8_1 (1 field) and 16
+    more; chance up to 8%, nominal 95% bound 7-32%.
+  Not yet seen: a state no field has shown is in at most 6-21% of fields (95% confidence); rarer
+    states can remain.
+  Seen in few fields: 28 of 54 groups hold a state seen in only 2 to 3 fields (siCCT8#5 · repeat
+    siCCT8_1, siCCT8#5 · repeat siCCT8_3, siCCT8#8 · repeat siCCT8_1 and 25 more); look at those
+    fields before calling the sample settled.
+  How many more fields would rule out unseen states, or bring the next-field bound below 5%, is in
+    the full report (report_full.txt).
+  'New': a cell that no other field shows; the exact definition is in the full report.
   The cautions on these rules are in the full report.
   Assumptions: Shown: the 95% interval of d, from resampling the technical repeats and their fields
     as acquired, empty fields included, excludes 0. The cells a side it would take are projected
@@ -91,16 +171,52 @@ What this acquisition was asked to preserve
     is called too small to show. Mean-precision rule, per cell, 5% treats cells as independent
     draws: it assumes a spatially uniform sample. Mean-precision rule, per field, 5%: in simulations
     its upper bound, a bootstrap of whole fields, covered the true averaging error about 85-95% of
-    the time with uneven field sizes and 93-99% with Poisson sizes.
+    the time with uneven field sizes and 93-99% with Poisson sizes. The next-field bound is
+    approximate: the leave-one-field-out outcomes share their reference fields. The novelty bounds
+    treat fields as independent, representative draws: neighbouring fields acquired in a raster over
+    patchy states make them too low. Every novelty bound holds at a number of fields fixed in
+    advance, not at the first field where it passes: stopping there is premature more often than 5%
+    of the time.
 
-  Whether unseen cell states remain is not asked: a new state needs 3 similar cells in one field,
-    and each field holds one.
+  Novelty is exploratory: not yet validated by the benchmark of docs/common/validation.md.
 
-➖ 3. What is limiting my sampling?
-  Not applicable: with one cell per field, how cells spread over fields cannot be measured.
+⚠️ 3. What is limiting my sampling?
+  - Fields: each field holds one of the cells, so a mean from whole fields is one of as many random
+    cells (design effect 1).
+  - Unusual images (exploratory, farther from the siCTRL reference than all but 1% of its cells;
+    0-71% of each group).
+  - New states come from 22 fields.
+  ⚠️ Refits with other reference samples agree on only 0-89% of the unusual images in 13 of 54
+     groups (siCCT8#5 · repeat siCCT8_1, siCCT8#5 · repeat siCCT8_2, siMAP4K4#5 · repeat siMAP4K4_1
+     and 10 more; below 90%): treat those labels as unstable.
+  Assumptions: A state the reference already holds, at any share, is not unusual: only its share can
+    change, and the populations (“Are there groups of cells?”) compare each condition's share of
+    such a state with its control's.
 
-✅ 6. Which fields should I look at?
-  No field stands out under the declared thresholds (influence, count checked).
+  Whether unusual cells cluster in a few fields is not applicable: each field holds one cell, so a
+    field holds a state or not.
+
+⚠️ 6. Which fields should I look at?
+  22 fields to reopen in 19 wells: a state no other field shows (22 fields).
+    siCCT8#5 · repeat siCCT8_2 · siCCT8|siCCT8#5|siCCT8_2|cell041: 1 cell of a state no other field
+      shows.
+    siCCT8#5 · repeat siCCT8_3 · siCCT8|siCCT8#5|siCCT8_3|cell001: 1 cell of a state no other field
+      shows.
+    siCCT8#8 · repeat siCCT8_1 · siCCT8|siCCT8#8|siCCT8_1|cell014: 1 cell of a state no other field
+      shows.
+    siCSNK1A1#5 · repeat siCSNK1A1_3 · siCSNK1A1|siCSNK1A1#5|siCSNK1A1_3|cell030: 1 cell of a state
+      no other field shows.
+    siCTRL · repeat siCSNK1A1_1 · siCSNK1A1|siCTRL|siCSNK1A1_1|cell007: 1 cell of a state no other
+      field shows.
+    siCTRL · repeat siCSNK1A1_1 · siCSNK1A1|siCTRL|siCSNK1A1_1|cell008: 1 cell of a state no other
+      field shows.
+    siCTRL · repeat siMAP4K4_2 · siMAP4K4|siCTRL|siMAP4K4_2|cell015: 1 cell of a state no other
+      field shows.
+    siCTRL · repeat siMAP4K4_3 · siMAP4K4|siCTRL|siMAP4K4_3|cell031: 1 cell of a state no other
+      field shows.
+    and 14 fields more (report_full.txt).
+  None of these is called an error: look at the images to see whether it is biology, technique or
+    simply a large field.
 
 ✅ 9. Do the conditions differ, and how confidently?
   Design: 6 sub-experiments, each with its own siCTRL in its own 3 biological repeats (siCCT8#5 and
@@ -116,64 +232,79 @@ What this acquisition was asked to preserve
     exploratory: it finds candidates, not effects that repeat:
     - siCCT8#5 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.44, mean 44% lower than the control); paired t-test on the 3 repeat means p
-      0.037, q 0.037; on raw values q 0.069; cell-level screen (exploratory) q 0.001 (balanced,
+      0.037, q 0.037; on raw values q 0.069; change ×0.65, ×0.45 and ×0.61 in the 3 repeats, ×0.56
+      overall, 95% t interval ×0.35 to ×0.917; cell-level screen (exploratory) q 0.001 (balanced,
       normalised; with no real effect it gives p ≤ 0.05 in about 8% of experiments like this one);
       siCCT8#8 (CCT8) agrees in 3 of 3 biological repeats.
     - siCCT8#8 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.54, mean 45% lower than the control); paired t-test on the 3 repeat means p
-      0.027, q 0.037; on raw values q 0.069; cell-level screen (exploratory) q 0.001 (balanced,
+      0.027, q 0.037; on raw values q 0.069; change ×0.65, ×0.56 and ×0.46 in the 3 repeats, ×0.55
+      overall, 95% t interval ×0.36 to ×0.84; cell-level screen (exploratory) q 0.001 (balanced,
       normalised; with no real effect it gives p ≤ 0.05 in about 37% of experiments like this one);
       siCCT8#5 (CCT8) agrees in 3 of 3 biological repeats.
     - siCSNK1A1#11 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.86, mean 48% lower than the control); paired t-test on the 3 repeat means p
-      0.012, q 0.012; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
+      0.012, q 0.012; change ×0.60, ×0.50 and ×0.47 in the 3 repeats, ×0.52 overall, 95% t interval
+      ×0.38 to ×0.71; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 21% of experiments like this one); siCSNK1A1#5 (CSNK1A1)
       agrees in 3 of 3 biological repeats.
     - siCSNK1A1#5 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.92, mean 51% lower than the control); paired t-test on the 3 repeat means p
-      0.0098, q 0.012; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
+      0.0098, q 0.012; change ×0.53, ×0.52 and ×0.42 in the 3 repeats, ×0.49 overall, 95% t interval
+      ×0.36 to ×0.66; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 26% of experiments like this one); siCSNK1A1#11 (CSNK1A1)
       agrees in 3 of 3 biological repeats.
     - siMAP4K4#5 — significant across repeats: higher in 3 of 3 biological repeats (Cohen's d per
       repeat, mean +0.82, mean 32% higher than the control); paired t-test on the 3 repeat means p
-      0.014, q 0.027; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
+      0.014, q 0.027; change ×1.39, ×1.24 and ×1.32 in the 3 repeats, ×1.32 overall, 95% t interval
+      ×1.14 to ×1.51; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 5% of experiments like this one); siMAP4K4#6 (MAP4K4) agrees
       in 3 of 3 biological repeats.
     - siMAP4K4#6 — not significant across repeats: higher in 3 of 3 biological repeats (Cohen's d
       per repeat, mean +1.39, mean 60% higher than the control); paired t-test on the 3 repeat means
-      p 0.058, q 0.058; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
-      effect it gives p ≤ 0.05 in about 40% of experiments like this one); siMAP4K4#5 (MAP4K4)
-      agrees in 3 of 3 biological repeats.
+      p 0.058, q 0.058; change ×1.88, ×1.27 and ×1.72 in the 3 repeats, ×1.60 overall, 95% t
+      interval ×0.963 to ×2.66; cell-level screen (exploratory) q 0.001 (balanced, normalised; with
+      no real effect it gives p ≤ 0.05 in about 40% of experiments like this one); siMAP4K4#5
+      (MAP4K4) agrees in 3 of 3 biological repeats.
     - siMINK1#10 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -0.88, mean 29% lower than the control); paired t-test on the 3 repeat means p
-      0.064, q 0.064; cell-level screen (exploratory) q 0.002 (balanced, normalised; with no real
+      0.064, q 0.064; change ×0.85, ×0.66 and ×0.65 in the 3 repeats, ×0.71 overall, 95% t interval
+      ×0.49 to ×1.049; cell-level screen (exploratory) q 0.002 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 18% of experiments like this one); siMINK1#3 (MINK1) agrees
       in 3 of 3 biological repeats.
     - siMINK1#3 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -0.49, mean 17% lower than the control); paired t-test on the 3 repeat means p
-      0.062, q 0.064; on raw values q 0.043; cell-level screen (exploratory) q 0.008 (balanced,
+      0.062, q 0.064; on raw values q 0.043; change ×0.75, ×0.85 and ×0.88 in the 3 repeats, ×0.83
+      overall, 95% t interval ×0.67 to ×1.023; cell-level screen (exploratory) q 0.008 (balanced,
       normalised; with no real effect it gives p ≤ 0.05 in about 5% of experiments like this one);
       siMINK1#10 (MINK1) agrees in 3 of 3 biological repeats.
     - siNF2#17 — not significant across repeats: higher in 3 of 3 biological repeats (Cohen's d per
       repeat, mean +0.53, mean 16% higher than the control); paired t-test on the 3 repeat means p
-      0.15, q 0.15; cell-level screen (exploratory) q 0.004 (balanced, normalised; with no real
+      0.15, q 0.15; change ×1.071, ×1.10 and ×1.32 in the 3 repeats, ×1.16 overall, 95% t interval
+      ×0.88 to ×1.53; cell-level screen (exploratory) q 0.004 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 27% of experiments like this one); siNF2#7 (NF2) agrees in 3
       of 3 biological repeats.
     - siNF2#7 — not significant across repeats: higher in 3 of 3 biological repeats (Cohen's d per
       repeat, mean +0.55, mean 17% higher than the control); paired t-test on the 3 repeat means p
-      0.083, q 0.15; cell-level screen (exploratory) q 0.002 (balanced, normalised; with no real
+      0.083, q 0.15; change ×1.16, ×1.087 and ×1.29 in the 3 repeats, ×1.17 overall, 95% t interval
+      ×0.950 to ×1.45; cell-level screen (exploratory) q 0.002 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 17% of experiments like this one); siNF2#17 (NF2) agrees in
       3 of 3 biological repeats.
     - siSCRIB#6 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.62, mean 46% lower than the control); paired t-test on the 3 repeat means p
-      0.013, q 0.013; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
+      0.013, q 0.013; change ×0.62, ×0.54 and ×0.49 in the 3 repeats, ×0.54 overall, 95% t interval
+      ×0.40 to ×0.73; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 34% of experiments like this one); siSCRIB#7 (SCRIB) agrees
       in 3 of 3 biological repeats.
     - siSCRIB#7 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.55, mean 45% lower than the control); paired t-test on the 3 repeat means p
-      0.0088, q 0.013; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
+      0.0088, q 0.013; change ×0.57, ×0.60 and ×0.50 in the 3 repeats, ×0.55 overall, 95% t interval
+      ×0.44 to ×0.70; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 22% of experiments like this one); siSCRIB#6 (SCRIB) agrees
       in 3 of 3 biological repeats.
+    With 3 biological repeats, very limited biological replication: each verdict gives the change in
+    each repeat and the 95% t interval of the change, which is wide; a change that is not
+    significant is not evidence of no change.
   Across the 3 biological repeats (each repeat's value is the mean of its cells, paired with the
     control of the same repeat):
     condition               vs control, by repeat  d cells per repeat: mean (range)  paired t, raw: p (q)  paired t, normalised: p (q)
@@ -224,10 +355,10 @@ What this acquisition was asked to preserve
     siNF2#7 vs siCTRL       +0.44, 0.003 (0.006)  +0.52, 0.001 (0.002)  about 17%
     siSCRIB#6 vs siCTRL     -1.52, 0.001 (0.001)  -1.47, 0.001 (0.001)  about 34%
     siSCRIB#7 vs siCTRL     -1.51, 0.001 (0.001)  -1.48, 0.001 (0.001)  about 22%
-  No test within a single repeat: each condition has one well there, and the cells of one well are
-    not independent replicates (the cell-level screen above treats them as such, and is
-    exploratory). The per-repeat d are in question 2, and every number in the full report
-    (report_full.txt).
+  No test within a single repeat: each condition has one well there, no within-repeat technical
+    replication, and the cells of one well are not independent replicates (the cell-level screen
+    above treats them as such, and is exploratory). The per-repeat d are in question 2, and every
+    number in the full report (report_full.txt).
   Planning the next experiment on Filopodia number (for a new experiment, if the difference and the
     variation seen here recur; not what the current result needs): the biological repeats a paired
     t-test on the repeat means needs for 80% power, corrected over the conditions of its
@@ -250,32 +381,28 @@ What this acquisition was asked to preserve
   Assumptions: The paired t-test on the repeat means treats each biological repeat as one replicate:
     it keeps false positives at 5%, but with 3 biological repeats only large, consistent effects
     reach q ≤ 0.05. q: Benjamini-Hochberg within each sub-experiment; 'significant across repeats'
-    uses the normalised q. Reagents of one target that go the same way in every repeat speak against
-    an off-target effect of one of them; this is described, not tested, since they share the
-    control. The cell-level test treats the cells as independent, so it asks whether these wells
-    differ, not whether the effect repeats. Normalised: each value divided by its own repeat's
-    control mean. Balanced: the median d over 100 draws with as many cells from each repeat, its p
-    from labels shuffled within each repeat. Within a repeat the conditions are described by their
-    effect sizes; they are tested across repeats (the first table). The test and the effect sizes
-    compare means: a difference confined to a subpopulation of cells or to the shape of the
-    distribution is not tested (see the unusual cells and the rare label). Repeats needed: for a
-    paired t-test at p ≤ 0.05/m, m the conditions of the sub-experiment (what Benjamini-Hochberg
-    asks at most), on the values that test compares: each repeat's change (its mean over its
-    control's, a fold change; the difference of the means for a feature with a value that is not
-    positive; the table gives their geometric mean, as the verdict does), its spread between the
-    repeats and its sampling error within one. All projected from the repeats here, so the plan is a
-    guide.
+    uses the normalised q. The false discovery rate is controlled within each family, not across the
+    report. Reagents of one target that go the same way in every repeat speak against an off-target
+    effect of one of them; this is described, not tested, since they share the control. The
+    cell-level test treats the cells as independent, so it asks whether these wells differ, not
+    whether the effect repeats. Normalised: each value divided by its own repeat's control mean.
+    Balanced: the median d over 100 draws with as many cells from each repeat, its p from labels
+    shuffled within each repeat. Within a repeat the conditions are described by their effect sizes;
+    they are tested across repeats (the first table). The test and the effect sizes compare means: a
+    difference confined to a subpopulation of cells or to the shape of the distribution is not
+    tested (see the unusual cells and the rare label). Repeats needed: for a paired t-test at p ≤
+    0.05/m, m the conditions of the sub-experiment (what Benjamini-Hochberg asks at most), on the
+    values that test compares: each repeat's change (its mean over its control's, a fold change; the
+    difference of the means for a feature with a value that is not positive; the table gives their
+    geometric mean, as the verdict does), its spread between the repeats and its sampling error
+    within one. All projected from the repeats here, so the plan is a guide.
 
 ➖ 10. Are there groups of cells, and is a condition enriched in one?
   Not assessed: declare at least two features: the populations are found on all of them.
 
 What this dataset cannot tell me
-  ➖ Foundation. Why count fields? — not applicable: each field holds one cell, so fields and cells
-     coincide and every per-cell answer is also the per-field one
   ➖ 1. Can the features see the phenotype? — not assessed; needs a positive control: a condition
      known to change the phenotype
-  ➖ 3. What limits my sampling? — not applicable: with one cell per field, how cells spread over
-     fields cannot be measured
   ➖ 10. Groups of cells? — not assessed; needs at least two declared features
   Assumptions: Every answer holds for the stated features, tolerances and definition of new.
     Replays, draws and hold-outs describe these samples; they are not independent experiments.
@@ -283,10 +410,12 @@ What this dataset cannot tell me
     acquisition is not a protocol until it holds on samples it was not chosen on. No representation
     control: a 'nothing new' answer says nothing about phenotypes these features and this definition
     of new cannot see. Technical drift between repeats, batches or plates is not assessed: groups
-    are analysed apart, and a shift shared by all fields of a group is not new within it. No stage
-    coordinates: neighbouring fields were not compared, and spatial redundancy and dispersed orders
-    were not assessed. No acquisition order: the recorded order was not replayed, and the random
-    orders treat the fields as exchangeable, so a drift or a raster along the acquisition is not
-    seen.
+    are analysed apart, and a shift shared by all fields of a group is not new within it. Each
+    'enough' is per technical repeat; the condition mean also varies between technical repeats,
+    which more fields of one technical repeat cannot reduce (question 3; optimise, question 7: more
+    fields or more technical repeats?). No stage coordinates: neighbouring fields were not compared,
+    and spatial redundancy and dispersed orders were not assessed. No acquisition order: the
+    recorded order was not replayed, and the random orders treat the fields as exchangeable, so a
+    drift or a raster along the acquisition is not seen.
 
 Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.
