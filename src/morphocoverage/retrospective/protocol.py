@@ -1,6 +1,6 @@
 """Protocol-level reliability: what FOV number should the protocol say for experiments like this?
 
-Question P2 of ``docs/questions.md``. It starts from each sample's reliability
+Question P2 of ``docs/optimise/optimise.md``. It starts from each sample's reliability
 curve (``sampling_reliability``, one analysis group per sample). A sample
 counts as **adequately represented** at ``k`` FOVs when its reliability reaches
 ``threshold`` (for example ``preserved >= 0.9``: in at least 90% of random

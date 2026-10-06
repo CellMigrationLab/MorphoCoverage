@@ -1,0 +1,60 @@
+{
+ "name": "a21_embed1_one_norm_cells_none_tol",
+ "kind": "axes",
+ "checks": "embedding-only report; each condition against the control; normalised and centred views; the mean's tolerances",
+ "axes": {
+  "tables": "embed1",
+  "controls": "one",
+  "normalize": true,
+  "unit": "cells",
+  "wells": "none",
+  "target": "tol"
+ },
+ "planes": null,
+ "setup": {
+  "readout": null,
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  },
+  "normalize": "control_mean"
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "overview",
+   "populations",
+   "separation",
+   "unusual",
+   "whole_table"
+  ],
+  "absent": [
+   "contrast",
+   "discovery",
+   "fingerprint_precision",
+   "inspection",
+   "label_control",
+   "rare_clustering",
+   "sufficiency"
+  ],
+  "not_applicable": {
+   "conditions": "Per feature",
+   "controls": "no explainable features",
+   "enough": "no target declared",
+   "inspect": "no explainable features",
+   "profile": "Fields against random",
+   "unit": "no explainable features"
+  },
+  "table_column": false,
+  "separation_spaces": [
+   "DINO1"
+  ],
+  "html": false
+ }
+}

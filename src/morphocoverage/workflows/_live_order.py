@@ -6,8 +6,8 @@ checks the fields of a group added so far (``order_check``) whenever
 ``LiveFolder`` or ``LiveTables`` builds a ``LiveUpdate``. The check reads only
 those fields, so a replay of the same prefix gives the same check.
 
-Shared-private: ``_CheckedSession`` and ``_order_check`` are used by
-``workflows.live``.
+Shared-private: ``_CheckedSession``, ``_order_check`` and ``embedding_columns`` (what an
+embedding-only Setup's session reads, or why it is refused) are used by ``workflows.live``.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from typing import Any
 from ..online import OnlineSession
 from ..order_check import OrderCheck, check_acquisition_order
 from ..results import StrategyResult
+from ._feature_space import table_columns
 
 
 class _CheckedSession(OnlineSession):
@@ -26,7 +27,7 @@ class _CheckedSession(OnlineSession):
     def __init__(
         self,
         *,
-        readout: str,
+        readout: str | None,
         acquisition_order_col: str | None,
         stage_cols: tuple[str, str] | None,
         **session: Any,
@@ -43,6 +44,8 @@ class _CheckedSession(OnlineSession):
         the same check (``check_acquisition_order`` on the prefix).
         """
         if self.acquisition_order_col is None and self.stage_cols is None:
+            return None
+        if self.readout is None:  # an embedding-only Setup: no readout to check the order on
             return None
         added = self._groups.get(tuple(group.values()))
         if added is None:
@@ -63,4 +66,29 @@ def _order_check(session: OnlineSession, results: list[StrategyResult]) -> Order
     return session.order_check(results[0].group)
 
 
-__all__: list[str] = []
+def embedding_columns(setup: Any, rules: tuple[Any, ...] | None) -> list[str] | None:
+    """The columns a live session of an embedding-only Setup reads (owner, 2026-10-06): its
+    tables' columns, with the rules it is given (``None`` for another Setup: its own
+    columns); refused, with what to do, without rules (neither given nor the Setup's: no
+    readout, or ``tolerances=()``) or the tables' columns. With the fingerprint and the rare
+    phenotype the default objective is those two (``Setup.objective``, audit 8)."""
+    if not rules and not setup.stopping_rules():
+        why = "without a readout" if setup.readout is None else "with tolerances=()"
+        raise ValueError(
+            f"live_session needs stopping rules, and a Setup {why} has no default (the "
+            "mean-precision rules read the readout's tolerance): pass rules=(...), for example "
+            "a FOVBootstrapStrategy on the columns for the fingerprint or a "
+            "RareIncidenceStrategy on the labelled phenotype, or declare the mean target"
+        )
+    if not setup.embedding_only:
+        return None
+    columns = table_columns(setup)
+    if not columns:
+        raise ValueError(
+            "a Setup without a readout reads the other feature tables: declare their columns, "
+            "Setup(feature_tables={name: columns}), and send them with each field"
+        )
+    return columns
+
+
+__all__ = ["embedding_columns"]

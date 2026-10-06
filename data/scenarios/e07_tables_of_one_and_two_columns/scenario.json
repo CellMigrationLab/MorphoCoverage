@@ -1,0 +1,61 @@
+{
+ "name": "e07_tables_of_one_and_two_columns",
+ "kind": "edge",
+ "checks": "a table of 1 column and one of 2: tested, the 2 columns fingerprinted; no separation line of their own",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "width"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  },
+  "fingerprint": [
+   {
+    "metric": "covariance",
+    "columns": [
+     "e0",
+     "e1"
+    ],
+    "tolerance": 0.2
+   }
+  ],
+  "feature_tables": {
+   "pair": [
+    "e0",
+    "e1"
+   ]
+  }
+ },
+ "feature_tables": {
+  "single": {
+   "file": "single.csv",
+   "tag": "explainable"
+  },
+  "pair": {
+   "file": "pair.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "whole_table",
+   "fingerprint_precision"
+  ],
+  "separation_spaces": [
+   "Combined",
+   "Explainable"
+  ],
+  "full": [
+   "each of their 2 tables weighted by MFA"
+  ],
+  "order_free": true
+ }
+}

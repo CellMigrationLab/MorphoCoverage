@@ -1,0 +1,72 @@
+{
+ "name": "a12_embed2_none_image_tech_rare",
+ "kind": "axes",
+ "checks": "embedding-only report; no condition test; the questions about fields not applicable; the rare label's share and clustering",
+ "axes": {
+  "tables": "embed2",
+  "controls": "none",
+  "normalize": false,
+  "unit": "image",
+  "wells": "tech",
+  "target": "rare"
+ },
+ "planes": null,
+ "setup": {
+  "readout": null,
+  "observation_unit": "image",
+  "rare": {
+   "detection_probability": 0.8,
+   "min_fov_occurrences": 2,
+   "phenotype": "rare",
+   "object_prevalence": 0.1
+  },
+  "rare_label": "rare"
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  },
+  "DINO2": {
+   "file": "DINO2.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "overview",
+   "populations",
+   "rare_clustering",
+   "separation"
+  ],
+  "absent": [
+   "clustering",
+   "contrast",
+   "discovery",
+   "fingerprint_precision",
+   "inspection",
+   "label_control",
+   "object_rules",
+   "sufficiency",
+   "unusual",
+   "variability",
+   "whole_table"
+  ],
+  "not_applicable": {
+   "conditions": "no control declared",
+   "controls": "no explainable features",
+   "enough": "Per feature",
+   "inspect": "no explainable features",
+   "profile": "one image per field",
+   "unit": "each field holds one"
+  },
+  "table_column": false,
+  "separation_spaces": [
+   "Combined",
+   "DINO1",
+   "DINO2"
+  ],
+  "html": false
+ }
+}

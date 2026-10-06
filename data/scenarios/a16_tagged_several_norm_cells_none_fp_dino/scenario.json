@@ -1,0 +1,124 @@
+{
+ "name": "a16_tagged_several_norm_cells_none_fp_dino",
+ "kind": "axes",
+ "checks": "features; own controls and the rows across experiments; normalised and centred views; a fingerprint on DINO1",
+ "axes": {
+  "tables": "tagged",
+  "controls": "several",
+  "normalize": true,
+  "unit": "cells",
+  "wells": "none",
+  "target": "fp_dino"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "fib_len",
+   "fib_w",
+   "prof_0"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": {
+    "cA": {
+     "k1": "a1"
+    },
+    "cB": {
+     "k1": "b1"
+    }
+   }
+  },
+  "control_parents": {
+   "cB": "cA"
+  },
+  "master_control": "cA",
+  "normalize": "control_mean",
+  "fingerprint": [
+   {
+    "metric": "covariance",
+    "columns": [
+     "d0",
+     "d1",
+     "d2",
+     "d3",
+     "d4",
+     "d5",
+     "d6",
+     "d7"
+    ],
+    "tolerance": 0.2
+   }
+  ],
+  "feature_tables": {
+   "DINO1": [
+    "d0",
+    "d1",
+    "d2",
+    "d3",
+    "d4",
+    "d5",
+    "d6",
+    "d7"
+   ]
+  }
+ },
+ "feature_tables": {
+  "fiber": {
+   "file": "fiber.csv",
+   "tag": "explainable"
+  },
+  "profiler": {
+   "file": "profiler.csv",
+   "tag": "explainable"
+  },
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "clustering",
+   "contrast",
+   "discovery",
+   "enough_features",
+   "fingerprint_precision",
+   "inspection",
+   "object_rules",
+   "overview",
+   "populations",
+   "ranking",
+   "separation",
+   "sufficiency",
+   "unusual",
+   "variability",
+   "whole_table"
+  ],
+  "absent": [
+   "distribution",
+   "label_control",
+   "rare_clustering"
+  ],
+  "not_applicable": {},
+  "table_column": true,
+  "headlines": {
+   "enough": "the fingerprint of DINO1 within its tolerance"
+  },
+  "separation_spaces": [
+   "Combined",
+   "DINO1",
+   "Explainable"
+  ],
+  "full": [
+   "Beyond the mean: not compared, as the fingerprint reads no"
+  ],
+  "contrast_kinds": [
+   "across_normalised",
+   "own_control"
+  ],
+  "html": false
+ }
+}

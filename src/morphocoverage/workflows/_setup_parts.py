@@ -1,5 +1,5 @@
-"""Parts of a ``Setup`` declared on their own (private): the positive control and the
-default definition of new.
+"""Parts of a ``Setup`` declared on their own (private): the positive control and its
+checks, the default definition of new.
 
 Shared-private: re-exported by ``workflows.setup``, where they are imported from.
 """
@@ -81,6 +81,32 @@ class PositiveControl:
         return (REPEAT_COLUMN,) if REPEAT_COLUMN in fovs.columns else ()
 
 
+def check_positive(setup: Setup) -> None:
+    """A positive control is a ``PositiveControl``, checked against the control with the
+    definition of new: refused otherwise, with what to declare."""
+    if setup.positive is None:
+        return
+    if not isinstance(setup.positive, PositiveControl):
+        raise TypeError("positive must be a PositiveControl")
+    if setup.reference_control is None:
+        raise ValueError("a positive control is checked against the control: declare both")
+    if setup.novelty is None:
+        raise ValueError(
+            "a positive control is judged with the definition of new: declare novelty "
+            "(and features), or leave the positive control out"
+        )
+    # Fewer seen fields than the definition of new needs: no field is ever judged (F10).
+    novelty, seen = setup.novelty, setup.positive.fovs_seen
+    needed = max(novelty.min_fovs, novelty.min_other_fovs)
+    if is_integer(seen) and seen < needed:
+        name = "min_fovs" if novelty.min_fovs >= novelty.min_other_fovs else "min_other_fovs"
+        raise ValueError(
+            f"the positive control is judged after fovs_seen={seen} reference fields, but the "
+            f"definition of new judges a field only after {needed} (its {name}): declare "
+            f"fovs_seen={needed} or more"
+        )
+
+
 def check_presets(setup: Setup) -> None:
     """The novelty target, the detection preset and the computational settings."""
     target = setup.novelty_target
@@ -115,6 +141,20 @@ def warn_novelty_dimension(setup: Setup) -> None:
         )
 
 
+def check_embedding_only(setup: Setup) -> None:
+    """An embedding-only Setup (``readout=None``, owner 2026-10-06) declares no explainable
+    feature, nothing to normalise and no intensity: refused otherwise, with what to do."""
+    if setup.readout is not None:
+        return
+    if setup.features:
+        raise ValueError(
+            "features are explainable features, read one by one: declare the readout among "
+            "them (readout=None declares none, for a report on the other feature tables alone)"
+        )
+    if setup.intensity_features:
+        raise ValueError("intensity_features are explainable features: readout=None has none")
+
+
 def check_few_fovs(setup: Setup) -> None:
     """``few_fovs``: an integer above the definition of new's ``min_other_fovs``."""
     if setup.few_fovs is None:
@@ -135,7 +175,9 @@ def check_few_fovs(setup: Setup) -> None:
 __all__ = [
     "MANY_NOVELTY_FEATURES",
     "PositiveControl",
+    "check_embedding_only",
     "check_few_fovs",
+    "check_positive",
     "check_presets",
     "default_novelty",
     "warn_novelty_dimension",

@@ -1,13 +1,11 @@
 """Do the conditions differ, and how confidently, given that objects came as whole fields?
 
-The lab's Plot&Stats notebook compares conditions with Cohen's d on the
-observations and a randomization test that shuffles condition labels over the
-observations, with a Bonferroni correction over the comparisons. That treats
-every object as an independent draw. The Foundation of the report says a
-microscope acquires objects through fields, and objects of one field enter
-together, so this check computes the effect size and the test both ways: as
-Plot&Stats does, on the objects, and with the field (or the technical repeat)
-as the unit.
+The lab's Plot&Stats notebook compares conditions with Cohen's d on the observations and a
+randomization test that shuffles condition labels over the observations, with a Bonferroni
+correction over the comparisons. That treats every object as an independent draw. The Foundation
+of the report says a microscope acquires objects through fields, and objects of one field enter
+together, so this check computes the effect size and the test both ways: as Plot&Stats does, on
+the objects, and with the field (or the technical repeat) as the unit.
 
 Per repeat, each condition is compared with the declared control condition
 (the fields of a condition's analysis groups, for example its wells, are
@@ -94,7 +92,7 @@ from ..metadata import (
     TARGET_COLUMN,
     TECHNICAL_REPEAT_COLUMN,
 )
-from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size
+from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size, log_scale
 from ._common import groups, validated
 from ._reach import reachable
 from ._units import (
@@ -384,6 +382,7 @@ def condition_contrast(
         "random_state": random_state,
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
+        "log_scale": log_scale(data.feature_values(feature)),  # the paired test's scale
     }
     contrasts = contrasts_of(described)
     # Repeats holding only the control: in no comparison, so not in the pooled control.
@@ -474,10 +473,11 @@ def condition_contrast(
     table["p_bonferroni"] = np.where(
         tested, np.minimum(1.0, table["p_value"] * int(tested.sum())), np.nan
     )
-    repeats = across_repeats(table, repeat_col, random_state)
+    log = settings["log_scale"]
+    repeats = across_repeats(table, repeat_col, random_state, log)
     between = across_table((all_groups, described, feature, technical_col), declared, random_state)
     settings.update(between.attrs)  # the contrast table and the master's repeats
-    plan = repeat_plan(table) if repeat_col is not None else pd.DataFrame(columns=PLAN_COLUMNS)
+    plan = repeat_plan(table, log=log) if repeat_col else pd.DataFrame(columns=PLAN_COLUMNS)
     targets = _targets(fovs, condition_col, target_col)
     if comparisons is not None:  # a comparison's target is its condition's
         targets = {

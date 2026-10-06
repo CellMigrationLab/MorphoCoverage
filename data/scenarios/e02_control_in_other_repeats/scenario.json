@@ -1,0 +1,39 @@
+{
+ "name": "e02_control_in_other_repeats",
+ "kind": "edge",
+ "checks": "a control imaged in other repeats than its condition: not compared across repeats",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast"
+  ],
+  "absent": [
+   "enough_features"
+  ],
+  "untested_across": true,
+  "untested_whole": "no repeat holds both",
+  "overview": [
+   "in every repeat of its sub-experiment: ctrl in"
+  ]
+ }
+}

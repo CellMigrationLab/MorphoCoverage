@@ -43,7 +43,8 @@ from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency_short import field_bound_assumption, rule_tallies, uniformity_assumption
 from ._enough_features import ENOUGH, NOT_YET, PARTLY, FeatureEnough
-from ._enough_targets import fingerprint_lines, rare_lines
+from ._enough_targets import assessable_reason, fingerprint_lines, rare_lines
+from ._feature_space import table_of
 from ._html_render import text_html
 from ._html_sections import _resolution
 from ._html_tabs import tabs_html
@@ -268,7 +269,18 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
         criteria = list(dict.fromkeys(precision["criterion"]))
         for criterion in criteria:
             own = judged[judged["criterion"] == criterion]
-            named = "" if len(criteria) == 1 else f", {criterion},"
+            rows = precision[precision["criterion"] == criterion]
+            table = rows["table"].iloc[0] if "table" in rows else None
+            # With other feature tables, each table its own verdict (owner, 2026-10-06).
+            named = (
+                f" of {table}"
+                if isinstance(table, str)
+                else ("" if len(criteria) == 1 else f", {criterion},")
+            )
+            reason = assessable_reason(rows)
+            if reason is not None:  # a wide table and small groups (owner, 2026-10-06)
+                lines.append(f"The fingerprint{named} is not assessable: {reason}.")
+                continue
             if not len(own):
                 lines.append(f"The fingerprint{named} is not judged in any {word}.")
                 continue
@@ -280,7 +292,9 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
                 else f"in {met} of {count(len(own), word)}" + ("" if every else " judged")
             )
             lines.append(f"The fingerprint{named} is within its tolerance {within}.")
-        text = "\n".join(fingerprint_lines(precision, word, plural(field), held_back=False))
+        text = "\n".join(
+            fingerprint_lines(precision, word, plural(field), held_back=False, unit=setup.unit_word)
+        )
         if text:
             # No group judged: not assessed, never a ✅ over an empty set.
             mark = "✅" if judged["met"].astype(bool).all() else "⚠️"
@@ -320,7 +334,11 @@ def _features_body(result: Any, features: FeatureEnough, annotate: Any) -> str:
     repeats = repeats_seen(contrast)
     targets, target_tabs = _targets(result, word, field)
     top = _paragraphs([*answer_lines(features, fields, repeats), *targets])
+    # With explainable tables, the features under their table (owner, 2026-10-06).
+    owner = table_of(result.setup)
+    order = {name: i for i, name in enumerate(dict.fromkeys(owner.values()))}
     rows = features.table.to_dict("records")
+    rows = sorted(rows, key=lambda r: order.get(owner.get(r["feature"]), 0))
     items = [
         (
             r["feature"],
@@ -352,7 +370,14 @@ def _features_body(result: Any, features: FeatureEnough, annotate: Any) -> str:
     return (
         f'<div class="reading">{annotate(top)}</div>{shown}<h3>One feature at a time</h3>'
         f'<p class="note">{html.escape(pointer)}</p>'
-        + tabs_html("enough", tabs, "Features")
+        + tabs_html(
+            "enough",
+            tabs,
+            "Features",
+            [owner.get(r["feature"], "") for r in rows] + [""] * len(target_tabs)
+            if owner
+            else None,
+        )
         + annotate(_assumptions(contrast, result.results.get("sufficiency"), labels))
     )
 

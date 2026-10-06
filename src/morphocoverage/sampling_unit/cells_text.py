@@ -23,7 +23,7 @@ import pandas as pd
 from .._caveats import assumption
 from .._control import versus
 from .._style import span, table, wrap
-from .._wording import column_word, count, listing, p_value, percent
+from .._wording import column_word, count, features_counted, listing, p_value, percent
 from ..schema import observation_words
 from .contrast_cells import (
     ALPHA,
@@ -145,15 +145,20 @@ def _sparse(contrast: Any, cells: pd.DataFrame) -> list[str]:
     lines = []
     for (names, kept), conditions in groups.items():
         rest = (
-            f"the balanced test balances the other {count(kept, word)}"
+            f"the balanced test balances the other {word}"
+            if kept == 1
+            else f"the balanced test balances the other {count(kept, word)}"
             if kept
             else "no other repeat is left to balance"
         )
+        one = len(names) == 1
         lines.append(
-            f"{listing(conditions, 3)}: {word} {listing(list(names), 3)} holds very few {words} "
+            f"{listing(conditions, 3)}: {word if one else f'{word}s'} {listing(list(names), 3)} "
+            f"{'holds' if one else 'hold'} very few {words} "
             f"(under {percent(SPARSE)} of the median {word}, or fewer than {MIN_BALANCED}), "
-            "worth checking first. Balancing down to it would leave little of the others, so it "
-            f"is kept in the test as provided and left out of the balanced one: {rest}."
+            f"worth checking first. Balancing down to {'it' if one else 'them'} would leave "
+            f"little of the others, so {'it is' if one else 'they are'} kept in the test as "
+            f"provided and left out of the balanced one: {rest}."
         )
     return lines
 
@@ -253,13 +258,16 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
         names += [f"{words} per repeat, condition / control"] if full else []
         names.append(f"gives p ≤ {ALPHA:g} with no effect")
         lines.append(table(rows, names, indent=indent + 2))
-    features = contrast.settings.get("family_features")
+    settings = contrast.settings
+    features = settings.get("family_features")
     if features and features > 1:
         # The version the reading uses shares the family of every feature (_families).
         lines.append(
             wrap(
                 "q: the version the reading uses (balanced and normalised when given, else "
-                f"normalised) is corrected over the {features} features and their conditions "
+                "normalised) is corrected over the "
+                f"{features_counted(int(features), settings.get('family_share'), ', ')} and "
+                "their conditions "
                 "of each sub-experiment, as the feature ranking; the other columns over this "
                 "feature's conditions only.",
                 indent + 2,
@@ -271,7 +279,7 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
 
 def _short_notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
     """The same assumptions in a sentence each, for the short report (the full report and
-    docs/condition_tests.md give the formula and the simulations)."""
+    docs/report/conditions.md give the formula and the simulations)."""
     words = observation_words(contrast.settings)[1]
     text = (
         f"The {_unit(contrast)}-level test treats the {words} as independent, so it asks "

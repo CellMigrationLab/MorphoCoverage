@@ -2,9 +2,10 @@
 (private; re-exported by ``statistics``, where every shared statistic is looked up).
 
 - ``paired_t``: the paired t-test on one value per biological repeat;
-- ``repeat_values``: the values that test compares, the one place the rule is written: the
-  log ratios of the repeat means to the control's when every mean is positive (a fold
-  change), else their differences;
+- ``log_scale`` and ``repeat_values``: the values that test compares, the one place the
+  rule is written: the log ratios of the repeat means to the control's (a fold change) when
+  every observation of the feature is positive, else their differences, chosen once per
+  feature so every condition is tested on the same scale (owner, 2026-10-06, audit 8);
 - ``bimodality_coefficient``: Sarle's coefficient, above ``BIMODAL`` (5/9) when the values
   may form two groups; ``excess_kurtosis`` tells a heavy tail apart from two groups.
 """
@@ -24,14 +25,31 @@ def paired_t(differences: np.ndarray) -> float:
     return float(stats.ttest_1samp(differences, 0.0).pvalue)
 
 
-def repeat_values(means: np.ndarray, controls: np.ndarray) -> tuple[str, np.ndarray, float]:
+def log_scale(values: np.ndarray) -> bool:
+    """Whether the paired test across repeats reads a feature as log ratios: every one of
+    its observations ``values`` positive (missing values aside), else differences. Chosen
+    once per feature from all its observations, the same for every condition (owner,
+    2026-10-06, audit 8: chosen per condition from its means, an offset of the feature
+    changed the test's power)."""
+    values = np.asarray(values, dtype=float)
+    values = values[~np.isnan(values)]
+    return bool(len(values)) and bool((values > 0).all())
+
+
+def repeat_values(
+    means: np.ndarray, controls: np.ndarray, log: bool | None = None
+) -> tuple[str, np.ndarray, float]:
     """The values the paired test across repeats compares, from each repeat's mean of the
-    condition and of its control: ``("normalised", log ratios, fold change)`` when every
-    mean is positive (the fold change the geometric mean of the ratios), else ``("raw",
-    differences, mean difference)``. The one place this rule is written (owner,
+    condition and of its control: ``("normalised", log ratios, fold change)`` on the log
+    scale (the fold change the geometric mean of the ratios), else ``("raw", differences,
+    mean difference)``. ``log`` is the feature's scale (``log_scale`` of all its
+    observations); ``None``, where they are not at hand, reads it from these means: the log
+    scale when every mean is positive. The one place this rule is written (owner,
     2026-10-01: the paired t-test on the repeat means, normalised to the control)."""
     means, controls = np.asarray(means, dtype=float), np.asarray(controls, dtype=float)
-    if len(means) and (means > 0).all() and (controls > 0).all():
+    if log is None:
+        log = bool(len(means)) and bool((means > 0).all() and (controls > 0).all())
+    if log:
         ratios = np.log(means / controls)
         return "normalised", ratios, float(np.exp(ratios.mean()))
     differences = means - controls
@@ -78,6 +96,7 @@ __all__ = [
     "BIMODAL",
     "bimodality_coefficient",
     "excess_kurtosis",
+    "log_scale",
     "paired_t",
     "repeat_values",
     "sarle",

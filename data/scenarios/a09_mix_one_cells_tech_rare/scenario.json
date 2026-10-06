@@ -1,0 +1,76 @@
+{
+ "name": "a09_mix_one_cells_tech_rare",
+ "kind": "axes",
+ "checks": "features; each condition against the control; the rare label's share and clustering; the page, its CSVs naming tables",
+ "axes": {
+  "tables": "mix",
+  "controls": "one",
+  "normalize": false,
+  "unit": "cells",
+  "wells": "tech",
+  "target": "rare"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "fib_len"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  },
+  "rare": {
+   "detection_probability": 0.8,
+   "min_fov_occurrences": 2,
+   "phenotype": "rare",
+   "object_prevalence": 0.1
+  },
+  "rare_label": "rare"
+ },
+ "feature_tables": {
+  "fiber": {
+   "file": "fiber.csv",
+   "tag": "explainable"
+  },
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": "non-explainable"
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "clustering",
+   "contrast",
+   "discovery",
+   "enough_features",
+   "inspection",
+   "label_control",
+   "object_rules",
+   "overview",
+   "populations",
+   "ranking",
+   "rare_clustering",
+   "separation",
+   "sufficiency",
+   "unusual",
+   "variability",
+   "whole_table"
+  ],
+  "absent": [
+   "distribution",
+   "fingerprint_precision"
+  ],
+  "not_applicable": {},
+  "table_column": true,
+  "separation_spaces": [
+   "Combined",
+   "DINO1",
+   "Explainable"
+  ],
+  "html": true
+ }
+}

@@ -3,6 +3,7 @@
   31 feature columns: YAPTAZ_Ratio, Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ, Nuclei_Intensity_IntegratedIntensity_YAPTAZ, Nuclei_Intensity_LowerQuartileIntensity_YAPTAZ, Nuclei_Intensity_MADIntensity_YAPTAZ, Nuclei_Intensity_MassDisplacement_YAPTAZ, Nuclei_Intensity_MaxIntensityEdge_YAPTAZ, Nuclei_Intensity_MaxIntensity_YAPTAZ, Nuclei_Intensity_MeanIntensityEdge_YAPTAZ, Nuclei_Intensity_MeanIntensity_YAPTAZ, Nuclei_Intensity_MedianIntensity_YAPTAZ, Nuclei_Intensity_MinIntensityEdge_YAPTAZ and 19 more.
   12 technical repeats (technical_repeat, a well or a dish within a repeat, 1 to 2 per condition and repeat).
   4 conditions (condition: ARAP2, LATS1, MOCK, YAP); 3 repeats (biological_repeat: 2A, 2B, 1A).
+  ARAP2, LATS1 and YAP each in 2 of the 3 repeats.
     condition  biological_repeat  fields  empty  nuclei  technical repeats
     ARAP2      2A                     28      0     797                  1
     ARAP2      2B                     56      0    1955                  2
@@ -16,55 +17,55 @@
   Values: as given (not normalised).
   ➖ Data checks not run (report() runs them).
 
-✅ Foundation: why count fields, and not only objects?
-  How variable are the fields? Feature YAPTAZ_Ratio; analysis groups:
-    condition · biological_repeat · technical_repeat.
-    group             fields  nuclei  per field  between  design effect  error ratio  differ
-    MOCK · 1A · B6        28     966       34.5       2%            1.7          1.3     14%
-    LATS1 · 1A · I23      28     718       25.6       4%            2.0          1.4     11%
-    LATS1 · 1A · J23      28     647       23.1       4%            1.9          1.4     11%
-    YAP · 1A · M23        28     651       23.2       4%            2.1          1.4     18%
-    YAP · 1A · N23        28     607       21.7       0%            1.0          1.0      4%
-    ARAP2 · 2A · C13      28     797       28.5     0.3%            1.1          1.0      4%
-    LATS1 · 2A · J23      28     736       26.3       4%            2.0          1.4     14%
-    MOCK · 2A · K16       28     953         34       4%            2.4          1.5     21%
-    YAP · 2A · N23        28     557       19.9       6%            2.4          1.5     18%
-    ARAP2 · 2B · C13      28     999       35.7       5%            2.8          1.7     21%
-    ARAP2 · 2B · C17      28     956       34.1       7%            3.4          1.8     36%
-    MOCK · 2B · P13       28     963       34.4       5%            2.8          1.7     29%
+✅ Foundation: why count fields, and not only nuclei?
+  How variable are the fields? Feature YAPTAZ_Ratio; analysis groups: condition · biological
+    repeat · technical repeat.
+    group                    fields  nuclei  per field  between  design effect  error ratio  differ
+    MOCK · repeat 1A · B6        28     966       34.5       2%            1.7          1.3     14%
+    LATS1 · repeat 1A · I23      28     718       25.6       4%            2.0          1.4     11%
+    LATS1 · repeat 1A · J23      28     647       23.1       4%            1.9          1.4     11%
+    YAP · repeat 1A · M23        28     651       23.2       4%            2.1          1.4     18%
+    YAP · repeat 1A · N23        28     607       21.7       0%            1.0          1.0      4%
+    ARAP2 · repeat 2A · C13      28     797       28.5     0.3%            1.1          1.0      4%
+    LATS1 · repeat 2A · J23      28     736       26.3       4%            2.0          1.4     14%
+    MOCK · repeat 2A · K16       28     953         34       4%            2.4          1.5     21%
+    YAP · repeat 2A · N23        28     557       19.9       6%            2.4          1.5     18%
+    ARAP2 · repeat 2B · C13      28     999       35.7       5%            2.8          1.7     21%
+    ARAP2 · repeat 2B · C17      28     956       34.1       7%            3.4          1.8     36%
+    MOCK · repeat 2B · P13       28     963       34.4       5%            2.8          1.7     29%
   Between: the share of the variance that lies between fields. Design effect: how many times the
     variance of a mean from whole fields is that of one from as many random nuclei; error ratio: how
     many times SD / sqrt(n) understates its error (the square root). Differ: the share of fields
     whose mean differs more than random nuclei would let it (about 5% expected).
 
-  Would the JCB object-count rule hold with whole fields? Feature YAPTAZ_Ratio; reference mean: the
-    mean of all MOCK nuclei of the same biological repeat; analysis groups:
-    condition · biological_repeat · technical_repeat.
-    group             target    nuclei asked  fields taken  SD/sqrt(n) → real  as fields  of
-    MOCK · 1A · B6    5% met               2           1.0  1% → 1% (1.2x)         1 (1)  28
-    MOCK · 1A · B6    2.5% met             7           1.0  1% → 1% (1.2x)         1 (1)  28
-    LATS1 · 1A · I23  5% met               2           1.0  1% → 2% (1.3x)         1 (1)  28
-    LATS1 · 1A · I23  2.5% met             8           1.0  1% → 2% (1.3x)         1 (2)  28
-    LATS1 · 1A · J23  5% met               3           1.0  2% → 2% (1.3x)         1 (1)  28
-    LATS1 · 1A · J23  2.5% met            10           1.0  2% → 2% (1.3x)         1 (2)  28
-    YAP · 1A · M23    5% met               2           1.0  1% → 2% (1.4x)         1 (1)  28
-    YAP · 1A · M23    2.5% met             6           1.0  1% → 2% (1.4x)         1 (2)  28
-    YAP · 1A · N23    5% met               2           1.0  1% → 1% (0.9x)         1 (1)  28
-    YAP · 1A · N23    2.5% met             7           1.0  1% → 1% (0.9x)         1 (1)  28
-    ARAP2 · 2A · C13  5% met               2           1.0  1% → 1% (1.0x)         1 (1)  28
-    ARAP2 · 2A · C13  2.5% met             7           1.0  1% → 1% (1.1x)         1 (1)  28
-    LATS1 · 2A · J23  5% met               2           1.0  1% → 2% (1.4x)         1 (1)  28
-    LATS1 · 2A · J23  2.5% met             8           1.0  1% → 2% (1.4x)         1 (2)  28
-    MOCK · 2A · K16   5% met               3           1.0  1% → 2% (1.6x)         1 (1)  28
-    MOCK · 2A · K16   2.5% met             9           1.0  1% → 2% (1.6x)         1 (2)  28
-    YAP · 2A · N23    5% met               2           1.0  1% → 2% (1.4x)         1 (1)  28
-    YAP · 2A · N23    2.5% met             6           1.0  1% → 2% (1.4x)         1 (2)  28
-    ARAP2 · 2B · C13  5% met               2           1.0  1% → 2% (1.5x)         1 (1)  28
-    ARAP2 · 2B · C13  2.5% met             8           1.0  1% → 2% (1.6x)         1 (1)  28
-    ARAP2 · 2B · C17  5% met               3           1.0  1% → 2% (1.8x)         1 (1)  28
-    ARAP2 · 2B · C17  2.5% met            10           1.0  1% → 2% (1.8x)         1 (2)  28
-    MOCK · 2B · P13   5% met               2           1.0  1% → 2% (1.6x)         1 (1)  28
-    MOCK · 2B · P13   2.5% met             7           1.0  1% → 2% (1.6x)         1 (2)  28
+  Would the mean-precision object-count rule hold with whole fields? Feature YAPTAZ_Ratio; reference
+    mean: the mean of all MOCK nuclei of the same biological repeat; analysis groups:
+    condition · biological repeat · technical repeat.
+    group                    target    nuclei asked  fields taken  SD/sqrt(n) → real   as fields  of
+    MOCK · repeat 1A · B6    5% met               2           1.0  1.1% → 1.3% (1.2x)      1 (1)  28
+    MOCK · repeat 1A · B6    2.5% met             7           1.0  1.1% → 1.3% (1.2x)      1 (1)  28
+    LATS1 · repeat 1A · I23  5% met               2           1.0  1.4% → 1.9% (1.3x)      1 (1)  28
+    LATS1 · repeat 1A · I23  2.5% met             8           1.0  1.4% → 1.8% (1.3x)      1 (2)  28
+    LATS1 · repeat 1A · J23  5% met               3           1.0  1.6% → 2.1% (1.3x)      1 (1)  28
+    LATS1 · repeat 1A · J23  2.5% met            10           1.0  1.6% → 2.2% (1.3x)      1 (2)  28
+    YAP · repeat 1A · M23    5% met               2           1.0  1.4% → 1.9% (1.4x)      1 (1)  28
+    YAP · repeat 1A · M23    2.5% met             6           1.0  1.3% → 1.9% (1.4x)      1 (2)  28
+    YAP · repeat 1A · N23    5% met               2           1.0  1.4% → 1.3% (0.9x)      1 (1)  28
+    YAP · repeat 1A · N23    2.5% met             7           1.0  1.4% → 1.3% (0.9x)      1 (1)  28
+    ARAP2 · repeat 2A · C13  5% met               2           1.0  1.2% → 1.3% (1.0x)      1 (1)  28
+    ARAP2 · repeat 2A · C13  2.5% met             7           1.0  1.2% → 1.3% (1.1x)      1 (1)  28
+    LATS1 · repeat 2A · J23  5% met               2           1.0  1.4% → 2.0% (1.4x)      1 (1)  28
+    LATS1 · repeat 2A · J23  2.5% met             8           1.0  1.4% → 2.0% (1.4x)      1 (2)  28
+    MOCK · repeat 2A · K16   5% met               3           1.0  1.3% → 2.0% (1.6x)      1 (1)  28
+    MOCK · repeat 2A · K16   2.5% met             9           1.0  1.3% → 2.0% (1.6x)      1 (2)  28
+    YAP · repeat 2A · N23    5% met               2           1.0  1.5% → 2.0% (1.4x)      1 (1)  28
+    YAP · repeat 2A · N23    2.5% met             6           1.0  1.4% → 2.0% (1.4x)      1 (2)  28
+    ARAP2 · repeat 2B · C13  5% met               2           1.0  1.1% → 1.8% (1.5x)      1 (1)  28
+    ARAP2 · repeat 2B · C13  2.5% met             8           1.0  1.1% → 1.8% (1.6x)      1 (1)  28
+    ARAP2 · repeat 2B · C17  5% met               3           1.0  1.4% → 2.4% (1.8x)      1 (1)  28
+    ARAP2 · repeat 2B · C17  2.5% met            10           1.0  1.4% → 2.4% (1.8x)      1 (2)  28
+    MOCK · repeat 2B · P13   5% met               2           1.0  1.2% → 1.8% (1.6x)      1 (1)  28
+    MOCK · repeat 2B · P13   2.5% met             7           1.0  1.2% → 1.9% (1.6x)      1 (2)  28
   Target: met or missed by the real error. Nuclei asked: the rule's number of nuclei; fields taken:
     the mean number of whole fields drawn at random until that many; SD/sqrt(n) → real: the rule's
     predicted error of their mean, then its real error (the SD of that mean over the draws), both as
@@ -80,14 +81,14 @@
     MOCK fields (false alarms)             13 of 720 checks: 2%       0 of 84 fields: 0%
   After 10 reference fields with nuclei: as a stopping rule judges the next field. As inspect_fovs
     judges: each field against the other reference fields of its analysis group
-    (condition · biological_repeat · technical_repeat).
-  Per biological_repeat (recognized/judged):
-    biological_repeat  judged           positive          planted         false alarms
-    1A                 after 10 fields  100% (1120/1120)  100% (360/360)  0.3% (1/360)
+    (condition · biological repeat · technical repeat).
+  Per biological repeat (recognized/judged):
+    biological repeat  judged           positive          planted         false alarms
+    repeat 1A          after 10 fields  100% (1120/1120)  100% (360/360)  0.3% (1/360)
                        as inspect_fovs  100% (56/56)      100% (28/28)    0% (0/28)
-    2A                 after 10 fields  100% (560/560)    100% (360/360)  3% (12/360)
+    repeat 2A          after 10 fields  100% (560/560)    100% (360/360)  3% (12/360)
                        as inspect_fovs  100% (28/28)      100% (28/28)    0% (0/28)
-    2B                 after 10 fields  not judged        not judged      not judged
+    repeat 2B          after 10 fields  not judged        not judged      not judged
                        as inspect_fovs  not judged        not judged      0% (0/28)
   ⚠️ Not judged after 10 reference fields in biological repeat 2B: no positive-control field with
      nuclei.
@@ -97,42 +98,43 @@
       small or sparse state in an ordinary field (the planted rates measure that).
 
 ⚠️ 2. Did I image enough?
-  Enough to resolve the difference from the control? YAPTAZ_Ratio, each condition against the control
-    of the same repeat, 95% interval of d from the fields resampled as acquired:
-    contrast            fields    d nuclei (95% interval)  enough?
-    LATS1 vs MOCK · 1A  56 vs 28  1.32 (1.12 to 1.52)      resolved
-    YAP vs MOCK · 1A    56 vs 28  -1.08 (-1.23 to -0.94)   resolved
-    ARAP2 vs MOCK · 2A  28 vs 28  0.29 (0.17 to 0.39)      resolved
-    LATS1 vs MOCK · 2A  28 vs 28  0.69 (0.56 to 0.84)      resolved
-    YAP vs MOCK · 2A    28 vs 28  -1.63 (-1.81 to -1.45)   resolved
-    ARAP2 vs MOCK · 2B  56 vs 28  0.35 (0.21 to 0.50)      resolved
-    Resolved: the 95% interval of d, from the fields resampled as they were acquired (technical repeats, then their fields, with replacement), excludes 0. The fields a side to resolve a difference are projected from these fields (the interval narrowing as 1/sqrt(fields)); beyond 4 times the fields acquired a difference is called too small to settle here. This asks whether the fields pin down the difference between these nuclei; whether it holds across biological repeats is question 9.
+  Within each repeat, does the difference from the control show? YAPTAZ_Ratio, each condition against
+    the control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    comparison                fields (condition vs control)  d on nuclei (95% interval)  enough in this repeat?
+    LATS1 vs MOCK, repeat 1A  56 vs 28                       +1.32 (+1.12 to +1.52)      yes (shown)
+    YAP vs MOCK, repeat 1A    56 vs 28                       -1.08 (-1.23 to -0.94)      yes (shown)
+    ARAP2 vs MOCK, repeat 2A  28 vs 28                       +0.29 (+0.17 to +0.39)      yes (shown)
+    LATS1 vs MOCK, repeat 2A  28 vs 28                       +0.69 (+0.56 to +0.84)      yes (shown)
+    YAP vs MOCK, repeat 2A    28 vs 28                       -1.63 (-1.81 to -1.45)      yes (shown)
+    ARAP2 vs MOCK, repeat 2B  56 vs 28                       +0.35 (+0.21 to +0.50)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
 
-  Analysis groups: condition · biological_repeat · technical_repeat.
+  Analysis groups: condition · biological repeat · technical repeat.
   Each rule by its own threshold (not a held-out check), in 12 groups:
-    rule                       met in    recorded order  random orders: median (10-90%)
-    fixed 8 fields             12 of 12  8               8 (8-8)
-    JCB rule, per nucleus, 5%  12 of 12  1-2             1 (1-2)
-    JCB rule, per field, 5%    12 of 12  3-6             4 (3-5)
-    nothing new (≤5%)          0 of 12   never           never
-  First met after: the fields acquired when it first said enough; recorded: the range over groups;
-    random: the median of the groups' medians, 10-90% from the lowest to the highest group.
-  Rules: fixed 8 fields (fixed_fov: n_fovs >= 8; config e1d257c7421b4ec8); JCB rule, per nucleus, 5%
-    (scalar_precision_object_upper95: averaging_cv <= 0.05; config 7f33d85e490f1fa8); JCB rule, per
-    field, 5% (scalar_precision_fov_upper95: averaging_cv <= 0.05; config bcd923e343521c46); nothing
-    new (≤5%) (support_novelty: lofo_novel_fov_upper <= 0.05; config 71b15bd17971291f).
+    rule                                  met with the fields acquired  fields when first met  fields needed in random orders: median (10-90%)
+    fixed 8 fields                        12 of 12                      8                      8 (8-8)
+    mean-precision rule, per nucleus, 5%  12 of 12                      1-2                    1 (1-2)
+    mean-precision rule, per field, 5%    12 of 12                      4-8                    5 (4-8)
+    nothing new (≤5%)                     0 of 12                       never                  never
+  Fields when first met: in the order acquired, when it first said enough; recorded: the range over
+    groups; random: the median of the groups' medians, 10-90% from the lowest to the highest group.
+  Rules: fixed 8 fields (fixed_fov: n_fovs >= 8; config e1d257c7421b4ec8); mean-precision rule, per
+    nucleus, 5% (scalar_precision_object_upper95: averaging_cv <= 0.05; config 7f33d85e490f1fa8);
+    mean-precision rule, per field, 5% (scalar_precision_fov_upper95: averaging_cv <= 0.05; config
+    bcd923e343521c46); nothing new (≤5%) (support_novelty: lofo_novel_fov_upper <= 0.05; config
+    71b15bd17971291f).
   Per group below: whether each rule was met by its own threshold, where it was first met, and the
     fields imaged beyond that point (beyond: a median over the random orders, or the recorded one
     without them; only where the acquired fields are enough).
 
-  MOCK · 1A · B6 — 28 fields acquired:
-    rule                       enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    fixed 8 fields             target reached  8         8 (0; 8-8)                               20
-    JCB rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
-    JCB rule, per field, 5%    yes             3         4 (0.4; 3-5)                             24
-    nothing new (≤5%)          no              never     never                                    –
-    Cautions here: JCB rule, per nucleus, 5%: excess kurtosis 2.3, bimodality coefficient 0.34; JCB
-      rule, per field, 5%: Spearman rho -0.43, p = 0.023.
+  MOCK · repeat 1A · B6 — 28 fields acquired:
+    rule                                  enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
+    fixed 8 fields                        target reached  8         8 (0; 8-8)                               20
+    mean-precision rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
+    mean-precision rule, per field, 5%    yes             5         5 (0.3; 5-6)                             23
+    nothing new (≤5%)                     no              never     never                                    –
+    Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 2.3; mean-precision rule, per
+      field, 5%: Spearman rho -0.43, p = 0.023.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 1 of 28 fields hold a state seen in 2 to 3 fields; together 4% of fields (95%
@@ -142,14 +144,14 @@
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none shows
       anything new (31 at the current rate of new fields).
 
-  LATS1 · 1A · I23 — 28 fields acquired:
-    rule                       enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    fixed 8 fields             target reached  8         8 (0; 8-8)                               20
-    JCB rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
-    JCB rule, per field, 5%    yes             5         4 (0.3; 3-4)                             24
-    nothing new (≤5%)          no              never     never                                    –
-    Cautions here: JCB rule, per nucleus, 5%: excess kurtosis 3.0, bimodality coefficient 0.41; JCB
-      rule, per field, 5%: Spearman rho -0.41, p = 0.032.
+  LATS1 · repeat 1A · I23 — 28 fields acquired:
+    rule                                  enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
+    fixed 8 fields                        target reached  8         8 (0; 8-8)                               20
+    mean-precision rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
+    mean-precision rule, per field, 5%    yes             4         5 (0.5; 4-6)                             23
+    nothing new (≤5%)                     no              never     never                                    –
+    Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 3.0; mean-precision rule, per
+      field, 5%: Spearman rho -0.41, p = 0.032.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 1 of 28 fields hold a state seen in 2 to 3 fields; together 4% of fields (95%
@@ -159,14 +161,14 @@
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none shows
       anything new (31 at the current rate of new fields).
 
-  LATS1 · 1A · J23 — 28 fields acquired:
-    rule                       enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    fixed 8 fields             target reached  8         8 (0; 8-8)                               20
-    JCB rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
-    JCB rule, per field, 5%    yes             4         4 (0.6; 3-5)                             24
-    nothing new (≤5%)          no              never     never                                    –
-    Cautions here: JCB rule, per nucleus, 5%: excess kurtosis 2.8, bimodality coefficient 0.50; JCB
-      rule, per field, 5%: Spearman rho -0.49, p = 0.0085.
+  LATS1 · repeat 1A · J23 — 28 fields acquired:
+    rule                                  enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
+    fixed 8 fields                        target reached  8         8 (0; 8-8)                               20
+    mean-precision rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
+    mean-precision rule, per field, 5%    yes             5         5 (0.3; 5-6)                             23
+    nothing new (≤5%)                     no              never     never                                    –
+    Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 2.8; mean-precision rule, per
+      field, 5%: Spearman rho -0.49, p = 0.0085.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
@@ -174,12 +176,12 @@
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none shows
       anything new (31 at the current rate of new fields).
 
-  YAP · 1A · M23 — 28 fields acquired:
-    rule                       enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    fixed 8 fields             target reached  8         8 (0; 8-8)                               20
-    JCB rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
-    JCB rule, per field, 5%    yes             3         4 (0.3; 3-4)                             24
-    nothing new (≤5%)          no              never     never                                    –
+  YAP · repeat 1A · M23 — 28 fields acquired:
+    rule                                  enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
+    fixed 8 fields                        target reached  8         8 (0; 8-8)                               20
+    mean-precision rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
+    mean-precision rule, per field, 5%    yes             5         5 (0.4; 4-6)                             23
+    nothing new (≤5%)                     no              never     never                                    –
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
@@ -187,12 +189,12 @@
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none shows
       anything new (31 at the current rate of new fields).
 
-  YAP · 1A · N23 — 28 fields acquired:
-    rule                       enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    fixed 8 fields             target reached  8         8 (0; 8-8)                               20
-    JCB rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
-    JCB rule, per field, 5%    yes             3         3 (0.5; 3-5)                             25
-    nothing new (≤5%)          no              never     never                                    –
+  YAP · repeat 1A · N23 — 28 fields acquired:
+    rule                                  enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
+    fixed 8 fields                        target reached  8         8 (0; 8-8)                               20
+    mean-precision rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
+    mean-precision rule, per field, 5%    yes             5         5 (0.5; 5-7)                             23
+    nothing new (≤5%)                     no              never     never                                    –
     One more field: chance 4% (nominal 95% bound 16%); 1 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
@@ -200,13 +202,13 @@
       than 5% of fields; to bring the next-field bound below 5%, at least 65 more fields if none shows
       anything new (689 at the current rate of new fields).
 
-  ARAP2 · 2A · C13 — 28 fields acquired:
-    rule                       enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    fixed 8 fields             target reached  8         8 (0; 8-8)                               20
-    JCB rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
-    JCB rule, per field, 5%    yes             3         3 (0.3; 3-4)                             25
-    nothing new (≤5%)          no              never     never                                    –
-    Cautions here: JCB rule, per nucleus, 5%: excess kurtosis 2.8, bimodality coefficient 0.34.
+  ARAP2 · repeat 2A · C13 — 28 fields acquired:
+    rule                                  enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
+    fixed 8 fields                        target reached  8         8 (0; 8-8)                               20
+    mean-precision rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
+    mean-precision rule, per field, 5%    yes             5         5 (0.6; 4-6)                             23
+    nothing new (≤5%)                     no              never     never                                    –
+    Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 2.8.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
@@ -214,26 +216,26 @@
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none shows
       anything new (31 at the current rate of new fields).
 
-  LATS1 · 2A · J23 — 28 fields acquired:
-    rule                       enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    fixed 8 fields             target reached  8         8 (0; 8-8)                               20
-    JCB rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
-    JCB rule, per field, 5%    yes             3         4 (0.3; 4-5)                             24
-    nothing new (≤5%)          no              never     never                                    –
-    Cautions here: JCB rule, per field, 5%: Spearman rho -0.55, p = 0.0023.
+  LATS1 · repeat 2A · J23 — 28 fields acquired:
+    rule                                  enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
+    fixed 8 fields                        target reached  8         8 (0; 8-8)                               20
+    mean-precision rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
+    mean-precision rule, per field, 5%    yes             5         5 (0.5; 4-6)                             23
+    nothing new (≤5%)                     no              never     never                                    –
+    Cautions here: mean-precision rule, per field, 5%: Spearman rho -0.55, p = 0.0023.
     One more field: chance 7% (nominal 95% bound 21%); 2 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 96 more fields if none shows
-      anything new (never at it of new fields).
+      anything new (never, at the current rate of new fields).
 
-  MOCK · 2A · K16 — 28 fields acquired:
-    rule                       enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    fixed 8 fields             target reached  8         8 (0; 8-8)                               20
-    JCB rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
-    JCB rule, per field, 5%    yes             4         4 (0.5; 3-5)                             24
-    nothing new (≤5%)          no              never     never                                    –
+  MOCK · repeat 2A · K16 — 28 fields acquired:
+    rule                                  enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
+    fixed 8 fields                        target reached  8         8 (0; 8-8)                               20
+    mean-precision rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
+    mean-precision rule, per field, 5%    yes             5         6 (0.5; 6-8)                             22
+    nothing new (≤5%)                     no              never     never                                    –
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 1 of 28 fields hold a state seen in 2 to 3 fields; together 4% of fields (95%
@@ -243,13 +245,13 @@
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none shows
       anything new (31 at the current rate of new fields).
 
-  YAP · 2A · N23 — 28 fields acquired:
-    rule                       enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    fixed 8 fields             target reached  8         8 (0; 8-8)                               20
-    JCB rule, per nucleus, 5%  yes             2         1 (0.3; 1-2)                             27
-    JCB rule, per field, 5%    yes             6         3 (0.6; 3-5)                             25
-    nothing new (≤5%)          no              never     never                                    –
-    Cautions here: JCB rule, per nucleus, 5%: excess kurtosis 9.2, bimodality coefficient 0.19.
+  YAP · repeat 2A · N23 — 28 fields acquired:
+    rule                                  enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
+    fixed 8 fields                        target reached  8         8 (0; 8-8)                               20
+    mean-precision rule, per nucleus, 5%  yes             2         1 (0.3; 1-2)                             27
+    mean-precision rule, per field, 5%    yes             8         6 (0.5; 5-7)                             22
+    nothing new (≤5%)                     no              never     never                                    –
+    Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 9.2.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
@@ -257,13 +259,13 @@
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none shows
       anything new (31 at the current rate of new fields).
 
-  ARAP2 · 2B · C13 — 28 fields acquired:
-    rule                       enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    fixed 8 fields             target reached  8         8 (0; 8-8)                               20
-    JCB rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
-    JCB rule, per field, 5%    yes             3         4 (0.3; 3-4)                             24
-    nothing new (≤5%)          no              never     never                                    –
-    Cautions here: JCB rule, per nucleus, 5%: excess kurtosis 2.6, bimodality coefficient 0.35.
+  ARAP2 · repeat 2B · C13 — 28 fields acquired:
+    rule                                  enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
+    fixed 8 fields                        target reached  8         8 (0; 8-8)                               20
+    mean-precision rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
+    mean-precision rule, per field, 5%    yes             6         5 (0.3; 5-6)                             23
+    nothing new (≤5%)                     no              never     never                                    –
+    Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 2.6.
     One more field: chance 4% (nominal 95% bound 16%); 1 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 1 of 28 fields hold a state seen in 2 to 3 fields; together 4% of fields (95%
@@ -273,13 +275,13 @@
       than 5% of fields; to bring the next-field bound below 5%, at least 65 more fields if none shows
       anything new (689 at the current rate of new fields).
 
-  ARAP2 · 2B · C17 — 28 fields acquired:
-    rule                       enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    fixed 8 fields             target reached  8         8 (0; 8-8)                               20
-    JCB rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
-    JCB rule, per field, 5%    yes             4         4 (0.4; 3-5)                             24
-    nothing new (≤5%)          no              never     never                                    –
-    Cautions here: JCB rule, per nucleus, 5%: excess kurtosis 6.1, bimodality coefficient 0.38.
+  ARAP2 · repeat 2B · C17 — 28 fields acquired:
+    rule                                  enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
+    fixed 8 fields                        target reached  8         8 (0; 8-8)                               20
+    mean-precision rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
+    mean-precision rule, per field, 5%    yes             6         5 (0.6; 4-7)                             23
+    nothing new (≤5%)                     no              never     never                                    –
+    Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 6.1.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
@@ -287,12 +289,12 @@
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none shows
       anything new (31 at the current rate of new fields).
 
-  MOCK · 2B · P13 — 28 fields acquired:
-    rule                       enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    fixed 8 fields             target reached  8         8 (0; 8-8)                               20
-    JCB rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
-    JCB rule, per field, 5%    yes             4         4 (0.5; 3-5)                             24
-    nothing new (≤5%)          no              never     never                                    –
+  MOCK · repeat 2B · P13 — 28 fields acquired:
+    rule                                  enough          recorded  5 random orders: median (MC SE; 10-90%)  beyond
+    fixed 8 fields                        target reached  8         8 (0; 8-8)                               20
+    mean-precision rule, per nucleus, 5%  yes             1         1 (0; 1-1)                               27
+    mean-precision rule, per field, 5%    yes             6         6 (0.5; 5-7)                             22
+    nothing new (≤5%)                     no              never     never                                    –
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 2 of 28 fields hold a state seen in 2 to 3 fields; together 7% of fields (95%
@@ -308,18 +310,19 @@
     Nuclei_Intensity_IntegratedIntensity_YAPTAZ, Nuclei_Intensity_LowerQuartileIntensity_YAPTAZ and 27
     more); two observations of a state that varies by one SD per feature sit about 7.7 apart.
 
-  ⚠️ JCB rule, per nucleus, 5%, in 7 of 12 groups (MOCK · 1A · B6, LATS1 · 1A · I23, LATS1 · 1A · J23,
-     ARAP2 · 2A · C13, YAP · 2A · N23 and 2 more): the upper-95 SD bound assumes normal values, and
-     these nuclei have excess kurtosis 2.3 to 9.2 and bimodality coefficient 0.19 to 0.50 (above 2 or
-     0.56: a heavy tail or a minority state), so the bound can be optimistic (with 10% of nuclei at
-     four times the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
-  ⚠️ JCB rule, per field, 5%, in 4 of 12 groups (MOCK · 1A · B6, LATS1 · 1A · I23, LATS1 · 1A · J23
-     and LATS1 · 2A · J23): field size and field mean are related (Spearman rho -0.55 to -0.41, p =
-     0.0023 to 0.032, over 28 fields with nuclei): the per-field averaging CV can then be several
-     times too small; check it against a bootstrap of whole fields (FOVBootstrapEstimator, centroid
-     summary) or the mean of field means (statistics.field_weighted_mean_se)
+  ⚠️ Mean-precision rule, per nucleus, 5%, in 7 of 12 groups (MOCK · repeat 1A · B6, LATS1 · repeat
+     1A · I23, LATS1 · repeat 1A · J23, ARAP2 · repeat 2A · C13, YAP · repeat 2A · N23 and 2 more):
+     the upper-95 SD bound assumes normal values, and these nuclei have excess kurtosis 2.3 to 9.2
+     (above 2: a heavy tail), so the bound can be optimistic (with 10% of nuclei at four times the
+     level of the rest it covered the true SD 68-88% of the time, not 97.5%)
+  ⚠️ Mean-precision rule, per field, 5%, in 4 of 12 groups (MOCK · repeat 1A · B6, LATS1 · repeat
+     1A · I23, LATS1 · repeat 1A · J23 and LATS1 · repeat 2A · J23): field size and field mean are
+     related (Spearman rho -0.55 to -0.41, p = 0.0023 to 0.032, over 28 fields with nuclei): the
+     per-field averaging CV can then be several times too small; check it against a bootstrap of whole
+     fields (FOVBootstrapEstimator, centroid summary) or the mean of field means
+     (statistics.field_weighted_mean_se)
 
-  Adjusted for the declared control's detection rate (for 5 planted positive-control nuclei: 100% of ordinary reference fields with them recognized against the other reference fields of their analysis group; at least 95% at 95% confidence, of 56 checks): a phenotype seen as well as the control, and shown by no FOV yet, could still be in
+  Adjusted for the declared control's detection rate (for 5 planted positive-control nuclei: 100% of ordinary reference fields with them recognized against the other reference fields of their analysis group; at least 95% at 95% confidence, of 56 checks, pooled over all biological repeats): a phenotype seen as well as the control, and shown by no FOV yet, could still be in
     condition=MOCK, biological_repeat=1A, technical_repeat=B6: up to 11% of FOVs (the 10% bound above divided by 95%), if detection is independent between fields.
     condition=LATS1, biological_repeat=1A, technical_repeat=I23: up to 11% of FOVs (the 10% bound above divided by 95%), if detection is independent between fields.
     condition=LATS1, biological_repeat=1A, technical_repeat=J23: up to 11% of FOVs (the 10% bound above divided by 95%), if detection is independent between fields.
@@ -333,218 +336,218 @@
     condition=ARAP2, biological_repeat=2B, technical_repeat=C17: up to 11% of FOVs (the 10% bound above divided by 95%), if detection is independent between fields.
     condition=MOCK, biological_repeat=2B, technical_repeat=P13: up to 11% of FOVs (the 10% bound above divided by 95%), if detection is independent between fields.
 
-  Analysis groups: condition · biological_repeat · technical_repeat.
-  Rules: fixed 8 fields (fixed_fov (target_fovs=8), config e1d257c7421b4ec8); JCB rule, per nucleus,
-    5% (scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object,
-    sd_estimate=upper_95), config 7f33d85e490f1fa8); JCB rule, per field, 5%
-    (scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov,
-    sd_estimate=upper_95), config bcd923e343521c46).
+  Analysis groups: condition · biological repeat · technical repeat.
+  Rules: fixed 8 fields (fixed_fov (target_fovs=8), config e1d257c7421b4ec8); mean-precision rule, per
+    nucleus, 5% (scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05,
+    resampling_unit=object, sd_estimate=upper_95), config 7f33d85e490f1fa8); mean-precision rule, per
+    field, 5% (scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05,
+    resampling_unit=fov, sd_estimate=upper_95), config bcd923e343521c46).
   If you had let each rule stop the acquisition, judged on held-back fields the rule never saw, for
     the well mean within 2.5%:
 
-  MOCK · 1A · B6:
+  MOCK · repeat 1A · B6:
     fixed 8 fields:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
       recorded    100% of 5   8 (0)           0%             100%       –
       random      100% of 25  8 (0)           0%             100%       –
       spread out  100% of 25  8 (0)           0%             100%       –
-    JCB rule, per nucleus, 5%:
+    mean-precision rule, per nucleus, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   1 (0)           0%                  100%       –
       random      100% of 25  1 (0)           4%, all too early   96%        –
       spread out  100% of 25  1 (0)           12%, all too early  88%        –
-    JCB rule, per field, 5%:
-      order       stopped     median (MC SE)  not preserved      preserved  never stopped
-      recorded    100% of 5   3 (0)           0%                 100%       –
-      random      100% of 25  4 (0.1)         4%, all too early  96%        –
-      spread out  100% of 25  4 (0.1)         0%                 100%       –
+    mean-precision rule, per field, 5%:
+      order       stopped     median (MC SE)  not preserved  preserved  never stopped
+      recorded    100% of 5   5 (0.3)         0%             100%       –
+      random      100% of 25  5 (0)           0%             100%       –
+      spread out  100% of 25  5 (0.5)         0%             100%       –
 
-  LATS1 · 1A · I23:
+  LATS1 · repeat 1A · I23:
     fixed 8 fields:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
       recorded    100% of 5   8 (0)           0%             100%       –
       random      100% of 25  8 (0)           0%             100%       –
       spread out  100% of 25  8 (0)           0%             100%       –
-    JCB rule, per nucleus, 5%:
+    mean-precision rule, per nucleus, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   1 (0)           20%, all too early  80%        –
       random      100% of 25  1 (0)           12%, all too early  88%        –
       spread out  100% of 25  1 (0)           12%, all too early  88%        –
-    JCB rule, per field, 5%:
+    mean-precision rule, per field, 5%:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
-      recorded    100% of 5   5 (0.5)         0%             100%       –
-      random      100% of 25  4 (0.1)         0%             100%       –
-      spread out  100% of 25  4 (0.2)         0%             100%       –
+      recorded    100% of 5   4 (0.5)         0%             100%       –
+      random      100% of 25  5 (0.4)         0%             100%       –
+      spread out  100% of 25  5 (0.3)         0%             100%       –
 
-  LATS1 · 1A · J23:
+  LATS1 · repeat 1A · J23:
     fixed 8 fields:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
       recorded    100% of 5   8 (0)           0%             100%       –
       random      100% of 25  8 (0)           0%             100%       –
       spread out  100% of 25  8 (0)           0%             100%       –
-    JCB rule, per nucleus, 5%:
+    mean-precision rule, per nucleus, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   1 (0)           20%, all too early  80%        –
       random      100% of 25  1 (0)           20%, all too early  80%        –
       spread out  100% of 25  1 (0)           20%, all too early  80%        –
-    JCB rule, per field, 5%:
-      order       stopped     median (MC SE)  not preserved      preserved  never stopped
-      recorded    100% of 5   4 (0.3)         0%                 100%       –
-      random      100% of 25  4 (0.2)         4%, all too early  96%        –
-      spread out  100% of 25  4 (0.2)         0%                 100%       –
+    mean-precision rule, per field, 5%:
+      order       stopped     median (MC SE)  not preserved  preserved  never stopped
+      recorded    100% of 5   5 (0.4)         0%             100%       –
+      random      100% of 25  5 (0.3)         0%             100%       –
+      spread out  100% of 25  6 (0.7)         0%             100%       –
 
-  YAP · 1A · M23:
+  YAP · repeat 1A · M23:
     fixed 8 fields:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
       recorded    100% of 5   8 (0)           0%             100%       –
       random      100% of 25  8 (0)           0%             100%       –
       spread out  100% of 25  8 (0)           0%             100%       –
-    JCB rule, per nucleus, 5%:
+    mean-precision rule, per nucleus, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   1 (0)           20%, all too early  80%        –
       random      100% of 25  1 (0)           24%, all too early  76%        –
       spread out  100% of 25  1 (0)           16%, all too early  84%        –
-    JCB rule, per field, 5%:
+    mean-precision rule, per field, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
-      recorded    100% of 5   3 (0)           40%, all too early  60%        –
-      random      100% of 25  4 (0.2)         4%, all too early   96%        –
-      spread out  100% of 25  4 (0.1)         0%                  100%       –
+      recorded    100% of 5   5 (0.5)         20%, all too early  80%        –
+      random      100% of 25  5 (0.3)         0%                  100%       –
+      spread out  100% of 25  5 (0)           0%                  100%       –
 
-  YAP · 1A · N23:
+  YAP · repeat 1A · N23:
     fixed 8 fields:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
       recorded    100% of 5   8 (0)           0%             100%       –
       random      100% of 25  8 (0)           0%             100%       –
       spread out  100% of 25  8 (0)           0%             100%       –
-    JCB rule, per nucleus, 5%:
+    mean-precision rule, per nucleus, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   1 (0)           20%, all too early  80%        –
       random      100% of 25  1 (0)           4%, all too early   96%        –
       spread out  100% of 25  1 (0)           0%                  100%       –
-    JCB rule, per field, 5%:
+    mean-precision rule, per field, 5%:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
-      recorded    100% of 5   3 (0.3)         0%             100%       –
-      random      100% of 25  3 (0.1)         0%             100%       –
-      spread out  100% of 25  3 (0.1)         0%             100%       –
+      recorded    100% of 5   5 (0.3)         0%             100%       –
+      random      100% of 25  5 (0.3)         0%             100%       –
+      spread out  100% of 25  5 (0)           0%             100%       –
 
-  ARAP2 · 2A · C13:
+  ARAP2 · repeat 2A · C13:
     fixed 8 fields:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
       recorded    100% of 5   8 (0)           0%             100%       –
       random      100% of 25  8 (0)           0%             100%       –
       spread out  100% of 25  8 (0)           0%             100%       –
-    JCB rule, per nucleus, 5%:
+    mean-precision rule, per nucleus, 5%:
       order       stopped     median (MC SE)  not preserved      preserved  never stopped
       recorded    100% of 5   1 (0)           0%                 100%       –
       random      100% of 25  1 (0)           4%, all too early  96%        –
       spread out  100% of 25  1 (0)           4%, all too early  96%        –
-    JCB rule, per field, 5%:
+    mean-precision rule, per field, 5%:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
-      recorded    100% of 5   3 (0)           0%             100%       –
-      random      100% of 25  3 (0.1)         0%             100%       –
-      spread out  100% of 25  3 (0.1)         0%             100%       –
+      recorded    100% of 5   5 (0.3)         0%             100%       –
+      random      100% of 25  5 (0.3)         0%             100%       –
+      spread out  100% of 25  6 (0.3)         0%             100%       –
 
-  LATS1 · 2A · J23:
+  LATS1 · repeat 2A · J23:
     fixed 8 fields:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
       recorded    100% of 5   8 (0)           0%             100%       –
       random      100% of 25  8 (0)           0%             100%       –
       spread out  100% of 25  8 (0)           0%             100%       –
-    JCB rule, per nucleus, 5%:
+    mean-precision rule, per nucleus, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   1 (0)           20%, all too early  80%        –
       random      100% of 25  1 (0)           32%, all too early  68%        –
       spread out  100% of 25  1 (0)           36%, all too early  64%        –
-    JCB rule, per field, 5%:
-      order       stopped     median (MC SE)  not preserved       preserved  never stopped
-      recorded    100% of 5   3 (0.3)         20%, all too early  80%        –
-      random      100% of 25  4 (0.1)         8%, all too early   92%        –
-      spread out  100% of 25  4 (0.1)         0%                  100%       –
+    mean-precision rule, per field, 5%:
+      order       stopped     median (MC SE)  not preserved      preserved  never stopped
+      recorded    100% of 5   6 (0.7)         0%                 100%       –
+      random      100% of 25  5 (0.3)         4%, all too early  96%        –
+      spread out  100% of 25  5 (0.3)         0%                 100%       –
 
-  MOCK · 2A · K16:
+  MOCK · repeat 2A · K16:
     fixed 8 fields:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
       recorded    100% of 5   8 (0)           0%             100%       –
       random      100% of 25  8 (0)           0%             100%       –
       spread out  100% of 25  8 (0)           0%             100%       –
-    JCB rule, per nucleus, 5%:
+    mean-precision rule, per nucleus, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   1 (0)           60%, all too early  40%        –
       random      100% of 25  1 (0)           28%, all too early  72%        –
       spread out  100% of 25  1 (0)           32%, all too early  68%        –
-    JCB rule, per field, 5%:
-      order       stopped     median (MC SE)  not preserved      preserved  never stopped
-      recorded    100% of 5   3 (0.3)         0%                 100%       –
-      random      100% of 25  3 (0.2)         4%, all too early  96%        –
-      spread out  100% of 25  3 (0.1)         4%, all too early  96%        –
+    mean-precision rule, per field, 5%:
+      order       stopped     median (MC SE)  not preserved  preserved  never stopped
+      recorded    100% of 5   5 (0.4)         0%             100%       –
+      random      100% of 25  5 (0)           0%             100%       –
+      spread out  100% of 25  5 (0.3)         0%             100%       –
 
-  YAP · 2A · N23:
+  YAP · repeat 2A · N23:
     fixed 8 fields:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   8 (0)           0%                  100%       –
       random      100% of 25  8 (0)           0%                  100%       –
       spread out  100% of 25  8 (0)           12%, all too early  88%        –
-    JCB rule, per nucleus, 5%:
+    mean-precision rule, per nucleus, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   2 (0.3)         20%, all too early  80%        –
-      random      100% of 25  1 (0.1)         28%, all too early  72%        –
-      spread out  100% of 25  1 (0.1)         44%, all too early  56%        –
-    JCB rule, per field, 5%:
+      random      100% of 25  1 (0)           28%, all too early  72%        –
+      spread out  100% of 25  1 (0)           44%, all too early  56%        –
+    mean-precision rule, per field, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
-      recorded    100% of 5   5 (0.7)         0%                  100%       –
-      random      100% of 25  4 (0.2)         4%, all too early   96%        –
-      spread out  100% of 25  4 (0.3)         16%, all too early  84%        –
+      recorded    100% of 5   7 (0.9)         0%                  100%       –
+      random      100% of 25  6 (0.5)         4%, all too early   96%        –
+      spread out  100% of 25  5 (0.6)         12%, all too early  88%        –
 
-  ARAP2 · 2B · C13:
+  ARAP2 · repeat 2B · C13:
     fixed 8 fields:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
       recorded    100% of 5   8 (0)           0%             100%       –
       random      100% of 25  8 (0)           0%             100%       –
       spread out  100% of 25  8 (0)           0%             100%       –
-    JCB rule, per nucleus, 5%:
+    mean-precision rule, per nucleus, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   1 (0)           0%                  100%       –
       random      100% of 25  1 (0)           16%, all too early  84%        –
       spread out  100% of 25  1 (0)           8%, all too early   92%        –
-    JCB rule, per field, 5%:
+    mean-precision rule, per field, 5%:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
-      recorded    100% of 5   4 (0.4)         0%             100%       –
-      random      100% of 25  4 (0.2)         0%             100%       –
-      spread out  100% of 25  4 (0.2)         0%             100%       –
+      recorded    100% of 5   5 (0)           0%             100%       –
+      random      100% of 25  6 (0.3)         0%             100%       –
+      spread out  100% of 25  5 (0)           0%             100%       –
 
-  ARAP2 · 2B · C17:
+  ARAP2 · repeat 2B · C17:
     fixed 8 fields:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   8 (0)           20%, all too early  80%        –
       random      100% of 25  8 (0)           0%                  100%       –
       spread out  100% of 25  8 (0)           0%                  100%       –
-    JCB rule, per nucleus, 5%:
+    mean-precision rule, per nucleus, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   1 (0)           60%, all too early  40%        –
       random      100% of 25  1 (0)           28%, all too early  72%        –
       spread out  100% of 25  1 (0)           48%, all too early  52%        –
-    JCB rule, per field, 5%:
-      order       stopped     median (MC SE)  not preserved       preserved  never stopped
-      recorded    100% of 5   5 (0.5)         20%, all too early  80%        –
-      random      100% of 25  4 (0.3)         4%, all too early   96%        –
-      spread out  100% of 25  4 (0.2)         4%, all too early   96%        –
+    mean-precision rule, per field, 5%:
+      order       stopped     median (MC SE)  not preserved      preserved  never stopped
+      recorded    100% of 5   6 (0.6)         0%                 100%       –
+      random      100% of 25  6 (0.5)         0%                 100%       –
+      spread out  100% of 25  6 (0.3)         4%, all too early  96%        –
 
-  MOCK · 2B · P13:
+  MOCK · repeat 2B · P13:
     fixed 8 fields:
       order       stopped     median (MC SE)  not preserved  preserved  never stopped
       recorded    100% of 5   8 (0)           0%             100%       –
       random      100% of 25  8 (0)           0%             100%       –
       spread out  100% of 25  8 (0)           0%             100%       –
-    JCB rule, per nucleus, 5%:
+    mean-precision rule, per nucleus, 5%:
       order       stopped     median (MC SE)  not preserved       preserved  never stopped
       recorded    100% of 5   1 (0)           20%, all too early  80%        –
       random      100% of 25  1 (0)           36%, all too early  64%        –
       spread out  100% of 25  1 (0)           20%, all too early  80%        –
-    JCB rule, per field, 5%:
-      order       stopped     median (MC SE)  not preserved      preserved  never stopped
-      recorded    100% of 5   4 (0)           0%                 100%       –
-      random      100% of 25  4 (0.2)         4%, all too early  96%        –
-      spread out  100% of 25  4 (0.1)         4%, all too early  96%        –
+    mean-precision rule, per field, 5%:
+      order       stopped     median (MC SE)  not preserved  preserved  never stopped
+      recorded    100% of 5   5 (0.5)         0%             100%       –
+      random      100% of 25  6 (0.3)         0%             100%       –
+      spread out  100% of 25  5 (0.3)         0%             100%       –
   Assumptions:
     - A state below the not-yet-seen bound can remain: rarer states can remain.
     - A state seen in few fields (fields counted as new are not among them) is not new to the next
@@ -553,8 +556,11 @@
     - Fields that cluster a state need more fields than the planning numbers.
     - Fixed 8 fields: a fixed amount of effort reaching its target says nothing about what the data
       show.
-    - JCB rule, per nucleus, 5% treats nuclei as independent draws: it assumes a spatially uniform
-      sample.
+    - Mean-precision rule, per nucleus, 5% treats nuclei as independent draws: it assumes a
+      spatially uniform sample.
+    - Mean-precision rule, per field, 5%: in simulations its upper bound, a bootstrap of whole
+      fields, covered the true averaging error about 85-95% of the time with uneven field sizes and
+      93-99% with Poisson sizes.
     - Order check: no trend with acquisition order (Spearman p = 0.053 to 0.93) and no spatial
       autocorrelation (Moran's I permutation p = 0.037 to 0.84) over 28 fields; every stop still
       treats the fields as a random sample of the well's positions; a raster over a spatial trend
@@ -576,7 +582,7 @@
     effect of the variance between the fields of each group (condition, biological_repeat,
     technical_repeat), range 1.0-3.4); 16% of fields differ more than random nuclei would (5%
     expected) [median of 12 groups; fov_variability]
-  - unusual: clustered in a few fields (p <= 0.05) in 4 of the 11 groups where it was seen; there,
+  - unusual: clustered in a few fields (q <= 0.05) in 4 of the 11 groups where it was seen; there,
     seeing it takes about 1.9 times the fields that a count of nuclei predicts [all groups;
     fov_clustering]
   - 100% of declared positive-control fields recognized as different after 10 reference fields
@@ -606,67 +612,72 @@
     their positions within the group gave as large a distance in a median of 38% of shuffles, so no
     spatial redundancy is shown there [all groups; redundancy_distance]
   - new states come from 4 fields (0 to 11.8 of the 336 fields judged expected by chance: the
-    declared reference's false-alarm rate, each field judged against the other fields of its group,
-    was 0 of 84 fields (0%; at most 4% at 95% confidence)) [all groups; inspect_fovs]
+    declared reference's false-alarm rate, pooled over all biological repeats, each field judged
+    against the other fields of its group, was 0 of 84 fields (0%; at most 4% at 95% confidence))
+    [all groups; inspect_fovs]
 
-  Unusual nuclei: farther from the reference (MOCK) than all but 1% of reference nuclei are from the
+  Unusual nuclei: farther from the reference MOCK than all but 1% of reference nuclei are from the
     other reference groups (30 standardized features, 5 nearest neighbours). Groups:
-    condition · biological_repeat · technical_repeat.
-    group             nuclei scored  unusual  share  refits agree  threshold  calibrated
-    MOCK · 1A · B6              966       17     2%           79%       8.56  leave-one-group-out
-    LATS1 · 1A · I23            718       12     2%           86%       7.66  leave-one-group-out
-    LATS1 · 1A · J23            647        6   0.9%           83%       7.66  leave-one-group-out
-    YAP · 1A · M23              651        1   0.2%          100%       7.66  leave-one-group-out
-    YAP · 1A · N23              607        2   0.3%          100%       7.66  leave-one-group-out
-    ARAP2 · 2A · C13            797        5   0.6%           83%       7.66  leave-one-group-out
-    LATS1 · 2A · J23            736        0     0%          100%       7.66  leave-one-group-out
-    MOCK · 2A · K16             953       12     1%           67%       8.29  leave-one-group-out
-    YAP · 2A · N23              557        7     1%          100%       7.66  leave-one-group-out
-    ARAP2 · 2B · C13            999       25     3%           96%       7.66  leave-one-group-out
-    ARAP2 · 2B · C17            956       18     2%           86%       7.66  leave-one-group-out
-    MOCK · 2B · P13             963        7   0.7%           86%       9.31  leave-one-group-out
+    condition · biological repeat · technical repeat.
+    group                    nuclei scored  unusual  share  refits agree  threshold  calibrated
+    MOCK · repeat 1A · B6              966       17     2%           79%       8.56  leave-one-group-out
+    LATS1 · repeat 1A · I23            718       12     2%           86%       7.66  leave-one-group-out
+    LATS1 · repeat 1A · J23            647        6   0.9%           83%       7.66  leave-one-group-out
+    YAP · repeat 1A · M23              651        1   0.2%          100%       7.66  leave-one-group-out
+    YAP · repeat 1A · N23              607        2   0.3%          100%       7.66  leave-one-group-out
+    ARAP2 · repeat 2A · C13            797        5   0.6%           83%       7.66  leave-one-group-out
+    LATS1 · repeat 2A · J23            736        0     0%          100%       7.66  leave-one-group-out
+    MOCK · repeat 2A · K16             953       12     1%           67%       8.29  leave-one-group-out
+    YAP · repeat 2A · N23              557        7     1%          100%       7.66  leave-one-group-out
+    ARAP2 · repeat 2B · C13            999       25     3%           96%       7.66  leave-one-group-out
+    ARAP2 · repeat 2B · C17            956       18     2%           86%       7.66  leave-one-group-out
+    MOCK · repeat 2B · P13             963        7   0.7%           86%        9.3  leave-one-group-out
   ⚠️ Refits with other reference samples agree on only 67-86% of the unusual nuclei in 7 of 12
-     groups (MOCK · 1A · B6, LATS1 · 1A · I23, LATS1 · 1A · J23 and 4 more; below 90%): treat those
-     labels as unstable.
+     groups (MOCK · repeat 1A · B6, LATS1 · repeat 1A · I23, LATS1 · repeat 1A · J23 and 4 more;
+     below 90%): treat those labels as unstable.
 
-  Are the unusual nuclei spread over the fields? Clustered in a few fields (p ≤ 0.05) in 4 of 11
-    groups where seen (LATS1 · 1A · I23, MOCK · 2A · K16, YAP · 2A · N23 and 1 more). Not seen in
-    LATS1 · 2A · J23 (736 labelled nuclei in 28 fields).
-    group               nuclei  in fields  if random  ratio      p      to see, 95%  if random
-    MOCK · 1A · B6     17 (2%)   11 of 28       12.8    1.2   0.16     7 (up to 13)          5
-    LATS1 · 1A · I23   12 (2%)    7 of 28        9.7    1.4  0.029    11 (up to 27)          7
-    LATS1 · 1A · J23  6 (0.9%)    6 of 28        5.5    0.9      1    13 (up to 35)         14
-    YAP · 1A · M23    1 (0.2%)    1 of 28        1.0    1.0      1  83 (up to 3314)         84
-    YAP · 1A · N23    2 (0.3%)    2 of 28        2.0    1.0      1   41 (up to 341)         42
-    ARAP2 · 2A · C13  5 (0.6%)    4 of 28        4.6    1.2   0.35    20 (up to 73)         17
-    MOCK · 2A · K16    12 (1%)    6 of 28        9.8    1.6  0.007    13 (up to 35)          7
-    YAP · 2A · N23      7 (1%)    3 of 28        6.2    2.1  0.002   27 (up to 131)         12
-    ARAP2 · 2B · C13   25 (3%)    9 of 28       16.6    1.8  0.001     8 (up to 18)          4
-    ARAP2 · 2B · C17   18 (2%)   11 of 28       13.3    1.2  0.084     7 (up to 13)          5
-    MOCK · 2B · P13   7 (0.7%)    6 of 28        6.2    1.0   0.58    13 (up to 35)         12
+  Are the unusual nuclei spread over the fields? Clustered in a few fields (q ≤ 0.05 after
+    Benjamini-Hochberg over the 11 tests of every group and state) in 4 of 11 groups where seen
+    (LATS1 · repeat 1A · I23, MOCK · repeat 2A · K16, YAP · repeat 2A · N23 and 1 more). Not seen in
+    LATS1 · repeat 2A · J23 (736 labelled nuclei in 28 fields).
+    group                      nuclei  in fields  if random  ratio      p       q      to see, 95%  if random
+    MOCK · repeat 1A · B6     17 (2%)   11 of 28       12.8    1.2   0.16    0.29     7 (up to 13)          5
+    LATS1 · repeat 1A · I23   12 (2%)    7 of 28        9.7    1.4  0.017   0.047    11 (up to 27)          7
+    LATS1 · repeat 1A · J23  6 (0.9%)    6 of 28        5.5    0.9      1       1    13 (up to 35)         14
+    YAP · repeat 1A · M23    1 (0.2%)    1 of 28        1.0    1.0      1       1  83 (up to 3314)         84
+    YAP · repeat 1A · N23    2 (0.3%)    2 of 28        2.0    1.0      1       1   41 (up to 341)         42
+    ARAP2 · repeat 2A · C13  5 (0.6%)    4 of 28        4.6    1.2   0.34    0.53    20 (up to 73)         17
+    MOCK · repeat 2A · K16    12 (1%)    6 of 28        9.8    1.6  0.003   0.011    13 (up to 35)          7
+    YAP · repeat 2A · N23      7 (1%)    3 of 28        6.2    2.1  0.001  0.0055   27 (up to 131)         12
+    ARAP2 · repeat 2B · C13   25 (3%)    9 of 28       16.6    1.8  0.001  0.0055     8 (up to 18)          4
+    ARAP2 · repeat 2B · C17   18 (2%)   11 of 28       13.3    1.2  0.095    0.21     7 (up to 13)          5
+    MOCK · repeat 2B · P13   7 (0.7%)    6 of 28        6.2    1.0   0.59    0.81    13 (up to 35)         12
   In fields: the fields holding the state; if random: the fields as many random nuclei would fill;
-    p: how often shuffled labels reach as few fields. To see: the fields to see it from its field
-    incidence (up to: from the low end of its interval), against the fields a count of random nuclei
-    asks for.
+    p: how often shuffled labels reach as few fields; q: that p corrected over every group and state
+    (Benjamini-Hochberg). To see: the fields to see it from its field incidence (up to: from the low
+    end of its interval), against the fields a count of random nuclei asks for.
   Technical repeats holding each state:
-    condition · biological_repeat  state    held by
-    MOCK · 1A                      unusual  1 of 1 technical repeat
-    LATS1 · 1A                     unusual  2 of 2 technical repeats
-    YAP · 1A                       unusual  2 of 2 technical repeats
-    ARAP2 · 2A                     unusual  1 of 1 technical repeat
-    MOCK · 2A                      unusual  1 of 1 technical repeat
-    YAP · 2A                       unusual  1 of 1 technical repeat
-    ARAP2 · 2B                     unusual  2 of 2 technical repeats
-    MOCK · 2B                      unusual  1 of 1 technical repeat
+    condition · biological repeat  state    held by
+    MOCK · repeat 1A               unusual  1 of 1 technical repeat
+    LATS1 · repeat 1A              unusual  2 of 2 technical repeats
+    YAP · repeat 1A                unusual  2 of 2 technical repeats
+    ARAP2 · repeat 2A              unusual  1 of 1 technical repeat
+    MOCK · repeat 2A               unusual  1 of 1 technical repeat
+    YAP · repeat 2A                unusual  1 of 1 technical repeat
+    ARAP2 · repeat 2B              unusual  2 of 2 technical repeats
+    MOCK · repeat 2B               unusual  1 of 1 technical repeat
   Assumptions:
+    - A state the reference already holds, at any share, is not unusual: only its share can change,
+      and the populations (“Are there groups of nuclei?”) compare each condition's share of such a
+      state with its control's.
     - The field counts assume fields from independent technical repeats: a state held by few
       technical repeats is clustered in their fields, so seeing it needs fields from more technical
       repeats than the count says (no two-level plan is made).
 
 ⚠️ 4. How many fields should I image next time?
-  Analysis groups: condition · biological_repeat · technical_repeat.
+  Analysis groups: condition · biological repeat · technical repeat.
 
-  MOCK · 1A · B6, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  MOCK · repeat 1A · B6, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2       100%              0%                  0%
          4       100%              0%                  0%
@@ -680,7 +691,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  MOCK · 1A · B6, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  MOCK · repeat 1A · B6, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        99%            0.7%                  2%
          4       100%              0%                  0%
@@ -694,7 +705,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  MOCK · 1A · B6, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  MOCK · repeat 1A · B6, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        24%              3%                  9%
          4        31%              5%                 15%
@@ -708,7 +719,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  LATS1 · 1A · I23, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  LATS1 · repeat 1A · I23, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2       100%              0%                  0%
          4       100%              0%                  0%
@@ -722,7 +733,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  LATS1 · 1A · I23, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  LATS1 · repeat 1A · I23, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        95%              2%                  6%
          4      99.2%            0.3%                  1%
@@ -736,7 +747,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  LATS1 · 1A · I23, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  LATS1 · repeat 1A · I23, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        20%              3%                  9%
          4        21%              3%                 10%
@@ -750,7 +761,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  LATS1 · 1A · J23, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  LATS1 · repeat 1A · J23, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2       100%              0%                  0%
          4       100%              0%                  0%
@@ -764,7 +775,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  LATS1 · 1A · J23, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  LATS1 · repeat 1A · J23, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        90%              2%                  5%
          4        98%            0.6%                  2%
@@ -778,7 +789,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  LATS1 · 1A · J23, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  LATS1 · repeat 1A · J23, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        25%              3%                  9%
          4        29%              3%                 11%
@@ -792,7 +803,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  YAP · 1A · M23, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  YAP · repeat 1A · M23, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2       100%              0%                  0%
          4       100%              0%                  0%
@@ -806,7 +817,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  YAP · 1A · M23, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  YAP · repeat 1A · M23, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        91%              2%                  6%
          4        99%            0.6%                  2%
@@ -820,7 +831,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  YAP · 1A · M23, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  YAP · repeat 1A · M23, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        18%              3%                  8%
          4        27%              3%                 11%
@@ -834,7 +845,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  YAP · 1A · N23, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  YAP · repeat 1A · N23, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2       100%              0%                  0%
          4       100%              0%                  0%
@@ -848,7 +859,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  YAP · 1A · N23, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  YAP · repeat 1A · N23, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        99%            0.4%                  1%
          4       100%              0%                  0%
@@ -862,7 +873,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  YAP · 1A · N23, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  YAP · repeat 1A · N23, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        23%              3%                  9%
          4        33%              4%                 13%
@@ -876,7 +887,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  ARAP2 · 2A · C13, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  ARAP2 · repeat 2A · C13, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2       100%              0%                  0%
          4       100%              0%                  0%
@@ -890,7 +901,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  ARAP2 · 2A · C13, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  ARAP2 · repeat 2A · C13, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        98%            0.8%                  3%
          4       100%              0%                  0%
@@ -904,7 +915,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  ARAP2 · 2A · C13, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  ARAP2 · repeat 2A · C13, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        24%              2%                  6%
          4        30%              4%                 13%
@@ -918,7 +929,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  LATS1 · 2A · J23, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  LATS1 · repeat 2A · J23, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2       100%              0%                  0%
          4       100%              0%                  0%
@@ -932,7 +943,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  LATS1 · 2A · J23, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  LATS1 · repeat 2A · J23, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        90%              3%                  8%
          4        98%            0.9%                  3%
@@ -946,7 +957,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  LATS1 · 2A · J23, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  LATS1 · repeat 2A · J23, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        18%              3%                  8%
          4        29%              3%                  9%
@@ -960,7 +971,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  MOCK · 2A · K16, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  MOCK · repeat 2A · K16, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2       100%              0%                  0%
          4       100%              0%                  0%
@@ -974,7 +985,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  MOCK · 2A · K16, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  MOCK · repeat 2A · K16, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        93%            0.8%                  3%
          4      99.2%            0.3%                  1%
@@ -988,7 +999,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  MOCK · 2A · K16, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  MOCK · repeat 2A · K16, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        31%              2%                  7%
          4        42%              3%                  8%
@@ -1002,7 +1013,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  YAP · 2A · N23, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  YAP · repeat 2A · N23, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2      99.4%            0.3%                  1%
          4       100%              0%                  0%
@@ -1016,7 +1027,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  YAP · 2A · N23, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  YAP · repeat 2A · N23, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        85%              2%                  5%
          4        92%              2%                  8%
@@ -1030,7 +1041,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  YAP · 2A · N23, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  YAP · repeat 2A · N23, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        17%              2%                  7%
          4        16%              4%                 12%
@@ -1044,7 +1055,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  ARAP2 · 2B · C13, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  ARAP2 · repeat 2B · C13, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2       100%              0%                  0%
          4       100%              0%                  0%
@@ -1058,7 +1069,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  ARAP2 · 2B · C13, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  ARAP2 · repeat 2B · C13, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        95%              1%                  3%
          4        99%            0.8%                  3%
@@ -1072,7 +1083,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  ARAP2 · 2B · C13, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  ARAP2 · repeat 2B · C13, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        22%              4%                 12%
          4        26%              4%                 12%
@@ -1086,7 +1097,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  ARAP2 · 2B · C17, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  ARAP2 · repeat 2B · C17, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2      99.8%            0.2%                0.6%
          4       100%              0%                  0%
@@ -1100,7 +1111,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  ARAP2 · 2B · C17, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  ARAP2 · repeat 2B · C17, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        78%              5%                 15%
          4        86%              6%                 19%
@@ -1114,7 +1125,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  ARAP2 · 2B · C17, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  ARAP2 · repeat 2B · C17, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        16%              2%                  7%
          4        17%              3%                  9%
@@ -1128,7 +1139,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  MOCK · 2B · P13, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  MOCK · repeat 2B · P13, how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2       100%              0%                  0%
          4       100%              0%                  0%
@@ -1142,7 +1153,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  MOCK · 2B · P13, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  MOCK · repeat 2B · P13, how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        90%              3%                  8%
          4        98%              1%                  3%
@@ -1156,7 +1167,7 @@
     Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
       beyond 18 fields.
 
-  MOCK · 2B · P13, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  MOCK · repeat 2B · P13, how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     fields  enough in  Monte Carlo SE  ± across hold-outs  note
          2        30%              3%                  9%
          4        37%              3%                 10%
@@ -1182,23 +1193,23 @@
         15  12 of 12 technical repeats  5 of 5, 4 of 4, 3 of 3  29%–100%
         18  12 of 12 technical repeats  5 of 5, 4 of 4, 3 of 3  29%–100%
     Fields needed per technical repeat: median 2, range 2–2.
-    Choosing the number on the other biological repeats and checking it on the one left out: enough
-      for 12 of 12 technical repeats.
+    Choosing the number on the other biological repeats (2 fields) and checking it on the one left
+      out: enough for 12 of 12 technical repeats.
 
   all samples: fields per technical repeat for the well mean of YAP/TAZ ratio within 2.5% (12
     technical repeats in 3 biological repeats; a technical repeat counts when at least 90% of random
     acquisitions were enough)
     fields  enough for                  per biological repeat   plausible range  note
          2  8 of 12 technical repeats   4 of 5, 3 of 4, 1 of 3  0%–100%
-         4  11 of 12 technical repeats  5 of 5, 4 of 4, 2 of 3  23%–100%
-         6  11 of 12 technical repeats  5 of 5, 4 of 4, 2 of 3  23%–100%
+         4  11 of 12 technical repeats  5 of 5, 4 of 4, 2 of 3  9%–100%
+         6  11 of 12 technical repeats  5 of 5, 4 of 4, 2 of 3  9%–100%
          8  12 of 12 technical repeats  5 of 5, 4 of 4, 3 of 3  29%–100%
         12  12 of 12 technical repeats  5 of 5, 4 of 4, 3 of 3  29%–100%
         15  12 of 12 technical repeats  5 of 5, 4 of 4, 3 of 3  29%–100%
         18  12 of 12 technical repeats  5 of 5, 4 of 4, 3 of 3  29%–100%
     Fields needed per technical repeat: median 2, range 2–8.
-    Choosing the number on the other biological repeats and checking it on the one left out: enough
-      for 11 of 12 technical repeats.
+    Choosing the number on the other biological repeats (4-8 fields, by the biological repeat left
+      out) and checking it on the one left out: enough for 11 of 12 technical repeats.
 
   all samples: fields per technical repeat for the variance of YAP/TAZ ratio within 10% (12 technical
     repeats in 3 biological repeats; a technical repeat counts when at least 90% of random
@@ -1213,13 +1224,14 @@
         18  0 of 12 technical repeats  0 of 5, 0 of 4, 0 of 3  0%–71%
     For 12 of 12 technical repeats even every available field together was enough in fewer than 90% of
       hold-outs: the held-back fields are themselves a sample and cap what can be shown, so these are
-      not counted as needing more fields: B6 · 1A (all fields enough in 30% of hold-outs); I23 · 1A
-      (all fields enough in 10% of hold-outs); J23 · 1A (all fields enough in 20% of hold-outs);
-      M23 · 1A (all fields enough in 50% of hold-outs); N23 · 1A (all fields enough in 40% of
-      hold-outs); C13 · 2A (all fields enough in 20% of hold-outs); J23 · 2A (all fields enough in 30%
-      of hold-outs); K16 · 2A (all fields enough in 50% of hold-outs); N23 · 2A (all fields enough in
-      40% of hold-outs); C13 · 2B (all fields enough in 40% of hold-outs); C17 · 2B (all fields enough
-      in 20% of hold-outs); P13 · 2B (all fields enough in 30% of hold-outs).
+      not counted as needing more fields: B6 · repeat 1A (all fields enough in 30% of hold-outs);
+      I23 · repeat 1A (all fields enough in 10% of hold-outs); J23 · repeat 1A (all fields enough in
+      20% of hold-outs); M23 · repeat 1A (all fields enough in 50% of hold-outs); N23 · repeat 1A (all
+      fields enough in 40% of hold-outs); C13 · repeat 2A (all fields enough in 20% of hold-outs);
+      J23 · repeat 2A (all fields enough in 30% of hold-outs); K16 · repeat 2A (all fields enough in
+      50% of hold-outs); N23 · repeat 2A (all fields enough in 40% of hold-outs); C13 · repeat 2B (all
+      fields enough in 40% of hold-outs); C17 · repeat 2B (all fields enough in 20% of hold-outs);
+      P13 · repeat 2B (all fields enough in 30% of hold-outs).
     For 3 biological repeats, the others reached no number that served enough technical repeats, so
       nothing was checked there.
   Assumptions:
@@ -1230,14 +1242,14 @@
       check it on the next experiment before fixing a protocol.
 
 ✅ 5. What did the extra fields buy?
-  Analysis groups: condition · biological_repeat · technical_repeat.
-  Rules: fixed 8 fields (fixed_fov (target_fovs=8), config e1d257c7421b4ec8); JCB rule, per nucleus,
-    5% (scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object,
-    sd_estimate=upper_95), config 7f33d85e490f1fa8); JCB rule, per field, 5%
-    (scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov,
-    sd_estimate=upper_95), config bcd923e343521c46).
+  Analysis groups: condition · biological repeat · technical repeat.
+  Rules: fixed 8 fields (fixed_fov (target_fovs=8), config e1d257c7421b4ec8); mean-precision rule, per
+    nucleus, 5% (scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05,
+    resampling_unit=object, sd_estimate=upper_95), config 7f33d85e490f1fa8); mean-precision rule, per
+    field, 5% (scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05,
+    resampling_unit=fov, sd_estimate=upper_95), config bcd923e343521c46).
 
-  MOCK · 1A · B6: when was it enough? (medians over hold-outs and orders)
+  MOCK · repeat 1A · B6: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first
       preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1
@@ -1246,12 +1258,12 @@
       field 1 and reliably from field 1 (medians; by field 1 in 90% of runs).
     When each rule would have first said stop (medians; 'kept from': from which field it kept saying
       stop; never: not within the fields available in half or more of runs):
-      rule                       spread out  random   recorded
-      fixed 8 fields             field 8     field 8  field 8
-      JCB rule, per nucleus, 5%  field 1     field 1  field 1
-      JCB rule, per field, 5%    field 4     field 4  field 3
+      rule                                  spread out  random   recorded
+      fixed 8 fields                        field 8     field 8  field 8
+      mean-precision rule, per nucleus, 5%  field 1     field 1  field 1
+      mean-precision rule, per field, 5%    field 5     field 5  field 5
 
-  LATS1 · 1A · I23: when was it enough? (medians over hold-outs and orders)
+  LATS1 · repeat 1A · I23: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first
       preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1
@@ -1260,12 +1272,12 @@
       field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
     When each rule would have first said stop (medians; 'kept from': from which field it kept saying
       stop; never: not within the fields available in half or more of runs):
-      rule                       spread out  random   recorded
-      fixed 8 fields             field 8     field 8  field 8
-      JCB rule, per nucleus, 5%  field 1     field 1  field 1
-      JCB rule, per field, 5%    field 4     field 4  field 5
+      rule                                  spread out  random   recorded
+      fixed 8 fields                        field 8     field 8  field 8
+      mean-precision rule, per nucleus, 5%  field 1     field 1  field 1
+      mean-precision rule, per field, 5%    field 5     field 5  field 4 (kept from field 5)
 
-  LATS1 · 1A · J23: when was it enough? (medians over hold-outs and orders)
+  LATS1 · repeat 1A · J23: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first
       preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1
@@ -1274,12 +1286,12 @@
       field 1 and reliably from field 1 (medians; by field 5 in 90% of runs).
     When each rule would have first said stop (medians; 'kept from': from which field it kept saying
       stop; never: not within the fields available in half or more of runs):
-      rule                       spread out  random   recorded
-      fixed 8 fields             field 8     field 8  field 8
-      JCB rule, per nucleus, 5%  field 1     field 1  field 1
-      JCB rule, per field, 5%    field 4     field 4  field 4
+      rule                                  spread out  random   recorded
+      fixed 8 fields                        field 8     field 8  field 8
+      mean-precision rule, per nucleus, 5%  field 1     field 1  field 1
+      mean-precision rule, per field, 5%    field 6     field 5  field 5
 
-  YAP · 1A · M23: when was it enough? (medians over hold-outs and orders)
+  YAP · repeat 1A · M23: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first
       preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1
@@ -1288,12 +1300,12 @@
       field 1 and reliably from field 1 (medians; by field 5 in 90% of runs).
     When each rule would have first said stop (medians; 'kept from': from which field it kept saying
       stop; never: not within the fields available in half or more of runs):
-      rule                       spread out  random   recorded
-      fixed 8 fields             field 8     field 8  field 8
-      JCB rule, per nucleus, 5%  field 1     field 1  field 1
-      JCB rule, per field, 5%    field 4     field 4  field 3
+      rule                                  spread out  random   recorded
+      fixed 8 fields                        field 8     field 8  field 8
+      mean-precision rule, per nucleus, 5%  field 1     field 1  field 1
+      mean-precision rule, per field, 5%    field 5     field 5  field 5 (kept from field 6)
 
-  YAP · 1A · N23: when was it enough? (medians over hold-outs and orders)
+  YAP · repeat 1A · N23: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first
       preserved at field 1 and reliably from field 1 (medians; by field 1 in 90% of runs).
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1
@@ -1302,12 +1314,12 @@
       field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
     When each rule would have first said stop (medians; 'kept from': from which field it kept saying
       stop; never: not within the fields available in half or more of runs):
-      rule                       spread out  random   recorded
-      fixed 8 fields             field 8     field 8  field 8
-      JCB rule, per nucleus, 5%  field 1     field 1  field 1
-      JCB rule, per field, 5%    field 3     field 3  field 3
+      rule                                  spread out  random   recorded
+      fixed 8 fields                        field 8     field 8  field 8
+      mean-precision rule, per nucleus, 5%  field 1     field 1  field 1
+      mean-precision rule, per field, 5%    field 5     field 5  field 5
 
-  ARAP2 · 2A · C13: when was it enough? (medians over hold-outs and orders)
+  ARAP2 · repeat 2A · C13: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first
       preserved at field 1 and reliably from field 1 (medians; by field 1 in 90% of runs).
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1
@@ -1316,12 +1328,12 @@
       field 1 and reliably from field 1 (medians; by field 1 in 90% of runs).
     When each rule would have first said stop (medians; 'kept from': from which field it kept saying
       stop; never: not within the fields available in half or more of runs):
-      rule                       spread out  random   recorded
-      fixed 8 fields             field 8     field 8  field 8
-      JCB rule, per nucleus, 5%  field 1     field 1  field 1
-      JCB rule, per field, 5%    field 3     field 3  field 3
+      rule                                  spread out  random   recorded
+      fixed 8 fields                        field 8     field 8  field 8
+      mean-precision rule, per nucleus, 5%  field 1     field 1  field 1
+      mean-precision rule, per field, 5%    field 6     field 5  field 5
 
-  LATS1 · 2A · J23: when was it enough? (medians over hold-outs and orders)
+  LATS1 · repeat 2A · J23: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first
       preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1
@@ -1330,12 +1342,12 @@
       field 1 and reliably from field 1 (medians; by field 4 in 90% of runs).
     When each rule would have first said stop (medians; 'kept from': from which field it kept saying
       stop; never: not within the fields available in half or more of runs):
-      rule                       spread out  random   recorded
-      fixed 8 fields             field 8     field 8  field 8
-      JCB rule, per nucleus, 5%  field 1     field 1  field 1
-      JCB rule, per field, 5%    field 4     field 4  field 3
+      rule                                  spread out  random   recorded
+      fixed 8 fields                        field 8     field 8  field 8
+      mean-precision rule, per nucleus, 5%  field 1     field 1  field 1
+      mean-precision rule, per field, 5%    field 5     field 5  field 6
 
-  MOCK · 2A · K16: when was it enough? (medians over hold-outs and orders)
+  MOCK · repeat 2A · K16: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first
       preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1
@@ -1344,12 +1356,12 @@
       field 2 and reliably from field 2 (medians; by field 2 in 90% of runs).
     When each rule would have first said stop (medians; 'kept from': from which field it kept saying
       stop; never: not within the fields available in half or more of runs):
-      rule                       spread out  random   recorded
-      fixed 8 fields             field 8     field 8  field 8
-      JCB rule, per nucleus, 5%  field 1     field 1  field 1
-      JCB rule, per field, 5%    field 3     field 3  field 3
+      rule                                  spread out  random   recorded
+      fixed 8 fields                        field 8     field 8  field 8
+      mean-precision rule, per nucleus, 5%  field 1     field 1  field 1
+      mean-precision rule, per field, 5%    field 5     field 5  field 5
 
-  YAP · 2A · N23: when was it enough? (medians over hold-outs and orders)
+  YAP · repeat 2A · N23: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first
       preserved at field 2 and reliably from field 2 (medians; by field 14 in 90% of runs).
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1
@@ -1358,12 +1370,12 @@
       field 1 and reliably from field 1 (medians; by field 5 in 90% of runs).
     When each rule would have first said stop (medians; 'kept from': from which field it kept saying
       stop; never: not within the fields available in half or more of runs):
-      rule                       spread out  random   recorded
-      fixed 8 fields             field 8     field 8  field 8
-      JCB rule, per nucleus, 5%  field 1     field 1  field 2
-      JCB rule, per field, 5%    field 4     field 4  field 5
+      rule                                  spread out                   random   recorded
+      fixed 8 fields                        field 8                      field 8  field 8
+      mean-precision rule, per nucleus, 5%  field 1                      field 1  field 2
+      mean-precision rule, per field, 5%    field 5 (kept from field 6)  field 6  field 7
 
-  ARAP2 · 2B · C13: when was it enough? (medians over hold-outs and orders)
+  ARAP2 · repeat 2B · C13: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first
       preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1
@@ -1372,12 +1384,12 @@
       field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
     When each rule would have first said stop (medians; 'kept from': from which field it kept saying
       stop; never: not within the fields available in half or more of runs):
-      rule                       spread out  random   recorded
-      fixed 8 fields             field 8     field 8  field 8
-      JCB rule, per nucleus, 5%  field 1     field 1  field 1
-      JCB rule, per field, 5%    field 4     field 4  field 4
+      rule                                  spread out  random   recorded
+      fixed 8 fields                        field 8     field 8  field 8
+      mean-precision rule, per nucleus, 5%  field 1     field 1  field 1
+      mean-precision rule, per field, 5%    field 5     field 6  field 5
 
-  ARAP2 · 2B · C17: when was it enough? (medians over hold-outs and orders)
+  ARAP2 · repeat 2B · C17: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first
       preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1
@@ -1386,12 +1398,12 @@
       field 3 and reliably from field 4 (medians; by field 9 in 90% of runs).
     When each rule would have first said stop (medians; 'kept from': from which field it kept saying
       stop; never: not within the fields available in half or more of runs):
-      rule                       spread out  random   recorded
-      fixed 8 fields             field 8     field 8  field 8
-      JCB rule, per nucleus, 5%  field 1     field 1  field 1
-      JCB rule, per field, 5%    field 4     field 4  field 5
+      rule                                  spread out  random   recorded
+      fixed 8 fields                        field 8     field 8  field 8
+      mean-precision rule, per nucleus, 5%  field 1     field 1  field 1
+      mean-precision rule, per field, 5%    field 6     field 6  field 6
 
-  MOCK · 2B · P13: when was it enough? (medians over hold-outs and orders)
+  MOCK · repeat 2B · P13: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first
       preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1
@@ -1400,21 +1412,21 @@
       field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
     When each rule would have first said stop (medians; 'kept from': from which field it kept saying
       stop; never: not within the fields available in half or more of runs):
-      rule                       spread out  random   recorded
-      fixed 8 fields             field 8     field 8  field 8
-      JCB rule, per nucleus, 5%  field 1     field 1  field 1
-      JCB rule, per field, 5%    field 4     field 4  field 4
+      rule                                  spread out  random   recorded
+      fixed 8 fields                        field 8     field 8  field 8
+      mean-precision rule, per nucleus, 5%  field 1     field 1  field 1
+      mean-precision rule, per field, 5%    field 5     field 6  field 5
   'Reliably' means every later field count, up to the last available field, also preserved it; each
     hold-out is a different set of held-back fields.
 
 ⚠️ 6. Which fields should I look at?
-  Analysis groups: condition · biological_repeat · technical_repeat.
-  YAP · 1A · N23: fields to reopen before trusting the result
+  Analysis groups: condition · biological repeat · technical repeat.
+  YAP · repeat 1A · N23: fields to reopen before trusting the result
     014023-15.tif: 3 nuclei of a state no other field shows.
-  LATS1 · 2A · J23: fields to reopen before trusting the result
+  LATS1 · repeat 2A · J23: fields to reopen before trusting the result
     010023-3.tif: 3 nuclei of a state no other field shows.
     010023-5.tif: 3 nuclei of a state no other field shows.
-  ARAP2 · 2B · C13: fields to reopen before trusting the result
+  ARAP2 · repeat 2B · C13: fields to reopen before trusting the result
     003013-26.tif: 3 nuclei of a state no other field shows.
   None of these is called an error: look at the images to see whether it is biology, technique or
     simply a large field.
@@ -1465,180 +1477,204 @@
             6           14     0.778    0.637-1.37  yes         no
 
 ⚠️ 8. Could I have sampled more efficiently?
-  Analysis groups: condition · biological_repeat · technical_repeat.
+  Analysis groups: condition · biological repeat · technical repeat.
   Could the same positions have been visited in a better order? Reliably enough for this criterion,
     per group and order:
-    group             order       reliably enough after  stage travel  never enough  left out
-    MOCK · 1A · B6    recorded    1 field                0 µm          –             –
-    MOCK · 1A · B6    random      1 field                0 µm          –             –
-    MOCK · 1A · B6    spread out  1 field                0 µm          –             –
-    LATS1 · 1A · I23  recorded    1 field                0 µm          –             –
-    LATS1 · 1A · I23  random      1 field                0 µm          –             –
-    LATS1 · 1A · I23  spread out  1 field                0 µm          –             –
-    LATS1 · 1A · J23  recorded    1 field                0 µm          –             –
-    LATS1 · 1A · J23  random      1 field                0 µm          –             –
-    LATS1 · 1A · J23  spread out  1 field                0 µm          –             –
-    YAP · 1A · M23    recorded    1 field                0 µm          –             –
-    YAP · 1A · M23    random      1 field                0 µm          –             –
-    YAP · 1A · M23    spread out  1 field                0 µm          –             –
-    YAP · 1A · N23    recorded    1 field                0 µm          –             –
-    YAP · 1A · N23    random      1 field                0 µm          –             –
-    YAP · 1A · N23    spread out  1 field                0 µm          –             –
-    ARAP2 · 2A · C13  recorded    1 field                0 µm          –             –
-    ARAP2 · 2A · C13  random      1 field                0 µm          –             –
-    ARAP2 · 2A · C13  spread out  1 field                0 µm          –             –
-    LATS1 · 2A · J23  recorded    1 field                0 µm          –             –
-    LATS1 · 2A · J23  random      1 field                0 µm          –             –
-    LATS1 · 2A · J23  spread out  1 field                0 µm          –             –
-    MOCK · 2A · K16   recorded    2 fields               805 µm        –             –
-    MOCK · 2A · K16   random      1 field                0 µm          –             –
-    MOCK · 2A · K16   spread out  1 field                0 µm          –             –
-    YAP · 2A · N23    recorded    1 field                0 µm          –             –
-    YAP · 2A · N23    random      1 field                0 µm          –             –
-    YAP · 2A · N23    spread out  2 fields               2.1 mm        –             –
-    ARAP2 · 2B · C13  recorded    1 field                0 µm          –             –
-    ARAP2 · 2B · C13  random      1 field                0 µm          –             –
-    ARAP2 · 2B · C13  spread out  1 field                0 µm          –             –
-    ARAP2 · 2B · C17  recorded    4 fields               1.7 mm        –             –
-    ARAP2 · 2B · C17  random      1 field                0 µm          –             –
-    ARAP2 · 2B · C17  spread out  1 field                0 µm          –             –
-    MOCK · 2B · P13   recorded    1 field                0 µm          –             –
-    MOCK · 2B · P13   random      1 field                0 µm          –             –
-    MOCK · 2B · P13   spread out  1 field                0 µm          –             –
-  The orders do not differ by more than one field for this criterion in MOCK · 1A · B6,
-    LATS1 · 1A · I23, LATS1 · 1A · J23, YAP · 1A · M23, YAP · 1A · N23, ARAP2 · 2A · C13,
-    LATS1 · 2A · J23, MOCK · 2A · K16, YAP · 2A · N23, ARAP2 · 2B · C13 and MOCK · 2B · P13: a null
-    result, not a preference for any order.
-  The orders differ by more than one field in ARAP2 · 2B · C17 (3 fields apart).
+    group                    order       reliably enough after  stage travel  never enough  left out
+    MOCK · repeat 1A · B6    recorded    1 field                0 µm          –             –
+    MOCK · repeat 1A · B6    random      1 field                0 µm          –             –
+    MOCK · repeat 1A · B6    spread out  1 field                0 µm          –             –
+    LATS1 · repeat 1A · I23  recorded    1 field                0 µm          –             –
+    LATS1 · repeat 1A · I23  random      1 field                0 µm          –             –
+    LATS1 · repeat 1A · I23  spread out  1 field                0 µm          –             –
+    LATS1 · repeat 1A · J23  recorded    1 field                0 µm          –             –
+    LATS1 · repeat 1A · J23  random      1 field                0 µm          –             –
+    LATS1 · repeat 1A · J23  spread out  1 field                0 µm          –             –
+    YAP · repeat 1A · M23    recorded    1 field                0 µm          –             –
+    YAP · repeat 1A · M23    random      1 field                0 µm          –             –
+    YAP · repeat 1A · M23    spread out  1 field                0 µm          –             –
+    YAP · repeat 1A · N23    recorded    1 field                0 µm          –             –
+    YAP · repeat 1A · N23    random      1 field                0 µm          –             –
+    YAP · repeat 1A · N23    spread out  1 field                0 µm          –             –
+    ARAP2 · repeat 2A · C13  recorded    1 field                0 µm          –             –
+    ARAP2 · repeat 2A · C13  random      1 field                0 µm          –             –
+    ARAP2 · repeat 2A · C13  spread out  1 field                0 µm          –             –
+    LATS1 · repeat 2A · J23  recorded    1 field                0 µm          –             –
+    LATS1 · repeat 2A · J23  random      1 field                0 µm          –             –
+    LATS1 · repeat 2A · J23  spread out  1 field                0 µm          –             –
+    MOCK · repeat 2A · K16   recorded    2 fields               805 µm        –             –
+    MOCK · repeat 2A · K16   random      1 field                0 µm          –             –
+    MOCK · repeat 2A · K16   spread out  1 field                0 µm          –             –
+    YAP · repeat 2A · N23    recorded    1 field                0 µm          –             –
+    YAP · repeat 2A · N23    random      1 field                0 µm          –             –
+    YAP · repeat 2A · N23    spread out  2 fields               2.1 mm        –             –
+    ARAP2 · repeat 2B · C13  recorded    1 field                0 µm          –             –
+    ARAP2 · repeat 2B · C13  random      1 field                0 µm          –             –
+    ARAP2 · repeat 2B · C13  spread out  1 field                0 µm          –             –
+    ARAP2 · repeat 2B · C17  recorded    4 fields               1.7 mm        –             –
+    ARAP2 · repeat 2B · C17  random      1 field                0 µm          –             –
+    ARAP2 · repeat 2B · C17  spread out  1 field                0 µm          –             –
+    MOCK · repeat 2B · P13   recorded    1 field                0 µm          –             –
+    MOCK · repeat 2B · P13   random      1 field                0 µm          –             –
+    MOCK · repeat 2B · P13   spread out  1 field                0 µm          –             –
+  The orders do not differ by more than one field for this criterion in MOCK · repeat 1A · B6,
+    LATS1 · repeat 1A · I23, LATS1 · repeat 1A · J23, YAP · repeat 1A · M23, YAP · repeat 1A · N23,
+    ARAP2 · repeat 2A · C13, LATS1 · repeat 2A · J23, MOCK · repeat 2A · K16, YAP · repeat 2A · N23,
+    ARAP2 · repeat 2B · C13 and MOCK · repeat 2B · P13: a null result, not a preference for any order.
+  The orders differ by more than one field in ARAP2 · repeat 2B · C17 (3 fields apart).
   Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
   Assumptions:
     - Whether these were the right positions needs every candidate position from an overview (not
       available: sampling-frame bias is not assessed).
 
 ➖ 9. Do the conditions differ, and how confidently?
-  Feature YAPTAZ_Ratio, each condition against the control {'condition': 'MOCK'}, within each
-    biological repeat. The fields of a condition's analysis groups are pooled for this comparison.
-    Objects are compared as Plot&Stats does and, since a microscope acquires them through fields, with
-    the field as the unit and, where each side has at least two, with the technical repeat
-    (technical_repeat) as the unit.
-  Reading, condition by condition, against MOCK (paired test: Bonferroni, on normalised values;
-    cell-level: the version below that is least biased by the repeats):
-    - LATS1 — same direction in every repeat, not confirmed: higher in 2 of 2 biological repeats (d
-      1.00); the paired test needs 3 biological repeats; cell-level p 0.003 (balanced, normalised;
-      false-positive chance about 83% here).
-    - YAP — same direction in every repeat, not confirmed: lower in 2 of 2 biological repeats (d
-      -1.35); the paired test needs 3 biological repeats; cell-level p 0.003 (balanced, normalised;
-      false-positive chance about 79% here).
-    - ARAP2 — same direction in every repeat, not confirmed: higher in 2 of 2 biological repeats (d
-      0.32); the paired test needs 3 biological repeats; cell-level p 0.003 (balanced, normalised;
-      false-positive chance about 5% here).
+  Feature YAPTAZ_Ratio, each condition against the control (MOCK), within each biological repeat. The
+    fields of a condition's analysis groups are pooled for this comparison. Nuclei are compared as
+    Plot&Stats does and, since a microscope acquires them through fields, with the field as the unit
+    and, where each side has at least two, with the technical repeat (technical_repeat) as the unit.
+  Reading, condition by condition, against MOCK. Significant across repeats: the paired t-test on the
+    biological repeat means (as SuperPlots; values normalised to each repeat's control) gives q ≤ 0.05
+    after Benjamini-Hochberg within the condition's sub-experiment: this is the result to report. Same
+    direction, not significant: on one side of the control in every repeat without reaching q ≤ 0.05,
+    a consistent trend and not evidence of no effect (with 3 repeats only large, consistent effects
+    reach it), said from 6 repeats: with fewer, every repeat goes the same way by chance too often (1
+    experiment in 4 with 3 repeats). Beside it, the nucleus-level screen (as Plot&Stats, every nucleus
+    an independent draw) is exploratory: it finds candidates, not effects that repeat:
+    - LATS1 — not tested across repeats: higher in 2 of 2 biological repeats (Cohen's d per repeat,
+      mean +1.00, mean 6.9% higher than the control); the paired test needs 3 biological repeats;
+      nucleus-level screen (exploratory) q 0.001 (balanced, normalised; with no real effect it gives p
+      ≤ 0.05 in about 83% of experiments like this one).
+    - YAP — not tested across repeats: lower in 2 of 2 biological repeats (Cohen's d per repeat, mean
+      -1.35, mean 8.8% lower than the control); the paired test needs 3 biological repeats;
+      nucleus-level screen (exploratory) q 0.001 (balanced, normalised; with no real effect it gives p
+      ≤ 0.05 in about 79% of experiments like this one).
+    - ARAP2 — not tested across repeats: higher in 2 of 2 biological repeats (Cohen's d per repeat,
+      mean +0.32, mean 2.2% higher than the control); the paired test needs 3 biological repeats;
+      nucleus-level screen (exploratory) q 0.001 (balanced, normalised; with no real effect it gives p
+      ≤ 0.05 in about 5% of experiments like this one).
   Across the 2 biological repeats (each repeat's value is the mean of its nuclei, paired with the
     control of the same repeat):
-    condition      vs control, by repeat  d nuclei: mean (range)
-    LATS1 vs MOCK  higher in 2 of 2       1.00 (0.69 to 1.32)
+    condition      vs control, by repeat  d nuclei per repeat: mean (range)
+    LATS1 vs MOCK  higher in 2 of 2       +1.00 (0.69 to 1.32)
     YAP vs MOCK    lower in 2 of 2        -1.35 (-1.63 to -1.08)
-    ARAP2 vs MOCK  higher in 2 of 2       0.32 (0.29 to 0.35)
-  Cell-level test (as in Plot&Stats): Cohen's d on every nucleus against the control, the
-    randomization test shuffling the labels over the nuclei:
+    ARAP2 vs MOCK  higher in 2 of 2       +0.32 (0.29 to 0.35)
+  Nucleus-level screen (exploratory, as in Plot&Stats): Cohen's d on every nucleus against the
+    control, the randomization test shuffling the labels over the nuclei:
     Balance: for every condition, one biological repeat holds more than 25% more nuclei than another
-      (up to 2.5 times) and the control is pooled from 1 biological repeat the condition was not
-      imaged in, so the test is given as provided and balanced (each condition against the control of
-      its own biological repeats, the same number of nuclei from each biological repeat; the median d
-      and p over 100 draws).
-    As provided:
-    condition      raw: d (p Bonf.)  normalised      p ≤ 0.05 without an effect
-    LATS1 vs MOCK  1.06 (0.0015)     1.08 (0.0015)   about 84%
-    YAP vs MOCK    -1.23 (0.0015)    -1.22 (0.0015)  about 82%
-    ARAP2 vs MOCK  0.35 (0.0015)     0.34 (0.0015)   about 5%
+      on one side (up to 2.5 times); and for every condition, the control as provided is pooled from 1
+      biological repeat the condition was not imaged in; so the test is also given balanced (each
+      condition against the control of its own biological repeats, the same number of nuclei from each
+      biological repeat; the median d over 100 draws, labels shuffled within each biological repeat
+      for p), and as provided only where the control comes from the condition's own biological
+      repeats.
+    Not given as provided for LATS1, YAP and ARAP2: their control would include biological repeats the
+      condition was not imaged in.
     Balanced over the repeats:
-    condition      raw: d (p Bonf.)  normalised     nuclei per repeat, condition / control  p ≤ 0.05 without an effect
-    LATS1 vs MOCK  0.98 (0.003)      0.99 (0.003)   736 / 953                               about 83%
-    YAP vs MOCK    -1.33 (0.003)     -1.33 (0.003)  557 / 953                               about 79%
-    ARAP2 vs MOCK  0.32 (0.003)      0.32 (0.003)   797 / 953                               about 5%
+    condition      raw: d, p (q)         normalised: d, p (q)  nuclei per repeat, condition / control  gives p ≤ 0.05 with no effect
+    LATS1 vs MOCK  +0.99, 0.001 (0.001)  +0.99, 0.001 (0.001)  736 / 953                               about 83%
+    YAP vs MOCK    -1.33, 0.001 (0.001)  -1.34, 0.001 (0.001)  557 / 953                               about 79%
+    ARAP2 vs MOCK  +0.32, 0.001 (0.001)  +0.32, 0.001 (0.001)  797 / 953                               about 5%
   Within each repeat:
-    contrast            fields    nuclei       tech. repeats  d nuclei  d fields  JCS, every nucleus
-    LATS1 vs MOCK · 1A  56 vs 28  1365 vs 966  2 vs 1         1.32      4.94      1.42
-    YAP vs MOCK · 1A    56 vs 28  1258 vs 966  2 vs 1         -1.08     -4.36     -1.07
-    ARAP2 vs MOCK · 2A  28 vs 28  797 vs 953   1 vs 1         0.29      1.08      0.28
-    LATS1 vs MOCK · 2A  28 vs 28  736 vs 953   1 vs 1         0.69      2.45      0.67
-    YAP vs MOCK · 2A    28 vs 28  557 vs 953   1 vs 1         -1.63     -5.29     -1.52
-    ARAP2 vs MOCK · 2B  56 vs 28  1955 vs 963  2 vs 1         0.35      1.19      0.37
+    contrast                  fields    nuclei       tech. repeats  d on nuclei  d on field means  over control SD, every nucleus
+    LATS1 vs MOCK, repeat 1A  56 vs 28  1365 vs 966  2 vs 1         +1.32        +4.94             +1.42
+    YAP vs MOCK, repeat 1A    56 vs 28  1258 vs 966  2 vs 1         -1.08        -4.36             -1.07
+    ARAP2 vs MOCK, repeat 2A  28 vs 28  797 vs 953   1 vs 1         +0.29        +1.08             +0.28
+    LATS1 vs MOCK, repeat 2A  28 vs 28  736 vs 953   1 vs 1         +0.69        +2.45             +0.67
+    YAP vs MOCK, repeat 2A    28 vs 28  557 vs 953   1 vs 1         -1.63        -5.29             -1.52
+    ARAP2 vs MOCK, repeat 2B  56 vs 28  1955 vs 963  2 vs 1         +0.35        +1.19             +0.37
   JCS effect size (treated mean minus control mean, over the control SD) from draws of nuclei: median
     (IQR), and the share of draws with the sign of the effect from every nucleus; fields: the mean
     number of acquired fields the whole-field draws took on the treated side.
-    contrast            nuclei  random nuclei                 whole fields                  fields
-    LATS1 vs MOCK · 1A  50      1.45 (1.28 to 1.67), 100%     1.49 (1.28 to 1.73), 100%     about 2.6
-    LATS1 vs MOCK · 1A  100     1.43 (1.33 to 1.55), 100%     1.44 (1.26 to 1.57), 100%     about 4.5
-    LATS1 vs MOCK · 1A  200     1.44 (1.36 to 1.52), 100%     1.44 (1.36 to 1.53), 100%     about 8.8
-    LATS1 vs MOCK · 1A  500     1.42 (1.38 to 1.46), 100%     1.42 (1.37 to 1.47), 100%     about 21.2
-    YAP vs MOCK · 1A    50      -1.08 (-1.31 to -0.91), 100%  -1.06 (-1.30 to -0.84), 100%  about 2.9
-    YAP vs MOCK · 1A    100     -1.10 (-1.22 to -0.98), 100%  -1.13 (-1.29 to -0.96), 100%  about 5
-    YAP vs MOCK · 1A    200     -1.06 (-1.16 to -0.99), 100%  -1.07 (-1.18 to -0.97), 100%  about 9.6
-    YAP vs MOCK · 1A    500     -1.07 (-1.11 to -1.03), 100%  -1.07 (-1.13 to -1.02), 100%  about 22.9
-    ARAP2 vs MOCK · 2A  50      0.26 (0.15 to 0.37), 92%      0.27 (0.13 to 0.42), 88%      about 2.4
-    ARAP2 vs MOCK · 2A  100     0.25 (0.18 to 0.34), 99.5%    0.23 (0.14 to 0.33), 96%      about 4
-    ARAP2 vs MOCK · 2A  200     0.27 (0.22 to 0.33), 100%     0.27 (0.21 to 0.34), 100%     about 7.5
-    ARAP2 vs MOCK · 2A  500     0.28 (0.25 to 0.31), 100%     0.27 (0.25 to 0.30), 100%     about 18
-    LATS1 vs MOCK · 2A  50      0.69 (0.57 to 0.79), 100%     0.67 (0.54 to 0.84), 100%     about 2.4
-    LATS1 vs MOCK · 2A  100     0.70 (0.61 to 0.75), 100%     0.69 (0.56 to 0.79), 100%     about 4.4
-    LATS1 vs MOCK · 2A  200     0.69 (0.63 to 0.73), 100%     0.66 (0.59 to 0.73), 100%     about 8.1
-    LATS1 vs MOCK · 2A  500     0.68 (0.65 to 0.70), 100%     0.68 (0.65 to 0.71), 100%     about 19.5
-    YAP vs MOCK · 2A    50      -1.54 (-1.76 to -1.32), 100%  -1.54 (-1.79 to -1.28), 100%  about 3.1
-    YAP vs MOCK · 2A    100     -1.53 (-1.69 to -1.41), 100%  -1.56 (-1.67 to -1.39), 100%  about 5.3
-    YAP vs MOCK · 2A    200     -1.53 (-1.62 to -1.46), 100%  -1.51 (-1.64 to -1.41), 100%  about 10.3
-    YAP vs MOCK · 2A    500     -1.51 (-1.56 to -1.47), 100%  -1.54 (-1.59 to -1.47), 100%  about 25.5
-    ARAP2 vs MOCK · 2B  50      0.38 (0.27 to 0.51), 96%      0.39 (0.20 to 0.62), 91%      about 2
-    ARAP2 vs MOCK · 2B  100     0.39 (0.31 to 0.50), 99.5%    0.34 (0.20 to 0.53), 94%      about 3.5
-    ARAP2 vs MOCK · 2B  200     0.37 (0.30 to 0.43), 100%     0.38 (0.27 to 0.50), 99%      about 6.5
-    ARAP2 vs MOCK · 2B  500     0.38 (0.34 to 0.41), 100%     0.37 (0.31 to 0.45), 100%     about 14.8
-  Planning the next experiment, with 2 biological repeats as here: the fields a side each repeat needs
-    to resolve the difference from the control, and what limits it (full report: the repeats a paired
-    test needs for 80% power at p ≤ 0.05, per condition):
-    condition      d nuclei, mean  fields a side per repeat  limited by                                repeats needed  with twice the fields
-    LATS1 vs MOCK  1.00            about 2                   repeats differ (more fields help little)  4               4
-    YAP vs MOCK    -1.35           about 2                   repeats differ (more fields help little)  3               3
-    ARAP2 vs MOCK  0.32            about 5                   sampling (more fields help)               3               3
+    contrast                  nuclei  random nuclei                 whole fields                  fields
+    LATS1 vs MOCK, repeat 1A  50      1.45 (1.28 to 1.67), 100%     1.49 (1.28 to 1.73), 100%     about 2.6
+    LATS1 vs MOCK, repeat 1A  100     1.43 (1.33 to 1.55), 100%     1.44 (1.26 to 1.57), 100%     about 4.5
+    LATS1 vs MOCK, repeat 1A  200     1.44 (1.36 to 1.52), 100%     1.44 (1.36 to 1.53), 100%     about 8.8
+    LATS1 vs MOCK, repeat 1A  500     1.42 (1.38 to 1.46), 100%     1.42 (1.37 to 1.47), 100%     about 21.2
+    YAP vs MOCK, repeat 1A    50      -1.08 (-1.31 to -0.91), 100%  -1.06 (-1.30 to -0.84), 100%  about 2.9
+    YAP vs MOCK, repeat 1A    100     -1.10 (-1.22 to -0.98), 100%  -1.13 (-1.29 to -0.96), 100%  about 5
+    YAP vs MOCK, repeat 1A    200     -1.06 (-1.16 to -0.99), 100%  -1.07 (-1.18 to -0.97), 100%  about 9.6
+    YAP vs MOCK, repeat 1A    500     -1.07 (-1.11 to -1.03), 100%  -1.07 (-1.13 to -1.02), 100%  about 22.9
+    ARAP2 vs MOCK, repeat 2A  50      0.26 (0.15 to 0.37), 92%      0.27 (0.13 to 0.42), 88%      about 2.4
+    ARAP2 vs MOCK, repeat 2A  100     0.25 (0.18 to 0.34), 99.5%    0.23 (0.14 to 0.33), 96%      about 4
+    ARAP2 vs MOCK, repeat 2A  200     0.27 (0.22 to 0.33), 100%     0.27 (0.21 to 0.34), 100%     about 7.5
+    ARAP2 vs MOCK, repeat 2A  500     0.28 (0.25 to 0.31), 100%     0.27 (0.25 to 0.30), 100%     about 18
+    LATS1 vs MOCK, repeat 2A  50      0.69 (0.57 to 0.79), 100%     0.67 (0.54 to 0.84), 100%     about 2.4
+    LATS1 vs MOCK, repeat 2A  100     0.70 (0.61 to 0.75), 100%     0.69 (0.56 to 0.79), 100%     about 4.4
+    LATS1 vs MOCK, repeat 2A  200     0.69 (0.63 to 0.73), 100%     0.66 (0.59 to 0.73), 100%     about 8.1
+    LATS1 vs MOCK, repeat 2A  500     0.68 (0.65 to 0.70), 100%     0.68 (0.65 to 0.71), 100%     about 19.5
+    YAP vs MOCK, repeat 2A    50      -1.54 (-1.76 to -1.32), 100%  -1.54 (-1.79 to -1.28), 100%  about 3.1
+    YAP vs MOCK, repeat 2A    100     -1.53 (-1.69 to -1.41), 100%  -1.56 (-1.67 to -1.39), 100%  about 5.3
+    YAP vs MOCK, repeat 2A    200     -1.53 (-1.62 to -1.46), 100%  -1.51 (-1.64 to -1.41), 100%  about 10.3
+    YAP vs MOCK, repeat 2A    500     -1.51 (-1.56 to -1.47), 100%  -1.54 (-1.59 to -1.47), 100%  about 25.5
+    ARAP2 vs MOCK, repeat 2B  50      0.38 (0.27 to 0.51), 96%      0.39 (0.20 to 0.62), 91%      about 2
+    ARAP2 vs MOCK, repeat 2B  100     0.39 (0.31 to 0.50), 99.5%    0.34 (0.20 to 0.53), 94%      about 3.5
+    ARAP2 vs MOCK, repeat 2B  200     0.37 (0.30 to 0.43), 100%     0.38 (0.27 to 0.50), 99%      about 6.5
+    ARAP2 vs MOCK, repeat 2B  500     0.38 (0.34 to 0.41), 100%     0.37 (0.31 to 0.45), 100%     about 14.8
+  Planning the next experiment on YAPTAZ_Ratio (for a new experiment, if the difference and the
+    variation seen here recur; not what the current result needs): the biological repeats a paired
+    t-test on the repeat means needs for 80% power, corrected over the conditions of its
+    sub-experiment (a follow-up on YAPTAZ_Ratio alone), with the fields per repeat as now and with
+    twice as many; then the fields a side each of 2 repeats needs to show the difference on its own:
+    condition      change across repeats  mean d per repeat (nuclei)  repeats needed  with twice the fields  fields a side per repeat
+    LATS1 vs MOCK  ×1.069                 +1.00                       5               5                      about 2
+    YAP vs MOCK    ×0.912                 -1.35                       5               5                      about 2
+    ARAP2 vs MOCK  ×1.022                 +0.32                       4               3                      about 5
   Assumptions:
-    - With 2 biological repeats holding both sides, LATS1, YAP and ARAP2 are described by direction
+    - LATS1, YAP and ARAP2, with 2 biological repeats holding both sides, are described by direction
       and effect size; the paired test across repeats needs 3.
-    - Cell-level test (Cohen's d, randomization over the nuclei): it assumes the nuclei are
+    - Nucleus-level test (Cohen's d, randomization over the nuclei): it assumes the nuclei are
       independent draws, so it asks whether these wells differ, not whether the effect repeats, and
       it responds with one or two repeats. Limitation: when the difference varies between repeats it
       gives p ≤ 0.05 without an effect in about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n nuclei
       per well, each repeat weighted by its share when they differ; s the SD between repeats in
-      observation SDs; data/simulations/test_choice.py and unbalanced.py), the 'without an effect'
+      observation SDs; data/simulations/test_choice.py and unbalanced.py), the 'with no effect'
       column; more nuclei per well raise it, and a stricter cutoff does not remove it (22% at p ≤
       0.01 with 30 per well and s = 0.5).
     - Normalised: each value divided by the mean of its own repeat's control, which removes a scale
       both wells of a repeat share (staining, imaging) and pairs every condition with its own
       repeat's control. It assumes a positive feature on a ratio scale (not computed when a control
       mean is 0 or below); it does not remove the part of the effect that varies between repeats, so
-      the cell-level chance still applies.
-    - Balanced: the median d and median p over 100 draws taking the same number of nuclei from each
-      repeat, against the control of the condition's own repeats; it describes the typical draw and
-      is not the p of one test. In data/simulations/unbalanced.py, with one repeat holding 2 to 8
-      times the cells of the others, the test as provided gives 22-46% false positives where equal
-      repeats give 16% (s = 0.25), and the balanced test 12-14%; with the control pooled from
-      repeats the condition was not imaged in, the raw test as provided gives 46% even when the
-      repeats agree, the balanced test 2%. Balancing removes the weight of the repeats holding more,
-      not the independence assumption.
-    - No randomization test in all 6 contrasts: only one technical repeat (technical_repeat) with
-      observations on one side: its fields cannot stand in for technical repeats, so there is no
-      test.
+      the nucleus-level chance still applies.
+    - Balanced: one permutation test against the control of the condition's own repeats, d the
+      median over 100 draws taking the same number of nuclei from each repeat, p from the condition
+      and control labels shuffled within each repeat, the same statistic on the same draws for each
+      shuffle. In data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells of
+      the others, the test as provided gives 22-46% false positives where equal repeats give 16% (s
+      = 0.25), and the balanced test 15-19%; with the control pooled from repeats the condition was
+      not imaged in, the raw test as provided gives 46% even when the repeats agree, the balanced
+      test about 5%. Balancing removes the weight of the repeats holding more, not the independence
+      assumption.
+    - No well-level test within a repeat in all 6 contrasts: only one technical repeat (well) with
+      observations on one side: the fields of one well are not independent replicates, so there is
+      no test.
     - The test and the effect sizes compare means: a difference confined to a subpopulation of
       nuclei or to the shape of the distribution is not tested (see the unusual nuclei and the rare
       label).
     - The draws resample these fields and nuclei, not wells or repeats: a same-sign share describes
       these fields and is not a confidence in the effect.
-    - The fields a side per repeat are the most any repeat needs, projected from its interval of d
-      (narrowing as 1/sqrt(fields)); limited by: whether the repeats' d differ more than their
-      sampling error, which more fields cannot reduce. Both are estimated from the repeats here, so
-      the plan is a guide.
+    - Repeats needed: for a paired t-test at p ≤ 0.05/m, m the conditions of the sub-experiment
+      (what Benjamini-Hochberg asks at most), on the values that test compares: each repeat's change
+      (its mean over its control's, a fold change; the difference of the means for a feature with a
+      value that is not positive; the table gives their geometric mean, as the verdict does), its
+      spread between the repeats and its sampling error within one. All projected from the repeats
+      here, so the plan is a guide.
+    - The fields a side per repeat are the most any repeat needs, projected from the part of its
+      interval of d within wells (narrowing as 1/sqrt of the number); the part between wells stays,
+      and when it alone is as wide as the difference, more fields will not resolve it: more wells or
+      biological repeats.
+    - Most repeats searched: 30; per condition, its own experiment's m.
+
+➖ 10. Are there groups of nuclei, and is a condition enriched in one?
+  Not assessed: declare at least two features: the populations are found on all of them.
 
 What this dataset cannot tell me
-  ➖ 9. Do the conditions differ, and how confidently?: not assessed; needs: declare a control
-     condition and run condition_contrast on data with more than one condition, with analysis groups
-     that keep conditions and repeats apart.
+  ➖ 9. Do the conditions differ, and how confidently?: YAPTAZ_Ratio, 3 conditions against the
+     control, each in 2 biological repeats (3 in all): not tested across repeats: YAP (lower); LATS1
+     and ARAP2 (higher); exploratory nucleus-level screen: 3 of 3 at q ≤ 0.05 (with no real effect
+     it gives p ≤ 0.05 in 5%–83% of experiments like this one); within repeats: no test (one well
+     per condition in a repeat).
+  ➖ 10. Are there groups of nuclei, and is a condition enriched in one?: not assessed; needs:
+     declare at least two features: the populations are found on all of them.
   Assumptions:
     - Every answer holds for the stated features, tolerances and definition of new.
     - Replays, draws and hold-outs describe these samples; they are not independent experiments.

@@ -29,6 +29,7 @@ from .._style import table as style_table
 from .._wording import column_word, count, listing
 from ..data_check import DataCheck, Problem, validate_input_tables
 from ..metadata import (
+    CONDITION_COLUMN,
     MORPHOBRICKS_GROUP_COLUMNS,
     TECHNICAL_REPEAT_COLUMN,
     WITHIN_FOV_METADATA_COLUMNS,
@@ -81,6 +82,10 @@ def _sub_experiments(family: dict[Any, int], compared: dict[Any, list[Any]], con
     return f"{head} with its own {control} in its own repeats: {each}"
 
 
+# An embedding-only report's observation table (owner, 2026-10-06).
+NO_FEATURES = "No explainable features: the other feature tables alone are read."
+
+
 @dataclass(frozen=True)
 class DatasetOverview:
     """Counts of the validated tables and the layout of fields by condition and repeat.
@@ -97,7 +102,8 @@ class DatasetOverview:
       normalisation applied.
     - ``warnings``: the data check's warnings (``check_tables``), when one was given.
     - ``value_checks``: the checks of the values that found something (``_value_checks``:
-      fields more alike than chance, features with few distinct values), as sentences.
+      fields more alike than chance, features with few distinct values, one sentence per
+      group of duplicated or derived features), as sentences.
     """
 
     counts: dict[str, int]
@@ -139,6 +145,8 @@ class DatasetOverview:
         lines.append(
             f"{count(c['features'], 'feature')} "
             f"({_listed(self.features, min(3, max_features_listed))}); {values}."
+            if self.features
+            else NO_FEATURES
         )
         lines += list(settings.get("feature_tables", ()))
         design = self._design_line()
@@ -256,6 +264,8 @@ class DatasetOverview:
             (
                 f"{count(c['features'], 'feature column')}: "
                 f"{_listed(self.features, max_features_listed)}."
+                if self.features
+                else NO_FEATURES
             ),
         ]
         condition_col, repeat_col = self.settings["condition_col"], self.settings["repeat_col"]
@@ -307,7 +317,7 @@ class DatasetOverview:
             lines.append("; ".join(parts) + ".")
             arrangement = self.arrangement()
             if arrangement:
-                lines.append(f"{arrangement[:1].upper()}{arrangement[1:]}.")
+                lines.append(f"{arrangement}.")  # it may start with a label: never capitalised
             table = self.layout.copy()
             if len(table) <= 40:
                 header = [col for col in (condition_col, repeat_col) if col is not None]
@@ -377,9 +387,12 @@ def dataset_overview(
     control: Mapping[str, Any] | None = None,
     data_check: DataCheck | None = None,
     feature_tables: Sequence[str] = (),
+    control_experiments: Mapping[Any, Sequence[Any]] | None = None,
 ) -> DatasetOverview:
     """Count what the tables hold (see the module). ``normalized`` is a sentence to print, and
     so is each of ``feature_tables`` (the other feature tables, ``workflows._feature_space``).
+    ``control_experiments`` (each of several controls' conditions) also checks the features
+    for duplicated or derived columns within each experiment (``_feature_relations``).
 
     Each column argument is used when the FOV table has it; a technical
     repeat is counted within its condition and repeat (well J23 of two
@@ -456,7 +469,7 @@ def dataset_overview(
         "data_checked": data_check is not None,
     }
     warnings = tuple(data_check.warnings) if data_check is not None else ()
-    checks = value_checks(data)
+    checks = value_checks(data, control_experiments, condition_col or CONDITION_COLUMN)
     return DatasetOverview(counts, layout, tuple(data.feature_cols), settings, warnings, checks)
 
 

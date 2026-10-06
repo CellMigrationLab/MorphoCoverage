@@ -161,6 +161,7 @@ from ..sufficiency_short import rule_tallies
 from ._text import rule_names
 from .calibration import PREMATURE_CAUTION
 from .controls_text import _selected, pooled_over
+from .inspection import SMALL_GROUP
 from .inspection_text import reason_counts, tally
 from .order_text import group_comparison
 from .report_resolved import has_resolution, precision_words, resolved_headline
@@ -257,7 +258,8 @@ def overview_status(overview: Any, integrity: Any = None) -> Answer:
     # The checks of the values themselves (fields more alike than chance, one value).
     checks = getattr(overview, "value_checks", ())
     if checks:
-        names = listing([check.partition(":")[0].lower() for check in checks], 2)
+        # A check said once per group (related features) is named once.
+        names = listing(list(dict.fromkeys(c.partition(":")[0].lower() for c in checks)), 2)
         parts.append((Status.CAUTION, f"values: {names}"))
     return worst(s for s, _ in parts), "; ".join(text for _, text in parts)
 
@@ -501,10 +503,15 @@ def inspect_status(inspection: Any) -> Answer:
         len(settings.get(key, []))
         for key in ("skipped_summaries", "skipped_neighbours", "skipped_novelty")
     )
+    small = settings.get("skipped_small", [])
     if inspection.fovs.empty:
         if settings.get("checked") == []:
             return Status.NOT_ASSESSED, "no reason could be judged in any group"
-        if skipped:
+        if small and not skipped:
+            where = count(len(small), group_word(inspection))
+            words = f"influence not judged in {where} ({SMALL_GROUP})"
+            return Status.CAUTION, f"no field stands out; {words}"
+        if skipped or small:
             return Status.CAUTION, "no field stands out; some reasons not judged in some groups"
         return Status.OK, "no field stands out"
     fields, groups = tally(inspection)

@@ -13,7 +13,7 @@ microscope should watch for, and gets the code, filled in with this dataset's va
   field's cells as it writes them.
 
 Each picker is a ``<select>`` showing one panel at a time (``_html_script``). The code reads
-``result`` (the ``Report``), ``objects`` and ``fovs``, as in ``docs/workflows.md``.
+``result`` (the ``Report``), ``objects`` and ``fovs``, as in ``docs/report/running_a_report.md``.
 """
 
 from __future__ import annotations
@@ -32,11 +32,13 @@ from ..sampling_unit.reading_text import CONFIRMED, condition_readings
 from ..sampling_unit.repeat_plan import MAX_REPEATS, POWER
 from ..sampling_unit.repeat_plan_text import field_words
 from ._enough_targets import held_back_note
+from ._feature_space import table_columns
 from ._html_next import (
     _GUARD,
     RESERVOIR,
     _chosen_population,
     _labelled,
+    _mean_tolerances,
     _optimise_code,
     _repeats_line,
     fov_counts,
@@ -45,6 +47,7 @@ from ._html_next import (
     rule_labels,
 )
 from ._html_render import text_html
+from ._html_tabs import NOTHING_LIVE, choose
 from ._populations import rule_words
 
 PLAN_TITLE = "Plan the next experiment"
@@ -129,8 +132,10 @@ def _incidence(
     holds it. Every acquired field counts, a field without observations as one without it; a
     missing label is unknown (owner, 2026-10-05), so a field whose observations all lack one
     was not looked at and is left out, as ``fov_clustering`` does."""
+    # Validated by one column; an embedding-only report has no explainable one.
+    columns = list(result.setup.columns) or table_columns(result.setup)
     data = validate_input_tables(
-        objects, fovs=fovs, feature_cols=list(result.setup.columns)[:1], **result.setup.common
+        objects, fovs=fovs, feature_cols=columns[:1], **result.setup.common
     )
     key = [c for c in data.fov_key if c in data.objects]
     if "condition" not in key:
@@ -170,26 +175,9 @@ def _panel(sentence: str, code: str = "", extra: str = "") -> str:
     return f"<p>{html.escape(sentence)}</p>{extra}{block}"
 
 
-def _choose(name: str, label: str, items: Sequence[tuple[str, str]]) -> str:
-    """A ``<select>`` called ``name`` (an id prefix) and one panel per ``(option, markup)``,
-    the first shown."""
-    options = "".join(
-        f'<option value="{i}"{" selected" if i == 0 else ""}>{html.escape(text)}</option>'
-        for i, (text, _) in enumerate(items)
-    )
-    panels = "".join(
-        f'<div class="choice-panel" id="{name}-panel-{i}"{"" if i == 0 else " hidden"}>'
-        f"{markup}</div>"
-        for i, (_, markup) in enumerate(items)
-    )
-    return (
-        f'<div class="choose"><label for="{name}-pick">{html.escape(label)}</label>'
-        f'<select id="{name}-pick">{options}</select>{panels}</div>'
-    )
-
-
 def _tolerances(result: Any) -> str:
-    return listing([rate(t) for t in result.setup.tolerances], 4).replace(", and ", " and ")
+    planned = _mean_tolerances(result.setup)[0]
+    return listing([rate(t) for t in planned], 4).replace(", and ", " and ")
 
 
 def _mean_goal(result: Any, feature: str, counts: list[int], extra: str) -> tuple[str, str]:
@@ -209,7 +197,8 @@ def _mean_goal(result: Any, feature: str, counts: list[int], extra: str) -> tupl
         "fields next time?”, and how reliable each stopping rule was, which says the rule "
         "to run live."
     )
-    return option, _panel(sentence, _optimise_code(feature, counts, readout), extra)
+    declared = _mean_tolerances(result.setup)[1]
+    return option, _panel(sentence, _optimise_code(feature, counts, readout, declared), extra)
 
 
 def _plans(result: Any) -> list[tuple[str, Any]]:
@@ -509,7 +498,10 @@ def _declared_goals(
                         None,
                     )
                 )
-    if setup.fingerprint:
+    precision = result.results.get("fingerprint_precision")
+    unread = precision is not None and "not_assessable" in precision
+    # Not assessable in any table: nothing optimise could judge (question 2 says why).
+    if setup.fingerprint and not (unread and precision["not_assessable"].notna().all()):
         sentence = (
             "The fingerprint is declared: optimise judges each of its criteria on fields "
             "held back from each well, in “How many fields next time?”."
@@ -522,7 +514,8 @@ def _declared_goals(
 def _live_mean(result: Any, feature: str, fovs: pd.DataFrame) -> tuple[str, str]:
     setup = result.setup
     readout = "" if feature == setup.readout else f", readout={feature!r}"
-    cleared = _cleared(setup)
+    tolerances, declared = _mean_tolerances(setup)
+    cleared = _cleared(setup) + declared
     head = "from dataclasses import replace\n" if readout or cleared else ""
     made = (
         f"setup = replace(result.setup{readout}{cleared})\n"
@@ -542,7 +535,7 @@ def _live_mean(result: Any, feature: str, fovs: pd.DataFrame) -> tuple[str, str]
     )
     sentence = (
         f"Each well stops once its stopping rules say the mean of {feature} is known within "
-        f"{rate(setup.tolerances[0])}. Optimise, above, says how reliable each rule was on "
+        f"{rate(tolerances[0])}. Optimise, above, says how reliable each rule was on "
         "these data."
     )
     return f"…the mean of {feature} is known", _panel(sentence, code)
@@ -588,9 +581,9 @@ def plan_card(
         "watch for: the code below continues the session that made this report "
         "(objects, fovs and result).</p>"
         "<h3>Want to optimise your imaging?</h3>"
-        + _choose("plan-optimise", "What should the next experiment get right?", optimise)
+        + choose("plan-optimise", "What should the next experiment get right?", optimise)
         + "<h3>Want to focus on a specific phenotype on the microscope?</h3>"
-        + _choose("plan-live", "Stop each well once…", live)
+        + choose("plan-live", "Stop each well once…", live, NOTHING_LIVE)
         + '<p class="note">Live decides when to stop imaging a well, not where to image.</p>'
     )
     return annotate(body)

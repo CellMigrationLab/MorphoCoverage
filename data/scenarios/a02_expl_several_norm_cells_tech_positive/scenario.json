@@ -1,0 +1,87 @@
+{
+ "name": "a02_expl_several_norm_cells_tech_positive",
+ "kind": "axes",
+ "checks": "features; own controls and the rows across experiments; normalised and centred views; a positive control; the page",
+ "axes": {
+  "tables": "expl",
+  "controls": "several",
+  "normalize": true,
+  "unit": "cells",
+  "wells": "tech",
+  "target": "positive"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": {
+    "cA": {
+     "k1": "a1"
+    },
+    "cB": {
+     "k1": "b1"
+    }
+   }
+  },
+  "control_parents": {
+   "cB": "cA"
+  },
+  "master_control": "cA",
+  "normalize": "control_mean",
+  "positive": {
+   "selector": {
+    "condition": "a1"
+   },
+   "fovs_seen": 5,
+   "draws": 5
+  },
+  "novelty": "default"
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "clustering",
+   "contrast",
+   "controls",
+   "discovery",
+   "enough_features",
+   "inspection",
+   "object_rules",
+   "overview",
+   "populations",
+   "ranking",
+   "separation",
+   "sufficiency",
+   "unusual",
+   "variability"
+  ],
+  "absent": [
+   "distribution",
+   "fingerprint_precision",
+   "label_control",
+   "rare_clustering",
+   "whole_table"
+  ],
+  "not_applicable": {},
+  "table_column": false,
+  "separation_spaces": [
+   "Features"
+  ],
+  "full": [
+   "judged against the controls cA and cB pooled"
+  ],
+  "controls_status": "assessed",
+  "contrast_kinds": [
+   "across_normalised",
+   "own_control"
+  ],
+  "html": true
+ }
+}

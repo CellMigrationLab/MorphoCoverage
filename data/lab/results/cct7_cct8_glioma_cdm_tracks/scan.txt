@@ -20,9 +20,10 @@ What the dataset is
 
 Loaded correctly?
   ✅ The data check found nothing to fix.
-  ❌ 6 copy findings in 12 fields (siCCT7#3 · CCT7_2 · B5 · B5_04, siCCT7#6 · CCT7_3 · B6 · B6_01-1,
-     siCCT7#6 · CCT7_3 · B6 · B6_04-1, siCTRL · CCT7_1 · B4 · B4_05 and 8 more): structure to
-     inspect, not a judgment; scan.integrity.summary() names each.
+  ❌ 6 copy findings in 12 fields (siCCT7#3 · repeat CCT7_2 · B5 · B5_04, siCCT7#6 · repeat
+     CCT7_3 · B6 · B6_01-1, siCCT7#6 · repeat CCT7_3 · B6 · B6_04-1, siCTRL · repeat
+     CCT7_1 · B4 · B4_05 and 8 more): structure to inspect, not a judgment; scan.integrity.summary()
+     names each.
   ✅ The tracks per biological repeat differ by more than 25% in 3 conditions of 5 (up to 1.8× in
      siCTRL); the report tests the tracks both as provided and balanced over the repeats.
 

@@ -3,11 +3,19 @@
 The tests of question 9 compare means, so a condition that splits its cells into two
 populations, or narrows them, with the mean unchanged reads as "no effect". With a
 phenotypic fingerprint declared, the report also compares the distributions (owner,
-2026-10-02), per biological repeat against the control of the same repeat, on the cells
-pooled over each side's technical repeats (as ``feature_discovery`` pools them):
+2026-10-02), per biological repeat against the control of the same repeat:
 
 - **the spread**: the condition's SD over the control's (its log is tested);
 - **the quantiles**: the shift of the 10%, 50% and 90% quantiles, in control SDs.
+
+Both are read on **field-balanced subsamples** (owner, 2026-10-06, audit 8): per repeat,
+each side keeps the same number of fields, the smaller side's (drawn at random among its
+fields, its technical repeats pooled), and the same number of cells in each field, the
+smallest field's of either side, at most ``CELLS_CAP`` (drawn at random in each field); the
+statistics are averaged over ``DRAWS`` such draws, seeded from the package's seeds (one
+draw when nothing is left out). Pooled cells read the field design as an effect: a control
+imaged in one field of 60 cells against three fields of 20 has a smaller spread, field to
+field variation left out, and its quantiles shift with the number of cells.
 
 - **a split into two groups**: Sarle's bimodality coefficient of each side, per repeat
   (``statistics.bimodality_coefficient``); a condition's cells may split in two
@@ -36,19 +44,29 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._checks import is_number
+from .._checks import check_seed, is_number
 from .._control import check_comparisons
+from .._seeds import group_rng
 from .._wording import count, listing, plural
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
 from ..statistics import BIMODAL, bimodality_coefficient, excess_kurtosis, paired_t
 from ._common import groups, validated
 from ._experiments import corrected, experiments
-from ._units import contrasts_of, describe_groups, resolve_columns
+from ._units import (
+    contrasts_of,
+    control_label,
+    describe_groups,
+    resolve_columns,
+    side_units,
+    sides,
+)
 from .contrast_repeats import MIN_REPEATS
-from .discovery import _pooled
 
 QUANTILES = (0.1, 0.5, 0.9)
+# The field-balanced draws whose statistics are averaged, and the most cells kept a field.
+DRAWS = 50
+CELLS_CAP = 100
 # The statistics compared, in the order the report gives them.
 STATISTICS = ("spread", "q10", "q50", "q90")
 ALPHA = 0.05
@@ -213,23 +231,73 @@ class DistributionContrast:
         return int(self.tests["p"].notna().sum())
 
 
-def _statistics(treated: np.ndarray, control: np.ndarray) -> dict[str, float] | None:
-    """The spread (log SD ratio) and the quantile shifts in control SDs, or ``None``
-    without spread in the control."""
-    sd = np.std(control, ddof=1) if len(control) > 1 else 0.0
-    if not np.isfinite(sd) or sd == 0 or len(treated) < 2:
+def _drawn(fields: list[np.ndarray], n: int, m: int, draws: int, rng: Any) -> np.ndarray:
+    """``draws`` subsamples of ``n`` of ``fields`` and ``m`` values of each, one per row."""
+    cells = np.stack([f[np.argsort(rng.random((draws, len(f))), axis=1)[:, :m]] for f in fields])
+    chosen = np.argsort(rng.random((draws, len(fields))), axis=1)[:, :n]
+    return cells[chosen, np.arange(draws)[:, None]].reshape(draws, n * m)
+
+
+def _statistics(
+    treated: list[np.ndarray], control: list[np.ndarray], rng: Any
+) -> dict[str, float] | None:
+    """The spread (log SD ratio) and the quantile shifts in control SDs on field-balanced
+    subsamples of the fields ``treated`` and ``control`` (see the module), averaged over the
+    draws; ``None`` without two values a side or spread in the control."""
+    n = min(len(treated), len(control))
+    m = min(CELLS_CAP, *(len(f) for f in [*treated, *control])) if n else 0
+    if n * m < 2:
         return None
-    spread = np.std(treated, ddof=1) / sd
-    shifts = (np.quantile(treated, QUANTILES) - np.quantile(control, QUANTILES)) / sd
-    values = {"spread": float(np.log(spread)) if spread > 0 else np.nan}
-    values.update({f"q{round(q * 100)}": float(s) for q, s in zip(QUANTILES, shifts, strict=True)})
+    whole = all(len(f) == m for f in [*treated, *control])
+    draws = 1 if whole and len(treated) == len(control) == n else DRAWS
+    t, c = _drawn(treated, n, m, draws, rng), _drawn(control, n, m, draws, rng)
+    sd = c.std(axis=1, ddof=1)
+    kept = np.isfinite(sd) & (sd > 0)
+    if not kept.any():
+        return None
+    t, c, sd = t[kept], c[kept], sd[kept]
+    ratio = t.std(axis=1, ddof=1) / sd
+    shifts = (np.quantile(t, QUANTILES, axis=1) - np.quantile(c, QUANTILES, axis=1)) / sd
+    values = {"spread": float(np.log(ratio).mean()) if (ratio > 0).all() else np.nan}
+    values.update(
+        {f"q{round(q * 100)}": float(s.mean()) for q, s in zip(QUANTILES, shifts, strict=True)}
+    )
     return values
 
 
-def _rows(feature: str, condition: Any, side: dict[str, Any]) -> list[dict[str, Any]]:
+def _fields(
+    all_groups: list, described: list, contrasts: list, feature: str, technical_col: str | None
+) -> dict[Any, dict[str, Any]]:
+    """Per condition (or comparison), the fields holding values of ``feature`` of each side
+    per repeat (``by_t``, ``by_c``: lists of arrays) and its control's label."""
+    pooled: dict[Any, dict[str, Any]] = {}
+    for repeat, condition in contrasts:
+        treated, controls = sides(described, repeat, condition)
+        if not controls:
+            continue
+        found = [
+            side_units(all_groups, feature, chosen, technical_col)[0]
+            for chosen in (treated, controls)
+        ]
+        t_fields, c_fields = ([f for u in units for f in u if len(f)] for units in found)
+        if not t_fields or not c_fields:
+            continue
+        side = pooled.setdefault(
+            condition,
+            {"by_t": {}, "by_c": {}, "control_condition": control_label(described, controls)},
+        )
+        side["by_t"][repeat], side["by_c"][repeat] = t_fields, c_fields
+    return pooled
+
+
+def _rows(
+    feature: str, condition: Any, side: dict[str, Any], random_state: int
+) -> list[dict[str, Any]]:
     per_repeat = {}
     for repeat, treated in side["by_t"].items():
-        values = _statistics(treated, side["by_c"][repeat])
+        key = {"feature": feature, "condition": condition, "repeat": repeat}
+        rng = group_rng(random_state, {**key, "test": "beyond the mean"})
+        values = _statistics(treated, side["by_c"][repeat], rng)
         if values is not None:
             per_repeat[repeat] = values
     rows = []
@@ -269,9 +337,12 @@ def distribution_contrast(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     comparisons: Sequence[tuple[Any, Any]] | None = None,
+    random_state: int = 0,
 ) -> DistributionContrast:
     """Compare each feature's distribution with the control's (see the module); arguments
-    follow ``feature_discovery`` (``comparisons``: each condition against its reference)."""
+    follow ``feature_discovery`` (``comparisons``: each condition against its reference;
+    ``random_state`` seeds the field-balanced draws)."""
+    random_state = check_seed(random_state)
     if comparisons is not None:
         comparisons = check_comparisons(comparisons)
     features = list(dict.fromkeys(features))
@@ -286,24 +357,26 @@ def distribution_contrast(
     contrasts = contrasts_of(described)
     rows, held, shapes = [], {}, []
     for feature in features:
-        for condition, side in _pooled(
+        for condition, side in _fields(
             all_groups, described, contrasts, feature, technical_col
         ).items():
             held.setdefault(condition, set()).update(side["by_t"])
-            rows.extend(_rows(feature, condition, side))
-            shapes += [
-                {
-                    "feature": feature,
-                    "condition": condition,
-                    "repeat": repeat,
-                    "bimodality": bimodality_coefficient(treated),
-                    "kurtosis": excess_kurtosis(treated),
-                    "control_bimodality": bimodality_coefficient(side["by_c"][repeat]),
-                    "observations": len(treated),
-                    "control_observations": len(side["by_c"][repeat]),
-                }
-                for repeat, treated in side["by_t"].items()
-            ]
+            rows.extend(_rows(feature, condition, side, random_state))
+            # The split into two groups reads every observation, pooled.
+            for repeat, fields in side["by_t"].items():
+                cells, controls = np.concatenate(fields), np.concatenate(side["by_c"][repeat])
+                shapes.append(
+                    {
+                        "feature": feature,
+                        "condition": condition,
+                        "repeat": repeat,
+                        "bimodality": bimodality_coefficient(cells),
+                        "kurtosis": excess_kurtosis(cells),
+                        "control_bimodality": bimodality_coefficient(controls),
+                        "observations": len(cells),
+                        "control_observations": len(controls),
+                    }
+                )
     columns = ["feature", "condition", "control_condition", "statistic", "repeats", "values"]
     columns += ["mean", "low", "high", "lower", "higher", "p", "q", "experiment"]
     tests = pd.DataFrame(rows).reindex(columns=columns)
@@ -319,6 +392,9 @@ def distribution_contrast(
         "observation_unit_declared": data.observation_unit_declared,
         "repeat_col": repeat_col,
         "families": int(tests["experiment"].nunique()) if len(tests) else 0,
+        "random_state": random_state,
+        "draws": DRAWS,
+        "cells_cap": CELLS_CAP,
     }
     return DistributionContrast(tests, settings, pd.DataFrame(shapes, columns=SHAPE_COLUMNS))
 
@@ -348,6 +424,8 @@ def tests_words(result: DistributionContrast) -> str:
 
 
 __all__ = [
+    "CELLS_CAP",
+    "DRAWS",
     "QUANTILES",
     "SHAPE_COLUMNS",
     "SPLIT_COLUMNS",

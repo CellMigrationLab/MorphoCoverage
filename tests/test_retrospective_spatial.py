@@ -1,4 +1,4 @@
-"""Tests for acquisition-order efficiency (P8 of docs/questions.md)."""
+"""Tests for acquisition-order efficiency (P8 of docs/optimise/optimise.md)."""
 
 import re
 

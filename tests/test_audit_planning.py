@@ -148,6 +148,8 @@ def test_f11_missing_values_never_make_a_field_weigh_less():
         summaries=[Summary("x", "mean")],
         count_ratio=None,
         influence_threshold=0.2,
+        # The threshold alone: 3 fields are too few to judge whether one stands out.
+        influence_spread=None,
     )
     # Every field weighs one: the mean is 2 and leaving out b gives 1.5 (a 25% change).
     detail = result.fovs.set_index("image_file")["detail"]

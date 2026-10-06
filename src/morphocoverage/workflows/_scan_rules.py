@@ -5,11 +5,15 @@ columns that would say more, and the questions to answer before the analysis
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from typing import Any
+
+import pandas as pd
 
 from .._integrity_text import integrity_status
 from .._style import Status
 from .._wording import count, listing, percent
+from ..feature_tables import EXPLAINABLE, OBSERVATION_TABLE, FeatureTables, attach_feature_tables
 from ..sampling_unit.contrast_cells import IMBALANCE, MIN_BALANCED, SPARSE
 from ..schema import unit_plural
 from .scan import GOALS, DesignScan, Finding, Question
@@ -23,6 +27,46 @@ _UNIT_HINTS = (
 )
 
 
+def with_tables(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    tables: Mapping[str, pd.DataFrame | tuple[pd.DataFrame, str]] | None,
+    fov_col: str,
+    added: bool,
+) -> tuple[pd.DataFrame, FeatureTables | None, list[Finding]]:
+    """``objects`` with the other feature tables attached, what was checked, and the finding
+    that says why they cannot be used (then ``objects`` as given)."""
+    if not tables:
+        return objects, None, []
+    reason = None
+    if added:
+        reason = (
+            "the other feature tables are matched to observations by their image, and the "
+            "observation table names none"
+        )
+    else:
+        try:
+            attached = attach_feature_tables(objects, fovs, tables, fov_col=fov_col)
+        except (ValueError, TypeError) as error:
+            reason = str(error)
+        else:
+            return attached.objects, attached, []
+    text = f"{reason[:1].upper()}{reason[1:]}."
+    return objects, None, [Finding(Status.PROBLEM, "feature_tables", text)]
+
+
+def copy_tables(
+    features: list[str], explainable: dict[str, tuple[str, ...]], others: dict[str, Any]
+) -> dict[str, Any]:
+    """The tables the copy checks read apart: the observation table's features and each
+    explainable table when there are explainable tables, else the features as one; then
+    each other table (owner, 2026-10-06)."""
+    inside = {c for cols in explainable.values() for c in cols}
+    own = [c for c in features if c not in inside]
+    first = {OBSERVATION_TABLE: own, **explainable} if explainable else {EXPLAINABLE: features}
+    return {**first, **others}
+
+
 def unit_words(scan: DesignScan) -> tuple[str, str]:
     """The observation unit in the singular and plural (``observation`` when not declared)."""
     unit = scan.settings["observation_unit"] or "observation"
@@ -30,9 +74,9 @@ def unit_words(scan: DesignScan) -> tuple[str, str]:
 
 
 def compared(scan: DesignScan) -> list[Any]:
-    """The conditions compared with the control (all of them when there is no control)."""
-    control = scan.design.get("control_guess")
-    return [c for c in scan.design["conditions"] if c != control]
+    """The conditions compared with a control (all of them when there is no control)."""
+    controls = scan.design.get("controls") or [scan.design.get("control_guess")]
+    return [c for c in scan.design["conditions"] if c not in controls]
 
 
 def _check_findings(scan: DesignScan) -> list[Finding]:
@@ -157,6 +201,7 @@ def _target_suggestion(scan: DesignScan) -> str | None:
     text = (
         f"Several conditions are compared ({len(others)}"
         + (" besides the control" if scan.design.get("control_guess") is not None else "")
+        + ("s" if len(scan.design.get("controls") or []) > 1 else "")
         + "): add a 'target' column naming what each acts on, if some should have the same "
         "effect; the report then says whether they agree."
     )
@@ -300,9 +345,12 @@ def repeat_lines(scan: DesignScan) -> list[str]:
         return [f"{head}; every condition in every repeat."]
     lines = [f"{head}, holding different conditions (separate acquisitions):"]
     control = design.get("control_guess")
+    controls = design.get("controls") or [control]
     for entry in sets:
-        held = [c for c in entry["conditions"] if c != control]
-        shared = " with the control" if control in entry["conditions"] else ""
+        held = [c for c in entry["conditions"] if c not in controls]
+        mine = [c for c in controls if c in entry["conditions"]]
+        shared = f" with {listing(mine)}" if len(controls) > 1 and mine else ""
+        shared = shared or (" with the control" if control in entry["conditions"] else "")
         what = f"{listing(held, 6)}{shared}" if held else "the control only"
         lines.append(f"  {listing(entry['repeats'], 4)}: {what}")
     held_in = scan.layout.notna().sum(axis=1)
@@ -340,6 +388,7 @@ def technical_line(scan: DesignScan) -> str | None:
 
 __all__ = [
     "compared",
+    "copy_tables",
     "fields_line",
     "findings",
     "questions",
@@ -347,4 +396,5 @@ __all__ = [
     "suggestions",
     "technical_line",
     "unit_words",
+    "with_tables",
 ]

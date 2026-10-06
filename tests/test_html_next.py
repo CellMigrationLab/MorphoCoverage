@@ -68,9 +68,13 @@ def test_the_summary_names_the_significant_features_per_condition():
 
 
 def test_without_a_significant_feature_the_trends_are_named_once():
-    words = _words(significant_summary(_Result(_tests(3, 3, 0)), str))
+    # The trend line only from 6 repeats (owner, 2026-10-06, audit 8).
+    words = _words(significant_summary(_Result(_tests(6, 6, 0)), str))
     assert "drug : no feature significant across repeats" in words
     assert words.count("area lower") == 1 and words.count("dna higher") == 1
+    fewer = _words(significant_summary(_Result(_tests(3, 3, 0)), str))
+    assert "drug : no feature significant across repeats" in fewer
+    assert "area lower" not in fewer and "dna higher" not in fewer
 
 
 def test_with_two_repeats_the_summary_gives_the_candidates_that_agree():

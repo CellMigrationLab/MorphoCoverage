@@ -25,7 +25,7 @@ from .._style import Status, group_label, span
 from .._wording import change, count, listing, p_value
 from ..retrospective.inspection_text import _fields, _keys
 from ..sampling_unit._experiments import not_compared
-from ..sampling_unit.contrast_repeats import MIN_REPEATS
+from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.reading_text import VERDICTS, condition_readings, unpaired_conditions
 from ..schema import observation_words
 from ._distribution import split_words
@@ -165,9 +165,19 @@ def _direction(row: Any) -> str:
 
 
 def _named(rows: Any, words: Callable[[Any], str]) -> str:
-    """One sub-bullet per feature, the first ``NAMED``; the rest counted."""
-    shown = [f"<li>{html.escape(words(r))}</li>" for r in rows.head(NAMED).itertuples()]
-    more = len(rows) - len(shown)
+    """One sub-bullet per feature, the first ``NAMED``; the rest counted. With explainable
+    tables (a ``table`` column), the features listed under their table (owner, 2026-10-06)."""
+    first = rows.head(NAMED)
+    if "table" in first:
+        shown = [
+            f"<li>{html.escape(str(table))}<ul>"
+            + "".join(f"<li>{html.escape(words(r))}</li>" for r in mine.itertuples())
+            + "</ul></li>"
+            for table, mine in first.groupby("table", sort=False)
+        ]
+    else:
+        shown = [f"<li>{html.escape(words(r))}</li>" for r in first.itertuples()]
+    more = len(rows) - len(first)
     if more > 0:
         shown.append(f"<li>and {more} more (the heatmap below)</li>")
     return f"<ul>{''.join(shown)}</ul>"
@@ -211,9 +221,13 @@ def _condition_words(
             words = count(len(confirmed), "feature")
             listed = _named(confirmed, lambda row: _significant(row, unit))
         else:
+            # The trend line from TREND_REPEATS repeats only (owner, 2026-10-06, audit 8).
             consistent = candidates[
-                (candidates["lower"] == candidates["repeats"])
-                | (candidates["higher"] == candidates["repeats"])
+                (
+                    (candidates["lower"] == candidates["repeats"])
+                    | (candidates["higher"] == candidates["repeats"])
+                )
+                & (candidates["repeats"] >= TREND_REPEATS)
             ]
             words = "no feature significant across repeats"
             if len(consistent):
@@ -269,7 +283,7 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
             else f"the biological repeats, {span(held)} per condition"
         )
         head = (
-            f"Compared with {listing(controls, 3)}, the features significant across {across} "
+            f"Compared with {listing(controls, 8)}, the features significant across {across} "
             "(the paired t-test on the repeat means, adjusted p ≤ 0.05):"
         )
     else:
@@ -279,7 +293,7 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
             else f"{span(held)} biological repeats"
         )
         head = (
-            f"Compared with {listing(controls, 3)}: with {have}, "
+            f"Compared with {listing(controls, 8)}: with {have}, "
             f"no feature can be called significant (the test across repeats needs "
             f"{MIN_REPEATS}). The candidates of the {unit}-level screen, exploratory (every "
             f"{unit} an independent draw, so it asks whether these wells differ, not whether the "
@@ -308,7 +322,7 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
     return (
         f'<div class="summary"><p>{annotate(html.escape(head))}</p>'
         f'<ul class="significant">{annotate("".join(bullets))}</ul>'
-        + _not_compared(unpaired, listing(controls, 3), annotate)
+        + _not_compared(unpaired, listing(controls, 8), annotate)
         + "</div>"
     )
 
@@ -328,7 +342,7 @@ def readout_summary(result: Any, annotate: Callable[[str], str]) -> str:
     if readings is None or readings.empty:
         return ""
     controls = list(dict.fromkeys(readings["control_condition"].astype(str)))
-    unpaired = _not_compared(unpaired_conditions(contrast), listing(controls, 3), annotate)
+    unpaired = _not_compared(unpaired_conditions(contrast), listing(controls, 8), annotate)
     bullets = []
     for verdict in VERDICTS:
         rows = readings[readings["verdict"] == verdict]
@@ -343,7 +357,7 @@ def readout_summary(result: Any, annotate: Callable[[str], str]) -> str:
             f"<li><strong>{html.escape(verdict[:1].upper() + verdict[1:])}</strong>: "
             f"{html.escape(words)}</li>"
         )
-    head = f"{result.setup.readout}, compared with {listing(controls, 3)}, condition by condition:"
+    head = f"{result.setup.readout}, compared with {listing(controls, 8)}, condition by condition:"
     return (
         f'<div class="summary"><p>{annotate(html.escape(head))}</p>'
         f'<ul class="significant">{annotate("".join(bullets))}</ul>{unpaired}</div>'

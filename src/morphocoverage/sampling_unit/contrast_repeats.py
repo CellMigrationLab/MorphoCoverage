@@ -12,8 +12,8 @@ condition and control, from the per-repeat contrasts:
   mean below the control's of the same repeat, and how many above;
 - **the per-repeat Cohen's d** on the observations: their mean and range;
 - **the fold change** the normalised test compares: the geometric mean of the repeats'
-  ratios of the condition's mean to the control's (``fold_change``; NaN when a mean is not
-  positive, the raw change being ``mean_difference``);
+  ratios of the condition's mean to the control's (``fold_change``; NaN when the feature
+  has a value that is not positive, the raw change being ``mean_difference``);
 - **a paired t-test** on the per-repeat differences of means (treated minus
   control, paired by repeat), the usual SuperPlots test; it assumes the
   differences are normally distributed;
@@ -21,7 +21,8 @@ condition and control, from the per-repeat contrasts:
   repeat's ratio of the condition's mean to the control's (each value divided
   by the mean of its repeat's control, as "normalised to the control"), which
   tests a fold change and removes a scale both wells of a repeat share; NaN
-  when a mean is not positive;
+  when a value of the feature is not positive (the scale is chosen once per
+  feature from all its observations, owner 2026-10-06);
 - **an exact sign-flip test** on the same differences, which assumes only that
   their sign is exchangeable without an effect: every one of the ``2 ** n``
   sign assignments is enumerated, so p is exact and never below ``2 / 2 ** n``.
@@ -56,6 +57,10 @@ from ._reach import reachable
 
 # The fewest biological repeats holding both sides for a test across repeats.
 MIN_REPEATS = 3
+# The fewest repeats for the trend line "the same direction in every repeat, not significant"
+# (owner, 2026-10-06, audit 8): without an effect every repeat goes the same way in 25% of
+# experiments with 3 repeats, 13% with 4, 6% with 5 and 3% with 6.
+TREND_REPEATS = 6
 # Sign assignments enumerated at most (2 ** 16): beyond, the repeats are many and the
 # assignments are drawn at random.
 _EXACT_REPEATS = 16
@@ -107,16 +112,21 @@ def sign_flip_test(
     return (extreme + 1) / (n_draws + 1), 1.0 / (n_draws + 1), False
 
 
-def _log_ratios(block: pd.DataFrame) -> np.ndarray:
-    """Per repeat, log(condition mean / control mean); NaN (no test) unless every mean is
-    positive, since a ratio to a mean at or below 0 has no meaning as a fold change."""
-    values, ratios, _ = repeat_values(block["mean"], block["control_mean"])
+def _log_ratios(block: pd.DataFrame, log: bool | None = None) -> np.ndarray:
+    """Per repeat, log(condition mean / control mean); NaN (no test) unless the feature is
+    read on the log scale (``log``, ``statistics.log_scale``; ``None``: every mean
+    positive), since a ratio to a value at or below 0 has no meaning as a fold change."""
+    values, ratios, _ = repeat_values(block["mean"], block["control_mean"], log)
     return ratios if values == "normalised" else np.full(len(block), np.nan)
 
 
-def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: int) -> pd.DataFrame:
+def across_repeats(
+    table: pd.DataFrame, repeat_col: str | None, random_state: int, log: bool | None = None
+) -> pd.DataFrame:
     """One row per condition and control across the repeats of the per-repeat ``table``
-    (``condition_contrast``'s, with ``mean`` and ``control_mean``); see the module.
+    (``condition_contrast``'s, with ``mean`` and ``control_mean``); see the module. ``log``:
+    the feature's scale, from all its observations (``statistics.log_scale``), the same for
+    every condition (owner, 2026-10-06); ``None`` reads it from each condition's means.
 
     Empty when the repeats are not kept apart or no condition is compared in two repeats.
     """
@@ -137,7 +147,7 @@ def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: in
             "lower": int((differences < 0).sum()),
             "higher": int((differences > 0).sum()),
             "mean_difference": float(differences.mean()),
-            "fold_change": float(np.exp(np.mean(_log_ratios(block)))),
+            "fold_change": float(np.exp(np.mean(_log_ratios(block, log)))),
             "d_mean": float(d.mean()) if len(d) else np.nan,
             "d_min": float(d.min()) if len(d) else np.nan,
             "d_max": float(d.max()) if len(d) else np.nan,
@@ -165,7 +175,7 @@ def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: in
                 p_sign_flip_floor=floor,
                 p_sign_flip_exact=exact,
                 p_paired_t=paired_t(differences),
-                p_paired_t_normalised=paired_t(_log_ratios(block)),
+                p_paired_t_normalised=paired_t(_log_ratios(block, log)),
             )
         rows.append(row)
     result = pd.DataFrame(rows, columns=REPEAT_COLUMNS)
@@ -233,6 +243,7 @@ __all__ = [
     "MIN_REPEATS",
     "REPEAT_COLUMNS",
     "TARGET_COLUMNS",
+    "TREND_REPEATS",
     "across_repeats",
     "reagent_agreement",
     "sign_flip_test",

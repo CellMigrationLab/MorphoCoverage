@@ -1,25 +1,22 @@
 """What a dataset is, declared once for every workflow (``report``, ``optimise``, ``live``,
 ``benchmark``).
 
-Every scientific choice the workflows make is a field here or an explicit
-argument of a workflow, visible and recorded; the workflows add the
-computational settings (draws, splits, orders, resamples) and provisional
-presets (``minimum_detection`` here, ``optimise``'s ``protocol_threshold``,
-``benchmark``'s ``alphas``), which the declaration and the summaries print,
-and run the package's analyses in the order of ``docs/questions.md``.
-A field left at ``None`` switches off the analyses that need it, and the
-report then says "Not assessed" with what it would need.
+Every scientific choice the workflows make is a field here or an explicit argument of a
+workflow, visible and recorded; the workflows add the computational settings (draws, splits,
+orders, resamples) and provisional presets (``minimum_detection`` here, ``optimise``'s
+``protocol_threshold``, ``benchmark``'s ``alphas``), which the declaration and the summaries
+print, and run the package's analyses in the order of ``docs/report/questions.md``. A field left
+at ``None`` switches off the analyses that need it, and the report then says "Not assessed" with
+what it would need.
 
-The declaration also says what the acquisition must preserve (the front door
-of ``docs/questions.md``): a population summary (the mean of ``readout``
-within ``tolerances``), a phenotypic fingerprint (``fingerprint``: outcome
-criteria on the declared features), and a rare phenotype (``rare``: a
-``RareTarget``, with ``rare_label`` naming the objects that carry it when a
-label exists). ``Setup.criteria()`` turns the declaration into the outcome
-criteria every planning analysis judges on held-back fields,
-``Setup.objective()`` into the objective the live decision runs under (its
-components are the declared targets), and ``Setup.declaration()`` states it
-in sentences, which the report prints first.
+The declaration also says what the acquisition must preserve (the front door of
+``docs/common/setup.md``): a population summary (the mean of ``readout`` within ``tolerances``),
+a phenotypic fingerprint (``fingerprint``: outcome criteria on the declared features), and a
+rare phenotype (``rare``: a ``RareTarget``, with ``rare_label`` naming the objects that carry it
+when a label exists). ``Setup.criteria()`` turns the declaration into the outcome criteria every
+planning analysis judges on held-back fields, ``Setup.objective()`` into the objective the live
+decision runs under (its components are the declared targets), and ``Setup.declaration()``
+states it in sentences, which the report prints first.
 """
 
 from __future__ import annotations
@@ -60,6 +57,7 @@ from ._contrasts import (
     contrast_table,
     figure_control,
     normalized_text,
+    one_control,
     own_references,
     reference_control,
     single_control,
@@ -68,7 +66,9 @@ from ._declaration import declaration
 from ._feature_space import check_feature_tables, table_columns
 from ._setup_parts import (
     PositiveControl,
+    check_embedding_only,
     check_few_fovs,
+    check_positive,
     check_presets,
     default_novelty,
     warn_novelty_dimension,
@@ -79,7 +79,11 @@ from ._setup_parts import (
 class Setup:
     """The declaration of a dataset shared by the four workflows.
 
-    - ``readout``: the scalar the microscopist reports (one feature column).
+    - ``readout``: the scalar the microscopist reports (one feature column). ``None``
+      with no ``features`` makes an embedding-only Setup (owner, 2026-10-06): the
+      workflows then read the other feature tables alone (``feature_tables=``), and the
+      targets are the fingerprint of each table and the labelled phenotype, never a mean
+      (``docs/common/setup.md``).
     - ``features``: the representation for unusual observations and novelty
       (explicit columns; never inferred). Empty means the readout only.
     - ``control``: the negative-control groups, for example
@@ -91,40 +95,47 @@ class Setup:
       key to its condition (or listing them), owner 2026-10-05: ``{"condition":
       {"VEC_SiNC": {"SiCol6a1": "VEC_SiCol6a1"}, "VEC": {"THBS5": "THBS5"}}}``; each
       condition is tested against its own control, and the contrast table adds the
-      comparisons across experiments (``_contrasts``).
+      comparisons across experiments (``_contrasts``). One control declared that way (a
+      list, a keyed dict, a master), without parents, is ``{"condition": control}``: every
+      condition is compared with it, as with one control (owner, 2026-10-05).
     - ``control_parents``, ``master_control``: with several controls, a control's parent
       condition (``"VEC"`` or ``("VEC", "transfection")``, a treatment key), tested as a
       main verdict; and the control the other controls are compared with on raw values.
     - ``contrasts``: a contrast table (``_control.CONTRAST_COLUMNS``) in its place.
-    - ``feature_tables``: the other feature tables, each name with its columns, such as a
-      DINO embedding (owner, 2026-10-05): never tested feature by feature, they join the
-      explainable features in the maps, populations, unusual observations, novelty, copy
-      checks and fingerprint (``_feature_space``). Set by the workflows' ``feature_tables=``.
+    - ``intensity_features``: with several controls, declared columns compared between the
+      controls for an acquisition gap, beside every declared column whose name contains
+      "intensity" (``_acquisition_gap``, owner 2026-10-05).
+    - ``feature_tables``: the non-explainable feature tables, each name with its columns,
+      such as a DINO embedding (owner, 2026-10-05): never tested feature by feature, they
+      join the maps, the populations, the copy checks and their own fingerprints, never
+      novelty or unusual observations (owner, 2026-10-06; ``_feature_space``).
+      ``explainable_tables``: the explainable ones (fiberfeatures, CellProfiler), each name
+      with its final columns, explainable features to declare in ``features``; with none
+      declared, every column of them is a feature (owner, 2026-10-06). Both are set by the
+      workflows' ``feature_tables=``.
     - ``normalize``: ``"control_mean"`` divides every feature (the readout
       included) by the mean of the control condition's observations of the
       same repeat (``normalize_to_control``); needs ``control`` to name the
-      condition column. The normalised values are used only where values are
-      compared across repeats: by the outcome criteria judged on held-back
-      fields, the condition contrast, the feature ranking and the plots. Every
-      stopping rule runs on the raw values, in the report, ``optimise`` and
-      ``benchmark`` exactly as in the live session (which sees one field at a
-      time and no control), so one rule gives one verdict whichever workflow
-      runs it; so do the other analyses (variability, controls, inspection,
-      effort projection). ``None`` keeps the values as given.
+      condition column. What reads the normalised values and what the raw ones is
+      listed once, in ``_contrasts.normalised_readers`` (printed by the overview and
+      the declaration). Every stopping rule runs on the raw values, in the report,
+      ``optimise`` and ``benchmark`` exactly as in the live session (which sees one
+      field at a time and no control), so one rule gives one verdict whichever
+      workflow runs it. ``None`` keeps the values as given.
     - ``positive``: a ``PositiveControl``, for the detection check.
     - ``minimum_detection``: the share of positive-control checks the
       representation must recognize before the adequacy answers are read
       without a warning (default 0.9, a provisional preset, printed in the
       declaration).
-    - ``tolerances``: the readout's mean within these fractions, the outcomes
-      judged on held-back FOVs and the JCB targets; default the paper's 5% and
-      2.5%. This is the population-summary target.
-    - ``fingerprint``: the phenotypic-fingerprint target: outcome criteria on
-      the declared features (for example an ``OutcomeCriterion`` on
-      ``CovarianceError`` or ``QuantileError`` within a tolerance), judged on
-      held-back FOVs beside the mean. Their features must be declared in
-      ``features`` (or be the readout). Empty means the fingerprint is not
-      declared and the planning answers speak of the mean only.
+    - ``tolerances``: the readout's mean within these fractions, the outcomes judged on
+      held-back FOVs and the JCB targets; default the paper's 5% and 2.5%. This is the
+      population-summary target; ``()`` declares none and no mean-precision rule, beside a
+      fingerprint or a rare target (the guided "whole distribution", owner 2026-10-06).
+    - ``fingerprint``: the phenotypic-fingerprint target: outcome criteria on the declared
+      features (for example an ``OutcomeCriterion`` on ``CovarianceError`` or
+      ``QuantileError`` within a tolerance), judged on held-back FOVs beside the mean. Their
+      features must be declared in ``features`` (or be the readout). Empty means the
+      fingerprint is not declared and the planning answers speak of the mean only.
     - ``rare`` and ``rare_label``: the rare-phenotype target, a ``RareTarget``
       (its definition, prevalence and/or field incidence, detection
       probability, fields it must be seen in), and the observation column
@@ -183,7 +194,7 @@ class Setup:
     names are the ``readout`` and ``features`` declared here.
     """
 
-    readout: str
+    readout: str | None = None
     features: tuple[str, ...] = ()
     control: Mapping[str, Any] | None = None
     normalize: str | None = None
@@ -211,11 +222,13 @@ class Setup:
     control_parents: Mapping[Any, Any] | None = None
     contrasts: pd.DataFrame | None = field(default=None, compare=False)
     feature_tables: Mapping[str, tuple[str, ...]] | None = None
+    intensity_features: tuple[str, ...] = ()
+    explainable_tables: Mapping[str, tuple[str, ...]] | None = None
 
     def __post_init__(self) -> None:
-        if not isinstance(self.readout, str) or not self.readout:
-            raise TypeError("readout must be one column name")
-        for name in ("features", "tolerances", "effort_strata"):
+        if self.readout is not None and (not isinstance(self.readout, str) or not self.readout):
+            raise TypeError("readout must be one column name (None: no explainable features)")
+        for name in ("features", "tolerances", "effort_strata", "intensity_features"):
             value = getattr(self, name)
             if value is None and name == "effort_strata":
                 continue  # one stratum per condition (resolved_effort_strata)
@@ -244,15 +257,17 @@ class Setup:
                 raise TypeError("rare_label must be one object column name")
             if self.rare is None:
                 raise ValueError("rare_label labels a declared rare target: declare rare too")
-        if not self.tolerances or any(not 0 < t < 1 for t in self.tolerances):
+        if any(not 0 < t < 1 for t in self.tolerances):
             raise ValueError("tolerances must be fractions between 0 and 1, such as 0.05")
+        if not self.tolerances and not (self.fingerprint or self.rare is not None):
+            raise ValueError("tolerances=() declares no mean target: declare the fingerprint")
         if self.control is not None and (not isinstance(self.control, Mapping) or not self.control):
             raise TypeError("control must map FOV-table columns to values")
         check_controls(self)
-        if self.positive is not None and not isinstance(self.positive, PositiveControl):
-            raise TypeError("positive must be a PositiveControl")
-        if self.positive is not None and self.reference_control is None:
-            raise ValueError("a positive control is checked against the control: declare both")
+        single = one_control(self)
+        if single is not None:  # one control in the new forms is one control
+            object.__setattr__(self, "control", single)
+            object.__setattr__(self, "master_control", None)
         if self.normalize is not None:
             if self.normalize not in NORMALIZATIONS:
                 raise ValueError(f"normalize must be one of {list(NORMALIZATIONS)} or None")
@@ -268,20 +283,20 @@ class Setup:
                 "novelty is computed on the feature columns: declare features (the readout "
                 "alone is not the representation the definition of new was made for)"
             )
-        if self.positive is not None and self.novelty is None:
-            raise ValueError(
-                "a positive control is judged with the definition of new: declare novelty "
-                "(and features), or leave the positive control out"
-            )
+        check_positive(self)
+        check_embedding_only(self)
         check_presets(self)
         check_few_fovs(self)
         warn_novelty_dimension(self)
         check_feature_tables(self)
+        if set(self.intensity_features) - set(self.columns):
+            raise ValueError("intensity_features must be declared columns (readout or features)")
         undeclared = set(self.criterion_columns) - {*self.columns, *table_columns(self)}
         if undeclared:
             raise ValueError(
-                f"fingerprint criteria read feature columns {sorted(undeclared)} that are not "
-                "declared: add them to features (or use the readout or another feature table)"
+                f"fingerprint criteria read feature columns {sorted(undeclared)[:3]} (of "
+                f"{len(undeclared)}) that are not declared: add them to features, or declare "
+                "them as another feature table, feature_tables={name: columns}"
             )
         names = [c.name for c in self.criteria()]
         if len(set(names)) != len(names):
@@ -295,7 +310,20 @@ class Setup:
         ``benchmark`` and ``live_session``, so one rule gives one verdict on the
         same data whichever workflow runs it.
         """
+        if self.readout is None:  # embedding-only: no explainable feature
+            return []
         return [self.readout, *(f for f in self.features if f != self.readout)]
+
+    @property
+    def embedding_only(self) -> bool:
+        """Whether no explainable feature is declared (no readout): the other feature tables
+        are then all the report reads (owner, 2026-10-06)."""
+        return self.readout is None
+
+    @property
+    def mean_target(self) -> bool:
+        """Whether the readout's mean is a declared target (a readout and ``tolerances``)."""
+        return self.readout is not None and bool(self.tolerances)
 
     @property
     def criterion_columns(self) -> list[str]:
@@ -312,7 +340,8 @@ class Setup:
     def judged_columns(self) -> list[str]:
         """The readout plus every column a declared criterion reads: what
         ``sampling_reliability`` judges (the rules read ``columns``)."""
-        return [self.readout, *(c for c in self.criterion_columns if c != self.readout)]
+        first = [self.readout] if self.readout is not None else []
+        return [*first, *(c for c in self.criterion_columns if c != self.readout)]
 
     @property
     def resolved_few_fovs(self) -> int | None:
@@ -323,15 +352,14 @@ class Setup:
         return self.few_fovs if self.few_fovs is not None else self.novelty.min_other_fovs + 2
 
     def prepared(self, objects: pd.DataFrame, fovs: pd.DataFrame) -> pd.DataFrame:
-        """The observation table the outcome criteria, the contrast and the plots read.
+        """The normalised observation table (what reads it: ``_contrasts.normalised_readers``).
 
         With ``normalize="control_mean"`` every declared column is divided by
         its repeat's control mean; otherwise ``objects`` is returned unchanged.
-        A repeat without a control raises (``normalize_to_control``). The
-        stopping rules and the other analyses read the raw values, as live. With several
-        controls, each condition over its own control (``normalize_to_own``), for figures.
+        A repeat without a control raises (``normalize_to_control``). With several
+        controls, each condition over its own control (``normalize_to_own``).
         """
-        if self.normalize is None:
+        if self.normalize is None or not self.columns:  # embedding-only: nothing divided
             return objects
         if (own := self.own_references) is not None:
             kept = {"repeat_col": self.repeat_col(fovs), "own": own, **self.common}
@@ -347,8 +375,10 @@ class Setup:
         )
 
     def compared_values(self, objects: pd.DataFrame, fovs: pd.DataFrame) -> pd.DataFrame:
-        """What the tests read: ``prepared``, or raw values with a contrast table."""
-        return objects if self.comparisons is not None else self.prepared(objects, fovs)
+        """What the fingerprint and the outcomes judged on held-back fields read:
+        ``prepared``, normalised whenever ``normalize`` is declared, whatever the number of
+        controls (owner, 2026-10-06, audit 8, seed 8; ``_contrasts.normalised_readers``)."""
+        return self.prepared(objects, fovs)
 
     @property
     def contrast_table(self) -> pd.DataFrame | None:
@@ -450,6 +480,12 @@ class Setup:
         decides stays ``unsupported`` in the decision view rather than being
         assumed adequate.
         """
+        if not self.mean_target:  # no mean: the fingerprint and the rare phenotype only
+            if self.rare is None:
+                return ObjectiveConfig(SamplingObjective.DISTRIBUTION)
+            if self.fingerprint:  # owner, 2026-10-06 (audit 8): no population component
+                return ObjectiveConfig(SamplingObjective.DISTRIBUTION_RARE, rare=self.rare)
+            return ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=self.rare)
         if self.rare is not None and self.fingerprint:
             return ObjectiveConfig(SamplingObjective.ALL, rare=self.rare)
         if self.rare is not None:
@@ -472,7 +508,7 @@ class Setup:
                 "lower_is_better",
                 f"the mean of {self.readout} within {rate(tolerance)}",
             )
-            for tolerance in self.tolerances
+            for tolerance in (self.tolerances if self.mean_target else ())
         ]
         criteria += list(self.fingerprint)
         if self.rare is not None and self.rare_label is not None:
@@ -547,6 +583,8 @@ class Setup:
         or tracks of one image are far from independent draws (owner, 2026-10-02)."""
         if self.rules is not None:
             return self.rules
+        if not self.mean_target:  # the mean-precision rules read the readout's tolerance
+            return ()
         target = self.tolerances[0]
         per_fov = ScalarPrecisionStrategy(self.readout, target, "fov", "upper_95")
         if resolve_observation_unit(self.observation_unit)[0] not in OBJECT_LIKE_UNITS:

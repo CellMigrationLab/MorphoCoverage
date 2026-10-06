@@ -1,6 +1,6 @@
 """Run the locked benchmark (``benchmark_protocol.py``): fields saved at matched risk.
 
-Two questions of ``docs/questions.md`` are scored with
+Two questions of ``docs/optimise/benchmarking.md`` are scored with
 ``morphocoverage.retrospective.frontier``:
 
 - **mean**: on idr0028 (development) and idr0139 (held out), the JCB rule and

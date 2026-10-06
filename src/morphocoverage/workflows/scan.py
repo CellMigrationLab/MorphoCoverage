@@ -39,10 +39,10 @@ from typing import Any, TypeVar
 import pandas as pd
 
 from .._former_repeat import one_warning, read_former, renamed_tables
+from .._integrity_tables import integrity_by_table
 from .._style import Status, check_detail
 from ..data_check import DataCheck, check_tables
-from ..feature_tables import FeatureTables, attach_feature_tables
-from ..integrity import IntegrityResult, integrity_checks
+from ..integrity import IntegrityResult
 from ..metadata import (
     CONDITION_COLUMN,
     MORPHOBRICKS_FOV_CANDIDATES,
@@ -127,8 +127,9 @@ class Question:
 class DesignScan:
     """What ``scan_design`` found (see the module).
 
-    - ``design``: the facts, counted (conditions, the control, repeats, technical repeats,
-      fields, observations per field, planes, targets, reagent groups).
+    - ``design``: the facts, counted (conditions, the control, or the ``controls`` declared,
+      repeats, technical repeats, fields, observations per field, planes, targets, reagent
+      groups).
     - ``layout``: observations per condition (rows) and biological repeat (columns).
     - ``findings``: whether the tables were loaded correctly, one ``Finding`` each.
     - ``suggestions``: the columns that would say more, in sentences.
@@ -176,7 +177,7 @@ class DesignScan:
         ``goal="averages"`` compares the population averages (the readout's mean);
         ``"fingerprint"`` needs ``fingerprint=(OutcomeCriterion(...), ...)`` and ``"rare"``
         needs ``rare=RareTarget(...)`` in ``fields``, since their tolerances are the user's
-        choice (``docs/workflows.md``). The control must be declared or answered: a guessed
+        choice (``docs/common/setup.md``). The control must be declared or answered: a guessed
         control is never used silently.
         """
         if goal not in GOALS:
@@ -185,7 +186,7 @@ class DesignScan:
         if needed and not fields.get(needed):
             raise ValueError(
                 f"goal={goal!r} needs {needed}=... in the Setup: its tolerance is a scientific "
-                "choice with no default (see docs/workflows.md, 'What must the acquisition "
+                "choice with no default (see docs/common/setup.md, 'What must the acquisition "
                 "preserve?')"
             )
         settings = self.settings
@@ -202,6 +203,7 @@ class DesignScan:
             "group_cols": tuple(settings["group_cols"]),
             "observation_unit": settings["observation_unit"],
             "feature_tables": settings.get("feature_tables"),
+            "explainable_tables": settings.get("explainable_tables"),
         }
         values.update(fields)
         return Setup(readout=readout, **values)
@@ -426,34 +428,6 @@ def _constant(objects: pd.DataFrame, features: Sequence[str]) -> list[str]:
     return found
 
 
-def _with_tables(
-    objects: pd.DataFrame,
-    fovs: pd.DataFrame | None,
-    tables: Mapping[str, pd.DataFrame] | None,
-    fov_col: str,
-    added: bool,
-) -> tuple[pd.DataFrame, FeatureTables | None, list[Finding]]:
-    """``objects`` with the other feature tables attached, what was checked, and the finding
-    that says why they cannot be used (then ``objects`` as given)."""
-    if not tables:
-        return objects, None, []
-    reason = None
-    if added:
-        reason = (
-            "the other feature tables are matched to observations by their image, and the "
-            "observation table names none"
-        )
-    else:
-        try:
-            attached = attach_feature_tables(objects, fovs, tables, fov_col=fov_col)
-        except (ValueError, TypeError) as error:
-            reason = str(error)
-        else:
-            return attached.objects, attached, []
-    text = f"{reason[:1].upper()}{reason[1:]}."
-    return objects, None, [Finding(Status.PROBLEM, "feature_tables", text)]
-
-
 def _quiet(function: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     """``function`` with its ``UserWarning`` s caught: the scan reports what they say."""
     with warnings.catch_warnings():
@@ -470,7 +444,7 @@ def scan_design(
     control: Mapping[str, Any] | None = None,
     observation_unit: str | None = None,
     fov_col: str | None = None,
-    feature_tables: Mapping[str, pd.DataFrame] | None = None,
+    feature_tables: Mapping[str, pd.DataFrame | tuple[pd.DataFrame, str]] | None = None,
 ) -> DesignScan:
     """Scan the design of ``objects`` (and ``fovs``, when there is a FOV table) before any
     analysis (see the module).
@@ -480,12 +454,14 @@ def scan_design(
     without an image identifier (``position_id``, ``image_file``, ``fov_id`` or ``fov_col``)
     each row is assumed to be its own image; without ``control`` a condition named like a
     control is suggested, never used. ``feature_tables`` are other feature tables for the same
-    observations, by name (a DINO embedding, owner 2026-10-05): checked and attached
-    (``attach_feature_tables``), they are listed with the design, read by the copy checks,
-    and named in ``DesignScan.setup``; one that cannot be used is a finding. Never raises
-    for bad data: what is wrong is in the findings.
+    observations, by name, each a DataFrame or ``(DataFrame, "explainable" or
+    "non-explainable")`` (owner, 2026-10-05 and 2026-10-06): checked and attached
+    (``attach_feature_tables``), they are listed with their tags, read by the copy checks,
+    and named in ``DesignScan.setup``; an explainable table's columns are candidate features.
+    One that cannot be used is a finding. Never raises for bad data: what is wrong is in the
+    findings.
     """
-    from ._scan_rules import findings, questions, suggestions
+    from ._scan_rules import copy_tables, findings, questions, suggestions, with_tables
 
     if not isinstance(objects, pd.DataFrame):
         raise TypeError(f"objects must be a pandas DataFrame, not {type(objects).__name__}")
@@ -494,6 +470,11 @@ def scan_design(
     objects = objects.copy()
     control_declared = control is not None
     control_value = dict(control).get(CONDITION_COLUMN) if control else None
+    # Several controls in Setup's form (owner, 2026-10-05): checked as their pool, the first
+    # declared drawn first, as the report does (audit 8B).
+    controls = list(control_value) if isinstance(control_value, Mapping) else []
+    checked_control = {CONDITION_COLUMN: tuple(controls)} if controls else control
+    control_value = controls[0] if controls else control_value
 
     found_fov = _fov_column(objects, fovs, fov_col)
     added_fov = found_fov is None
@@ -514,30 +495,37 @@ def scan_design(
     features_declared = feature_cols is not None
     taken = {*fov_key, *groups}
     features = list(feature_cols) if features_declared else _feature_candidates(objects, taken)
-    objects, tables, refused = _with_tables(objects, fovs, feature_tables, found_fov, added_fov)
-    others = [c for columns in (tables.columns if tables else {}).values() for c in columns]
+    objects, tables, refused = with_tables(objects, fovs, feature_tables, found_fov, added_fov)
+    # An explainable table's columns are features (owner, 2026-10-06).
+    explainable = tables.explainable if tables else {}
+    features += [c for cols in explainable.values() for c in cols if c not in features]
+    others = tables.other if tables else {}
+    # Without explainable features, the other tables' columns (owner, 2026-10-06).
+    checked = features or [c for cols in others.values() for c in cols]
     data_check = _quiet(
         check_tables,
         objects,
         fovs,
-        feature_cols=features,
+        feature_cols=checked,
         fov_col=found_fov,
         observation_unit=observation_unit,
-        control=control,
+        control=checked_control,
     )
     integrity = None
-    if data_check.ok and features:
+    if data_check.ok and checked:
+        # On each feature table apart, the union said (owner, 2026-10-06).
         integrity = _quiet(
-            integrity_checks,
+            integrity_by_table,
             objects,
             fovs,
-            feature_cols=[*features, *others],
+            tables=copy_tables(features, explainable, others),
             fov_col=found_fov,
             observation_unit=observation_unit,
         )
     # A FOV table that passed the data check lists every field acquired, empty ones included.
     listed = fovs if fovs_given and data_check.ok else None
     design, layout = _design(objects, fov_key, control_value, control_declared, listed)
+    design["controls"] = controls or ([control_value] if control_declared else [])
     design["balance"] = _balance(layout, design["repeats"])
     design["constant"] = _constant(objects, features) if data_check.ok and features_declared else []
     columns = [*objects.columns, *(fovs.columns if fovs is not None else ())]
@@ -555,9 +543,10 @@ def scan_design(
         "observation_unit": observation_unit,
         "control": dict(control) if control else None,
         "control_declared": control_declared,
-        "feature_tables": tables.columns if tables else None,
+        "feature_tables": others or None,
+        "explainable_tables": explainable or None,
     }
-    design["feature_tables"] = tables.lines() if tables else []
+    design["feature_tables"] = tables.lines(tags=True) if tables else []  # with their tags
     scan = DesignScan(
         design=design,
         layout=layout,

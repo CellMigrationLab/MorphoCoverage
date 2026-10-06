@@ -4,17 +4,26 @@ With many features, a plot per feature cannot show whether the conditions separa
 combination of them. ``embed`` places every observation in two dimensions, two ways:
 
 - **PCA** of the robustly standardised features (each centred on its median and divided
-  by its MAD as an SD, or by its SD where the MAD is 0; a feature with one value
-  everywhere is left out), with the share of the variance each axis holds and the
-  ``loadings``: how much each feature weighs on each axis, the ``top`` features (the
+  by its MAD as an SD, or by its SD where the MAD is under ``MAD_FLOOR`` of the SD; a
+  feature with one value everywhere is left out), with the share of the variance each axis
+  holds and the ``loadings``: how much each feature weighs on each axis, the ``top`` features (the
   discovery's best-ranked ones) marked, so the axes can be read in features;
 - **UMAP** of the same standardised features (``umap-learn``: ``n_neighbors``,
   ``min_dist``, seeded by ``random_state``), which keeps neighbourhoods rather than
   variance and so can show groups PCA mixes.
 
-With ``weights`` (a weight per feature, the others 1), each standardised feature is
-multiplied by its weight before both: the weighted combined space of several feature tables
-(``feature_tables.table_weights``), where every table carries the same total variance.
+With ``blocks`` (each feature table's columns, the explainable features first), each
+standardised table is weighted by its first singular value before both: the weighted
+combined space of several feature tables (``feature_tables.mfa_weights``, owner 2026-10-06),
+and the settings give each table's share of each axis (``table_shares``). ``weights`` (a
+fixed weight per feature, the others 1) multiply the standardised features as given.
+
+The floor on the MAD (owner, 2026-10-06): a column with just under half its values at one
+value, as an embedding's ReLU outputs, has a MAD far below its spread, and divided by it
+alone would carry thousands of times the variance of the others. Below ``MAD_FLOOR`` (a
+quarter) of the SD, the SD scales it, so no column carries more than 16 times the variance
+of another's middle; a column whose MAD is at least a quarter of its SD, as in normal,
+skewed or moderately heavy-tailed data, is scaled by its MAD as before.
 
 Both are descriptions, not tests: a separation in either is a pattern to read with the
 discovery's tests, and its absence does not show the conditions alike. Observations with a
@@ -34,6 +43,7 @@ import numpy as np
 import pandas as pd
 
 from ._checks import as_count, check_seed
+from .feature_tables import mfa_weights, table_shares
 from .metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from .schema import fov_positions, validate_input_tables
 
@@ -43,6 +53,8 @@ N_NEIGHBORS = 15
 MIN_DIST = 0.1
 # The MorphoBricks column naming an object within its image (CellPatcher's patches).
 LABEL_COLUMN = "label_id"
+# Below this share of a column's SD, its MAD is no scale: the SD scales it (see the module).
+MAD_FLOOR = 0.25
 
 
 @dataclass(frozen=True)
@@ -60,14 +72,37 @@ class Embedding:
     settings: dict[str, Any]
 
 
-def _standardised(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Median and MAD-scaled columns (SD where the MAD is 0), and which columns vary."""
+def robust_scale(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Each column's median and robust scale: its MAD as an SD, or its SD where the MAD is
+    under ``MAD_FLOOR`` of it (see the module); 0 for a column with one value. The one
+    robust standardisation of the maps, the fingerprint of a wide table and the
+    whole-table test (owner, 2026-10-06)."""
     centre = np.median(matrix, axis=0)
     scale = 1.4826 * np.median(np.abs(matrix - centre), axis=0)
     sd = matrix.std(axis=0, ddof=1) if len(matrix) > 1 else np.zeros(matrix.shape[1])
-    scale = np.where(scale > 0, scale, sd)
+    return centre, np.where(scale >= MAD_FLOOR * sd, scale, sd)
+
+
+def _standardised(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Median and MAD-scaled columns (the SD where the MAD is under ``MAD_FLOOR`` of it), and
+    which columns vary."""
+    centre, scale = robust_scale(matrix)
     varies = scale > 0
     return (matrix[:, varies] - centre[varies]) / scale[varies], varies
+
+
+def combined(
+    z: np.ndarray,
+    features: Sequence[str],
+    weights: Mapping[str, float] | None = None,
+    blocks: Mapping[str, Sequence[str]] | None = None,
+) -> np.ndarray:
+    """``z`` with each table weighted as the combined space weighs it (``blocks``,
+    ``feature_tables.mfa_weights``), then each column times its fixed weight (``weights``);
+    ``z`` itself without either."""
+    if blocks:
+        z = z * mfa_weights(z, features, blocks)
+    return weighted(z, features, weights)
 
 
 def weighted(
@@ -129,13 +164,14 @@ def embed(
     observation_unit: str | None = None,
     weights: Mapping[str, float] | None = None,
     standardised: Sequence[str] | None = None,
+    blocks: Mapping[str, Sequence[str]] | None = None,
 ) -> Embedding:
     """PCA (and, with ``umap``, UMAP) of ``features`` (see the module); needs at least
     ``MIN_FEATURES`` features that vary. ``carry`` are observation columns copied onto the
     points (a population, a label); the points also hold each feature's standardised value
     (``z:<feature>``), for colouring the maps and describing a selection (of the features in
-    ``standardised`` only, when given); ``weights`` weigh the standardised features (see the
-    module)."""
+    ``standardised`` only, when given); ``weights`` and ``blocks`` weigh the standardised
+    features (see the module)."""
     features = list(dict.fromkeys(features))
     max_points = as_count(max_points, "max_points", 10)
     n_neighbors = as_count(n_neighbors, "n_neighbors", 2)
@@ -153,7 +189,7 @@ def embed(
     complete = ~np.isnan(matrix).any(axis=1)
     z, varies = _standardised(matrix[complete])
     kept_features = [f for f, v in zip(features, varies, strict=True) if v]
-    z = weighted(z, kept_features, weights)
+    z = combined(z, kept_features, weights, blocks)
     if len(kept_features) < MIN_FEATURES:
         raise ValueError(
             f"an embedding needs at least {MIN_FEATURES} features that vary; "
@@ -212,6 +248,13 @@ def embed(
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
         "weights": dict(weights) if weights else None,
+        # The combined space: each table's share of PC1 and PC2 (owner, 2026-10-06).
+        "table_shares": table_shares(loadings, kept_features, blocks) if blocks else None,
+        "table_columns": (
+            {n: sum(c in set(kept_features) for c in cols) for n, cols in blocks.items()}
+            if blocks
+            else None
+        ),
     }
     return Embedding(points, table, explained, settings)
 
@@ -232,4 +275,4 @@ def _umap(z: np.ndarray, n_neighbors: int, min_dist: float, random_state: int) -
         return reducer.fit_transform(z)
 
 
-__all__ = ["MIN_FEATURES", "Embedding", "embed"]
+__all__ = ["MIN_FEATURES", "Embedding", "embed", "robust_scale"]

@@ -209,6 +209,7 @@ dl.glossary { margin: 6px 0 14px; }
 .tabs [role="tab"][aria-selected="true"] { background: var(--surface-2); color: var(--text);
   font-weight: 600; }
 .tabs [role="tab"] .mark { margin-left: 6px; }
+.tabs .tab-group { flex-basis: 100%; font-weight: 600; margin-top: 6px; }
 .tab-panel { border: 1px solid var(--border); border-top: 0; border-radius: 0 0 8px 8px;
   padding: 10px 14px; }
 .picker .pick { display: flex; flex-direction: column; gap: 6px; max-width: 520px;

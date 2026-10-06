@@ -1,0 +1,34 @@
+{
+ "name": "m07_positive_control_seen_too_few_fields",
+ "kind": "mistake",
+ "checks": "a positive control after 2 reference fields, where the definition of new needs 5: refused at the Setup, naming the minimum",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  },
+  "positive": {
+   "selector": {
+    "condition": "a"
+   },
+   "fovs_seen": 2,
+   "draws": 5
+  },
+  "novelty": "default"
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "refused",
+  "at": "setup",
+  "error": "ValueError",
+  "match": "fovs_seen=5 or"
+ }
+}

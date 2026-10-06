@@ -27,25 +27,33 @@ from ..retrospective.replay import strategy_label
 from ..schema import resolve_observation_unit
 from ..statistics import fovs_to_detect
 from ..strategies import ScalarPrecisionStrategy
-from ._contrasts import controls_sentence
+from ._contrasts import controls_sentence, normalised_readers
 
 if TYPE_CHECKING:
     from .setup import Setup
 
 
-def declaration(setup: Setup) -> tuple[str, ...]:
-    """What ``setup`` asks the acquisition to preserve, in sentences (see the module)."""
+def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
+    """What ``setup`` asks the acquisition to preserve, in sentences (see the module);
+    ``per_field=False`` (one observation per field) leaves out what then does not run."""
     tolerances = " and ".join(rate(t) for t in setup.tolerances)
     units = setup.unit_words
     lines = [
         (
             f"Population summary: the mean of {setup.readout} over all {units}, within "
             f"{tolerances} of its value on held-back fields."
+            if setup.mean_target
+            else _no_mean(setup)
         )
     ]
     if setup.fingerprint:
         named = "; ".join(c.description or c.name for c in setup.fingerprint)
         lines.append(f"Phenotypic fingerprint: {named}; judged on held-back fields.")
+    elif setup.readout is None:
+        lines.append(
+            "Phenotypic fingerprint: not declared (no distribution criterion in fingerprint), "
+            "so no answer below says whether the distribution was sampled enough."
+        )
     else:
         lines.append(
             "Phenotypic fingerprint: not declared (no distribution criterion in "
@@ -59,31 +67,31 @@ def declaration(setup: Setup) -> tuple[str, ...]:
             "Rare phenotype: not declared (no RareTarget in rare), so no answer below "
             "says whether a rare state was sampled enough."
         )
-    lines.append(f"Representation: readout {setup.readout}; {_representation(setup)}.")
+    lines.append(_representation_line(setup, per_field))
     controls = controls_sentence(setup)
     if controls:  # several controls (owner, 2026-10-05)
         lines.append(f"{controls}.")
-    if setup.novelty is not None:
+    if novelty_runs(setup, per_field):  # the positive control is judged by it
         lines.append(_novelty(setup))
-    if setup.positive is not None:
-        lines.append(_positive(setup))
-    lines.append(_rules(setup))
+        lines += [_positive(setup)] if setup.positive is not None else []
+    if setup.stopping_rules():  # an embedding-only Setup has none (NO_READOUT says why)
+        lines.append(_rules(setup))
     lines.append(_order(setup))
-    if setup.normalize is not None and controls:
+    if setup.normalize is not None and setup.readout is None:
+        lines.append(_tables_centred(per_field))
+    elif setup.normalize is not None and controls:
         lines.append(
             f"Values: every declared feature divided by the mean of each condition's own "
-            f"control {units} of the same repeat (a control by its parent's), for the plots and "
-            "the populations; the raw values are where levels across experiments are read, "
-            "and the tests read them, each normalising to its own control."
+            f"control {units} of the same repeat (a control by its parent's); "
+            f"{normalised_readers(several=True)}."
         )
     elif setup.normalize is not None:
         lines.append(
             "Values: every declared feature divided by the mean of the control "
             f"{control_text(setup.reference_control)} {units} of the same repeat (of the whole "
-            "table without a repeat column) for the outcomes judged on held-back fields, the "
-            "condition contrast, the feature ranking and the plots; every stopping rule "
-            "runs on the raw values, in the report, optimise and benchmark as in the live "
-            "decision, and so do the other analyses."
+            f"table without a repeat column); {normalised_readers()}; every stopping rule "
+            "runs on the raw values in the report, optimise and benchmark as in the live "
+            "decision."
         )
     objective = setup.objective()
     targets = " and ".join(
@@ -97,29 +105,116 @@ def declaration(setup: Setup) -> tuple[str, ...]:
     return tuple(lines)
 
 
-def _representation(setup: Setup) -> str:
-    """What the declared features are used for; unusual observations need the control."""
+# An embedding-only Setup's normalisation (owner, 2026-10-06).
+TABLES_CENTRED = (
+    "Values: the other feature tables centred per biological repeat, on the median of the "
+    "per-condition medians of the conditions in every repeat, for the maps, the "
+    "populations, unusual observations and the separation of the conditions; never divided, "
+    "and never for a test, which reads the raw values."
+)
+
+
+def _tables_centred(per_field: bool) -> str:
+    """``TABLES_CENTRED``, without unusual observations when one per field leaves them out."""
+    if per_field:
+        return TABLES_CENTRED
+    return TABLES_CENTRED.replace("populations, unusual observations and", "populations and")
+
+
+def _no_mean(setup: Setup) -> str:
+    """The population-summary line without a mean target: ``NO_READOUT``, or ``NO_MEAN``."""
+    return NO_READOUT if setup.readout is None else NO_MEAN.format(readout=setup.readout)
+
+
+# A readout with tolerances=(), the guided "whole distribution" (owner, 2026-10-06).
+NO_MEAN = (
+    "Population summary: not declared (tolerances=()), the whole distribution being the aim, "
+    "so the mean-precision rules are not declared; the tests still compare the mean of "
+    "{readout} between the conditions."
+)
+# An embedding-only Setup's population summary, the one place it is said (owner, 2026-10-06).
+NO_READOUT = (
+    "Population summary: none, as there is no readout (no explainable features, an "
+    "embedding-only report), so the mean-precision rules are not applicable; the targets "
+    "are the fingerprint of each feature table and the labelled phenotype, when declared."
+)
+
+
+def novelty_runs(setup: Setup, per_field: bool = True) -> bool:
+    """Whether new phenotypes are judged: a definition of new, and not one observation per
+    field when a new state needs several similar ones in one field (``_shared``'s
+    ``one_per_field_reasons``)."""
+    needed = int(getattr(setup.novelty, "min_novel_observations", 1))
+    return setup.novelty is not None and (per_field or needed <= 1)
+
+
+def _unusual_missing(setup: Setup, per_field: bool) -> str:
+    """Why unusual observations are not assessed (empty when they are): they need the
+    control and several observations per field."""
+    if setup.reference_control is None:
+        return "not assessed without a control"
+    return "" if per_field else f"not assessed, as each field holds one {setup.unit_word}"
+
+
+def _representation_line(setup: Setup, per_field: bool = True) -> str:
+    """``Representation: readout area; ...``, or what an embedding-only Setup reads."""
+    if setup.readout is None:
+        tables = setup.feature_tables or {}
+        space = (
+            "their weighted combined space"
+            if len(tables) > 1
+            else f"the {count(sum(len(c) for c in tables.values()), 'column')} of "
+            f"{next(iter(tables), 'the table')}"
+        )
+        missing = _unusual_missing(setup, per_field)
+        unusual = f"{setup.unit_words} {missing}" if missing else f"{setup.unit_words} on {space}"
+        then = "; no" if missing else ", no"
+        tables_only = "Representation: the other feature tables only"
+        return f"{tables_only}; unusual {unusual}{then} definition of new."
+    return f"Representation: readout {setup.readout}; {_representation(setup, per_field)}."
+
+
+def _representation(setup: Setup, per_field: bool = True) -> str:
+    """What the declared features are used for; unusual observations need the control and,
+    with new phenotypes, several observations per field."""
     units = setup.unit_words
     if not setup.features:
-        # Unusual observations and novelty read the declared features only (see report).
+        # Unusual observations and novelty read the declared features only (see report);
+        # beside other tables, unusual observations read the readout alone (audit 8, seed 2).
+        if setup.feature_tables and not _unusual_missing(setup, per_field):
+            return (
+                f"no feature columns declared, so new phenotypes are not assessed; unusual "
+                f"{units} on the readout alone, the other tables never entering them"
+            )
         return (
             f"no feature columns declared, so unusual {units} and new phenotypes are not assessed"
         )
+    # The other feature tables never enter unusual observations or novelty (owner,
+    # 2026-10-06): the declared features alone.
     columns = count(len(setup.features), "declared feature column")
-    if setup.feature_tables:  # owner, 2026-10-05: the other tables join them, weighted
-        names = ", ".join(setup.feature_tables)
-        tables = "tables" if len(setup.feature_tables) > 1 else "table"
-        columns += f" and the other feature {tables} {names}, weighted to count as much"
     against = "each condition's own control" if setup.contrast_table is not None else "the control"
+    if not per_field:  # one observation per field (``_shared.one_per_field_reasons``)
+        one = f"each field holds one {setup.unit_word}"
+        unusual = f"unusual {units} are not assessed" + (
+            " without a control" if setup.reference_control is None else f", as {one}"
+        )
+        if setup.novelty is None:
+            new = "new phenotypes are not assessed (no definition of new: novelty)"
+            return f"{columns}; {unusual}; {new}"
+        new = f"new phenotypes (new: {_new_words(setup)})"
+        if novelty_runs(setup, per_field):
+            return f"{columns} for {new}; {unusual}"
+        return f"{columns}; {unusual}; {new} are not assessed, as {one}"
     if setup.novelty is None:
         new = "new phenotypes are not assessed (no definition of new: novelty)"
-        if setup.control is None:
+        # A contrast table alone gives own controls: unusual observations read them.
+        if setup.reference_control is None:
             return f"{columns}; {new}, and unusual {units} are not assessed without a control"
         return (
             f"{columns} for unusual {units} (against {against} {units}, their repeats "
             f"pooled); {new}"
         )
-    if setup.control is None:
+    if setup.reference_control is None:
         return (
             f"{columns} for new phenotypes (new: {_new_words(setup)}); "
             f"unusual {units} are not assessed without a control"
@@ -190,9 +285,14 @@ def _positive(setup: Setup) -> str:
             "paired across the whole table, every repeat pooled (pair_cols=()), so a shift "
             "between repeats can read as a detected phenotype"
         )
+    # Several own controls are one reference, pooled: named, never as a dict (F10).
+    reference = setup.reference_control or {}
+    pooled = [str(v) for spec in reference.values() if isinstance(spec, tuple) for v in spec]
+    against = f"the control {control_text(reference)}"
+    if len(pooled) > 1:
+        against = f"the controls {listing(pooled)} pooled"
     return (
-        f"Positive control: fields of {dict(positive.selector)} judged against the control "
-        f"{control_text(setup.reference_control)} after "
+        f"Positive control: fields of {dict(positive.selector)} judged against {against} after "
         f"{count(positive.fovs_seen, 'reference field')}, "
         f"{paired}. If fewer than {percent(setup.minimum_detection)} of its checks are "
         "recognized (minimum_detection, a provisional preset), every adequacy answer carries "
@@ -229,8 +329,12 @@ def _rules(setup: Setup) -> str:
         line += (
             f" The mean-precision rules stop when the standard error of the mean is {cvs} of "
             f"the mean (its averaging CV), not on a bound of ±{rate(targets[0])} on its error; "
-            f"whether the mean is within {' and '.join(rate(t) for t in setup.tolerances)} is "
-            "judged on held-back fields by optimise, never by the rules or this report."
+            + (
+                f"whether the mean is within {' and '.join(rate(t) for t in setup.tolerances)} "
+                "is judged on held-back fields by optimise, never by the rules or this report."
+                if setup.tolerances
+                else "no mean target is declared (tolerances=())."
+            )
         )
     return line
 
@@ -379,9 +483,10 @@ def _order_short(setup: Setup) -> tuple[str | None, list[str]]:
     ]
 
 
-def declaration_short(setup: Setup, indent: int = 2) -> str:
+def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> str:
     """The declaration in a line per target and setting, each caveat once (a missing
-    declaration as a ⚠️ line, a standing assumption under "Assumptions:").
+    declaration as a ⚠️ line, a standing assumption under "Assumptions:"); ``per_field`` as
+    for ``declaration``.
 
     The report's short form of "What this acquisition was asked to preserve";
     ``declaration(setup)`` keeps every sentence.
@@ -391,6 +496,8 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
         (
             f"Population summary: the mean of {setup.readout} over all {setup.unit_words}, within "
             f"{tolerances} (judged on held-back fields by optimise)."
+            if setup.mean_target
+            else _no_mean(setup)
         )
     ]
     cautions = []
@@ -401,18 +508,22 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
         cautions.append(
             assumption(
                 "no phenotypic fingerprint declared (fingerprint), so the answers speak of the "
-                "mean, not of the distribution of phenotypes"
+                + (
+                    "mean, not of the distribution of phenotypes"
+                    if setup.readout is not None
+                    else "tests between conditions only, not of a distribution sampled enough"
+                )
             )
         )
     rare, rare_cautions = _rare_short(setup)
     lines += [rare] if rare else []
     cautions += rare_cautions
-    lines.append(f"Representation: readout {setup.readout}; {_representation(setup)}.")
+    lines.append(_representation_line(setup, per_field))
     controls = controls_sentence(setup)
     lines += [f"{controls}."] if controls else []
-    if setup.novelty is not None:
+    if novelty_runs(setup, per_field):
         lines.append(_novelty_short(setup))
-    if setup.positive is not None:
+    if setup.positive is not None and novelty_runs(setup, per_field):
         positive = setup.positive
         pooled = positive.pair_cols is not None and not positive.pair_cols
         lines.append(
@@ -429,7 +540,8 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
     unit = resolve_observation_unit(setup.observation_unit)[0]
     rules = listing([rule_label(rule, unit) for rule in setup.stopping_rules()], limit=10)
     default = " (the default)" if setup.rules is None else ""
-    lines.append(f"Stopping rules: {rules}{default}; run live, calibrated by optimise.")
+    if setup.stopping_rules():  # an embedding-only Setup has none (NO_READOUT says why)
+        lines.append(f"Stopping rules: {rules}{default}; run live, calibrated by optimise.")
     targets = sorted(
         {r.target_cv for r in setup.stopping_rules() if isinstance(r, ScalarPrecisionStrategy)}
     )
@@ -438,25 +550,29 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
         cautions.append(
             assumption(
                 f"the mean-precision rules stop when the standard error of the mean is {cvs} of "
-                f"the mean (its averaging CV), not on a ±{rate(targets[0])} bound on its error; "
-                f"whether the mean is within {tolerances} is judged on held-back fields by "
-                "optimise"
+                f"the mean (its averaging CV), not on a ±{rate(targets[0])} bound on its error"
+                + (
+                    f"; whether the mean is within {tolerances} is judged on held-back fields "
+                    "by optimise"
+                    if setup.tolerances
+                    else ""
+                )
             )
         )
     order, order_cautions = _order_short(setup)
     lines += [order] if order else []
     cautions += order_cautions
-    if setup.normalize is not None and controls:
+    if setup.normalize is not None and setup.readout is None:
+        lines.append(_tables_centred(per_field))
+    elif setup.normalize is not None and controls:
         lines.append(
-            "Values: each condition divided by its own control's mean in the same repeat for "
-            "the plots and the populations; levels across experiments are read on the raw "
-            "values, which the tests and the stopping rules read."
+            "Values: each condition divided by its own control's mean in the same repeat; "
+            f"{normalised_readers(several=True)}."
         )
     elif setup.normalize is not None:
         lines.append(
-            "Values: features divided by the control mean of the same repeat for the held-back "
-            "outcomes, the contrast, the ranking and the plots; the stopping rules read the "
-            "raw values."
+            f"Values: features divided by the control mean of the same repeat; "
+            f"{normalised_readers()}."
         )
     objective = setup.objective()
     targets = listing(
@@ -470,4 +586,4 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
     return "\n".join([*text, *caveat_lines(cautions, indent=indent)])
 
 
-__all__ = ["declaration", "declaration_short"]
+__all__ = ["declaration", "declaration_short", "novelty_runs"]

@@ -42,8 +42,8 @@ def plots(
     |d| first, the readout among them only when it ranks (and alone when none does).
 
     Within each condition the biological repeats sit side by side; every
-    object is a point coloured by technical repeat (a well), with each
-    biological repeat's median and its interval from resampling its whole
+    object is a point in its condition's colour, shaped by technical repeat (a
+    well), with each biological repeat's median and its interval from resampling its whole
     technical repeats with their fields as acquired, not reliable with only
     2-3 technical repeats, which the legend says (``plots.plots_of_data``, which
     also takes ``settings`` such as ``summary`` or ``max_conditions``). Normalised
@@ -134,8 +134,12 @@ def _add_pairwise(
 ) -> None:
     """Every pair of each figure's conditions under it (see ``plots``), tested on that
     figure's conditions alone, so the q-values are adjusted over the pairs it shows, as its
-    legend says, and a split figure costs its own pairs only."""
+    legend says, and a split figure costs its own pairs only. With several controls, the
+    normalised values compare only the conditions normalised to the same control (owner,
+    2026-10-05)."""
     control = (setup.figure_control or {}).get(CONDITION_COLUMN)
+    own = setup.own_references
+    references = own if setup.normalize is not None else None
     for feature, parts in figures.items():
         for figure in parts:
             summaries = getattr(figure, "cluster_summaries", None)
@@ -149,10 +153,11 @@ def _add_pairwise(
                 conditions=conditions,
                 control=control,
                 random_state=setup.random_state,
+                references=references,
                 **setup.common,
             )
             figure.pairwise = table.reset_index(drop=True)
-            add_pairwise(figure, table, conditions)
+            add_pairwise(figure, table, conditions, several=own is not None)
 
 
 def highlighted(ranking: Any, most: int = len(COLOURS) - 1) -> tuple[list[Any], str]:

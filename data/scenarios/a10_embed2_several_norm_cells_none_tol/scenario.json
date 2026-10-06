@@ -1,0 +1,77 @@
+{
+ "name": "a10_embed2_several_norm_cells_none_tol",
+ "kind": "axes",
+ "checks": "embedding-only report; own controls and the rows across experiments; normalised and centred views; the mean's tolerances; the page",
+ "axes": {
+  "tables": "embed2",
+  "controls": "several",
+  "normalize": true,
+  "unit": "cells",
+  "wells": "none",
+  "target": "tol"
+ },
+ "planes": null,
+ "setup": {
+  "readout": null,
+  "observation_unit": "cell",
+  "control": {
+   "condition": {
+    "cA": {
+     "k1": "a1"
+    },
+    "cB": {
+     "k1": "b1"
+    }
+   }
+  },
+  "control_parents": {
+   "cB": "cA"
+  },
+  "master_control": "cA",
+  "normalize": "control_mean"
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  },
+  "DINO2": {
+   "file": "DINO2.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "overview",
+   "populations",
+   "separation",
+   "unusual",
+   "whole_table"
+  ],
+  "absent": [
+   "contrast",
+   "discovery",
+   "fingerprint_precision",
+   "inspection",
+   "label_control",
+   "rare_clustering",
+   "sufficiency"
+  ],
+  "not_applicable": {
+   "conditions": "Per feature",
+   "controls": "no explainable features",
+   "enough": "no target declared",
+   "inspect": "no explainable features",
+   "profile": "Fields against random",
+   "unit": "no explainable features"
+  },
+  "table_column": false,
+  "separation_spaces": [
+   "Combined",
+   "DINO1",
+   "DINO2"
+  ],
+  "html": true
+ }
+}

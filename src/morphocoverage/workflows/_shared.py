@@ -59,7 +59,7 @@ from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
 from ._contrasts import declared_conditions
 from ._document import pooling_reason
-from ._feature_space import attached, space
+from ._feature_space import attached, table_columns, unusual_space, with_table
 from ._rare_share import compared_columns, share_column, with_share
 from .setup import Setup, default_novelty
 
@@ -96,8 +96,14 @@ def orders(
 
 
 def check_workflow_inputs(
-    objects: Any, fovs: Any, setup: Any, *, warn: bool = True, tables_given: bool = False
-) -> tuple[pd.DataFrame, pd.DataFrame, DataCheck]:
+    objects: Any,
+    fovs: Any,
+    setup: Any,
+    *,
+    warn: bool = True,
+    tables_given: bool = False,
+    check: bool = True,
+) -> tuple[pd.DataFrame, pd.DataFrame, DataCheck | None]:
     """Refuse inputs the workflows cannot use, before any analysis runs, and check the rest.
 
     Returns the tables every analysis of the workflow reads, with the former
@@ -107,7 +113,9 @@ def check_workflow_inputs(
     (copied rows, labels that print alike, repeats without a control, ...) a
     workflow would otherwise never mention. With ``warn`` they are also issued
     as one ``UserWarning``; ``report`` prints them in its overview instead. Its
-    errors are left to the analyses, which raise with the same report.
+    errors are left to the analyses, which raise with the same report. With ``check=False``
+    the tables are not checked (``None``): explainable tables hold declared features, so
+    ``report`` checks the tables once they are attached.
     """
     if fovs is None:
         raise TypeError(
@@ -136,8 +144,15 @@ def check_workflow_inputs(
                 f"rare_label {setup.rare_label!r} must hold booleans or 0/1, got "
                 f"{sorted(map(str, labels.unique()))[:5]}"
             )
+    columns = setup.columns
+    if not check:
+        return objects, fovs, None
+    if setup.embedding_only:  # the tables' columns, once attached (owner, 2026-10-06)
+        columns = [c for c in table_columns(setup) if c in objects.columns]
+        if not columns:
+            return objects, fovs, None  # report checks them after attaching the tables
     check = _check_tables(
-        objects, fovs, feature_cols=setup.columns, control=setup.reference_control, **setup.common
+        objects, fovs, feature_cols=columns, control=setup.reference_control, **setup.common
     )
     declared = declared_conditions(setup)  # several controls and their conditions
     if declared:
@@ -326,7 +341,8 @@ def unusual_label(objects: pd.DataFrame, setup: Setup) -> str:
 
 def one_per_field(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> bool:
     """Whether every field with observations holds exactly one (one cell per image)."""
-    data = validate_input_tables(objects, fovs=fovs, feature_cols=[setup.readout], **setup.common)
+    columns = setup.columns or table_columns(setup)
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=columns, **setup.common)
     sizes = data.objects.groupby(list(data.fov_key), dropna=False).size()
     return bool(len(sizes)) and int(sizes.max()) == 1
 
@@ -354,6 +370,12 @@ def one_per_field_reasons(setup: Setup) -> dict[str, str]:
             f"whether unseen {unit} states remain is not asked: a new state needs {needed} "
             f"similar {words} in one field, and each field holds one"
         )
+        if setup.positive is not None:  # judged by the definition of new
+            reasons["controls"] = (
+                f"not applicable: the positive control is judged by the definition of new, "
+                f"and a new state needs {needed} similar {words} in one field, while each "
+                "field holds one"
+            )
     return reasons
 
 
@@ -386,8 +408,9 @@ def control_checks(
                 f"unusual {setup.unit_words} and their clustering are", setup, pooled
             )
         return {}
-    results: dict[str, Any] = {
-        "object_rules": object_rule_check(
+    results: dict[str, Any] = {}
+    if setup.mean_target:  # the mean-precision rules at the readout's tolerances
+        results["object_rules"] = object_rule_check(
             objects,
             fovs,
             feature=setup.readout,
@@ -396,10 +419,10 @@ def control_checks(
             random_state=setup.random_state,
             **common,
         )
-    }
-    if setup.features:
-        # With other feature tables, on the weighted combined space (owner, 2026-10-05).
-        columns, weights = space(setup, setup.features)
+    # On the explainable features when there are any, whatever the other tables; without
+    # them, on the tables' weighted combined space (owner, 2026-10-06).
+    columns, weights, space = unusual_space(objects, fovs, setup)
+    if columns:
         unusual = unusual_objects(
             objects,
             fovs,
@@ -410,12 +433,14 @@ def control_checks(
             weights=weights,
             **common,
         )
+        if setup.feature_tables or weights:  # which space, said beside the tables
+            unusual.settings["space"] = space
         results["unusual"] = unusual
         label = unusual_label(objects, setup)
         # The label flags a share of ordinary objects by construction, so a field holds
         # the state only with the novelty rule's m of them, and the control groups'
         # own incidence is printed beside it (P6-1).
-        novelty = setup.novelty or default_novelty(setup.features)
+        novelty = setup.novelty or default_novelty(columns)
         results["clustering"] = fov_clustering(
             objects.assign(**{label: unusual.labels}),
             fovs,
@@ -454,10 +479,15 @@ def conditions(
     objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, reasons: dict[str, str]
 ) -> dict[str, Any]:
     """R7: each condition against the control (or each declared comparison), per repeat, on
-    the values ``Setup.compared_values`` gives."""
-    if not (
-        setup.compares and CONDITION_COLUMN in fovs.columns and fovs[CONDITION_COLUMN].nunique() > 1
-    ):
+    the raw values, each test normalising to its own control itself."""
+    held = fovs[CONDITION_COLUMN].nunique() if CONDITION_COLUMN in fovs.columns else 0
+    if setup.compares and held == 1:  # the real reason, not the generic need (F10)
+        only = fovs[CONDITION_COLUMN].dropna().iloc[0]
+        reasons["conditions"] = (
+            f"not applicable: the FOV table holds one condition, {only}, so no other "
+            "condition is compared with the control"
+        )
+    if not (setup.compares and held > 1):
         return {}
     pooled = pooled_columns(objects, fovs, setup, [CONDITION_COLUMN, REPEAT_COLUMN])
     if pooled:
@@ -489,17 +519,24 @@ def conditions(
             fovs,
             features=compared,
             random_state=setup.random_state,
+            n_jobs=setup.n_jobs,
             **setup.contrast_arguments,
             **setup.common,
         )
         # The headline counts the share apart from the features (report_status_conditions).
         results["discovery"].settings["share"] = share_column(setup)
+        found = results["discovery"]  # each feature's table named (owner, 2026-10-06)
+        results["discovery"] = replace(
+            found, tests=with_table(found.tests, setup), ranking=with_table(found.ranking, setup)
+        )
         # One correction family on the page: the readout's tests take the discovery's.
-        from ._families import shared_family
+        from ._families import shared_across, shared_family
 
         results["contrast"] = shared_family(
             results["contrast"], results["discovery"], setup.readout
         )
+        # The secondary rows for every feature, each family over all of them.
+        results["contrast"] = shared_across(results["contrast"], shared, fovs, compared, setup)
         results["ranking"] = feature_ranking(
             shared,
             fovs,

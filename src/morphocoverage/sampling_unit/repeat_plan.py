@@ -17,7 +17,7 @@ fields resampled as acquired, ``contrast_sampling``):
   reduce; it needs two repeats), on the values the paired t-test compares (below). When the
   repeats vary more than their sampling error, more fields per repeat help little. The
   report no longer prints it as a verdict (owner, 2026-10-02: from 3 repeats it
-  contradicted the readings, and docs/questions.md, P10, needs 5 or more units); the
+  contradicted the readings, and docs/optimise/optimise.md, P10, needs 5 or more units); the
   column stays for the advice of "Did I image enough?" (``_html_sections``);
 - **the repeats needed**: the fewest biological repeats (at most ``MAX_REPEATS``)
   for which a paired t-test on the repeat values reaches ``power`` at the
@@ -25,7 +25,8 @@ fields resampled as acquired, ``contrast_sampling``):
   halve only the part of the sampling error within wells, ``between_share``; owner,
   2026-10-05).
   The values are the test's (``contrast_repeats``): the log of each repeat's ratio of the
-  condition's mean to the control's when every mean is positive (``planned_on``
+  condition's mean to the control's when the feature is read on the log scale (every value
+  positive, ``log``; ``planned_on``
   ``"log ratio"``, the change a fold change ``change``), else the difference of the means
   (``"difference"``). Their sampling error within a repeat is the bootstrap's
   (``contrast_sampling``), which shrinks as ``1 / sqrt(fields)``; a table without it (an
@@ -122,14 +123,17 @@ def _fields_per_repeat(block: pd.DataFrame) -> float:
     return max(needed) if needed else np.nan
 
 
-def _test_values(block: pd.DataFrame) -> tuple[str, np.ndarray, np.ndarray]:
+def _test_values(
+    block: pd.DataFrame, log: bool | None = None
+) -> tuple[str, np.ndarray, np.ndarray]:
     """The values the paired t-test compares, per repeat, and their sampling errors: the log
-    ratios when every mean is positive, else the differences (``statistics.repeat_values``,
-    as the test chooses); Cohen's d when the table has no sampling error of them."""
+    ratios on the feature's log scale (``log``), else the differences
+    (``statistics.repeat_values``, as the test chooses); Cohen's d when the table has no
+    sampling error of them."""
     d_errors = ((block["d_high"] - block["d_low"]) / (2 * _Z)).to_numpy(float)
     if not {"mean", "control_mean", "log_ratio_se", "difference_se"} <= set(block.columns):
         return "d", block["d_objects"].to_numpy(float), d_errors
-    values, compared, _ = repeat_values(block["mean"], block["control_mean"])
+    values, compared, _ = repeat_values(block["mean"], block["control_mean"], log)
     column = "log_ratio_se" if values == "normalised" else "difference_se"
     errors = block[column].to_numpy(float)
     if not (np.isfinite(compared).all() and np.isfinite(errors).all()):
@@ -137,21 +141,24 @@ def _test_values(block: pd.DataFrame) -> tuple[str, np.ndarray, np.ndarray]:
     return ("log ratio" if values == "normalised" else "difference"), compared, errors
 
 
-def _change(table: pd.DataFrame, condition: Any, control: Any) -> float:
+def _change(table: pd.DataFrame, condition: Any, control: Any, log: bool | None) -> float:
     """The change against the control over every repeat holding both means, as the verdict
     gives it (``statistics.repeat_values``), whether or not a repeat has an interval of d."""
     rows = table[(table["condition"] == condition) & (table["control_condition"] == control)]
     if "mean" not in rows:
         return np.nan
     rows = rows[rows["mean"].notna() & rows["control_mean"].notna()]
-    return repeat_values(rows["mean"], rows["control_mean"])[2] if len(rows) else np.nan
+    return repeat_values(rows["mean"], rows["control_mean"], log)[2] if len(rows) else np.nan
 
 
-def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER) -> pd.DataFrame:
+def repeat_plan(
+    table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER, log: bool | None = None
+) -> pd.DataFrame:
     """One row per condition and control: the plan for the next experiment (see the module).
 
     ``table`` is ``condition_contrast``'s per-repeat table (with ``d_low``/``d_high``, and
-    ``mean``, ``control_mean``, ``difference_se`` and ``log_ratio_se``).
+    ``mean``, ``control_mean``, ``difference_se`` and ``log_ratio_se``); ``log`` the
+    feature's scale (``statistics.log_scale``; ``None``: read from each condition's means).
     """
     if table.empty or "d_low" not in table:
         return pd.DataFrame(columns=PLAN_COLUMNS)
@@ -195,7 +202,7 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
             rows.append(row)
             continue
         d_within = float(np.mean(((block["d_high"] - block["d_low"]) / (2 * _Z)) ** 2))
-        planned_on, values, errors = _test_values(block)
+        planned_on, values, errors = _test_values(block, log)
         within = float(np.mean(errors**2))
         # Twice the fields halve only the part of each repeat's sampling error within wells
         # (``between_share``, owner 2026-10-05, #96); the part between wells stays.
@@ -208,7 +215,7 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
         mean = float(values.mean())
         row["within_se"] = float(np.sqrt(d_within))
         row["planned_on"] = planned_on
-        row["change"] = _change(table, condition, control) if planned_on != "d" else np.nan
+        row["change"] = _change(table, condition, control, log) if planned_on != "d" else np.nan
         if len(block) >= 2:
             d = block["d_objects"].to_numpy(float)
             row["between_sd"] = float(np.sqrt(max(0.0, float(np.var(d, ddof=1)) - d_within)))

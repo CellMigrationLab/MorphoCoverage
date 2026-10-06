@@ -1,6 +1,6 @@
 """Leave-one-FOV-out support novelty at a declared phenotype resolution.
 
-Described in ``docs/architecture.md``. Are
+Described in ``docs/common/architecture.md``. Are
 observations still arriving in regions of phenotype space that the other
 FOVs do not cover? At resolution ``epsilon`` an observation is covered when
 observations from at least ``min_other_fovs`` *other* FOVs lie within

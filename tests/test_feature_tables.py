@@ -1,5 +1,6 @@
 """Other feature tables (owner, 2026-10-05): validated against the observation table, attached
-as named blocks, weighted in the combined space; every failure has its message."""
+as named blocks, weighted in the combined space (each table by its first singular value, owner
+2026-10-06); every failure has its message."""
 
 import json
 import warnings
@@ -11,13 +12,12 @@ import pytest
 from morphocoverage.feature_tables import (
     FeatureTables,
     attach_feature_tables,
+    mfa_weights,
     observation_identity,
-    table_weights,
 )
 from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.retrospective.criteria import OutcomeCriterion
 from morphocoverage.separation import separation
-from morphocoverage.transforms import Chain, ColumnWeights, RobustStandardize
 from morphocoverage.workflows import Setup, html_report, optimise, report, scan_design
 from morphocoverage.workflows._feature_space import attached, novelty_space, space
 from morphocoverage.workflows._shared import check_workflow_inputs
@@ -87,7 +87,9 @@ def test_missing_values_are_counted_and_kept():
     result = attach_feature_tables(objects, fovs, {"DINO": embedding})
     assert result.missing == {"DINO": 3} and result.incomplete == {"DINO": 2}
     assert int(result.objects["e0"].isna().sum()) == 2
-    assert "3 missing values in 2 rows, kept as missing" in result.summary()
+    assert "3 missing values in 2 rows, which every analysis reading DINO leaves out" in (
+        result.summary()
+    )
 
 
 @pytest.mark.parametrize(
@@ -101,7 +103,6 @@ def test_missing_values_are_counted_and_kept():
         (lambda e: pd.concat([e, e.iloc[[0]]]), "holds 1 observation more than once"),
         (lambda e: e.assign(e1="high"), "columns that are not numbers: e1"),
         (lambda e: e.assign(e1=np.inf), "holds 16 infinite values"),
-        (lambda e: e.rename(columns={"e0": "area"}), "has columns of the observation table"),
         (lambda e: e.drop(columns="label_id"), "lacks the identity columns ['label_id']"),
         (lambda e: e.assign(z=0), "holds metadata columns ['z']"),
         (lambda e: e[["condition", "biological_repeat", "image_file", "label_id"]], "no feature"),
@@ -113,18 +114,25 @@ def test_each_problem_of_a_table_is_named(change, expected):
     assert expected in message and "'DINO'" in message
 
 
-def test_two_tables_may_not_share_a_column():
+def test_two_tables_sharing_columns_load_with_their_names_before_them():
+    # Owner, 2026-10-06: a name found in two tables is prefixed, no longer refused.
     objects, fovs, embedding = _tables()
-    message = _message(objects, fovs, {"DINOv2": embedding, "DINOv3": embedding})
-    assert "'DINOv2' and 'DINOv3' share columns e0, e1 and e2" in message
+    both = attach_feature_tables(objects, fovs, {"DINOv2": embedding, "DINOv3": embedding})
+    assert both.columns["DINOv3"] == ("DINOv3: e0", "DINOv3: e1", "DINOv3: e2")
 
 
 @pytest.mark.parametrize(
     ("names", "expected"),
     [
         (("",), "non-empty text"),
-        (("combined",), "names the observation table's features or the combined space"),
-        (("Explainable",), "names the observation table's features or the combined space"),
+        (
+            ("combined",),
+            "names the explainable features, the observation table or the combined space",
+        ),
+        (
+            ("Explainable",),
+            "names the explainable features, the observation table or the combined space",
+        ),
         (("dino", "DINO"), "'DINO' names two tables"),
     ],
 )
@@ -149,11 +157,27 @@ def test_every_problem_is_said_at_once():
     assert "lacks a row" in message and "not numbers" in message
 
 
-def test_each_table_weighs_as_much_as_the_explainable_one():
-    weights = table_weights({"small": ("a",), "large": tuple(f"x{i}" for i in range(16))}, 4)
-    assert weights["a"] == pytest.approx(2.0) and weights["x3"] == pytest.approx(0.5)
-    # Robustly standardised, a table of p columns at sqrt(4 / p) carries a total variance of 4.
-    assert 16 * weights["x0"] ** 2 == pytest.approx(4) == 1 * weights["a"] ** 2
+def test_each_table_is_divided_by_its_first_singular_value():
+    # MFA (owner, 2026-10-06): every table's first axis ends with variance 1, the explainable
+    # features' too (audit 8: before, the first table kept weight 1 and set the others' scale).
+    rng = np.random.default_rng(0)
+    explainable = rng.normal(size=(200, 4))
+    shared = rng.normal(size=(200, 1))
+    correlated = shared + 0.1 * rng.normal(size=(200, 16))
+    small = 3.0 * rng.normal(size=(200, 2))
+    z = np.hstack([explainable, correlated, small])
+    names = [*(f"x{i}" for i in range(4)), *(f"c{i}" for i in range(16)), "s0", "s1"]
+    blocks = {"explainable": names[:4], "corr": names[4:20], "small": names[20:]}
+    weights = mfa_weights(z, names, blocks)
+
+    def first(columns: slice) -> float:
+        part = (z * weights)[:, columns]
+        return float(np.linalg.svd(part - part.mean(axis=0), compute_uv=False)[0])
+
+    for columns in (slice(0, 4), slice(4, 20), slice(20, 22)):
+        assert first(columns) == pytest.approx(np.sqrt(len(z) - 1))
+    # The correlated table, whose first axis held its whole variance, is weighed down most.
+    assert weights[4] < weights[20]
 
 
 def test_the_setup_names_its_tables_and_refuses_a_clash():
@@ -165,15 +189,15 @@ def test_the_setup_names_its_tables_and_refuses_a_clash():
         Setup(readout="area", feature_tables={"combined": ["e0"]})
     with pytest.raises(ValueError, match="of both"):
         Setup(readout="area", feature_tables={"A": ["e0"], "B": ["e0"]})
+    # Novelty never reads the tables (owner, 2026-10-06): a novelty rule is allowed with them.
     rule = Setup(readout="area", features=("area", "shape"), novelty=default_novelty(("area",)))
-    with pytest.raises(ValueError, match="read the other feature tables unweighted"):
-        Setup(
-            readout="area",
-            features=("area", "shape"),
-            novelty=rule.novelty,
-            rules=(rule.novelty_rule(),),
-            feature_tables={"DINO": ["e0"]},
-        )
+    Setup(
+        readout="area",
+        features=("area", "shape"),
+        novelty=rule.novelty,
+        rules=(rule.novelty_rule(),),
+        feature_tables={"DINO": ["e0"]},
+    )
 
 
 def test_without_other_tables_nothing_is_weighted():
@@ -189,10 +213,15 @@ def test_without_other_tables_nothing_is_weighted():
 def test_a_readout_alone_with_another_table_has_no_novelty_to_weigh():
     setup = Setup(readout="area", feature_tables={"DINO": ("e0", "e1")})
     assert novelty_space(setup) == (None, [])
-    assert space(setup) == (["area", "e0", "e1"], {"area": 1.0, "e0": 0.5**0.5, "e1": 0.5**0.5})
+    assert space(setup) == (
+        ["area", "e0", "e1"],
+        {"explainable": ("area",), "DINO": ("e0", "e1")},
+    )
 
 
-def test_novelty_reads_the_weighted_combined_space():
+def test_novelty_reads_the_explainable_features_only():
+    # Owner, 2026-10-06 (audit B, finding 1): the radius times sqrt(tables) called 99.6% of
+    # null cells new; novelty reads the explainable features, whatever the tables.
     novelty = default_novelty(("area", "shape"))
     setup = Setup(
         readout="area",
@@ -200,13 +229,7 @@ def test_novelty_reads_the_weighted_combined_space():
         novelty=novelty,
         feature_tables={"DINO": ("e0", "e1", "e2", "e3", "e4", "e5", "e6", "e7")},
     )
-    combined, columns = novelty_space(setup)
-    assert columns == ["area", "shape", *(f"e{i}" for i in range(8))]
-    assert combined.transform == Chain(
-        [RobustStandardize(), ColumnWeights((1.0,) * 2 + (0.5,) * 8)]
-    )
-    # Two tables of equal total variance: the radius grows by sqrt(2).
-    assert combined.epsilon == pytest.approx(novelty.epsilon * np.sqrt(2))
+    assert novelty_space(setup) == (novelty, ["area", "shape"])
 
 
 def test_a_fingerprint_may_read_another_table_with_weights():
@@ -274,11 +297,13 @@ def test_the_separation_score_orders_a_separating_table_above_noise():
         spaces={"sep": list(sep.columns[4:]), "noise": list(noise.columns[4:])},
     )
     by_space = scores.spaces.set_index("space")
-    # 47 other cells of the same condition among the 143 others of a repeat: chance 47/143.
-    assert by_space.loc["noise", "chance"] == pytest.approx(47 / 143)
+    # Never a neighbour from the cell's own field (owner, 2026-10-06): 36 cells of the same
+    # condition in the other fields among the 132 others of a repeat, chance 36/132.
+    assert by_space.loc["noise", "chance"] == pytest.approx(36 / 132)
     assert by_space.loc["sep", "share"] > 0.9
     assert by_space.loc["noise", "share"] < 0.4
-    assert scores.table["k"].eq(10).all() and len(scores.table) == 6
+    # A row per repeat by condition and per condition by repeat, in each space.
+    assert scores.table["k"].eq(10).all() and len(scores.table) == 12
     assert scores.line("sep").startswith("sep: 9") and "by chance; median over 3 repeats" in (
         scores.line("sep")
     )
@@ -317,20 +342,22 @@ def test_the_report_names_the_tables_and_tests_only_the_explainable_features(com
         "noise": tuple(f"n{j}" for j in range(6)),
     }
     assert set(combined_report.discovery.ranking["feature"]) == {"f1", "f2", "f3"}
-    text = combined_report.summary()
+    text = " ".join(combined_report.summary().split())
     assert "sep: 6 feature columns, every observation matched once" in text
-    assert "weight per column: sep 0.71, noise 0.71" in text
+    # Said once: what the tables join, and not novelty (owner, 2026-10-06).
+    assert text.count("not novelty or unusual observations") == 1
+    assert "3 explainable features and 12 columns of 2 other tables" in text
 
 
-def test_the_distance_analyses_read_the_weighted_combined_space(combined_report):
+def test_the_distance_analyses_read_their_spaces(combined_report):
     results = combined_report.results
     tables = [*(f"s{j}" for j in range(6)), *(f"n{j}" for j in range(6))]
+    # Unusual observations read the explainable features alone (owner, 2026-10-06).
     unusual = results["unusual"].settings
-    assert unusual["feature_cols"] == ["f1", "f2", "f3", *tables]
-    assert unusual["weights"]["s0"] == pytest.approx(np.sqrt(3 / 6))
+    assert unusual["feature_cols"] == ["f1", "f2", "f3"] and not unusual["weights"]
+    # The populations are searched in each space; the combined one weighs each table.
     populations = results["populations"].populations.settings
-    assert populations["weights"]["n5"] == pytest.approx(np.sqrt(3 / 6))
-    # The groups are named and their rules written with the explainable features only.
+    assert list(populations["spaces"]) == ["explainable", "sep", "noise", "combined"]
     assert populations["named_by"] == ["f1", "f2", "f3"]
     assert set(results["integrity"].settings["feature_cols"]) >= set(tables)
     spaces = results["separation"].spaces.set_index("space")
@@ -357,13 +384,25 @@ def test_the_page_draws_a_map_per_table_the_combined_one_first(combined_report, 
     assert data["tables"] == ["Combined", "Explainable", "sep", "noise"]
     assert set(data["sets"]["raw"]) == set(data["tables"])
     combined = data["sets"]["raw"]["Combined"]["PCA"]["caption"]
-    assert "each table weighted to the explainable features' total variance" in combined
+    assert "each table divided by its first singular value" in combined
+    # Each table's share of each axis, not the loadings of a table's columns (2026-10-06).
+    assert "\nPC1: explainable " in combined and ", sep " in combined
     assert combined.splitlines()[-1].startswith("Combined: ")
     assert data["sets"]["raw"]["sep"]["UMAP"]["caption"].splitlines()[-1].startswith("sep: 9")
     # The explainable features colour every map, an other table's included.
     assert set(data["sets"]["raw"]["noise"]["PCA"]["z"]) == {"f1", "f2", "f3"}
     assert 'aria-label="Feature table"' in text
-    assert "How far the conditions separate in each feature table" in text
+    # Beside raw and normalised, the other tables centred per repeat (owner, 2026-10-06):
+    # on the median of the condition medians of those in every repeat, said in one line
+    # (audit 8, owner 2026-10-06).
+    # (No normalised view here: the explainable features hold negative values.)
+    assert data["values"] == ["raw", "centred"]
+    assert set(data["sets"]["centred"]) == {"sep", "noise"}
+    assert "Centred: each column of an other feature table minus a median" in text
+    assert "centred per biological repeat on the median of the per-condition medians" in text
+    # In the interactive maps only: no static figure or CSV of its own.
+    assert not (tmp_path / "figures" / "pca_centred_sep.png").exists()
+    assert "How far the conditions and the repeats separate in each feature table" in text
     assert (tmp_path / "figures" / "pca_raw_sep.png").exists()
     with pytest.raises(ValueError, match="pass the tables themselves"):
         html_report(combined_report, objects, fovs, tmp_path)
@@ -373,7 +412,7 @@ def test_the_scan_lists_the_tables_before_loaded_correctly_and_names_them_in_the
     objects, fovs, sep, _ = _experiment()
     scan = scan_design(objects, fovs, feature_cols=["f1", "f2", "f3"], feature_tables={"sep": sep})
     text = scan.summary()
-    assert text.index("Other feature table sep: 6 feature columns") < text.index(
+    assert text.index("Other feature table sep (non-explainable): 6 feature columns") < text.index(
         "Loaded correctly?"
     )
     assert set(scan.integrity.settings["feature_cols"]) >= {"s0", "s5"}

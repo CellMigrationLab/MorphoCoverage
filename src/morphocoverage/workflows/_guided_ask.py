@@ -12,12 +12,23 @@ from .._wording import listing
 
 Ask = Callable[[str], str]
 Say = Callable[[str], None]
-AIMS = {"population": "averages", "fingerprint": "fingerprint", "both": "fingerprint"}
+AIMS = {
+    "population": "averages",
+    "fingerprint": "fingerprint",
+    "both": "fingerprint",
+    # Without explainable features, the targets that need no readout (owner, 2026-10-06).
+    "label": "rare",
+    "fingerprint_label": "fingerprint",
+}
 AIM_TEXT = {
     "population": "compare the population averages of the conditions (the readout's mean)",
     "fingerprint": "compare their phenotypic fingerprints (the distribution over the features)",
     "both": "the population averages and the fingerprints",
+    "label": "see the labelled phenotype in enough fields",
+    "fingerprint_label": "the fingerprint of each table and the labelled phenotype",
 }
+# The aims of an embedding-only session: no average is offered (owner, 2026-10-06).
+TABLE_AIMS = ("fingerprint", "label", "fingerprint_label")
 _YES, _NO = {"y", "yes", ""}, {"n", "no"}
 _UNITS = ("cell", "nucleus", "track", "patch", "object")
 
@@ -102,13 +113,19 @@ def _selection(answer: str, options: Sequence[Any]) -> list[Any] | str:
 
 
 def choose_many(
-    ask: Ask, say: Say, prompt: str, options: Sequence[Any], default: Sequence[Any] | None = None
+    ask: Ask,
+    say: Say,
+    prompt: str,
+    options: Sequence[Any],
+    default: Sequence[Any] | None = None,
+    *,
+    enter_all: bool = True,
 ) -> list[Any]:
     """Several of ``options``: numbers, ranges or names; Enter takes ``default`` (all of them
-    when ``None``)."""
+    when ``None``, or, with ``enter_all=False``, nothing: the question is asked again)."""
     say(f"{prompt}\n{_numbered(options, None)}")
     if default is None:
-        hint = "'all' (the default)"
+        hint = "'all' (the default)" if enter_all else "'all'"
     else:
         hint = f"'all'; Enter takes {listing([str(d) for d in default], 6)}"
     say(f"  Enter {hint}, numbers and ranges (1,3-5), or names separated by commas.")
@@ -116,6 +133,9 @@ def choose_many(
         answer = ask("> ").strip()
         if not answer and default is not None:
             return list(default)
+        if not answer and not enter_all:
+            _again(say, "Nothing was chosen.")
+            continue
         selected = _selection(answer or "all", options)
         if isinstance(selected, list):
             return selected
@@ -156,7 +176,7 @@ def ask_control(ask: Ask, say: Say, scan: Any) -> dict[str, Any] | None:
     choice = choose(
         ask,
         say,
-        "Do you have a control you want to log? (the conditions are compared with it)",
+        "Which condition is the control?",
         [*conditions, none],
         guess if guess is not None else none,
     )
@@ -197,8 +217,28 @@ AIM_LABELS = {
 
 def ask_aim(ask: Ask, say: Say) -> str:
     """``population`` (the average), ``fingerprint`` (the whole distribution) or ``both``."""
-    aims = list(AIMS)
+    aims = ["population", "fingerprint", "both"]
     return choose(ask, say, AIM_QUESTION, aims, aims[0], [AIM_LABELS[a] for a in aims])
+
+
+def ask_table_aim(ask: Ask, say: Say, label: str | None) -> str:
+    """Without explainable features (owner, 2026-10-06): the whole distribution of each table
+    (``fingerprint``), the labelled phenotype (``label``) or both (``fingerprint_label``);
+    without a label the whole distribution, said, not asked. No average is offered: there is
+    no readout."""
+    if label is None:
+        say(
+            "With no explainable features and no labelled phenotype, the aim is the whole "
+            "distribution of each table (its fingerprint)."
+        )
+        return "fingerprint"
+    labels = [
+        "the whole distribution of each table (its fingerprint)",
+        f"the labelled phenotype ({label}) seen in enough fields",
+        "both",
+    ]
+    prompt = "With no explainable features, what should the imaging get right?"
+    return choose(ask, say, prompt, list(TABLE_AIMS), TABLE_AIMS[0], labels)
 
 
 def label_columns(objects: Any, taken: Sequence[str]) -> list[str]:
@@ -258,9 +298,14 @@ def ask_unit(ask: Ask, say: Say, suggested: str | None) -> str:
 
 def ask_tolerance(ask: Ask, say: Say, features: Sequence[str]) -> float:
     """The fingerprint's tolerance: the covariance of the features within this share."""
+    what = (
+        f"the standardised features ({listing(list(features), 4)})"
+        if features
+        else "each table's first principal components"
+    )
     say(
-        "The fingerprint is the covariance of the standardised features "
-        f"({listing(list(features), 4)}). No tolerance has a published meaning: state yours."
+        f"The fingerprint is the covariance of {what}. No tolerance has a published meaning: "
+        "state yours."
     )
     return number(ask, say, "Within what share (0.10 = 10%)?", 0.10, 0.0, 1.0)
 
@@ -270,6 +315,7 @@ __all__ = [
     "AIM_LABELS",
     "AIM_QUESTION",
     "AIM_TEXT",
+    "TABLE_AIMS",
     "Ask",
     "Say",
     "ask_aim",
@@ -279,6 +325,7 @@ __all__ = [
     "ask_rare_label",
     "ask_readout",
     "ask_run",
+    "ask_table_aim",
     "ask_tolerance",
     "ask_unit",
     "choose",

@@ -42,12 +42,13 @@ from ..retrospective.report_status import (
 from ..sampling_unit._state_text import clustering_parts
 from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import observation_words
-from ._declaration import declaration_short
+from ._declaration import declaration, declaration_short
 from ._distribution import with_distribution
 from ._enough_features import default_precision, with_features
 from ._enough_targets import with_targets
 from ._label_control import with_label_check
 from ._populations import with_populations
+from ._whole_table import with_whole_table
 
 if TYPE_CHECKING:
     from .setup import Setup
@@ -62,6 +63,7 @@ _EXTRA_RESULTS = (
     "label_control",
     "populations",
     "separation",
+    "whole_table",
 )
 
 
@@ -104,7 +106,9 @@ def with_reasons(document: MicroscopistReport, reasons: Mapping[str, str]) -> Mi
     )
 
 
-def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
+def assemble(
+    results: Mapping[str, Any], setup: Setup, per_field: bool = True
+) -> MicroscopistReport:
     """The microscopist's report of ``results`` under the setup's declaration and presets.
 
     ``microscopist_report`` with ``Setup.minimum_detection``, then what it has
@@ -116,10 +120,12 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
     """
     document = microscopist_report(
         **{k: v for k, v in results.items() if k not in _EXTRA_RESULTS},
-        declaration=setup.declaration(),
+        # One observation per field: what does not run is not declared (audit 8B).
+        declaration=declaration(setup, per_field),
         minimum_detection=setup.minimum_detection,
     )
-    document = replace(document, short={**document.short, "declaration": declaration_short(setup)})
+    short = declaration_short(setup, per_field=per_field)
+    document = replace(document, short={**document.short, "declaration": short})
     integrity = results.get("integrity")
     if integrity is not None:
         # What the tables hold includes structure to inspect before reading the answers.
@@ -131,8 +137,8 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
             text = "\n\n".join(p for p in (document.overview, full) if p)
             document = replace(document, overview=text)
         document = _with_integrity(document, integrity)
-    rare = results.get("rare_clustering")
-    if rare is not None:
+    rare = results.get("rare_clustering")  # clustering in fields needs several a field
+    if rare is not None and per_field:
         rows = sampling_profile(None, None, None, None, clustering=rare)
         lines = "\n".join(f"{r.statement} [{r.where}; {r.source}]" for r in rows.itertuples())
         text = "\n\n".join(part for part in (lines, rare.summary(detail="full")) if part)
@@ -186,7 +192,9 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
     document = with_populations(document, results.get("populations"), setup)
     document = with_label_check(document, results.get("label_control"), results)
     # Beyond the mean, with a fingerprint declared (question 9).
-    return with_distribution(document, results.get("distribution"), setup.unit_words)
+    document = with_distribution(document, results.get("distribution"), setup.unit_words, setup)
+    # Every other table tested whole, beside the features (owner, 2026-10-06).
+    return with_whole_table(document, results.get("whole_table"), bool(setup.columns))
 
 
 def _with_integrity(document: MicroscopistReport, integrity: Any) -> MicroscopistReport:

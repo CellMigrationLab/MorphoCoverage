@@ -8,6 +8,7 @@
   repeat, field, observation (its index in the observation table), ``label_id`` when the
   table has one, population and standardised features, and the PCA loadings.
 - ``heatmap_data``: Cohen's d and the q-values of every feature and condition.
+- ``across_data``: with several controls, the secondary rows of every feature.
 
 Each is written in ``folder`` (the report's ``figures``) by ``write_csv``, so the page
 carries it (``page_files``, up to ``EMBED_BUDGET``; past it the page links to it) and the
@@ -27,6 +28,8 @@ from typing import Any
 
 import pandas as pd
 
+from ..sampling_unit.across_text import ACROSS_CSV
+from ._feature_space import table_of, with_table
 from ._html_plotly import _observations
 
 # The columns of a feature's observations, named as the MorphoBricks tables name them.
@@ -205,6 +208,11 @@ def feature_data(
         files.append((write_csv(frame, folder, f"{name}_repeats.csv"), "Repeat summaries (CSV)"))
     if pairs:
         frame = pd.concat(pairs, ignore_index=True).drop_duplicates(["values", "first", "second"])
+        # The feature's table, with explainable tables (owner, 2026-10-06; audit 8B); the
+        # label's share is no table's feature: an empty cell, as in the tests' CSVs.
+        owner = table_of(next(iter(setups.values()))) if setups else {}
+        if owner:
+            frame.insert(0, "table", owner.get(feature, ""))
         files.append((write_csv(frame, folder, f"{name}_pairs.csv"), "Pairs (CSV)"))
     return files
 
@@ -214,9 +222,14 @@ def _stem(key: str) -> str:
     return re.sub(r"[^\w.-]+", "_", key)
 
 
-def embedding_data(embeddings: Mapping[str, Any], folder: Path) -> list[tuple[str, str]]:
+def embedding_data(
+    embeddings: Mapping[str, Any], folder: Path, setup: Any = None
+) -> list[tuple[str, str]]:
     """Every point of the PCA and UMAP, and the loadings, per kind of values (and feature
-    table, ``raw, DINO``)."""
+    table, ``raw, DINO``); with explainable tables, each loading's table (``setup``)."""
+    owner = table_of(setup) if setup is not None else {}
+    if owner:  # the other tables' columns too, in a combined space
+        owner.update({c: n for n, cols in (setup.feature_tables or {}).items() for c in cols})
     files = []
     for values, embedding in embeddings.items():
         points = embedding.points.rename(
@@ -228,6 +241,8 @@ def embedding_data(embeddings: Mapping[str, Any], folder: Path) -> list[tuple[st
         files.append((write_csv(points, folder, f"embedding_{_stem(values)}.csv"), label))
     for values, embedding in embeddings.items():
         loadings = embedding.loadings.rename(columns={"pc1": "PC1", "pc2": "PC2", "top": "arrow"})
+        if owner:
+            loadings.insert(1, "table", [owner.get(f, "") for f in loadings["feature"]])
         label = f"Loadings, {values} (CSV)" if len(embeddings) > 1 else "Loadings (CSV)"
         files.append((write_csv(loadings, folder, f"pca_loadings_{_stem(values)}.csv"), label))
     return files
@@ -254,7 +269,9 @@ def heatmap_data(discovery: Any, folder: Path) -> list[tuple[str, str]]:
     if tests is None or not len(tests):
         return []
     order = {f: i for i, f in enumerate(discovery.ranking["feature"])}
-    frame = tests.reindex(columns=HEATMAP_COLUMNS)
+    # Each feature's table after it, with explainable tables (owner, 2026-10-06).
+    named = ["feature", *(["table"] if "table" in tests else []), *HEATMAP_COLUMNS[1:]]
+    frame = tests.reindex(columns=named)
     frame = frame.assign(_rank=frame["feature"].map(order)).sort_values("_rank", kind="stable")
     frame = frame.drop(columns="_rank").rename(
         columns={"passes": "candidate", "confirmed": "significant_across_repeats"}
@@ -262,8 +279,44 @@ def heatmap_data(discovery: Any, folder: Path) -> list[tuple[str, str]]:
     return [(write_csv(frame, folder, "heatmap_d.csv"), "Data (CSV)")]
 
 
+def across_data(contrast: Any, folder: Path, setup: Any = None) -> list[tuple[str, str]]:
+    """The secondary rows of every feature (``ACROSS_CSV``, owner 2026-10-05): kind, label,
+    feature (and its table, with explainable tables and ``setup``), the biological repeats
+    each used (named), the change (a fold change, or the difference for a feature with a
+    value that is not positive), p and q; empty without them."""
+    every = getattr(contrast, "settings", {}).get("across_features")
+    if every is None:
+        across = getattr(contrast, "across", None)
+        if across is None or not len(across):
+            return []
+        every = across.assign(feature=contrast.settings["feature"])
+    folded = every["fold_change"].notna()
+    frame = pd.DataFrame(
+        {
+            "kind": every["kind"],
+            "label": every["comparison"],
+            "feature": every["feature"],
+            "biological_repeats": every["held"].map(
+                lambda held: "; ".join(map(str, held)) if isinstance(held, list) else ""
+            ),
+            "repeats": every["repeats"],
+            "values": every["values"],
+            "change": every["fold_change"].where(folded, every["effect"]),
+            "change_is": folded.map({True: "fold change", False: "difference"}),
+            "lower": every["lower"],
+            "higher": every["higher"],
+            "p_paired_t": every["p_paired_t"],
+            "q_paired_t": every["q_paired_t"],
+            "status": every["status"],
+        }
+    )
+    frame = with_table(frame, setup) if setup is not None else frame
+    return [(write_csv(frame, folder, ACROSS_CSV), "Data (CSV)")]
+
+
 __all__ = [
     "EMBED_BUDGET",
+    "across_data",
     "data_buttons",
     "download",
     "embedding_data",

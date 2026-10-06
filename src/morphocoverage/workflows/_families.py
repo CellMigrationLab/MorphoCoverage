@@ -17,6 +17,11 @@ The other versions of the cell-level screen keep their own correction over the r
 conditions (``settings["family_features"]`` records the shared family, and the page says
 which is which). The p-values are the same tests; only the permutation draws of the
 cell-level screen differ, so its p is the discovery's.
+
+With several controls the secondary rows of the contrast table run for every feature
+(``shared_across``, owner 2026-10-05): each family is corrected over every feature and its
+rows, the readout's rows (``ConditionContrast.across``) take that family's q, and every
+feature's are in ``settings["across_features"]``.
 """
 
 from __future__ import annotations
@@ -25,6 +30,8 @@ from dataclasses import replace
 from typing import Any
 
 import pandas as pd
+
+from ..sampling_unit.contrast_across import across_features
 
 # The cell-level columns of condition_contrast, by (normalised, balanced).
 _CELL_VERSIONS = {
@@ -71,8 +78,36 @@ def shared_family(contrast: Any, discovery: Any, readout: str) -> Any:
             if p in cells:
                 cells.loc[index, [d, p, q]] = [test["d"], test["p_cells"], test["q_cells"]]
     features = int(tests["feature"].nunique())
-    settings = {**contrast.settings, "family_features": features}
+    # A labelled state's share is tested with the features and counted apart (audit 8).
+    share = discovery.settings.get("share")
+    share = share if share in set(tests["feature"]) else None
+    settings = {**contrast.settings, "family_features": features, "family_share": share}
     return replace(contrast, repeats=repeats, cells=cells, settings=settings)
 
 
-__all__ = ["shared_family"]
+def shared_across(
+    contrast: Any, objects: pd.DataFrame, fovs: pd.DataFrame, features: list[str], setup: Any
+) -> Any:
+    """``contrast`` with its secondary rows tested for every feature (see the module);
+    unchanged without them."""
+    table = contrast.settings.get("contrasts")
+    if table is None or not len(contrast.across):
+        return contrast
+    every = across_features(
+        objects,
+        fovs,
+        features=features,
+        rows=table,
+        random_state=setup.random_state,
+        **setup.common,
+    )
+    if every.empty:
+        return contrast
+    mine = every[every["feature"] == setup.readout].drop(columns="feature")
+    across = mine.reset_index(drop=True) if len(mine) else contrast.across
+    across.attrs = contrast.across.attrs
+    settings = {**contrast.settings, "across_features": every.reset_index(drop=True)}
+    return replace(contrast, across=across, settings=settings)
+
+
+__all__ = ["shared_across", "shared_family"]

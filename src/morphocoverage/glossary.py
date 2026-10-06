@@ -3,7 +3,7 @@ papers they come from.
 
 ``GLOSSARY`` is a tuple of ``Term`` (``name``, ``meaning``, ``where`` in the report, the
 ``references``), grouped by ``section``. The HTML report prints it as its last section, and
-``glossary_markdown()`` is ``docs/glossary.md`` (a test keeps the two the same). A reference
+``glossary_markdown()`` is ``docs/common/glossary.md`` (a test keeps the two the same). A reference
 links to its DOI only where the DOI is established; methods of the lab without a paper are
 named without a link.
 """
@@ -247,8 +247,10 @@ GLOSSARY: tuple[Term, ...] = (
         "condition; it is significant across repeats when the paired t-test on the repeat "
         "means gives q ≤ 0.05 for that condition too (with n repeats: n is said beside it). "
         "The first finds candidates; the second says the mean difference holds across the "
-        "repeats. 'Same direction, not significant' is a consistent trend, not evidence of no "
-        "effect.",
+        "repeats. 'Same direction in every repeat, not significant', said from 6 repeats, is a "
+        "consistent trend, not evidence of no effect; with fewer, every repeat goes the same "
+        "way by chance too often (1 experiment in 4 with 3 repeats), so it reads 'not "
+        "significant across repeats' (owner, 2026-10-06).",
         "Do the conditions differ?, the feature ranking",
     ),
     Term(
@@ -299,11 +301,14 @@ GLOSSARY: tuple[Term, ...] = (
         "Figures",
         "Other feature tables and the combined map",
         "Features not read one by one, such as a deep-learning embedding, loaded as named "
-        "tables beside the explainable features and never tested feature by feature. Each has "
-        "its own map; the combined map weighs every table as much as the explainable features. "
-        "Under each map, the share of each cell's 10 nearest neighbours in its biological "
-        "repeat that have its condition, against chance: how far the conditions separate in "
-        "that table. Describes, does not test.",
+        "tables beside the explainable features and never tested feature by feature: each is "
+        "tested whole instead, its centre against its control's in every repeat. Each has "
+        "its own map; the combined map weighs every table as much as the explainable features, "
+        "each divided by its first singular value. Under each map, the share of each cell's "
+        "nearest neighbours in its biological repeat, outside its field, that have its "
+        "condition, against chance: how far the conditions separate in that table; and within "
+        "each condition, the share that have its repeat: how far the repeats do. Describes, "
+        "does not test.",
         "The whole dataset at once",
     ),
     Term(
@@ -386,7 +391,7 @@ def _reference_markdown(reference: Reference) -> str:
 
 
 def glossary_markdown() -> str:
-    """``docs/glossary.md``: the glossary by section."""
+    """``docs/common/glossary.md``: the glossary by section."""
     lines = [
         "# Glossary",
         "",

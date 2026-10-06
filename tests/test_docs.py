@@ -58,10 +58,10 @@ def _constructed_wells() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def test_objects_or_fields_example_runs(tmp_path, capsys):
-    """The usage example of docs/objects_or_fields.md runs against the current API."""
-    text = (ROOT / "docs" / "objects_or_fields.md").read_text()
+    """The usage example of docs/report/objects_or_fields.md runs against the current API."""
+    text = (ROOT / "docs" / "report" / "objects_or_fields.md").read_text()
     section = re.search(r"## Checking your own data.*?```python\n(.*?)```", text, flags=re.DOTALL)
-    assert section, "docs/objects_or_fields.md example not found"
+    assert section, "docs/report/objects_or_fields.md example not found"
     script = tmp_path / "objects_or_fields_example.py"
     script.write_text(section.group(1))
     objects, fovs = _constructed_wells()
@@ -74,10 +74,10 @@ def test_objects_or_fields_example_runs(tmp_path, capsys):
 
 
 def test_data_format_example_runs_and_prints_what_it_says(tmp_path, capsys):
-    """The minimal example of docs/data_format.md runs and its comments are true."""
-    text = (ROOT / "docs" / "data_format.md").read_text()
+    """The minimal example of docs/common/data_format.md runs and its comments are true."""
+    text = (ROOT / "docs" / "common" / "data_format.md").read_text()
     section = re.search(r"## Minimal example.*?```python\n(.*?)```", text, flags=re.DOTALL)
-    assert section, "docs/data_format.md example not found"
+    assert section, "docs/common/data_format.md example not found"
     script = tmp_path / "data_format_example.py"
     script.write_text(section.group(1))
     runpy.run_path(str(script))
@@ -90,19 +90,19 @@ def test_data_format_example_runs_and_prints_what_it_says(tmp_path, capsys):
 
 
 def test_data_format_lists_every_shared_column():
-    """Every MorphoBricks shared column is documented in docs/data_format.md."""
+    """Every MorphoBricks shared column is documented in docs/common/data_format.md."""
     from morphocoverage.metadata import MORPHOBRICKS_SHARED_COLUMNS
 
-    text = (ROOT / "docs" / "data_format.md").read_text()
+    text = (ROOT / "docs" / "common" / "data_format.md").read_text()
     for column in MORPHOBRICKS_SHARED_COLUMNS:
         assert f"`{column}`" in text, column
 
 
 def test_data_format_feature_tables_example_runs_and_prints_what_it_says(tmp_path, capsys):
-    """The other feature tables' example of docs/data_format.md runs and its comments are true."""
-    text = (ROOT / "docs" / "data_format.md").read_text()
+    """The other feature tables' example of docs/common/data_format.md runs; its comments hold."""
+    text = (ROOT / "docs" / "common" / "data_format.md").read_text()
     section = re.search(r"## Other feature tables.*?```python\n(.*?)```", text, flags=re.DOTALL)
-    assert section, "docs/data_format.md feature tables example not found"
+    assert section, "docs/common/data_format.md feature tables example not found"
     script = tmp_path / "feature_tables_example.py"
     script.write_text(section.group(1))
     runpy.run_path(str(script))
@@ -112,3 +112,54 @@ def test_data_format_feature_tables_example_runs_and_prints_what_it_says(tmp_pat
         "('dino_0', 'dino_1', 'dino_2')",
         "(4, 7)",
     ]
+
+
+def _prose(text: str) -> str:
+    """A markdown page without its fenced code blocks and inline code."""
+    text = re.sub(r"^```.*?^```", "", text, flags=re.DOTALL | re.MULTILINE)
+    return re.sub(r"`[^`\n]*`", "", text)
+
+
+def _anchors(page: Path) -> set[str]:
+    """The heading anchors GitHub gives a page: lowercase, punctuation dropped, spaces as
+    hyphens, a repeated heading numbered."""
+    anchors: set[str] = set()
+    text = re.sub(r"^```.*?^```", "", page.read_text(), flags=re.DOTALL | re.MULTILINE)
+    for line in text.split("\n"):
+        heading = re.match(r"#{1,6}\s+(.*)", line)
+        if heading:
+            slug = re.sub(r"[^\w\- ]", "", heading.group(1).strip().lower()).replace(" ", "-")
+            numbered, n = slug, 0
+            while numbered in anchors:
+                n += 1
+                numbered = f"{slug}-{n}"
+            anchors.add(numbered)
+    return anchors
+
+
+def test_every_relative_link_of_the_documentation_points_to_a_file():
+    """Every relative link of README.md, AGENTS.md and docs/**/*.md names a file that exists,
+    and a link to a heading names a heading of that page."""
+    pages = [ROOT / "README.md", ROOT / "AGENTS.md", *sorted((ROOT / "docs").rglob("*.md"))]
+    broken = []
+    for page in pages:
+        for target in re.findall(r"\]\(([^)\s]+)\)", _prose(page.read_text())):
+            if re.match(r"[a-z]+:", target):
+                continue  # https:, mailto:
+            path, _, anchor = target.partition("#")
+            linked = (page.parent / path).resolve() if path else page
+            if not linked.is_file():
+                broken.append(f"{page.relative_to(ROOT)}: {target}")
+            elif anchor and linked.suffix == ".md" and anchor not in _anchors(linked):
+                broken.append(f"{page.relative_to(ROOT)}: {target} (no such heading)")
+    assert not broken, "broken links:\n" + "\n".join(broken)
+
+
+def test_setup_md_says_what_reads_the_normalised_values_as_the_code_does():
+    # One list, in _contrasts.normalised_readers, printed by the overview and the declaration
+    # (audit 8B): the page quotes it, with one control and with several.
+    from morphocoverage.workflows._contrasts import normalised_readers
+
+    text = " ".join((ROOT / "docs" / "common" / "setup.md").read_text().split())
+    assert f"With one control, {normalised_readers()}." in text
+    assert f"With several controls, {normalised_readers(several=True)}." in text

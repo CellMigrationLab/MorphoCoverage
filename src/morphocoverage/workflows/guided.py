@@ -4,13 +4,14 @@
 
 1. **Load** the observation table (and the FOV table, when there is one), from a path or
    a DataFrame; with paths (asked or given), ask too for **other feature tables** for the same
-   observations (a DINO embedding, owner 2026-10-05: each with a path and a name, checked
-   against the observation table, ``_guided_tables``; or ``guide(feature_tables=...)``);
+   observations (a DINO embedding, owner 2026-10-05: each with a path, a name and whether it
+   is explainable, owner 2026-10-06, checked against the observation table,
+   ``_guided_tables``; or ``guide(feature_tables=...)``);
    and choose the **results folder**.
 2. If the folder already holds saved answers (``ANSWERS_FILE``) for the same tables (the
    observation table and the FOV table, or no FOV table, by their checksums), offer to
    **continue** with them or to **delete them and start over**; answers saved for other
-   tables (the other feature tables by name and checksum included) are never reused, nor
+   tables (the other feature tables by name, checksum and tag included) are never reused, nor
    answers saved by an earlier version, which did not check the FOV table (the questions are
    asked again; owner, 2026-10-05).
 3. **Scan** the design (``scan_design``, the other feature tables listed with it) and print
@@ -23,7 +24,8 @@
    proposed to confirm), then the tests that will run, one per line with its family; an
    optional positive control (a condition known to change the phenotype, for question 1);
    whether the average of each feature differs, the whole distribution (shape, spread,
-   tails), or both (stored as ``population``, ``fingerprint``, ``both``); the features to
+   tails; no mean target, ``tolerances=()``, owner 2026-10-06), or both (stored as
+   ``population``, ``fingerprint``, ``both``); the features to
    assess (several, or all the numeric columns); the readout among them; an optional column
    that marks a phenotype (true/false or 0/1 per observation: ``Setup.rare_label``, its
    share the rare target's prevalence, seen in ``RARE_FIELDS`` fields with
@@ -60,15 +62,24 @@ from typing import Any
 
 import pandas as pd
 
-from .._wording import count, duration, percent
-from ..feature_tables import table_weights
+from .._wording import count, duration, listing, percent
 from ..metadata import CONDITION_COLUMN
 from ..multivariate_outcomes import CovarianceError
 from ..objectives import RareTarget
 from ..retrospective.criteria import OutcomeCriterion
 from . import _guided_ask as q
+from ._feature_space import features_words
 from ._guided_controls import ask_controls, contrast_lines
-from ._guided_tables import Tables, ask_tables, entries, identity, read_tables
+from ._guided_tables import (
+    Tables,
+    ask_tables,
+    changed,
+    entries,
+    identity,
+    read_tables,
+    tag_of,
+    tagged,
+)
 from ._html_data import EMBED_BUDGET
 from .html_report import html_report, zip_results
 from .retrospective import Report, report
@@ -90,19 +101,29 @@ RARE_FIELDS = 3
 SECONDS_PER_PAIR = 0.6
 SECONDS_PER_CONDITION = 8.0
 SECONDS_FIXED = 60.0
+# Each other feature table (owner, 2026-10-06): its populations, maps and copy checks, a
+# fixed part and a part per column, from a report and page of 5,000 cells with a table of
+# 400 and of 1,500 columns on 3 processes (65 s and 129 s more than without; 2026-10-06).
+SECONDS_PER_TABLE = 40.0
+SECONDS_PER_TABLE_COLUMN = 0.06
 
 
-def rough_runtime(n_features: int, n_conditions: int, n_jobs: int = 4) -> float:
+def rough_runtime(
+    n_features: int, n_conditions: int, n_jobs: int = 4, tables: Sequence[int] = ()
+) -> float:
     """The seconds a report and its page take, roughly: ``SECONDS_PER_PAIR`` for each
     feature and condition on 4 cores (fewer cores slower), ``SECONDS_PER_CONDITION`` for
-    each condition and ``SECONDS_FIXED``."""
+    each condition and ``SECONDS_FIXED``; and for each other feature table (``tables``: its
+    number of columns) ``SECONDS_PER_TABLE`` and ``SECONDS_PER_TABLE_COLUMN`` a column."""
     cores = (os.cpu_count() or 1) if n_jobs < 1 else n_jobs
     per_pair = SECONDS_PER_PAIR * 4 / max(1, min(cores, 4))
     conditions = max(1, n_conditions)
+    others = sum(SECONDS_PER_TABLE + SECONDS_PER_TABLE_COLUMN * columns for columns in tables)
     return (
         per_pair * max(1, n_features) * conditions
         + SECONDS_PER_CONDITION * conditions
         + SECONDS_FIXED
+        + others
     )
 
 
@@ -131,7 +152,7 @@ class Answers:
     control: dict[str, Any] | None
     aim: str
     features: list[str]
-    readout: str
+    readout: str | None
     observation_unit: str
     fingerprint_tolerance: float | None = None
     positive: dict[str, Any] | None = None
@@ -148,38 +169,55 @@ class Answers:
             self.control_parents = {
                 c: tuple(p) if isinstance(p, list) else p for c, p in self.control_parents.items()
             }
+        if self.control is not None:  # controls nothing could be compared with are refused
+            parents, master = self.control_parents, self.master_control
+            Setup(readout="_", control=self.control, control_parents=parents, master_control=master)
         if self.aim not in q.AIMS:
             raise ValueError(f"aim must be one of {tuple(q.AIMS)}, not {self.aim!r}")
         if not self.features:
-            raise ValueError("choose at least one feature")
-        if self.readout not in self.features:
+            # Embedding-only answers (owner, 2026-10-06): the other tables alone, no readout.
+            if self.readout is not None or self.aim not in q.TABLE_AIMS:
+                raise ValueError(
+                    "choose at least one feature, or, with other feature tables and no "
+                    f"explainable feature, readout=None and an aim among {q.TABLE_AIMS}"
+                )
+            if "label" in self.aim and self.rare_label is None:
+                raise ValueError(f"aim={self.aim!r} needs the phenotype column (rare_label)")
+        elif self.readout not in self.features:
             raise ValueError(f"the readout {self.readout!r} must be one of the features")
-        if self.aim != "population" and self.fingerprint_tolerance is None:
+        if self.aim not in ("population", "label") and self.fingerprint_tolerance is None:
             raise ValueError(f"aim={self.aim!r} needs fingerprint_tolerance")
 
     def fingerprint(
         self, tables: Mapping[str, Sequence[str]] | None = None
     ) -> tuple[OutcomeCriterion, ...]:
-        """The fingerprint criterion the answers declare (none for the population aim); with
-        other feature tables (``tables``: each name and its columns), on the weighted combined
-        space (``feature_tables.table_weights``, owner 2026-10-05)."""
-        if self.aim == "population":
+        """The fingerprint criteria the answers declare (none for the population aim): the
+        explainable features', and with other feature tables (``tables``: each name and its
+        columns) one per table, each with its own verdict at the same tolerance (owner,
+        2026-10-06)."""
+        if self.aim in ("population", "label"):
             return ()
         tolerance = float(self.fingerprint_tolerance)
-        weights = table_weights(tables, len(self.features)) if tables else {}
-        columns = (*self.features, *weights)
-        metric = CovarianceError(
-            columns, True, weights=tuple(weights.get(c, 1.0) for c in columns) if tables else None
-        )
-        others = " and the other feature tables, each weighing as much," if tables else ""
-        return (
+        within = f"within {percent(tolerance)}"
+        criteria = [
             OutcomeCriterion(
-                metric,
+                CovarianceError(tuple(self.features), True),
                 tolerance,
                 "lower_is_better",
-                f"the covariance of the standardised features{others} within {percent(tolerance)}",
-            ),
-        )
+                f"the covariance of the standardised features {within}",
+            )
+            for _ in ([1] if self.features else [])  # none without explainable features
+        ]
+        for name, columns in (tables or {}).items():
+            criteria.append(
+                OutcomeCriterion(
+                    CovarianceError(tuple(columns), True),
+                    tolerance,
+                    "lower_is_better",
+                    f"the covariance of the standardised {name} columns {within}",
+                )
+            )
+        return tuple(criteria)
 
     def setup(self, scan: DesignScan, **fields: Any) -> Setup:
         """The ``Setup`` these answers make for ``scan`` (``fields`` add or override any
@@ -194,7 +232,9 @@ class Answers:
         }
         if goal == "fingerprint":
             values["fingerprint"] = self.fingerprint(scan.settings.get("feature_tables"))
-        if goal == "fingerprint" or self.positive is not None:
+        if self.aim == "fingerprint":  # the whole distribution: no mean target (owner, 2026-10-06)
+            values["tolerances"] = ()
+        if (goal == "fingerprint" and self.features) or self.positive is not None:
             # A positive control is judged by the definition of new.
             values["novelty"] = default_novelty(tuple(self.features))
         if self.positive is not None:
@@ -235,12 +275,16 @@ class Answers:
         lines = [
             f"Control: {control}.",
             f"Aim: {q.AIM_TEXT[self.aim]}.",
-            f"Features ({len(self.features)}): {', '.join(self.features)}".rstrip(".") + ".",
-            f"Readout: {self.readout}.",
+            (
+                f"Features ({len(self.features)}): {', '.join(self.features)}".rstrip(".") + "."
+                if self.features
+                else "Features: none explainable; the other feature tables alone."
+            ),
+            f"Readout: {self.readout or 'none'}.",
             f"One row is a {self.observation_unit}.",
         ]
         tables = [
-            f"{e['name']} ({e['path'] or 'a DataFrame'})"
+            f"{e['name']} ({tag_of(e)}, {e['path'] or 'a DataFrame'})"
             for e in self.dataset.get("feature_tables") or []
         ]
         if tables:
@@ -333,7 +377,7 @@ def _load(
         "rows": len(objects),
         "checksum": table_checksum(objects),
         "fovs_checksum": None if fovs is None else table_checksum(fovs),
-        "feature_tables": entries(tables),
+        "feature_tables": entries(tables, objects),
     }
     return objects, fovs, tables, dataset
 
@@ -383,9 +427,11 @@ def _saved(
         if choice == "continue":
             return saved, None
     elif saved is not None:
+        differs = changed(saved.dataset, dataset) or ["the tables"]
         say(
             f"{path} holds answers for another table ({saved.dataset.get('rows')} rows, saved "
-            f"{saved.saved or 'earlier'}); they cannot be reused for this one."
+            f"{saved.saved or 'earlier'}); what differs: {listing(differs, 6)}. They cannot be "
+            "reused for this one."
         )
     unusable = saved is None or not usable
     if unusable and not q.yes_no(ask, say, "Delete them and start over?", True):
@@ -417,12 +463,23 @@ def _questions(
     control, parents, master = ask_controls(ask, say, scan)
     say("The tests that will run:\n" + "\n".join(contrast_lines(control, parents, master)))
     positive = q.ask_positive(ask, say, scan, control)
-    aim = q.ask_aim(ask, say)
-    features = q.ask_features(ask, say, scan.settings["feature_cols"])
-    readout = q.ask_readout(ask, say, features)
-    taken = [*features, *scan.settings["group_cols"], scan.settings["fov_col"]]
-    rare_label = q.ask_rare_label(ask, say, q.label_columns(scan.objects, taken))
-    tolerance = q.ask_tolerance(ask, say, features) if aim != "population" else None
+    tables = scan.settings.get("feature_tables") or {}
+    taken = [*scan.settings["group_cols"], scan.settings["fov_col"], *_table_columns(tables)]
+    labels = q.label_columns(scan.objects, taken)
+    numeric = [c for c in scan.settings["feature_cols"] if c not in labels]
+    if not numeric and tables:
+        # No explainable feature, other tables given (owner, 2026-10-06): no feature or
+        # readout question, the aim among the targets that need no readout.
+        features, readout = [], None
+        rare_label = q.ask_rare_label(ask, say, labels)
+        aim = q.ask_table_aim(ask, say, rare_label)
+    else:
+        aim = q.ask_aim(ask, say)
+        features = q.ask_features(ask, say, scan.settings["feature_cols"])
+        readout = q.ask_readout(ask, say, features)
+        rare_label = q.ask_rare_label(ask, say, q.label_columns(scan.objects, [*features, *taken]))
+    fingerprint = aim not in ("population", "label")
+    tolerance = q.ask_tolerance(ask, say, features) if fingerprint else None
     return Answers(
         loaded_correctly=True,
         control=control,
@@ -439,6 +496,11 @@ def _questions(
     ), scan
 
 
+def _table_columns(tables: Mapping[str, Sequence[str]]) -> list[str]:
+    """Every other table's columns: never a phenotype label."""
+    return [c for columns in tables.values() for c in columns]
+
+
 def guide(
     objects: pd.DataFrame | str | Path | None = None,
     fovs: pd.DataFrame | str | Path | None = None,
@@ -447,7 +509,7 @@ def guide(
     ask: Callable[[str], str] = input,
     say: Callable[[str], None] = print,
     run_report: bool = True,
-    feature_tables: Mapping[str, pd.DataFrame | str | Path] | None = None,
+    feature_tables: Mapping[str, Any] | None = None,
     **setup_fields: Any,
 ) -> GuidedResult:
     """Run the guided session (see the module) and return what it produced.
@@ -456,10 +518,11 @@ def guide(
     ``None``); ``folder`` is the results folder (asked for when ``None``). ``setup_fields``
     go to the ``Setup`` (``n_jobs=4``, ``normalize="control_mean"``). With
     ``run_report=False`` the session stops after saving the answers. ``feature_tables`` are
-    other feature tables by name (DataFrames or CSV paths), asked for when the tables are paths.
+    other feature tables by name (DataFrames or CSV paths, non-explainable, or either with its
+    tag: ``(table, "explainable")``), asked for with their tags when the tables are paths.
     """
     objects, fovs, tables, dataset = _load(ask, say, objects, fovs, feature_tables)
-    others = {name: table for name, (table, _) in tables.items()} or None
+    others = tagged(tables) or None
     if folder is None:
         folder = q.text(ask, "Folder for the results:", DEFAULT_FOLDER)
     folder = Path(folder).expanduser()
@@ -494,9 +557,10 @@ def guide(
     fields = scan.fovs
     conditions = int(fields[CONDITION_COLUMN].nunique()) if CONDITION_COLUMN in fields else 1
     cores = setup.n_jobs if setup.n_jobs > 0 else os.cpu_count() or 1
-    estimate = rough_runtime(len(setup.columns), conditions, setup.n_jobs)
+    tables = [len(c) for c in (setup.feature_tables or {}).values()]
+    estimate = rough_runtime(len(setup.columns), conditions, setup.n_jobs, tables)
     say(
-        f"Running the report for {count(len(setup.columns), 'feature')} and "
+        f"Running the report for {features_words(setup)} and "
         f"{count(conditions, 'condition')}; on {count(cores, 'core')} this takes roughly "
         f"{duration(estimate)}..."
     )

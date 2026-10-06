@@ -12,6 +12,7 @@ import pytest
 
 from morphocoverage.workflows import Answers, guide, load_answers, save_answers
 from morphocoverage.workflows._guided_ask import _selection
+from morphocoverage.workflows._guided_tables import entries
 from morphocoverage.workflows.guided import ANSWERS_FILE, table_checksum
 
 
@@ -299,21 +300,30 @@ def test_other_feature_tables_are_asked_for_checked_named_and_saved(tmp_path):
     cells.to_csv(path, index=False)
     _embedding(cells).to_csv(good, index=False)
     _embedding(cells, drop=2).to_csv(short, index=False)
-    tables = ["y", str(tmp_path / "missing.csv"), str(short), "short", str(good), "DINOv2", ""]
+    # Each table's tag asked after its name, "no" (non-explainable) by default (2026-10-06).
+    tables = [
+        *("y", str(tmp_path / "missing.csv"), str(short), "short", ""),
+        *(str(good), "DINOv2", "", ""),
+    ]
     questions = ["y", "", "", "", "", "", "all", ""]
     result, script = _run(str(path), tmp_path / "results", tables + questions, run_report=False)
     assert "other feature tables for the same observations" in script.prompts[0]
     assert "It cannot be read" in script.text
     assert "'short' lacks a row for 2 observations" in script.text
-    assert "DINOv2: 4 feature columns, checked." in script.text
+    assert "DINOv2: 4 feature columns, non-explainable, checked." in script.text
     entry = result.answers.dataset["feature_tables"]
+    # The checksum of the rows sorted by their identity (owner, 2026-10-06).
+    checksum = entry[0]["checksum"]
     assert entry == [
-        {"name": "DINOv2", "path": str(good), "checksum": table_checksum(pd.read_csv(good))}
+        {"name": "DINOv2", "path": str(good), "tag": "non-explainable", "checksum": checksum}
     ]
+    tables = {"DINOv2": (pd.read_csv(good), None, "non-explainable")}
+    assert checksum == entries(tables, cells)[0]["checksum"]
     assert result.setup.feature_tables == {"DINOv2": tuple(f"dino_{j}" for j in range(4))}
     # Listed in the scan, which is printed before "Did your dataset load correctly?".
     scan = (tmp_path / "results" / "scan.txt").read_text()
-    assert "Other feature table DINOv2: 4 feature columns, every observation matched once" in scan
+    line = "Other feature table DINOv2 (non-explainable): 4 feature columns, every observation"
+    assert line in scan
     assert script.text.index("Other feature table DINOv2") < script.text.index("Loaded correctly?")
     assert "Other feature tables: DINOv2" in "\n".join(result.answers.lines())
 
@@ -333,9 +343,26 @@ def test_saved_answers_are_reused_only_with_the_same_other_tables(tmp_path):
     other = {"DINOv2": _embedding(cells, seed=4)}
     result, script = _run(cells, tmp_path, ["n"], run_report=False, feature_tables=other)
     assert "cannot be reused for this one" in script.text and result.answers is None
+    # The refusal names the table that changed (owner, 2026-10-06).
+    assert "what differs: the feature table 'DINOv2'." in " ".join(script.text.split())
 
 
-def test_a_fingerprint_with_other_tables_reads_the_weighted_combined_space():
+def test_saved_answers_are_reused_for_a_table_in_another_row_order(tmp_path):
+    cells = _cells()
+    first = {"DINOv2": _embedding(cells)}
+    _run(
+        cells,
+        tmp_path,
+        ["y", "", "", "", "", "", "all", ""],
+        run_report=False,
+        feature_tables=first,
+    )
+    shuffled = {"DINOv2": first["DINOv2"].sample(frac=1, random_state=0)}
+    result, script = _run(cells, tmp_path, [""], run_report=False, feature_tables=shuffled)
+    assert "were found for this table" in script.text and result.setup.feature_tables
+
+
+def test_a_fingerprint_with_other_tables_has_one_criterion_per_table():
     answers = Answers(
         loaded_correctly=True,
         control=None,
@@ -345,9 +372,10 @@ def test_a_fingerprint_with_other_tables_reads_the_weighted_combined_space():
         observation_unit="cell",
         fingerprint_tolerance=0.2,
     )
-    (criterion,) = answers.fingerprint({"DINOv2": ("d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7")})
-    metric = criterion.metric
-    assert metric.features == ("area", "aspect", *(f"d{i}" for i in range(8)))
-    assert metric.weights == (1.0, 1.0, *(0.5,) * 8)
-    assert "and the other feature tables, each weighing as much" in criterion.description
-    assert answers.fingerprint()[0].metric.weights is None
+    # Owner, 2026-10-06: the explainable features and each table apart, each its verdict.
+    explainable, dino = answers.fingerprint({"DINOv2": tuple(f"d{i}" for i in range(8))})
+    assert explainable.metric.features == ("area", "aspect")
+    assert dino.metric.features == tuple(f"d{i}" for i in range(8))
+    assert dino.metric.weights is None and dino.threshold == explainable.threshold == 0.2
+    assert dino.description == "the covariance of the standardised DINOv2 columns within 20%"
+    assert answers.fingerprint() == (explainable,)

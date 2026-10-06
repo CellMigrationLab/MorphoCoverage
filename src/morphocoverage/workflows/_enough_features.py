@@ -263,7 +263,7 @@ def default_precision(setup: Setup) -> bool:
     from .setup import Setup
 
     tolerance = next(f.default for f in fields(Setup) if f.name == "tolerances")[0]
-    return setup.rules is None and setup.tolerances[0] == tolerance
+    return setup.rules is None and setup.tolerances[:1] == (tolerance,)
 
 
 def _for(names: list[str], total: int) -> str:

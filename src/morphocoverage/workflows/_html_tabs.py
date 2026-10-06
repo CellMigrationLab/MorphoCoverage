@@ -39,12 +39,34 @@ _SCREEN_START = re.compile(r"\w+-level screen\b")
 TABS_AT_MOST = 12
 
 
-def _picker(name: str, items: Sequence[tuple[str, str, str]], label: str) -> str:
+def _grouped(parts: Sequence[str], groups: Sequence[str] | None, start: str, end: str) -> str:
+    """``parts`` joined, each run of one non-empty group opened with ``start`` (its name in
+    ``{}``) and closed with ``end``."""
+    if not groups:
+        return "".join(parts)
+    out, current = [], ""
+    for part, group in zip(parts, groups, strict=True):
+        if group != current:
+            out += [end] if current else []
+            out += [start.format(html.escape(group))] if group else []
+            current = group
+        out.append(part)
+    return "".join([*out, *([end] if current else [])])
+
+
+def _picker(
+    name: str, items: Sequence[tuple[str, str, str]], label: str, groups: Sequence[str] | None
+) -> str:
     """Many items: a search box filtering a list, the picked item's panel shown."""
-    options = "".join(
-        f'<option value="{i}"{" selected" if i == 0 else ""}>'
-        f"{html.escape(f'{mark} {text}' if mark else text)}</option>"
-        for i, (text, mark, _) in enumerate(items)
+    options = _grouped(
+        [
+            f'<option value="{i}"{" selected" if i == 0 else ""}>'
+            f"{html.escape(f'{mark} {text}' if mark else text)}</option>"
+            for i, (text, mark, _) in enumerate(items)
+        ],
+        groups,
+        '<optgroup label="{}">',
+        "</optgroup>",
     )
     panels = "".join(
         f'<div class="tab-panel" role="region" id="{name}-panel-{i}" '
@@ -64,17 +86,30 @@ def _picker(name: str, items: Sequence[tuple[str, str, str]], label: str) -> str
     )
 
 
-def tabs_html(name: str, items: Sequence[tuple[str, str, str]], label: str) -> str:
+def tabs_html(
+    name: str,
+    items: Sequence[tuple[str, str, str]],
+    label: str,
+    groups: Sequence[str] | None = None,
+) -> str:
     """Tabs called ``name`` (an id prefix) from ``(label, mark, markup)`` items; ``label``
     names the tab list for a screen reader. Above ``TABS_AT_MOST`` items, a list to search
-    and pick from."""
+    and pick from. ``groups``, one per item, lists the items under their group's name (each
+    feature under its table, owner 2026-10-06)."""
     if len(items) > TABS_AT_MOST:
-        return _picker(name, items, label)
-    buttons = "".join(
-        f'<button type="button" role="tab" id="{name}-tab-{i}" aria-controls="{name}-panel-{i}" '
-        f'aria-selected="{str(i == 0).lower()}" tabindex="{0 if i == 0 else -1}">'
-        f"{html.escape(text)}" + (f'<span class="mark">{mark}</span>' if mark else "") + "</button>"
-        for i, (text, mark, _) in enumerate(items)
+        return _picker(name, items, label, groups)
+    buttons = _grouped(
+        [
+            f'<button type="button" role="tab" id="{name}-tab-{i}" '
+            f'aria-controls="{name}-panel-{i}" aria-selected="{str(i == 0).lower()}" '
+            f'tabindex="{0 if i == 0 else -1}">{html.escape(text)}'
+            + (f'<span class="mark">{mark}</span>' if mark else "")
+            + "</button>"
+            for i, (text, mark, _) in enumerate(items)
+        ],
+        groups,
+        '<span class="tab-group" role="presentation">{}</span>',
+        "",
     )
     panels = "".join(
         f'<div class="tab-panel" role="tabpanel" id="{name}-panel-{i}" '
@@ -117,4 +152,45 @@ def test_blocks(text: str) -> tuple[list[str], dict[str, list[str]], list[str]]:
     return head, blocks, tail
 
 
-__all__ = ["OFF_PAGE", "TABS_AT_MOST", "TEST_KINDS", "tabs_html", "test_blocks"]
+# An embedding-only report has no mean to plan for (owner, 2026-10-06).
+NOTHING = (
+    "Nothing to plan here: without explainable features the targets are the fingerprint of "
+    "each table and a labelled phenotype, and none can be judged here."
+)
+NOTHING_LIVE = (
+    "Without a readout there is no default stopping rule: pass live_session(setup, "
+    "rules=(...)), a FOVBootstrapStrategy on a table's columns or a RareIncidenceStrategy on "
+    "the labelled phenotype."
+)
+
+
+def choose(name: str, label: str, items: Sequence[tuple[str, str]], empty: str = NOTHING) -> str:
+    """A ``<select>`` called ``name`` (an id prefix) and one panel per ``(option, markup)``,
+    the first shown; without any, ``empty`` says why (an embedding-only report)."""
+    if not items:
+        return f'<p class="note">{html.escape(empty)}</p>'
+    options = "".join(
+        f'<option value="{i}"{" selected" if i == 0 else ""}>{html.escape(text)}</option>'
+        for i, (text, _) in enumerate(items)
+    )
+    panels = "".join(
+        f'<div class="choice-panel" id="{name}-panel-{i}"{"" if i == 0 else " hidden"}>'
+        f"{markup}</div>"
+        for i, (_, markup) in enumerate(items)
+    )
+    return (
+        f'<div class="choose"><label for="{name}-pick">{html.escape(label)}</label>'
+        f'<select id="{name}-pick">{options}</select>{panels}</div>'
+    )
+
+
+__all__ = [
+    "NOTHING",
+    "NOTHING_LIVE",
+    "OFF_PAGE",
+    "TABS_AT_MOST",
+    "TEST_KINDS",
+    "choose",
+    "tabs_html",
+    "test_blocks",
+]

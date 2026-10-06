@@ -2,13 +2,13 @@
 
 Each takes the two linked tables (every acquired FOV, including empty ones,
 and the observations) and a ``Setup``, runs the package's analyses in the
-order of ``docs/questions.md``, and returns every result with a ``summary()``
-in sentences:
+order of ``docs/report/questions.md`` and ``docs/optimise/optimise.md``, and returns every
+result with a ``summary()`` in sentences:
 
-- ``report`` (REPORT: the Foundation, then R1 to R7): fields against objects, the representation
+- ``report`` (REPORT: the Foundation, then R1 to R8): fields against objects, the representation
   control, what each rule says, the sampling profile with rare-object
-  clustering, the fields to inspect, and each condition against the control;
-- ``optimise`` (OPTIMISE / PLAN): how often ``k`` random fields preserve the
+  clustering, the fields to inspect, each condition against the control, and the populations;
+- ``optimise`` (OPTIMISE): how often ``k`` random fields preserve the
   readout in held-back fields, across samples, what the extra fields bought,
   how reliable each stopping rule was, more fields or more samples, and the
   order of acquisition;
@@ -39,15 +39,15 @@ into the full microscopist's report, with the settings of both.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, fields, replace
+from dataclasses import fields, replace
 from typing import Any
 
 import pandas as pd
 
-from .._caveats import caveat_lines
-from .._style import DASH, check_detail, headline, wrap
+from .._integrity_tables import integrity_by_table
+from .._style import DASH
 from .._wording import count
-from ..integrity import integrity_checks
+from ..feature_tables import any_explainable
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..retrospective import (
     MicroscopistReport,
@@ -64,16 +64,13 @@ from ..retrospective import (
     sampling_reliability,
     stopping_calibration,
 )
-from ..retrospective.calibration import calibration_short_parts
-from ..retrospective.report import LIMITS_TITLE
-from ..retrospective.report_status import calibration_status
 from ..sampling_unit import (
-    FeatureDiscovery,
-    FeatureRanking,
     fov_variability,
 )
 from ..schema import resolve_observation_unit
 from ..sufficiency import sufficiency_report
+from ._acquisition_gap import with_gap_caution, with_gaps
+from ._contrasts import experiments
 from ._distribution import distribution_by_feature
 from ._document import (
     assemble,
@@ -84,19 +81,34 @@ from ._document import (
     with_reasons,
     with_settings,
 )
+from ._embedding_report import embedding_plan, embedding_report
 from ._enough_features import enough_by_feature
 from ._enough_targets import fingerprint_precision
 from ._feature_space import (
+    analysed_tables,
     attached,
+    centring_line,
+    copy_tables,
     novelty_space,
     separation_in_report,
     table_columns,
     table_lines,
 )
+from ._fingerprint_space import fingerprint_space
 from ._label_control import label_control
 from ._populations import populations_in_report
 from ._rare_share import unlabelled_note
 from ._result_influence import influence_on_result, with_result_influence
+from ._results import (
+    CALIBRATION_SHORT,
+    CALIBRATION_TITLE,
+    PLAN_QUESTIONS,
+    PLAN_TITLE,
+    REPORT_ORDERS,
+    REPORT_QUESTIONS,
+    Plan,
+    Report,
+)
 from ._shared import (
     check_workflow_inputs,
     conditions,
@@ -110,62 +122,9 @@ from ._shared import (
     sufficiency_rules,
 )
 from ._shared import orders as _orders
+from ._whole_table import whole_table_in_report
 from .benchmarks import Benchmark, Family, benchmark, default_families
 from .setup import Setup
-
-PLAN_TITLE = "Plan for the next experiment"
-CALIBRATION_TITLE = (
-    "Would a simple rule have been sufficient, and how reliable is each stopping rule?"
-)
-# The rule check as the "At a glance" block names it.
-CALIBRATION_SHORT = "Rules. How reliable was each stopping rule?"
-REPORT_QUESTIONS = (
-    "unit",
-    "controls",
-    "enough",
-    "profile",
-    "inspect",
-    "conditions",
-    "populations",
-)
-PLAN_QUESTIONS = ("next_time", "bought", "effort", "order")
-# The random orders in which the report replays each rule for "Did I image enough?".
-REPORT_ORDERS = 5
-
-
-@dataclass(frozen=True)
-class Report:
-    """The REPORT answers: ``results`` by analysis, ``document`` the assembled report.
-
-    ``not_assessed`` holds, by question, why an analysis was not run;
-    ``settings`` the replay settings of the run.
-    """
-
-    results: dict[str, Any]
-    document: Any
-    setup: Setup
-    not_assessed: dict[str, str] = field(default_factory=dict)
-    settings: dict[str, Any] = field(default_factory=dict)
-
-    def summary(self, detail: str = "short") -> str:
-        """The report questions (``detail``: ``"short"`` or ``"full"``, as
-        ``MicroscopistReport.summary``), then the settings of the run."""
-        parts = [self.document.summary(REPORT_QUESTIONS, detail=detail)]
-        if self.settings:
-            parts.append(report_settings(self.settings))
-        return "\n\n".join(parts)
-
-    @property
-    def ranking(self) -> FeatureRanking | None:
-        """The ranking over whole technical repeats (question 9), when several features were
-        declared."""
-        return self.results.get("ranking")
-
-    @property
-    def discovery(self) -> FeatureDiscovery | None:
-        """The features the cell-level gate ranks, the paired test beside it (question 9),
-        when several features were declared; ``plots`` draws its best-ranked by default."""
-        return self.results.get("discovery")
 
 
 def report(
@@ -174,7 +133,7 @@ def report(
     setup: Setup,
     *,
     integrity: bool = False,
-    feature_tables: Mapping[str, pd.DataFrame] | None = None,
+    feature_tables: Mapping[str, pd.DataFrame | tuple[pd.DataFrame, str]] | None = None,
 ) -> Report:
     """REPORT on a finished acquisition: what can be trusted, and what cannot.
 
@@ -191,8 +150,9 @@ def report(
     declared by condition and the FOV table holds other conditions, and
     with several declared features ``feature_ranking``, the gated ranking
     that chooses what ``plots`` draws by default (R7). The contrast and the
-    ranking read the normalised values when ``normalize`` is set; every other
-    analysis, the stopping rules included, reads the raw values. The analyses
+    ranking read the raw values and give their tests raw and normalised to the control of
+    the same repeat (owner, 2026-10-05); what else reads the normalised values is listed
+    once, in ``_contrasts.normalised_readers``. The analyses
     against the control need the control's columns (and, for the contrast, the
     condition and the repeat) kept apart by the analysis groups; with
     ``group_cols`` that pool them they are "not assessed", with the reason.
@@ -201,17 +161,26 @@ def report(
     data-integrity checks (``integrity_checks``: copied, reordered or scaled
     fields, repeated blocks and field summaries) on every declared column.
 
-    ``feature_tables`` are other feature tables for the same observations, by name (a DINO
-    embedding, owner 2026-10-05): checked and attached (``attach_feature_tables``), never
-    tested feature by feature, they join the explainable features in the populations,
-    unusual observations, novelty, the copy checks and a fingerprint declared on them, in
-    the weighted combined space (``_feature_space``); the report's ``setup`` names them.
+    ``feature_tables`` are other feature tables for the same observations, by name, each a
+    DataFrame (non-explainable, a DINO embedding, owner 2026-10-05) or ``(DataFrame,
+    "explainable" or "non-explainable")`` (owner, 2026-10-06), checked and attached
+    (``attach_feature_tables``). An explainable table's columns are explainable features,
+    tested one by one. The others are never tested feature by feature; they join the maps, the
+    populations (in each table and in the weighted combined space, ``_feature_space``), the
+    copy checks (on each table apart) and their own fingerprints, never novelty or unusual
+    observations (owner, 2026-10-06); the report's ``setup`` names them.
     """
     given = feature_tables is not None
+    # Explainable tables hold declared features: the data are checked once they are attached.
+    explainable = any_explainable(feature_tables)
     objects, fovs, data_check = check_workflow_inputs(
-        objects, fovs, setup, warn=False, tables_given=given
+        objects, fovs, setup, warn=False, tables_given=given, check=not explainable
     )
     objects, setup, tables = attached(objects, fovs, setup, feature_tables)
+    if explainable:
+        data_check = check_workflow_inputs(objects, fovs, setup, warn=False)[2]
+    if setup.embedding_only:  # the other tables alone (owner, 2026-10-06)
+        return embedding_report(objects, fovs, setup, data_check, tables, integrity)
     common = setup.common
     readout = setup.readout
     # One observation per field (one cell per image): the questions about fields do not
@@ -227,7 +196,8 @@ def report(
             normalized=setup.normalized_sentence(fovs, objects),
             control=setup.single_control,
             data_check=data_check,
-            feature_tables=table_lines(setup, tables),
+            feature_tables=table_lines(setup, tables, centring_line(objects, fovs, setup)),
+            control_experiments=experiments(setup),
             **common,
         ),
     }
@@ -238,9 +208,10 @@ def report(
     if setup.positive is None and setup.rare_label is not None:
         # The labelled rare state is a positive control of its own (owner, 2026-10-02).
         results["label_control"] = label_control(objects, fovs, setup)
-    # "New" is judged on the declared features, with other tables on the combined space.
+    # "New" is judged on the declared features alone, whatever the tables (owner, 2026-10-06).
     combined, novelty_cols = novelty_space(setup)
-    if setup.positive is not None:  # Setup guarantees features and novelty with it
+    # Setup guarantees features and novelty with it; judged only where novelty is.
+    if setup.positive is not None and novelty is not None:
         positive = setup.positive
         results["controls"] = representation_control(
             objects,
@@ -266,60 +237,69 @@ def report(
             # The leave-one-field-out rates within the inspection's analysis groups.
             lofo_group_cols=common["group_cols"],
         )
-    if integrity:
-        every = [*setup.columns, *table_columns(setup)]
-        results["integrity"] = integrity_checks(objects, fovs, feature_cols=every, **common)
+    if integrity:  # on each feature table apart, the union said (owner, 2026-10-06)
+        tables_read = copy_tables(setup)
+        results["integrity"] = integrity_by_table(objects, fovs, tables=tables_read, **common)
     if setup.rare_label is not None:
         results["rare_clustering"] = rare_clustering(objects, fovs, setup)
     prepared = setup.prepared(objects, fovs)
-    # The tests read the normalised values, or with comparisons the raw ones (each test
-    # normalises to its own reference); the populations read the figures' values.
-    compared = setup.compared_values(objects, fovs)
+    # The tests read the raw values and normalise to each condition's own control
+    # themselves, so their raw columns are raw (owner, 2026-10-05); the populations read
+    # the figures' values.
+    compared = objects
     results.update(conditions(compared, fovs, setup, reasons))
+    gaps = with_gaps(results, objects, fovs, setup)  # several controls apart in intensity
     if "contrast" in results:
         # Question 2 for every feature alike: the report is neutral (owner, 2026-10-01).
         results["enough_features"] = enough_by_feature(
             objects, fovs, compared, setup, results.get("discovery")
         )
         results["distribution"] = distribution_by_feature(objects, fovs, setup)
+    # Every other table tested whole, beside the features (owner, 2026-10-06).
+    results["whole_table"] = whole_table_in_report(objects, fovs, setup)
     if setup.fingerprint:
         results["fingerprint_precision"] = fingerprint_precision(objects, fovs, setup)
     # Question 10: populations on every condition pooled, then their enrichment.
-    results["populations"] = populations_in_report(prepared, fovs, setup)
+    # The tables centred per repeat with normalize, as the features are divided.
+    analysed = analysed_tables(prepared, fovs, setup)
+    results["populations"] = populations_in_report(analysed, fovs, setup, objects)
     # Per feature table, how far the conditions separate (descriptive, owner 2026-10-05).
-    results["separation"] = separation_in_report(prepared, fovs, setup)
+    results["separation"] = separation_in_report(analysed, fovs, setup, raw=objects)
     rules, novelty_target = sufficiency_rules(setup)
     if novelty is None:
         novelty_target = None
-    sufficiency = sufficiency_report(
-        objects,
-        fovs,
-        # The rules read the same columns, and the same raw values, in report,
-        # optimise, benchmark and live (with novelty, the other tables too: it reads them).
-        feature_cols=list(dict.fromkeys([*setup.columns, *(novelty_cols if novelty else [])])),
-        strategies=rules,
-        objective=setup.objective(),
-        # sufficiency_report seeds a permutation by its order's seed alone.
-        orders=_orders(setup, permuted=REPORT_ORDERS, dispersed=0, seed_permuted=True),
-        novelty=combined if novelty is not None else None,
-        novelty_target=novelty_target,
-        few_fovs=setup.resolved_few_fovs if novelty is not None else None,
-        acquisition_order_col=setup.acquisition_order_col,
-        # "New" is judged on the declared features only, as in the controls and the
-        # inspection; the rules read the readout.
-        novelty_cols=novelty_cols if novelty is not None else None,
-        # The order check beside every stop: the readout against order and stage.
-        readout=setup.readout,
-        stage_cols=setup.stage_cols,
-        n_jobs=setup.n_jobs,
-        **common,
-    )
-    results["sufficiency"] = report_only(sufficiency, setup)
+    # No rule and no definition of new (tolerances=() without novelty): nothing to judge.
+    if rules or novelty is not None:
+        sufficiency = sufficiency_report(
+            objects,
+            fovs,
+            # The rules read the same columns, and the same raw values, in report,
+            # optimise, benchmark and live.
+            feature_cols=list(dict.fromkeys([*setup.columns, *(novelty_cols if novelty else [])])),
+            strategies=rules,
+            objective=setup.objective(),
+            # sufficiency_report seeds a permutation by its order's seed alone.
+            orders=_orders(setup, permuted=REPORT_ORDERS, dispersed=0, seed_permuted=True),
+            novelty=combined if novelty is not None else None,
+            novelty_target=novelty_target,
+            few_fovs=setup.resolved_few_fovs if novelty is not None else None,
+            acquisition_order_col=setup.acquisition_order_col,
+            # "New" is judged on the declared features only, as in the controls and the
+            # inspection; the rules read the readout.
+            novelty_cols=novelty_cols if novelty is not None else None,
+            # The order check beside every stop: the readout against order and stage.
+            readout=setup.readout,
+            stage_cols=setup.stage_cols,
+            n_jobs=setup.n_jobs,
+            **common,
+        )
+        results["sufficiency"] = report_only(sufficiency, setup)
     # Every reason at once: new states on the declared features, influence, empty
     # or crowded fields and stage neighbours on the readout.
     novel = novelty is not None and bool(setup.features)
     # With a contrast, a field's influence is on the result (the repeat means the paired
-    # test compares, _result_influence); without one, on the field-weighted mean.
+    # test compares, on the values it compares, _result_influence); without one, on the
+    # field-weighted mean.
     on_result = influence_on_result(results.get("contrast"))
     results["inspection"] = inspect_fovs(
         objects,
@@ -334,64 +314,20 @@ def report(
     )
     if on_result:
         results["inspection"] = with_result_influence(
-            results["inspection"], prepared, fovs, results["contrast"], setup
+            results["inspection"], compared, fovs, results["contrast"], setup
         )
     settings = {
         "recorded_order": setup.acquisition_order_col is not None,
         "permuted_orders": REPORT_ORDERS,
         "random_state": setup.random_state,
     }
-    document = with_reasons(assemble(results, setup), reasons)
+    document = assemble(results, setup, per_field)
+    document = with_gap_caution(with_reasons(document, reasons), gaps)
     unlabelled = unlabelled_note(objects, setup)
     if unlabelled:
         # Said once, where the label is used: the notes every answer is read with.
         document = replace(document, notes=(*document.notes, unlabelled))
     return Report(results, document, setup, reasons, settings)
-
-
-@dataclass(frozen=True)
-class Plan:
-    """The OPTIMISE answers: ``results`` by analysis, ``document`` the assembled report.
-
-    ``not_assessed`` holds, by question, why an analysis was not run;
-    ``settings`` the computational settings and presets of the run.
-    """
-
-    results: dict[str, Any]
-    document: Any
-    setup: Setup
-    not_assessed: dict[str, str] = field(default_factory=dict)
-    settings: dict[str, Any] = field(default_factory=dict)
-
-    def summary(self, detail: str = "short") -> str:
-        """The planning questions, with the calibration of each stopping rule (``detail``:
-        ``"short"`` or ``"full"``, as ``MicroscopistReport.summary``), then the settings.
-
-        The rule check ("Would a simple rule have been sufficient, and how reliable
-        is each stopping rule?", P5 and P6) is a section of its own, before "What
-        this dataset cannot tell me", with its status (``calibration_status``) in
-        the "At a glance" block of the short form.
-        """
-        short = check_detail(detail) == "short"
-        text = self.document.summary(PLAN_QUESTIONS, detail=detail)
-        calibration = self.results.get("calibration")
-        if calibration is not None:
-            status, answer = calibration_status(calibration)
-            if short:
-                lines, cautions = calibration_short_parts(calibration, indent=2)
-                body = "\n".join([*lines, *caveat_lines(cautions, indent=2)])
-                glance = self.document.at_a_glance(PLAN_QUESTIONS)
-                line = wrap(headline(status, CALIBRATION_SHORT, answer), "  ", hang=5)
-                text = text.replace(glance, f"{glance}\n{line}", 1)
-            else:
-                full = calibration.summary(detail="full")
-                body = "\n".join(f"  {row}" if row else row for row in full.splitlines())
-            section = f"{headline(status, CALIBRATION_TITLE)}\n{body}"
-            head, limits, tail = text.rpartition(f"\n\n{LIMITS_TITLE}\n")
-            text = f"{head}\n\n{section}{limits}{tail}" if limits else f"{text}\n\n{section}"
-        if self.settings:
-            text = f"{text}\n\n{wrap(plan_settings(self.settings))}"
-        return text
 
 
 def optimise(
@@ -432,16 +368,25 @@ def optimise(
     """
     objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     common = setup.common
-    criteria = setup.criteria()
     hierarchy = setup.resolved_hierarchy(objects, fovs)
     strata = setup.resolved_effort_strata(fovs)
     prepared = setup.compared_values(objects, fovs)
+    # A wide table's fingerprint on its first components, as the report reads it.
+    space = fingerprint_space(prepared, fovs, setup)
+    criteria = space.setup.criteria()
+    if not criteria:  # an embedding-only Setup whose targets cannot be judged
+        unread = "; ".join(f"{c}: {r}" for c, r in space.not_assessable.items())
+        raise ValueError(
+            "optimise judges the declared targets on held-back fields, and this Setup has "
+            "none it can judge: without a readout, declare the fingerprint of a table or a "
+            "labelled phenotype (rare, rare_label)" + (f" ({unread})" if unread else "")
+        )
     reasons: dict[str, str] = {}
     results: dict[str, Any] = {}
     results["reliability"] = sampling_reliability(
         prepared,
         fovs,
-        feature_cols=setup.judged_columns,
+        feature_cols=setup.judged_columns or table_columns(setup),
         criteria=criteria,
         fov_counts=fov_counts,
         reservoir_fraction=reservoir_fraction,
@@ -451,6 +396,13 @@ def optimise(
         n_jobs=setup.n_jobs,
         **common,
     )
+    settings = {
+        "protocol_threshold": protocol_threshold,
+        "reservoir_fraction": reservoir_fraction,
+        "n_splits": n_splits,
+        "draws": draws,
+        "random_state": setup.random_state,
+    }
     if hierarchy is None:
         reasons.update(no_hierarchy_reasons(setup, fovs))
     else:
@@ -466,6 +418,8 @@ def optimise(
                 strata=strata,
                 random_state=setup.random_state,
             )
+    if not setup.stopping_rules():  # no readout, no rule (owner, 2026-10-06)
+        return embedding_plan(objects, fovs, setup, results, reasons, space)
     replay = replay_rules(
         objects,
         prepared,
@@ -508,22 +462,24 @@ def optimise(
         )
     document = assemble({k: v for k, v in results.items() if k != "calibration"}, setup)
     settings = {
-        "protocol_threshold": protocol_threshold,
-        "reservoir_fraction": reservoir_fraction,
+        **settings,
         "reservoir_fovs": reservoir_sizes(replay),
-        "n_splits": n_splits,
-        "draws": draws,
         "recorded_order": setup.acquisition_order_col is not None,
         "permuted_orders": permuted_orders,
         "dispersed_orders": dispersed_orders if setup.stage_cols is not None else 0,
-        "random_state": setup.random_state,
     }
     unit = resolve_observation_unit(setup.observation_unit)[0]
     title = (
         f"{PLAN_TITLE} {DASH} {count(len(objects), unit, setup.unit_words)} in "
         f"{count(len(fovs), 'field')}"
     )
-    document = replace(with_reasons(document, reasons), title=title)
+    unread = [
+        f"The fingerprint, {c}, is not assessable: {r}." for c, r in space.not_assessable.items()
+    ]
+    unread += space.small_groups(setup.unit_word, setup.unit_words)  # audit 8
+    document = replace(
+        with_reasons(document, reasons), title=title, notes=(*document.notes, *unread)
+    )
     return Plan(results, document, setup, reasons, settings)
 
 
@@ -567,6 +523,8 @@ def document(*parts: Report | Plan) -> MicroscopistReport:
 
 
 __all__ = [
+    "CALIBRATION_SHORT",
+    "CALIBRATION_TITLE",
     "PLAN_QUESTIONS",
     "REPORT_ORDERS",
     "REPORT_QUESTIONS",

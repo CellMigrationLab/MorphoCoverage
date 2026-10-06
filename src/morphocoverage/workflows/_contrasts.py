@@ -99,7 +99,8 @@ def links(setup: Setup) -> list[Link]:
 
 
 def check_controls(setup: Setup) -> None:
-    """Refuse several controls, parents or a master the workflows could not use
+    """Refuse several controls, parents or a master the workflows could not use, and a
+    contrast table that gives a declared condition another own control
     (``TypeError``/``ValueError``)."""
     if setup.contrasts is not None:
         check_contrast_table(setup.contrasts)
@@ -136,11 +137,10 @@ def check_controls(setup: Setup) -> None:
         if child == target:
             raise ValueError(f"{child!r} is declared as its own control")
         if child in reference:
-            raise ValueError(
-                f"{child!r} belongs to two controls, {reference[child]!r} and {target!r}: a "
-                "condition belongs to one control (link controls with control_parents)"
-            )
+            raise ValueError(_twice(child, reference[child], target, parents or {}))
         reference[child] = target
+    if not reference and len(spec) > 1 and setup.contrasts is None:
+        raise ValueError(_nothing_under(spec))
     keyed = [(target, key) for _, target, key in found if key is not None]
     twice = [k for i, k in enumerate(keyed) if k in keyed[:i]]
     if twice:
@@ -155,6 +155,52 @@ def check_controls(setup: Setup) -> None:
     master = setup.master_control
     if master is not None and master not in spec:
         raise ValueError(f"master_control {master!r} is not one of the declared controls")
+    if setup.contrasts is not None:
+        for condition, given in own_pairs(check_contrast_table(setup.contrasts)):
+            if reference.get(condition, given) != given:
+                raise ValueError(
+                    f"the contrast table compares {condition!r} with {given!r} as its own "
+                    f"control, but the declared controls give {reference[condition]!r}: a "
+                    "condition's own control comes from the declaration"
+                )
+
+
+def _nothing_under(spec: Mapping[Any, Any]) -> str:
+    """Why several controls with no condition under any of them, and no parent, are refused:
+    no condition would be compared with its own control (audit 8B)."""
+    names = listing([repr(c) for c in spec], 6)
+    return (
+        f"the controls {names} have no condition under them and no parent, so no condition "
+        "would be compared with its own control: declare each control's conditions, "
+        "control={'condition': {control: [condition, ...], ...}}, or link a control to its "
+        "parent with control_parents={control: parent}"
+    )
+
+
+def _twice(child: Any, first: Any, second: Any, parents: Mapping[Any, Any]) -> str:
+    """Why ``child`` cannot have both references: listed twice, or under two controls (a
+    member and a parent, or two members)."""
+    if first == second:
+        return f"{child!r} is listed twice under control {first!r}"
+    if child in parents:
+        return (
+            f"{child!r} is listed under control {first!r} and linked to the parent "
+            f"{second!r}: a control is compared with one reference, so keep one of the two"
+        )
+    return (
+        f"{child!r} belongs to two controls, {first!r} and {second!r}: a condition belongs "
+        "to one control (link controls with control_parents)"
+    )
+
+
+def one_control(setup: Setup) -> dict[str, Any] | None:
+    """A single control declared in the several-controls forms (a list, a keyed dict, a
+    master naming it) as ``{"condition": control}``, so it gives exactly what one control
+    gives (owner, 2026-10-05); ``None`` otherwise, and with parents or a contrast table."""
+    spec = _several(setup)
+    if spec is None or len(spec) != 1 or setup.control_parents or setup.contrasts is not None:
+        return None
+    return {CONDITION_COLUMN: next(iter(spec))}
 
 
 def generated(setup: Setup) -> pd.DataFrame | None:
@@ -211,15 +257,47 @@ def comparisons(setup: Setup) -> tuple[tuple[Any, Any], ...] | None:
 
 
 def own_references(setup: Setup) -> dict[Any, Any] | None:
-    """Each condition's own control (a control's parent, else itself); ``None`` with one
-    control."""
+    """Each condition's own control (a control's parent, else itself), from the declared
+    controls when there are, else from the contrast table; ``None`` with one control."""
     table = contrast_table(setup)
     if table is None:
         return None
-    own = dict(own_pairs(table))
+    # The declaration, when there is one, says each condition's own control (owner,
+    # 2026-10-05); a contrast table adds the conditions it does not name.
+    own = {**dict(own_pairs(table)), **{child: target for child, target, _ in links(setup)}}
     for reference in list(own.values()):
         own.setdefault(reference, reference)
     return own
+
+
+def experiments(setup: Setup) -> dict[Any, tuple[Any, ...]] | None:
+    """Each declared control's experiment, ``{control: (control, its conditions..., its
+    parent)}``: the control, the conditions declared under it and its parent when one is
+    linked (a control linked to it as a child is its own experiment). With a contrast table
+    given in place of a declaration, each reference and the conditions compared with it.
+    An experiment held within another is left out; ``None`` with fewer than two (owner,
+    2026-10-05)."""
+    table = contrast_table(setup)
+    if table is None:
+        return None
+    spec = _several(setup)
+    found: dict[Any, list[Any]] = {}
+    if spec is not None:
+        for control, members in spec.items():
+            found[control] = [control, *(m for _, m in _members(control, members))]
+        for control, parent in (setup.control_parents or {}).items():
+            target = parent[0] if isinstance(parent, tuple) else parent
+            found.setdefault(control, [control]).append(target)
+    else:
+        for condition, control in own_pairs(table):
+            found.setdefault(control, [control]).append(condition)
+    sets = {control: set(members) for control, members in found.items()}
+    kept = {
+        control: tuple(dict.fromkeys(members))
+        for control, members in found.items()
+        if not any(sets[control] < sets[other] for other in sets)
+    }
+    return kept if len(kept) >= 2 else None
 
 
 def compares(setup: Setup) -> bool:
@@ -348,6 +426,29 @@ def normalisation_problem(setup: Setup, objects: pd.DataFrame, fovs: pd.DataFram
     return None
 
 
+def normalised_readers(several: bool = False) -> str:
+    """What reads the normalised values and what reads the raw ones, the one list the overview,
+    the declaration, ``docs/common/setup.md`` and the docstrings refer to (audit 8B): with one
+    control, or with ``several``, each condition then normalised to its own. The fingerprint
+    and the held-back outcomes read the normalised values in both (``Setup.compared_values``;
+    owner, 2026-10-06, audit 8, seed 8)."""
+    if not several:
+        return (
+            "the figures, the normalised maps, the populations, the separation, the "
+            "fingerprint and the outcomes judged on held-back fields read the normalised "
+            "values; the condition contrast, the feature ranking and the discovery read the raw "
+            "values and normalise them themselves; the stopping rules and every other analysis "
+            "read the raw values"
+        )
+    return (
+        "the figures, the normalised maps, the populations, the separation, the fingerprint "
+        "and the outcomes judged on held-back fields read the normalised values; the condition "
+        "contrast, the feature ranking and the discovery read the raw values, each normalising "
+        "to its own control; the stopping rules and every other analysis read the raw values, "
+        "where levels across experiments are read"
+    )
+
+
 def normalized_text(
     setup: Setup, fovs: pd.DataFrame, objects: pd.DataFrame | None = None
 ) -> str | None:
@@ -359,9 +460,7 @@ def normalized_text(
     if setup.own_references is None:
         assert setup.control is not None
         text = (
-            f"{normalized_sentence(setup.control, setup.repeat_col(fovs))}, for the outcomes "
-            "judged on held-back fields, the condition contrast, the feature ranking and the "
-            "plots; the stopping rules and the other analyses read the raw values"
+            f"{normalized_sentence(setup.control, setup.repeat_col(fovs))}; {normalised_readers()}"
         )
         if objects is not None:
             means = control_means(
@@ -378,9 +477,8 @@ def normalized_text(
     left = left_out_sentence(setup, fovs)
     return (
         "every feature divided by the mean of each condition's own control in the same "
-        "biological repeat (a control by its parent's, else by its own), for the plots and the "
-        "populations; the raw values are where levels across experiments are read, and the "
-        "tests read them too, each normalising to its own control" + (f"; {left}" if left else "")
+        f"biological repeat (a control by its parent's, else by its own); "
+        f"{normalised_readers(several=True)}" + (f"; {left}" if left else "")
     )
 
 
@@ -392,13 +490,16 @@ __all__ = [
     "contrast_table",
     "controls_sentence",
     "declared_conditions",
+    "experiments",
     "figure_control",
     "generated",
     "left_out",
     "left_out_sentence",
     "links",
     "normalisation_problem",
+    "normalised_readers",
     "normalized_text",
+    "one_control",
     "own_references",
     "reference_control",
     "single_control",

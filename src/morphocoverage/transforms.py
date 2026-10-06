@@ -390,8 +390,7 @@ class PCA(FeatureTransform):
 class ColumnWeights(FeatureTransform):
     """Multiply each feature by a fixed, declared weight: nothing is fitted.
 
-    The weight of each column in the weighted combined space of several feature tables
-    (``feature_tables.table_weights``), applied after a standardisation:
+    Fixed weights, applied after a standardisation:
     ``Chain([RobustStandardize(), ColumnWeights(weights)])``. Not fitted when the number of
     features is not the number of weights.
     """
@@ -429,6 +428,73 @@ class ColumnWeights(FeatureTransform):
     def apply_matrix(self, state: Mapping[str, Any], matrix: np.ndarray) -> np.ndarray:
         """Each feature times its weight."""
         return matrix * np.asarray(self.weights)
+
+
+@dataclass(frozen=True)
+class BlockWeights(FeatureTransform):
+    """Weigh each block of features (each explainable feature table) as multiple factor
+    analysis does, fitted on the visible observations (owner, 2026-10-06): the features of a
+    block are multiplied by ``sqrt(n - 1)`` over its first singular value (each block centred
+    on its visible means), so each block's first axis has variance 1 whatever the order of the
+    blocks and a table of many correlated columns does not outweigh one of few
+    (``feature_tables.mfa_weights``; audit 8). Applied after a standardisation:
+    ``Chain([RobustStandardize(), BlockWeights(blocks)])``. A feature of no block keeps weight
+    1. Not fitted with fewer than 2 observations or missing values.
+
+    ``inertia_radius=True`` (the report's novelty) also scales the weighted space by
+    ``sqrt(d / I)``, ``d`` the features and ``I`` the weighted space's total inertia (the sum
+    of its columns' variances), so a radius declared for ``d`` standardised features,
+    ``sqrt(d)``, reads as ``sqrt(I)`` in the weighted space (owner, 2026-10-06, audit 8).
+    """
+
+    blocks: tuple[tuple[str, ...], ...]
+    inertia_radius: bool = False
+
+    def __post_init__(self) -> None:
+        blocks = tuple(tuple(str(c) for c in block) for block in self.blocks)
+        if not blocks or any(not block for block in blocks):
+            raise ValueError("blocks must be one or more non-empty tuples of feature names")
+        object.__setattr__(self, "blocks", blocks)
+
+    @property
+    def name(self) -> str:
+        """``block_weights``."""
+        return "block_weights"
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """The blocks, each its feature names, and whether the radius follows the inertia."""
+        return {
+            "blocks": [list(block) for block in self.blocks],
+            "inertia_radius": self.inertia_radius,
+        }
+
+    def output_width(self, n_inputs: int) -> int:
+        """One output per feature."""
+        return n_inputs
+
+    def fit_matrix(
+        self, matrix: np.ndarray, names: tuple[str, ...]
+    ) -> tuple[dict[str, Any], tuple[str, ...]] | str:
+        """Each feature's weight on the visible observations."""
+        from .feature_tables import mfa_weights  # feature_tables reads the schema
+
+        missing = missing_values_reason(matrix, names)
+        if missing:
+            return f"{missing}; choose or implement an explicit missing-data policy"
+        if len(matrix) < 2:
+            return "fewer than 2 observations"
+        blocks = {str(i): block for i, block in enumerate(self.blocks)}
+        weights = mfa_weights(matrix, [str(n) for n in names], blocks)
+        if self.inertia_radius:
+            inertia = float((np.var(matrix, axis=0, ddof=1) * np.square(weights)).sum())
+            if inertia > 0:
+                weights = weights * np.sqrt(matrix.shape[1] / inertia)
+        return {"weights": _floats(weights)}, names
+
+    def apply_matrix(self, state: Mapping[str, Any], matrix: np.ndarray) -> np.ndarray:
+        """Each feature times its fitted weight."""
+        return matrix * np.asarray(state["weights"])
 
 
 class Chain(FeatureTransform):
@@ -494,6 +560,7 @@ class Chain(FeatureTransform):
 
 __all__ = [
     "PCA",
+    "BlockWeights",
     "Chain",
     "ColumnWeights",
     "FeatureTransform",

@@ -1,0 +1,70 @@
+{
+ "name": "a14_embed1_one_norm_image_none_rare",
+ "kind": "axes",
+ "checks": "embedding-only report; each condition against the control; normalised and centred views; the questions about fields not applicable; the rare label's share and clustering; the page",
+ "axes": {
+  "tables": "embed1",
+  "controls": "one",
+  "normalize": true,
+  "unit": "image",
+  "wells": "none",
+  "target": "rare"
+ },
+ "planes": null,
+ "setup": {
+  "readout": null,
+  "observation_unit": "image",
+  "control": {
+   "condition": "ctrl"
+  },
+  "normalize": "control_mean",
+  "rare": {
+   "detection_probability": 0.8,
+   "min_fov_occurrences": 2,
+   "phenotype": "rare",
+   "object_prevalence": 0.1
+  },
+  "rare_label": "rare"
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "overview",
+   "populations",
+   "rare_clustering",
+   "separation",
+   "whole_table"
+  ],
+  "absent": [
+   "clustering",
+   "contrast",
+   "discovery",
+   "fingerprint_precision",
+   "inspection",
+   "label_control",
+   "object_rules",
+   "sufficiency",
+   "unusual",
+   "variability"
+  ],
+  "not_applicable": {
+   "conditions": "Per feature",
+   "controls": "no explainable features",
+   "enough": "Per feature",
+   "inspect": "no explainable features",
+   "profile": "one image per field",
+   "unit": "each field holds one"
+  },
+  "table_column": false,
+  "separation_spaces": [
+   "DINO1"
+  ],
+  "html": true
+ }
+}

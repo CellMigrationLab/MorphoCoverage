@@ -1,0 +1,30 @@
+{
+ "name": "e11_unequal_fields_per_repeat",
+ "kind": "edge",
+ "checks": "very unequal fields per repeat: the cell-level screen also given balanced",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery"
+  ],
+  "balanced": [
+   "a"
+  ]
+ }
+}

@@ -6,7 +6,7 @@ side each repeat needs to resolve the difference on its own. When every field ho
 observation, the advice says cells (the unit), not fields. With one repeat, one sentence
 says the variation between repeats needs a second repeat. None of it is a caution: it is
 advice. It names no limiting factor (owner, 2026-10-02): whether the repeats differ more
-than their sampling error is not something 3 repeats can tell (docs/questions.md, P10).
+than their sampling error is not something 3 repeats can tell (docs/optimise/optimise.md, P10).
 """
 
 from __future__ import annotations
@@ -159,13 +159,21 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
             f"Repeats needed: for a paired t-test at p ≤ {ALPHA:g}/m, m the conditions of the "
             "sub-experiment (what Benjamini-Hochberg asks at most), on the values that test "
             "compares: each repeat's change (its mean over its control's, a fold change; the "
-            "difference of the means where a mean is not positive; the table gives their "
+            "difference of the means for a feature with a value that is not positive; the "
+            "table gives their "
             "geometric mean, as the verdict does), its spread "
             "between the repeats and its sampling error within one. All projected from the "
             "repeats here, so the plan is a guide."
         )
     ]
-    if full:
+    if full and not contrast.settings.get("unit"):  # no wells recorded (audit 8B)
+        notes.append(
+            assumption(
+                f"The {fields} a side per repeat are the most any repeat needs, projected from "
+                "its interval of d (narrowing as 1/sqrt of the number)."
+            )
+        )
+    elif full:
         notes.append(
             assumption(
                 f"The {fields} a side per repeat are the most any repeat needs, projected from "

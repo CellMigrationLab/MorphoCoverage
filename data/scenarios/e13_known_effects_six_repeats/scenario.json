@@ -1,0 +1,55 @@
+{
+ "name": "e13_known_effects_six_repeats",
+ "kind": "edge",
+ "checks": "a strong effect found on the features and the embedding, a null condition not",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": null
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery",
+   "whole_table"
+  ],
+  "planted": {
+   "area": [
+    "strong"
+   ],
+   "length": [
+    "strong"
+   ]
+  },
+  "null_conditions": [
+   "vehicle"
+  ],
+  "null_features": [
+   "ecc"
+  ],
+  "whole_table_planted": {
+   "DINO1": [
+    "strong"
+   ]
+  },
+  "overview": [
+   "medians of ctrl, strong and vehicle, the conditions in every repeat"
+  ]
+ }
+}

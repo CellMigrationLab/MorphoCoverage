@@ -192,7 +192,12 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
     """What the run checked, one short line each (the declaration in words); a stopping rule
     in ``undefined`` (its labels) did not apply to these observations and is said apart."""
     unit = setup.unit_words
-    lines = [f"Readout: {setup.readout}; its mean over all {unit} is the summary compared."]
+    lines = [
+        f"Readout: {setup.readout}; its mean over all {unit} is the summary compared."
+        if setup.readout is not None
+        else "Readout: none; the other feature tables are compared whole (no explainable "
+        "features, so the mean-precision rules are not applicable)."
+    ]
     features = tuple(setup.columns)
     if len(features) > 1:
         lines.append(f"Features: {count(len(features), 'feature')} ({listing(list(features), 6)}).")
@@ -211,11 +216,12 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
             "that the features see a change."
         )
     tolerances = " and ".join(rate(t) for t in setup.tolerances)
-    lines.append(
-        f"Precision asked: the mean of {setup.readout} within {tolerances} of its value "
-        "(judged on held-back fields by optimise; the stopping rules stop when its standard "
-        "error is a set share of the mean)."
-    )
+    if setup.mean_target:
+        lines.append(
+            f"Precision asked: the mean of {setup.readout} within {tolerances} of its value "
+            "(judged on held-back fields by optimise; the stopping rules stop when its standard "
+            "error is a set share of the mean)."
+        )
     if setup.fingerprint:
         named = "; ".join(c.description or c.name for c in setup.fingerprint)
         lines.append(f"Fingerprint: {named}.")
@@ -224,7 +230,7 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
             "Values: each condition divided by its own control's mean in its repeat for the "
             "figures; levels across experiments are read on the raw values."
         )
-    else:
+    elif setup.readout is not None:
         lines.append(
             "Values: divided by each repeat's control mean."
             if setup.normalize

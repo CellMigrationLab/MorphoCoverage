@@ -1,0 +1,65 @@
+{
+ "name": "a22_mix_none_cells_tech_tol",
+ "kind": "axes",
+ "checks": "features; no condition test; the mean's tolerances",
+ "axes": {
+  "tables": "mix",
+  "controls": "none",
+  "normalize": false,
+  "unit": "cells",
+  "wells": "tech",
+  "target": "tol"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "fib_len"
+  ],
+  "observation_unit": "cell"
+ },
+ "feature_tables": {
+  "fiber": {
+   "file": "fiber.csv",
+   "tag": "explainable"
+  },
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": "non-explainable"
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "inspection",
+   "overview",
+   "populations",
+   "separation",
+   "sufficiency",
+   "variability"
+  ],
+  "absent": [
+   "contrast",
+   "discovery",
+   "distribution",
+   "fingerprint_precision",
+   "label_control",
+   "object_rules",
+   "rare_clustering",
+   "unusual",
+   "whole_table"
+  ],
+  "not_applicable": {
+   "conditions": "needs a control"
+  },
+  "table_column": true,
+  "separation_spaces": [
+   "Combined",
+   "DINO1",
+   "Explainable"
+  ],
+  "html": false
+ }
+}

@@ -1,0 +1,69 @@
+{
+ "name": "a07_tagged_one_norm_cells_tech_tol",
+ "kind": "axes",
+ "checks": "features; each condition against the control; normalised and centred views; the mean's tolerances; the page, its CSVs naming tables",
+ "axes": {
+  "tables": "tagged",
+  "controls": "one",
+  "normalize": true,
+  "unit": "cells",
+  "wells": "tech",
+  "target": "tol"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "fib_len",
+   "fib_w",
+   "prof_0"
+  ],
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  },
+  "normalize": "control_mean"
+ },
+ "feature_tables": {
+  "fiber": {
+   "file": "fiber.csv",
+   "tag": "explainable"
+  },
+  "profiler": {
+   "file": "profiler.csv",
+   "tag": "explainable"
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "clustering",
+   "contrast",
+   "discovery",
+   "enough_features",
+   "inspection",
+   "object_rules",
+   "overview",
+   "populations",
+   "ranking",
+   "separation",
+   "sufficiency",
+   "unusual",
+   "variability"
+  ],
+  "absent": [
+   "distribution",
+   "fingerprint_precision",
+   "label_control",
+   "rare_clustering",
+   "whole_table"
+  ],
+  "not_applicable": {},
+  "table_column": true,
+  "separation_spaces": [
+   "Explainable"
+  ],
+  "html": true
+ }
+}

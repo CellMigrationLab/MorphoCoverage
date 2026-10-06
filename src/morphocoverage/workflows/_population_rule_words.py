@@ -18,10 +18,13 @@ def rule_cell(row: Any) -> str:
     out)`` for a group in one field; ``–`` without a rule."""
     if not row.rule:
         return "–"
+    # With several explainable tables, each rule feature's table (owner, 2026-10-06).
+    tables = getattr(row, "rule_tables", "") or ""
     if pd.isna(row.rule_recall):
-        return row.rule
+        return f"{row.rule} ({tables})" if tables else row.rule
     cells = ", cells held out" if row.rule_held_out == "cells" else ""
-    return f"{row.rule} ({percent(row.rule_recall)}, {percent(row.rule_precision)}{cells})"
+    tables = f"; {tables}" if tables else ""
+    return f"{row.rule} ({percent(row.rule_recall)}, {percent(row.rule_precision)}{cells}{tables})"
 
 
 def rule_words(row: Any, units: str) -> str:
@@ -31,8 +34,10 @@ def rule_words(row: Any, units: str) -> str:
     word). The numbers describe the procedure, not the thresholds shown (owner, 2026-10-05)."""
     if not row["rule"]:
         return ""
+    tables = row.get("rule_tables") or ""
+    rule = f"{row['rule']}, {tables}" if tables else row["rule"]
     if pd.isna(row["rule_recall"]):
-        return f"picked by {row['rule']}"
+        return f"picked by {rule}"
     held = (
         f"refitted with {units} held out (the group is in one field), finds "
         f"{percent(row['rule_recall'])} of its {units}"
@@ -41,7 +46,7 @@ def rule_words(row: Any, units: str) -> str:
         f"{percent(row['rule_recall'])} of the group's {units} in them"
     )
     return (
-        f"picked by {row['rule']}, fitted on all the {units}; the procedure, {held}, "
+        f"picked by {rule}, fitted on all the {units}; the procedure, {held}, "
         f"{percent(row['rule_precision'])} of those it picks being in it"
     )
 

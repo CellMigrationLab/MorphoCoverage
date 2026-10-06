@@ -10,7 +10,7 @@ last section (``_html_plan``, which reuses ``fov_counts``, ``_optimise_code`` an
 - ``fields_next``: run the report again without the fields found to be artefacts.
 
 The code reads ``result`` (the ``Report``), ``objects`` and ``fovs``, as named in the
-Python examples of ``docs/workflows.md``.
+Python examples of ``docs/report/running_a_report.md``.
 """
 
 from __future__ import annotations
@@ -29,9 +29,10 @@ from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import traits
 from ..schema import observation_words
 from ._enough_targets import HELD_BACK
+from ._population_spaces import described, found_words
 from ._populations import labelled_populations, rule_words, tested_populations
 
-# The reservoir optimise holds back to judge each stop, as in docs/workflows.md (one
+# The reservoir optimise holds back to judge each stop, as in docs/report/questions.md (one
 # value with the fingerprint's answer, ``_enough_targets.HELD_BACK``).
 RESERVOIR = HELD_BACK
 # The fields named to open for a group.
@@ -89,15 +90,28 @@ def _block(steps: Sequence[tuple[str, str]]) -> str:
 _GUARD = '# In a script, run this under: if __name__ == "__main__":\n'
 
 
-def _optimise_code(feature: str, counts: list[int], readout: str | None = None) -> str:
-    setup = (
-        "setup = result.setup\n"
-        if feature == readout
-        else f"setup = replace(result.setup, readout={feature!r})\n"
-    )
+def _mean_tolerances(setup: Any) -> tuple[tuple[float, ...], str]:
+    """The tolerances a mean goal plans for, and the code that declares them: the setup's,
+    or the default when it declares no mean target (``tolerances=()``, the whole
+    distribution; owner, 2026-10-06)."""
+    if setup.tolerances:
+        return tuple(setup.tolerances), ""
+    from dataclasses import fields
+
+    default = next(f.default for f in fields(setup) if f.name == "tolerances")
+    return default, f", tolerances={default!r}"
+
+
+def _optimise_code(
+    feature: str, counts: list[int], readout: str | None = None, extra: str = ""
+) -> str:
+    """The code that plans the fields for the mean of ``feature`` (``extra``: more fields
+    of the setup to replace, ``, tolerances=(0.05, 0.025)``)."""
+    replaced = ("" if feature == readout else f", readout={feature!r}") + extra
+    setup = f"setup = replace(result.setup{replaced})\n" if replaced else "setup = result.setup\n"
     return (
         _GUARD
-        + ("" if feature == readout else "from dataclasses import replace\n")
+        + ("from dataclasses import replace\n" if replaced else "")
         + "from morphocoverage.workflows import optimise\n\n"
         + setup
         + f"plan = optimise(objects, fovs, setup, fov_counts={counts}, "
@@ -173,8 +187,8 @@ def _group_fields(
         objects, fovs=fovs, feature_cols=features[:1], **result.setup.common
     )
     key = [c for c in data.fov_key if c in data.objects]
-    labels = populations.populations.labels.reindex(data.objects.index)
-    mine = data.objects.loc[labels.eq(name).to_numpy(), key].astype(str)
+    inside = populations.populations.membership(name).reindex(data.objects.index)
+    mine = data.objects.loc[inside.eq(1).to_numpy(), key].astype(str)
     named = mine.agg(" · ".join, axis=1).value_counts()
     return [str(f) for f in named.index[:FIELDS_SHOWN]]
 
@@ -198,9 +212,11 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
         return _block([(line, "")])
     fields = _group_fields(result, populations, objects, fovs, name)
     where = f" (most of its {units} are in {', '.join(fields)})" if fields else ""
+    # A group only another feature table found has no rule in the explainable features.
+    what = traits(row["defining"][:2]) if described(row) else found_words(row)
     validate = (
         f"First validate {name} ({percent_fine(share)} of the {units}; "
-        f"{traits(row['defining'][:2])}): open the images of its fields{where} and check "
+        f"{what}): open the images of its fields{where} and check "
         f"that its {units} are one state, not the end of a gradient or an artefact."
     )
     rule = rule_words(row, units)
@@ -214,7 +230,7 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
         "rare phenotype: the report then says in “Did I image enough?” whether it was seen in "
         "enough fields of every well."
     )
-    phenotype = f"{name}: {traits(row['defining'][:2])}"
+    phenotype = f"{name}: {what}" if described(row) else name
     # The share of cells the rule labels, which the code declares (the cluster's share
     # without a rule).
     if row["rule"] and objects is not None:
@@ -222,8 +238,8 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
     labelled = (
         f"objects[{name!r}] = {row['rule_code']}\n"
         if row["rule"]
-        else 'found = result.results["populations"].populations.labels\n'
-        f"objects[{name!r}] = found.reindex(objects.index).eq({name!r})\n"
+        else 'found = result.results["populations"].populations\n'
+        f"objects[{name!r}] = found.membership({name!r}).reindex(objects.index).eq(1)\n"
     )
     code = (
         _GUARD + "from dataclasses import replace\n"

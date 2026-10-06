@@ -1,7 +1,7 @@
 """The workflows (report, optimise, benchmark, live): they run end to end and add nothing.
 
 Constructed data only check that each mode runs, is deterministic and keeps
-its contracts; the real-data runs are in ``docs/workflows.md``.
+its contracts; the real-data run times are in ``docs/report/running_a_report.md``.
 """
 
 from __future__ import annotations
@@ -198,7 +198,7 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     setup = _setup(
         novelty=default_novelty(FEATURE_COLS),
         positive=PositiveControl(
-            {"condition": "drug"}, fovs_seen=4, pair_cols=("biological_repeat",)
+            {"condition": "drug"}, fovs_seen=5, pair_cols=("biological_repeat",)
         ),
     )
     result = report(objects, fovs, setup)
@@ -224,8 +224,10 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     assert control.groupby("biological_repeat")[READOUT].mean().tolist() == pytest.approx(
         [1.0, 1.0]
     )
+    # The contrast reads the raw values and normalises them itself, so its raw columns are
+    # raw (owner, 2026-10-05).
     expected = condition_contrast(
-        prepared, fovs, feature=READOUT, control={"condition": "control"}, random_state=0
+        objects, fovs, feature=READOUT, control={"condition": "control"}, random_state=0
     )
     pd.testing.assert_frame_equal(normalised.results["contrast"].table, expected.table)
     pd.testing.assert_frame_equal(
@@ -434,7 +436,7 @@ def test_summary_questions_select_and_reject():
         result.document.summary(["not_a_question"])
 
 
-# --- Regressions from the adversarial review (docs/workflows.md, "Live sources") ---
+# --- Regressions from the adversarial review (docs/live/live_session.md) ---
 
 
 def _simple_session():
@@ -522,7 +524,7 @@ def test_positive_control_keeps_the_declared_fov_identity():
     setup = _setup(
         novelty=default_novelty(FEATURE_COLS),
         positive=PositiveControl(
-            {"condition": "drug"}, fovs_seen=2, pair_cols=("biological_repeat",)
+            {"condition": "drug"}, fovs_seen=5, pair_cols=("biological_repeat",)
         ),
         fov_col="pos",
         group_cols=("condition", "biological_repeat", "well"),

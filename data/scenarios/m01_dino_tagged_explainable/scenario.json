@@ -1,0 +1,40 @@
+{
+ "name": "m01_dino_tagged_explainable",
+ "kind": "mistake",
+ "checks": "an embedding tagged explainable: run, its columns tested one by one, as declared",
+ "axes": {},
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "observation_unit": "cell",
+  "control": {
+   "condition": "ctrl"
+  }
+ },
+ "feature_tables": {
+  "DINO1": {
+   "file": "DINO1.csv",
+   "tag": "explainable"
+  }
+ },
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "contrast",
+   "discovery"
+  ],
+  "absent": [
+   "whole_table"
+  ],
+  "tested_features": [
+   "d0",
+   "d1",
+   "d2",
+   "d3",
+   "d4",
+   "d5",
+   "d6",
+   "d7"
+  ]
+ }
+}

@@ -1,6 +1,6 @@
 """How many fields do you need? Sampling reliability on the committed idr0028 subset.
 
-Question P1 of ``docs/questions.md``. For each
+Question P1 of ``docs/optimise/optimise.md``. For each
 well (28 FOVs), 10 FOVs are held back as a fixed reference per split; random
 sets of ``k`` of the other 18 FOVs are judged against it, over 10 splits and 50
 draws per ``k``. The criteria are provisional presets

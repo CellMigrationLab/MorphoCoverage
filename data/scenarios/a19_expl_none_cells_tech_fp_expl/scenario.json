@@ -1,0 +1,68 @@
+{
+ "name": "a19_expl_none_cells_tech_fp_expl",
+ "kind": "axes",
+ "checks": "features; no condition test; a fingerprint on the explainable features",
+ "axes": {
+  "tables": "expl",
+  "controls": "none",
+  "normalize": false,
+  "unit": "cells",
+  "wells": "tech",
+  "target": "fp_expl"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "cell",
+  "fingerprint": [
+   {
+    "metric": "covariance",
+    "columns": [
+     "area",
+     "length",
+     "ecc"
+    ],
+    "tolerance": 0.2
+   }
+  ]
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "fingerprint_precision",
+   "inspection",
+   "overview",
+   "populations",
+   "separation",
+   "sufficiency",
+   "variability"
+  ],
+  "absent": [
+   "contrast",
+   "discovery",
+   "distribution",
+   "label_control",
+   "object_rules",
+   "rare_clustering",
+   "unusual",
+   "whole_table"
+  ],
+  "not_applicable": {
+   "conditions": "needs a control"
+  },
+  "table_column": false,
+  "headlines": {
+   "enough": "the fingerprint within its tolerance"
+  },
+  "separation_spaces": [
+   "Features"
+  ],
+  "html": false
+ }
+}

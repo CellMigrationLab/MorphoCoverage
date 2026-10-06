@@ -290,4 +290,26 @@ def text_html(text: str) -> str:
     return "\n".join(out)
 
 
-__all__ = ["STATUS_WORDS", "Terms", "adjusted_p", "chip", "in_units", "text_html"]
+def first_sentence(text: str) -> str:
+    """The first line of ``text`` with its wrapped continuation lines joined again."""
+    lines = [line for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    first = len(lines[0]) - len(lines[0].lstrip())
+    parts = [lines[0].strip()]
+    for line in lines[1:]:
+        if len(line) - len(line.lstrip()) <= first:
+            break
+        parts.append(line.strip())
+    return " ".join(parts)
+
+
+__all__ = [
+    "STATUS_WORDS",
+    "Terms",
+    "adjusted_p",
+    "chip",
+    "first_sentence",
+    "in_units",
+    "text_html",
+]

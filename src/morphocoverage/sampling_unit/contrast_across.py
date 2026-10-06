@@ -15,12 +15,16 @@ the repeat is the replicate):
   the paired test reads against a control (``statistics.repeat_values``). Labelled
   ``SiCol6a1 effect: THBS5_SiCol6a1/THBS5_SiNC vs VEC_SiCol6a1/VEC_SiNC``.
 
-Where a mean is not positive (a signed feature) the log ratio has no meaning: the effect is
-then the raw difference (of differences), and ``values`` says ``raw`` for that feature.
+Where a value of the feature is not positive (a signed feature) the log ratio has no
+meaning: the effect is then the raw difference (of differences), and ``values`` says ``raw``
+for that feature, the scale the main test reads it on (``statistics.log_scale``, chosen once
+per feature from all its observations; owner, 2026-10-06).
 Across the repeats: the paired t-test and, where its rule allows (``MIN_REPEATS`` repeats
 and a floor that can reach 0.05 once corrected, ``_reach``), the exact sign-flip test, each
 row's ``family`` corrected as one Benjamini-Hochberg family. A row held in fewer than
-``MIN_REPEATS`` repeats is not compared (``status``), and the report names it once.
+``MIN_REPEATS`` repeats is not compared (``status``), and the report names it once. The
+report tests them for every explainable feature (``across_features``), each family over
+every feature and its rows (owner, 2026-10-05).
 """
 
 from __future__ import annotations
@@ -33,7 +37,10 @@ import pandas as pd
 
 from .._control import ACROSS, MASTER_RAW
 from .._seeds import group_rng
-from ..statistics import benjamini_hochberg, paired_t
+from ..data_check import validate_input_tables
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
+from ..schema import fov_positions
+from ..statistics import benjamini_hochberg, log_scale, paired_t
 from ._reach import reachable
 from ._units import side_units
 from .contrast_repeats import MIN_REPEATS, sign_flip_test
@@ -88,11 +95,14 @@ def condition_means(
     return means
 
 
-def _effects(kind: str, sides: list[np.ndarray]) -> tuple[str, np.ndarray, float]:
-    """``(values, effects, fold change)``: per repeat, on the log scale when every mean is
-    positive, else the raw difference (of differences); the fold change on the log scale."""
+def _effects(
+    kind: str, sides: list[np.ndarray], log: bool | None = None
+) -> tuple[str, np.ndarray, float]:
+    """``(values, effects, fold change)``: per repeat, on the log scale when the feature is
+    read on it (``log``; ``None``: every mean positive), else the raw difference (of
+    differences); the fold change on the log scale."""
     means = np.array(sides, dtype=float)
-    positive = means.size > 0 and bool((means > 0).all())
+    positive = means.size > 0 and bool((means > 0).all()) if log is None else log
     if kind == MASTER_RAW:
         effects = means[0] - means[1]
         fold = float(np.exp(np.log(means[0] / means[1]).mean())) if positive else np.nan
@@ -115,12 +125,14 @@ def _row(
     means: Mapping[tuple[Any, Any], float],
     repeats: Sequence[Any],
     random_state: int,
+    feature: str | None = None,
+    log: bool | None = None,
 ) -> dict[str, Any]:
     sides = _sides(entry)
     held = [r for r in repeats if all(np.isfinite(means.get((c, r), np.nan)) for c in sides)]
     if held:
         values, effects, fold = _effects(
-            entry["kind"], [[means[(c, r)] for r in held] for c in sides]
+            entry["kind"], [[means[(c, r)] for r in held] for c in sides], log
         )
     else:
         values, effects, fold = NORMALISED, np.array([]), np.nan
@@ -148,7 +160,12 @@ def _row(
     if len(held) < MIN_REPEATS:
         row["status"] = f"{NOT_COMPARED} {'both' if entry['kind'] == MASTER_RAW else 'all four'}"
         return row
-    rng = group_rng(random_state, {"across": entry["label"]})
+    key = (
+        {"across": entry["label"]}
+        if feature is None
+        else {"across": entry["label"], "feature": feature}
+    )
+    rng = group_rng(random_state, key)
     p, floor, exact = sign_flip_test(effects, rng)
     row.update(p_paired_t=paired_t(effects), p_sign_flip=p, p_sign_flip_floor=floor)
     row["p_sign_flip_exact"] = exact
@@ -160,13 +177,23 @@ def across_rows(
     rows: pd.DataFrame,
     repeats: Sequence[Any],
     random_state: int,
+    log: bool | None = None,
 ) -> pd.DataFrame:
     """One tested row per secondary row of a contrast table (``vs_master_raw``,
     ``across_normalised``), from each ``(condition, repeat)`` mean, in the order of
-    ``repeats``; each ``family`` corrected as one Benjamini-Hochberg family."""
+    ``repeats``, on the feature's scale ``log``; each ``family`` corrected as one
+    Benjamini-Hochberg family."""
     secondary = rows[rows["kind"].isin([MASTER_RAW, ACROSS])]
-    tested = [_row(entry, means, repeats, random_state) for entry in secondary.to_dict("records")]
-    table = pd.DataFrame(tested, columns=ACROSS_COLUMNS)
+    tested = [
+        _row(entry, means, repeats, random_state, log=log) for entry in secondary.to_dict("records")
+    ]
+    return _corrected(pd.DataFrame(tested, columns=ACROSS_COLUMNS))
+
+
+def _corrected(table: pd.DataFrame) -> pd.DataFrame:
+    """``table`` with each ``family`` corrected as one Benjamini-Hochberg family (every row
+    of it, over every feature when the table holds several), the sign-flip tests that cannot
+    reach 0.05 once corrected left out."""
     for family in pd.unique(table["family"]):
         mine = table["family"] == family
         floors = table.loc[mine, "p_sign_flip_floor"].where(table.loc[mine, "p_sign_flip"].notna())
@@ -176,6 +203,43 @@ def across_rows(
             values = table.loc[mine, column].to_numpy(float)
             table.loc[mine, column.replace("p_", "q_", 1)] = benjamini_hochberg(values)
     return table
+
+
+def across_features(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    *,
+    features: Sequence[str],
+    rows: pd.DataFrame,
+    random_state: int,
+    condition_col: str = CONDITION_COLUMN,
+    repeat_col: str = REPEAT_COLUMN,
+    **common: Any,
+) -> pd.DataFrame:
+    """The secondary rows of a contrast table tested for every feature (owner, 2026-10-05:
+    the docs' "rows per feature"): one row per feature and secondary row (a ``feature``
+    column first), each ``family`` one Benjamini-Hochberg family over every feature and its
+    rows, as the main verdicts are corrected over the features and conditions of their
+    sub-experiment. The repeat means are those of every observation of a condition in a
+    repeat. Empty without secondary rows or repeats."""
+    columns = ["feature", *ACROSS_COLUMNS]
+    secondary = rows[rows["kind"].isin([MASTER_RAW, ACROSS])]
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=list(features), **common)
+    meta = data.fovs.iloc[fov_positions(data, data.fovs)].reset_index(drop=True)
+    if not len(secondary) or condition_col not in meta or repeat_col not in meta:
+        return pd.DataFrame(columns=columns)
+    keys = pd.MultiIndex.from_arrays([meta[condition_col], meta[repeat_col]])
+    order = sorted_labels(meta[repeat_col])
+    tested = []
+    for feature in features:
+        values = pd.Series(data.feature_values(feature), index=keys)
+        means = values.groupby(level=[0, 1], sort=False).mean().to_dict()
+        log = log_scale(values.to_numpy())
+        tested += [
+            {"feature": feature, **_row(entry, means, order, random_state, feature, log)}
+            for entry in secondary.to_dict("records")
+        ]
+    return _corrected(pd.DataFrame(tested, columns=columns))
 
 
 def across_table(
@@ -196,7 +260,8 @@ def across_table(
     if len(secondary) and any(r is not None for r in order):
         conditions = {c for entry in secondary.to_dict("records") for c in _sides(entry)}
         means = condition_means(all_groups, described, feature, technical_col, conditions)
-        table = across_rows(means, secondary, order, random_state)
+        every = [data.feature_values(feature) for _, data in all_groups]
+        table = across_rows(means, secondary, order, random_state, log_scale(np.concatenate(every)))
     table.attrs["contrasts"] = rows
     masters = secondary.loc[secondary["kind"] == MASTER_RAW, "reference"] if len(secondary) else []
     if len(masters):
@@ -215,6 +280,7 @@ __all__ = [
     "NORMALISED",
     "NOT_COMPARED",
     "RAW",
+    "across_features",
     "across_rows",
     "across_table",
     "condition_means",

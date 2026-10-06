@@ -18,7 +18,13 @@ import pandas as pd
 from .._palette import COLOURS, condition_palette
 from ..metadata import CONDITION_COLUMN, sorted_labels
 from ..normalize import control_mean_problem
-from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE, PANEL_KEYS, PANEL_TITLES
+from ..plots_pairwise import (
+    PAIR_NOTE,
+    PAIR_NOTE_SEVERAL,
+    PAIRED_NOTE,
+    PANEL_KEYS,
+    PANEL_TITLES,
+)
 from ._contrasts import normalisation_problem
 from ._html_data import data_buttons, download, feature_data
 from ._html_plotly import feature_specs, interactive_caption
@@ -95,6 +101,8 @@ def feature_figures(
     as markup by feature) and the specs the page's script draws (``_html_plotly``)."""
     legends = legends or {}
     setup = result.setup
+    if setup.embedding_only:  # no feature to plot one at a time (owner, 2026-10-06)
+        return [], []
     drawn = plots(objects, fovs, setup, ranking=result.discovery)
     checked, checked_fovs, _ = check_workflow_inputs(objects, fovs, setup)
     views = _views(setup, checked, checked_fovs)
@@ -105,6 +113,7 @@ def feature_figures(
     top = discovery.top(len(discovery.ranking)) if discovery is not None else []
     prepared = {key: with_share(view.prepared(checked, checked_fovs), view) for key, view in views}
     blocks, names, explained = [], {}, False
+    pair_note = PAIR_NOTE if setup.own_references is None else PAIR_NOTE_SEVERAL
     taken: set[str] = set()
     for feature, parts in drawn.items():
         stem = file_stem(feature, taken)
@@ -151,7 +160,7 @@ def feature_figures(
                 + (
                     "<p>(B) and (C): as in the first figure above.</p>"
                     if explained
-                    else f"<p>(B) {html.escape(PAIR_NOTE)}</p><p>(C) {html.escape(PAIRED_NOTE)}</p>"
+                    else f"<p>(B) {html.escape(pair_note)}</p><p>(C) {html.escape(PAIRED_NOTE)}</p>"
                 )
                 if paired
                 else f"<p>{caption}</p>"

@@ -1,0 +1,57 @@
+{
+ "name": "a06_expl_none_image_none_tol",
+ "kind": "axes",
+ "checks": "features; no condition test; the questions about fields not applicable; the mean's tolerances",
+ "axes": {
+  "tables": "expl",
+  "controls": "none",
+  "normalize": false,
+  "unit": "image",
+  "wells": "none",
+  "target": "tol"
+ },
+ "planes": null,
+ "setup": {
+  "readout": "area",
+  "features": [
+   "area",
+   "length",
+   "ecc"
+  ],
+  "observation_unit": "image"
+ },
+ "feature_tables": {},
+ "truth": {
+  "outcome": "runs",
+  "results": [
+   "inspection",
+   "overview",
+   "populations",
+   "separation",
+   "sufficiency"
+  ],
+  "absent": [
+   "clustering",
+   "contrast",
+   "discovery",
+   "distribution",
+   "fingerprint_precision",
+   "label_control",
+   "object_rules",
+   "rare_clustering",
+   "unusual",
+   "variability",
+   "whole_table"
+  ],
+  "not_applicable": {
+   "conditions": "needs a control",
+   "profile": "one image per field",
+   "unit": "each field holds one"
+  },
+  "table_column": false,
+  "separation_spaces": [
+   "Features"
+  ],
+  "html": false
+ }
+}

@@ -20,7 +20,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._wording import change, count, listing, p_value
+from .._control import comparison_pairs
+from .._wording import change, count, features_counted, listing, p_value
 from ..data_check import validate_input_tables
 from ..schema import observation_words
 from ..statistics import repeat_values
@@ -30,20 +31,32 @@ from .contrast_repeats import MIN_REPEATS
 
 def table_counts(contrast: Any) -> pd.DataFrame:
     """Per condition and repeat, the readout's observations as the readout's ``contrast``
-    counted them (``condition``, ``repeat``, ``n``; the control once per repeat): the counts
+    counted them (``condition``, ``repeat``, ``n``; each control once per repeat): the counts
     a legend uses when it is not given the feature's own (``observation_counts``)."""
     table = contrast.table
     repeat_col = contrast.settings.get("repeat_col")
     repeats = table[repeat_col] if repeat_col in table else pd.Series(None, index=table.index)
-    control = _control(contrast)
-    treated = pd.DataFrame(
-        {"condition": table["condition"], "repeat": repeats, "n": table["observations"]}
-    )
+    named = comparison_pairs(contrast.settings.get("comparisons") or [])
+    conditions = table["condition"].map(lambda c: named[c][0] if c in named else c)
+    references = table["condition"].map(lambda c: named[c][1] if c in named else None)
+    references = references.where(references.notna(), _control(contrast))
+    treated = pd.DataFrame({"condition": conditions, "repeat": repeats, "n": table["observations"]})
     paired = table["control_observations"] > 0
     controls = pd.DataFrame(
-        {"condition": control, "repeat": repeats[paired], "n": table["control_observations"]}
-    ).drop_duplicates("repeat")
-    return pd.concat([treated, controls], ignore_index=True).astype({"n": int})
+        {"condition": references, "repeat": repeats, "n": table["control_observations"]}
+    )[paired].drop_duplicates(["condition", "repeat"])
+    counts = pd.concat([treated, controls], ignore_index=True)
+    return counts.drop_duplicates(["condition", "repeat"]).astype({"n": int})
+
+
+def compared_pairs(contrast: Any, conditions: list[Any]) -> list[tuple[Any, Any]]:
+    """Each ``(condition, reference)`` the contrast compared: its comparisons, or every
+    other condition of ``conditions`` with the control."""
+    pairs = contrast.settings.get("comparisons") or []
+    if pairs:
+        return [tuple(pair) for pair in pairs]
+    control = _control(contrast)
+    return [(c, control) for c in conditions if c != control]
 
 
 def observation_counts(
@@ -100,35 +113,42 @@ def _wells(contrast: Any) -> str:
     return f"{spread} wells per condition in each repeat"
 
 
-def _sides(counts: pd.DataFrame, control: Any) -> dict[Any, tuple[dict, int]]:
-    """Per condition, the control last: its observations in each repeat that holds both it
-    and the control, and its observations shown in repeats without the control."""
+def _sides(counts: pd.DataFrame, pairs: list[tuple[Any, Any]]) -> dict[Any, tuple[dict, int]]:
+    """Per condition, the references last: its observations in each repeat that holds both
+    it and a condition it is compared with (its own control, or a condition compared with
+    it), and its observations shown in repeats without one."""
     grouped = counts.groupby("condition", sort=False, dropna=False)
     by = {c: dict(zip(b["repeat"], b["n"], strict=True)) for c, b in grouped}
-    own = by.get(control, {})
+    partners: dict[Any, set] = {}
+    for condition, reference in pairs:
+        partners.setdefault(condition, set()).add(reference)
+        partners.setdefault(reference, set()).add(condition)
+    references = {r for _, r in pairs}
+    order = [c for c in by if c not in references] + [c for c in by if c in references]
     sides: dict[Any, tuple[dict, int]] = {}
-    paired_control: set = set()
-    for condition, sizes in by.items():
-        if condition == control:
-            continue
-        paired = {r: n for r, n in sizes.items() if n > 0 and own.get(r, 0) > 0}
-        paired_control |= set(paired)
+    for condition in order:
+        sizes = by[condition]
+        others = [by.get(o, {}) for o in partners.get(condition, ())]
+        paired = {r: n for r, n in sizes.items() if n > 0 and any(o.get(r, 0) > 0 for o in others)}
         sides[condition] = (paired, int(sum(sizes.values()) - sum(paired.values())))
-    if control in by:
-        paired = {r: n for r, n in own.items() if r in paired_control}
-        sides[control] = (paired, int(sum(own.values()) - sum(paired.values())))
     return sides
 
 
-def n_sentence(counts: pd.DataFrame, control: Any, units: str, wells: str = "") -> tuple[str, bool]:
+def n_sentence(
+    counts: pd.DataFrame, control: Any, units: str, wells: str = "", pairs: list | None = None
+) -> tuple[str, bool]:
     """The legend's n (owner, 2026-10-02: "N is always the number of data points of what is
     shown"): ``n = 174 cells shown, from 3 biological repeats, at least 11 per condition and
     repeat``; per condition when the conditions are not all compared in the same repeats
     (``siCCT8#5: n = 63 cells from 3 repeats, at least 17 per repeat``). Repeats count only
-    where they hold both the condition and the control. Also says whether it is given per
+    where they hold both the condition and the control, or with ``pairs`` (several controls,
+    owner 2026-10-05) a condition and its own reference. Also says whether it is given per
     condition (then a sentence of its own)."""
     shown = int(counts["n"].sum())
-    sides = _sides(counts, control)
+    several = pairs is not None
+    if pairs is None:
+        pairs = [(c, control) for c in dict.fromkeys(counts["condition"]) if c != control]
+    sides = _sides(counts, pairs)
     pairs = [frozenset(paired) for paired, _ in sides.values()]
     head = f"n = {shown} {units} shown"
     if pairs and len(set(pairs)) == 1 and pairs[0] and not any(u for _, u in sides.values()):
@@ -140,6 +160,8 @@ def n_sentence(counts: pd.DataFrame, control: Any, units: str, wells: str = "") 
     entries = []
     for condition, (paired, unpaired) in sides.items():
         without = "another condition" if condition == control else "the control"
+        if several:
+            without = "a condition it is compared with"
         if paired:
             entry = f"{condition}: n = {sum(paired.values())} {units} from "
             entry += count(len(paired), "repeat")
@@ -154,19 +176,26 @@ def n_sentence(counts: pd.DataFrame, control: Any, units: str, wells: str = "") 
     return f"{head}. " + "; ".join(entries) + (f"; {wells}" if wells else ""), True
 
 
-def _families(across: pd.DataFrame, features: int | None = None) -> str:
+def _families(across: pd.DataFrame, features: int | None = None, share: str | None = None) -> str:
     """The correction family, counted: ``over 2 tests (siCCT8#5 and siCCT8#8 against
-    siCTRL)``, or the tests in each sub-experiment."""
+    siCTRL)``, or the tests in each sub-experiment; a labelled state's ``share`` among the
+    ``features`` counted apart."""
     if features and features > 1:
-        return f"over {features} features and their conditions"
+        return f"over {features_counted(int(features), share, ', ')} and their conditions"
     tested = across[across["p_paired_t_normalised"].notna() | across["p_paired_t"].notna()]
     groups = list(tested.groupby("experiment", sort=False))
     sizes = sorted({len(block) for _, block in groups})
     if len(groups) == 1:
         block = groups[0][1]
-        control = block["control_condition"].iloc[0]
-        names = listing(list(block["condition"].astype(str)), 4)
-        return f"over {count(len(block), 'test')} ({names} against {control})"
+        controls = list(dict.fromkeys(block["control_condition"].astype(str)))
+        labels = list(block["condition"].astype(str))
+        names = listing(labels, 4)
+        # A comparison's label names its reference already.
+        named = all(
+            label.endswith(f" vs {c}") for label, c in zip(labels, block["control_condition"])
+        )
+        against = f" against {controls[0]}" if len(controls) == 1 and not named else ""
+        return f"over {count(len(block), 'test')} ({names}{against})"
     size = f"{sizes[0]}" if len(sizes) == 1 else f"{sizes[0]} to {sizes[-1]}"
     return f"{size} tests in each of {len(groups)} sub-experiments, each with its own control"
 
@@ -178,7 +207,7 @@ def _values(rows: pd.DataFrame) -> str:
     if kinds == {"normalised"}:
         return "normalised to each repeat's control, as log ratios"
     if kinds == {"raw"}:
-        return "the differences of the repeat means, a mean not being positive"
+        return "the differences of the repeat means, a value not being positive"
     return (
         "normalised to each repeat's control as log ratios, the differences of the means "
         "where a mean is not positive"
@@ -208,7 +237,8 @@ def described_rows(contrast: Any) -> pd.DataFrame:
         block = block[block["mean"].notna() & block["control_mean"].notna()]
         if not len(block):
             continue
-        values, _, fold = repeat_values(block["mean"], block["control_mean"])
+        log = contrast.settings.get("log_scale")
+        values, _, fold = repeat_values(block["mean"], block["control_mean"], log)
         d = block["d_objects"].to_numpy(float)
         d = d[np.isfinite(d)]
         rows.append(
@@ -242,7 +272,10 @@ def figure_legend(
         "(the tests use means)."
     )
     counts = table_counts(contrast) if counts is None else counts
-    n, by_condition = n_sentence(counts, _control(contrast), unit_words, _wells(contrast))
+    # Each condition with its own reference (owner, 2026-10-05), not one control.
+    several = contrast.settings.get("comparisons") or None
+    pairs = compared_pairs(contrast, []) if several else None
+    n, by_condition = n_sentence(counts, _control(contrast), unit_words, _wells(contrast), pairs)
     # The n of every condition at once ends in a clause the test follows; n by condition is
     # its own sentence.
     join = ". " if by_condition else "; "
@@ -260,7 +293,8 @@ def figure_legend(
         )
     across = getattr(contrast, "repeats", None)
     features = contrast.settings.get("family_features")
-    families = _families(across, features) if across is not None and len(across) else ""
+    share = contrast.settings.get("family_share")
+    families = _families(across, features, share) if across is not None and len(across) else ""
     many = across is not None and "experiment" in across and across["experiment"].nunique() > 1
     within = " within each sub-experiment" if many else ""
     if families.startswith("over "):
@@ -280,6 +314,7 @@ def figure_legend(
 
 
 __all__ = [
+    "compared_pairs",
     "described_rows",
     "feature_counts",
     "figure_legend",
