@@ -209,7 +209,10 @@ repeat holding under a quarter of the median repeat on its side, or fewer than
 kept in the test as provided and left out of the balanced one, which balances
 the other repeats. A small control repeat is left out of both sides, so each
 condition stays paired with its own repeats' control. When every repeat is that
-small, nothing is balanced and only the test as provided is given.
+small, nothing is balanced and only the test as provided is given: the balance sentence then
+says that no balanced test could be drawn instead of "also given balanced", names no repeat
+as very small, and a condition with neither test is said to have no cell-level test, with
+why (audit 10, owner, 2026-10-06).
 
 ## Assumptions
 
@@ -549,7 +552,10 @@ toss, so the exact chance that all `n` repeats go the same way is `2^(1-n)`: 25%
 repeats, 12.5% at 4, 6.25% at 5 and 3.1% at 6, half of that when the direction is stated in
 advance (plan v2, owner, 2026-10-06). 6 is the first number of repeats where this chance is
 below 5%. With fewer the fact is still shown, the direction in each repeat, never as
-evidence.
+evidence. From 6 repeats "At a glance" names such a trend beside the significant features
+("trend: b higher in every repeat (area), not significant"; audit 10, owner, 2026-10-06). The reading's opening explains only what applies to the repeats held (audit 10,
+owner, 2026-10-06): the trend from 6 repeats, "with 3 repeats only large, consistent effects
+reach it" at 3, and with 1 or 2 repeats only that the paired test needs 3.
 
 **Three repeats** (plan v2, owner, 2026-10-06). With exactly 3 biological repeats, the
 fewest the paired t-test needs, each verdict gives the change in each repeat, the change

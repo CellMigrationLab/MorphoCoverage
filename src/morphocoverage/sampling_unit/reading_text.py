@@ -1,38 +1,34 @@
 """Question 9 in a sentence per condition: what the tests add up to (``condition_readings``).
 
-The contrast gives several answers (the direction in every repeat, the paired
-t-test across repeats, the cell-level test, raw and normalised, balanced when
-the repeats are not, and the agreement of independent reagents); this module
-reads them together, condition by condition, so the reader does not have to.
-Each condition gets one verdict:
+The contrast gives several answers (the direction in every repeat, the paired t-test across
+repeats, the cell-level test, raw and normalised, balanced when the repeats are not, and the
+agreement of independent reagents); this module reads them together, condition by condition, so the
+reader does not have to. Each condition gets one verdict:
 
-- **significant across repeats**: the paired test across repeats gives q <= 0.05 (Benjamini-Hochberg
-  within the condition's sub-experiment, ``_experiments``; on normalised values when they
-  exist, else raw), with the condition on one side of the control in every repeat;
+- **significant across repeats**: the paired test across repeats gives q <= 0.05
+  (Benjamini-Hochberg within the condition's sub-experiment, ``_experiments``; on normalised values
+  when they exist, else raw), with the condition on one side of the control in every repeat;
 - **same direction, not significant**: on one side of the control in every repeat, from
-  ``TREND_REPEATS`` (6) repeats, and the paired test does not reach q <= 0.05 (a
-  consistent trend, not evidence of no effect); with fewer repeats every repeat goes the
-  same way by chance too often (25% with 3), so the verdict is **not significant across
-  repeats**, or **not tested across repeats** with 2, the directions given as for any
-  condition (owner, 2026-10-06, audit 8);
+  ``TREND_REPEATS`` (6) repeats, and the paired test does not reach q <= 0.05 (a consistent trend,
+  not evidence of no effect); with fewer repeats every repeat goes the same way by chance too often
+  (25% with 3), so the verdict is **not significant across repeats**, or **not tested across
+  repeats** with 2, the directions given as for any condition (owner, 2026-10-06, audit 8);
 - **no consistent direction**: lower in some repeats and higher in others;
 - **one repeat**: imaged in a single repeat, so only the cell-level test speaks.
 
-Then the evidence: the direction, the mean per-repeat Cohen's d and the change in the
-feature's own terms (the geometric mean of the per-repeat ratios to the control, as the
-normalised paired test reads them), the paired test's p and q,
-the cell-level test's p in its most trustworthy version (balanced and
-normalised when the repeats are unbalanced, else normalised, else raw) with
-how often it gives p <= 0.05 without an effect at the variation between repeats seen
-(said as such: it is not the chance that this result is false), and, with a ``target``
-column, whether the target's reagents agree. When the raw pooled test is
-significant and that version is not, the sentence says what the raw test does
-differently (pools the control of repeats the condition was not imaged in, lets
-the repeat with most cells weigh more, or keeps a scale shared within each
-repeat), as a fact about the tests, not a cause, and gives no number for it (owner,
-2026-10-01: a q beside "not valid" is still read as the result). No new test is run:
-every p is the contrast's (``contrast_repeats``, ``contrast_cells``, ``reagent_agreement``),
-and the change in the feature's own terms comes from its per-repeat means.
+Then the evidence: the direction, the mean per-repeat Cohen's d and the change in the feature's own
+terms (the geometric mean of the per-repeat ratios to the control, as the normalised paired test
+reads them), the paired test's p and q, the cell-level test's p in its most trustworthy version
+(balanced and normalised when the repeats are unbalanced, else normalised, else raw) with how often
+it gives p <= 0.05 without an effect at the variation between repeats seen (said as such: it is not
+the chance that this result is false), and, with a ``target`` column, whether the target's reagents
+agree. When the raw pooled test is significant and that version is not, the sentence says what the
+raw test does differently (pools the control of repeats the condition was not imaged in, lets the
+repeat with most cells weigh more, or keeps a scale shared within each repeat), as a fact about the
+tests, not a cause, and gives no number for it (owner, 2026-10-01: a q beside "not valid" is still
+read as the result). No new test is run: every p is the contrast's (``contrast_repeats``,
+``contrast_cells``, ``reagent_agreement``), and the change in the feature's own terms comes from
+its per-repeat means.
 """
 
 from __future__ import annotations
@@ -424,30 +420,36 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
         # Every control named, never one hidden behind "and 1 more" (owner, 2026-10-05).
         control = f"its own control, {listing(controls, len(controls))}"
     unit = observation_words(contrast.settings)[0]
-    if int(_direction_rows(contrast)["repeats"].max()) == 1:
-        # One repeat: no verdict across repeats can occur, so none is explained.
+    held = int(_direction_rows(contrast)["repeats"].max())
+    screen = f"{unit}-level screen (as Plot&Stats, every {unit} an independent draw) is " + (
+        "exploratory: it finds candidates, not effects that repeat:"
+    )
+    if held < MIN_REPEATS:
+        # One or two repeats: no verdict, no trend; only what applies (audit 10, A22, C24).
+        where = f"one {word}" if held == 1 else f"{held} {word}s"
         head = (
-            f"Reading, condition by condition, against {control}, in one {word}: the "
-            "direction and Cohen's d of that repeat; whether a difference holds across "
-            f"repeats needs {MIN_REPEATS} of them (the paired t-test on the repeat means). "
-            f"The {unit}-level screen (as Plot&Stats, every {unit} an independent draw) is "
-            "exploratory: it finds candidates, not effects that repeat:"
+            f"Reading, condition by condition, against {control}, in {where}: the direction "
+            f"and Cohen's d of {'that repeat' if held == 1 else 'each'}; whether a difference "
+            f"holds across repeats needs {MIN_REPEATS} of them (the paired t-test on the "
+            f"repeat means). The {screen}"
         )
     else:
-        # What the test compares, with a scale declared in the Setup said (plan v2).
+        # The scale declared said (plan v2); the trend, the 3-repeat clause where they apply.
         values = _VALUES.get(contrast.settings.get("scale"), _VALUES[None])
+        few = " (with 3 repeats only large, consistent effects reach it)" if held == 3 else ""
+        trend = (
+            "Same direction, not significant: on one side of the control in every repeat without "
+            "reaching q ≤ 0.05, a consistent trend and not evidence of no effect, said from "
+            f"{TREND_REPEATS} repeats"
+            if held >= TREND_REPEATS
+            else f"No trend is called below {TREND_REPEATS} repeats: every repeat goes the same "
+            "way by chance too often (1 experiment in 4 with 3 repeats)"
+        )
         head = (
             f"Reading, condition by condition, against {control}. Significant across repeats: "
             f"the paired t-test on the biological repeat means (as SuperPlots; {values}) gives "
-            "q ≤ 0.05 after Benjamini-Hochberg "
-            f"{family_words(contrast.settings, own=True)}: this is the result to report. Same "
-            "direction, not significant: on one side of the control in every repeat without "
-            "reaching q ≤ 0.05, a consistent trend and not evidence of no effect (with 3 "
-            "repeats only large, consistent effects reach it), said from "
-            f"{TREND_REPEATS} repeats: with fewer, every repeat goes the same way by chance "
-            "too often (1 experiment in 4 with 3 repeats). Beside it, the "
-            f"{unit}-level screen (as Plot&Stats, every {unit} an independent draw) is "
-            "exploratory: it finds candidates, not effects that repeat:"
+            f"q ≤ 0.05 after Benjamini-Hochberg {family_words(contrast.settings, own=True)}: "
+            f"this is the result to report{few}. {trend}. Beside it, the {screen}"
         )
     several = bool(contrast.settings.get("comparisons"))
     design = _design(contrast, "control" if several else control)

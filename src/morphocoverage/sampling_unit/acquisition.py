@@ -105,7 +105,8 @@ class AcquisitionAnomalies:
         more = self.found - len(named)
         listed = listing([*named, *([f"{more} more"] if more > 0 else [])])
         return (
-            f"{count(self.found, 'field')} {far} their condition and repeat on the raw values: "
+            f"{count(self.found, 'field')} {far} {'its' if self.found == 1 else 'their'} "
+            "condition and repeat on the raw values: "
             f"{listed}; an engineering quality-control threshold, never a biological verdict: "
             f"open their images, {scope}"
         )

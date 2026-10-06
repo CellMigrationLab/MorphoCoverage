@@ -502,6 +502,28 @@ def varying_numbers(texts: Sequence[str]) -> list[str]:
     ]
 
 
+_TABLE_GAP = re.compile(r"\S {2,}\S")  # a table row: columns apart by two spaces or more
+
+
+def fitted(text: str) -> str:
+    """``text`` with every prose line wider than the report's 100 columns wrapped under its
+    own indent, continuations two deeper (three after a marker); table rows are left as
+    they are (audit 10, A22: no unwrapped long line in the report)."""
+    lines = []
+    for line in text.splitlines():
+        if width(line) <= WIDTH or _TABLE_GAP.search(line.strip()):
+            lines.append(line)
+            continue
+        pad = line[: len(line) - len(line.lstrip(" "))]
+        body = line[len(pad) :]
+        marker = next((x.marker for x in Status if body.startswith(f"{x.marker} ")), None)
+        if marker:  # the marker in the indent, where its two columns are counted
+            lines.append(wrap(body[len(marker) + 1 :], f"{pad}{marker} ", hang=pad + "   "))
+        else:
+            lines.append(wrap(body, pad, hang=pad + "  "))
+    return "\n".join(lines)
+
+
 def number_pattern(text: str) -> str:
     """``text`` with every number replaced by ``#``: sentences alike but for their numbers."""
     return _NUMBER.sub("#", text)
@@ -518,6 +540,7 @@ __all__ = [
     "Status",
     "among",
     "check_detail",
+    "fitted",
     "group_columns",
     "group_label",
     "headline",

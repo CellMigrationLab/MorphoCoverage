@@ -26,7 +26,10 @@ which more fields of the same wells do not reduce, and a part within wells, whic
 shrinks as 1/fields. When the part between wells alone is as wide as the difference,
 the answer is that more fields will not resolve it: more wells or biological repeats.
 With one well a side the interval holds no variation between wells, and the
-projection is from its fields alone. The plan's repeats needed with twice the fields halve
+projection is from its fields alone. The fields are projected only for a feature that
+differs, a candidate of the screen or significant across repeats, and the answer's line says
+"needs the most if its difference is real": a feature no test flags gets no projection (audit
+10, owner, 2026-10-06). The plan's repeats needed with twice the fields halve
 only that part within wells too. Then one feature at a time,
 as tabs: its comparisons, the precision of each well's own mean and its table within
 each repeat; the rare phenotype and the fingerprint have their own tabs after the
@@ -62,7 +65,10 @@ reads how the features vary together, not their whole distribution (plan v2, own
 2026-10-06). When every declared target is not assessable, an embedding alone with "the whole
 distribution" (`tolerances=()`) on groups too small for its components, the answer gives
 each reason and says that no declared target can be judged on these data; `optimise` refuses
-with the same words.
+with the same words. The declaration then says the fingerprint is "not assessable here", not
+that optimise judges it, names a covariance criterion "Covariance fingerprint", and a
+criterion without a description is said in words ("the covariance of d0, d1, d2 and 5 more
+within 0.2"), never by its metric's code name (audit 10, owner, 2026-10-06).
 
 ## The stopping rules and the next field: `sufficiency_report`
 

@@ -30,6 +30,7 @@ matplotlib.use("Agg")
 import pandas as pd
 import pytest
 
+from morphocoverage._style import width
 from morphocoverage.retrospective.report_status_conditions import NOTHING_COMPARED
 from morphocoverage.sampling_unit.contrast_repeats import TREND_REPEATS
 from morphocoverage.sampling_unit.contrast_text import ONE_UNIT
@@ -111,6 +112,13 @@ def _words(result: Any) -> None:
     statuses = table["status"].astype(str)
     if "one well in each repeat" in full:  # A6, C5: the reason is the status's
         assert statuses.str.startswith(ONE_UNIT).any()
+    for raw in (result.summary(), result.summary("full")):  # A22: prose wrapped, tables apart
+        assert all(width(line) <= 100 or "  " in line.strip() for line in raw.splitlines())
+    assert full.count("Shown: the 95% interval") <= 1  # A22: said once, not per feature
+    across = across_frame(result)
+    if not across.empty and across["repeats"].max() != 3:  # C24: the 3-repeat clause only at 3
+        assert "with 3 biological repeats only large" not in full
+        assert "with 3 repeats only large" not in full
     short = " ".join(result.summary().split())
     for text in (short, full):
         assert not re.search(r"\b0 vs 0\b", text)  # B6, C7: no own control, never 0 vs 0
@@ -123,6 +131,9 @@ def _words(result: Any) -> None:
         assert "fov_variability]" not in text  # A22: no internal names
         if result.document.units != "cells":  # C18: the unit's words, never cells
             assert "random cells" not in text and "not only cells" not in text
+        assert ", with 2 biological repeats holding both sides" not in text  # C21: no "A, with"
+        if "also given balanced" in text:  # C6: only beside a balanced test
+            assert contrast.cells["p_balanced"].notna().any()
         if statuses.str.startswith(NO_CONTROL).any():  # B4, C9: the reason is the control
             assert "has a value of every feature" not in text
 
@@ -160,11 +171,14 @@ def _tests(result: Any, truth: dict[str, Any]) -> None:
             assert len(row) == 1 and row["adjusted_p"].iloc[0] <= ALPHA
             assert (row["higher"] == row["repeats"]).all()
             assert row["verdict"].iloc[0] == CONFIRMED
+    headline = result.document.headlines.get("conditions", "")
     for feature, conditions in truth.get("trend", {}).items():
         for condition in conditions:
             row = across[(across["feature"] == feature) & (across["condition"] == condition)]
             assert len(row) == 1 and row["adjusted_p"].iloc[0] > ALPHA
             assert row["verdict"].iloc[0] == CONSISTENT
+            # T5, C15: the glance names the trend, never only the significant conditions.
+            assert "trend: " in headline and f"{condition} higher in every repeat" in headline
     if not across.empty:
         nulls = across["condition"].isin(truth.get("null_conditions", ()))
         nulls |= across["feature"].isin(truth.get("null_features", ()))

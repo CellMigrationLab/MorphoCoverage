@@ -12,6 +12,7 @@ from .._style import Status, span
 from .._wording import column_word, count, listing
 from ..sampling_unit._units import opposite_signs
 from ..sampling_unit.across_text import secondary_headline
+from ..sampling_unit.contrast_repeats import TREND_REPEATS
 from ..sampling_unit.contrast_text import (
     P_ALPHA,
     across_tested,
@@ -84,6 +85,23 @@ NOTHING_COMPARED = "nothing compared: no biological repeat holds both a conditio
 def _none_compared(table: Any) -> bool:
     """Whether every contrast lacks its control in its repeat (``NO_CONTROL``)."""
     return bool(table["status"].astype(str).str.startswith(NO_CONTROL).all())
+
+
+def _trends(tests: pd.DataFrame) -> str:
+    """``trend: b higher in every repeat, not significant (area and length)``: the conditions
+    on one side of the control in every one of 6 repeats or more without q ≤ 0.05, which the
+    glance names (audit 10, C15); empty without."""
+    needed = {"repeats", "lower", "higher", "q_paired", "condition", "feature"}
+    if not len(tests) or not needed <= set(tests.columns):
+        return ""
+    held = tests[(tests["repeats"] >= TREND_REPEATS) & ~(tests["q_paired"] <= 0.05)]
+    parts = []
+    for side in ("higher", "lower"):
+        rows = held[held[side] == held["repeats"]]
+        for condition, mine in rows.groupby("condition", sort=False):
+            features = listing([str(f) for f in mine["feature"]], 3)
+            parts.append(f"{condition} {side} in every repeat ({features})")
+    return f"trend: {'; '.join(parts)}, not significant" if parts else ""
 
 
 def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Answer:
@@ -168,6 +186,7 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
             else f"{passing} of {what} candidates in the exploratory {one}-level "
             f"screen, hypotheses for another repeat (no test across repeats: n = {held})",
         )
+        parts[1:1] = [trend] if (trend := _trends(discovery.tests)) else []
         # The secondary rows, when one is significant (owner, 2026-10-05).
         secondary = secondary_headline(contrast)
         parts[1:1] = [secondary] if secondary else []

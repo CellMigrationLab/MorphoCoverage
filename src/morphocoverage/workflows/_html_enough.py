@@ -172,14 +172,14 @@ def answer_lines(features: FeatureEnough, fields: str, repeats: int) -> list[str
     return [line for line in (few_repeats(repeats), f"{head}{body}.") if line]
 
 
-def _needs(contrast: Any, fields: str, repeats: int = 0) -> str:
+def _needs(contrast: Any, fields: str, repeats: int = 0, project: bool = True) -> str:
     """``1 needs about 31 cells a side in its repeat; 1 too small even with 4 times the
     cells``, how many comparisons each count covers (with one biological repeat, no repeat
     to name); ``–`` when every one is shown."""
     rows = _rows(contrast)
     needing = _needing(rows)
     parts = []
-    if len(needing):
+    if len(needing) and project:
         counts = sorted(Counter(int(v) for v in needing["fields_to_resolve"]).items())
         (first, n), more = counts[0], counts[1:]
         verb = "needs" if n == 1 else "need"
@@ -211,7 +211,8 @@ def compact_table(features: FeatureEnough, fields: str, repeats: int = 0) -> str
         [
             r["feature"],
             str(r["shown"]) if same else f"{r['shown']} of {r['comparisons']}",
-            _needs(features.contrasts[r["feature"]], fields, repeats),
+            # No projection for a feature no test flags (audit 10, C25).
+            _needs(features.contrasts[r["feature"]], fields, repeats, r.get("flagged", True)),
         ]
         for r in rows.to_dict("records")
     ]

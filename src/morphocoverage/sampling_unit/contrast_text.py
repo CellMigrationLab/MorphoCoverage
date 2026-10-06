@@ -279,7 +279,9 @@ def _draws_short(contrast: Any, indent: int) -> list[str]:
         return []
     n = len(contrast.table)
     head = (
-        f"JCS effect size (treated mean minus control mean, over the control SD) from every "
+        # Named for its paper, so said what it is (audit 10, A22).
+        f"JCS effect size (Marcotti et al. 2026: treated mean minus control mean, over the "
+        "control SD) from every "
         f"{observation_words(contrast.settings)[0]}: {_range(full)}"
         + (f" over the {n} contrasts" if n > 1 else "")
     )
@@ -512,7 +514,8 @@ def _full(contrast: Any) -> str:
         words = observation_words(contrast.settings)[1]
         lines.append(
             wrap(
-                "JCS effect size (treated mean minus control mean, over the control SD) from "
+                "JCS effect size (Marcotti et al. 2026: treated mean minus control mean, over "
+                "the control SD) from "
                 f"draws of {words}: median (IQR), and the share of draws with the sign of the "
                 f"effect from every {observation_words(contrast.settings)[0]}; fields: the mean "
                 "number of acquired fields the whole-field draws took on the treated side.",

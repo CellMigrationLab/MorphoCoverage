@@ -61,7 +61,7 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import assumption, caveat_lines, pool_assumptions
-from .._style import DASH, PROBLEM, Status, check_detail, headline, wrap
+from .._style import DASH, PROBLEM, Status, check_detail, fitted, headline, wrap
 from .._wording import count, listing
 from ..sampling_unit import (
     ConditionContrast,
@@ -219,7 +219,7 @@ class MicroscopistReport:
             text = self.short.get(key, self.sections[key]) if short else self.sections[key]
             blocks.append(f"{self._header(key, title)}\n{text}")
         blocks.append(f"{LIMITS_TITLE}\n{self.limits(questions, detail)}")
-        return "\n\n".join(blocks)
+        return fitted("\n\n".join(blocks))
 
     def _header(self, key: str, title: str) -> str:
         """A section's title with its marker, when the answer has a status."""

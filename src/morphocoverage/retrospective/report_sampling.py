@@ -322,8 +322,9 @@ def states_lines(clustering: Any, unusual: Any, words: str) -> list[str]:
     """The labelled states over the fields, one line per state: where they cluster; without
     clustering (one observation per field), the unusual observations' share alone."""
     if clustering is None:
-        share = _unusual_share(unusual, words)
+        # One word for the observations: "unusual images ... all but 1% of its images" (A22).
         named = unusual.settings.get("words", words) if unusual is not None else words
+        share = _unusual_share(unusual, named)
         return [f"Unusual {named}{share}."] if share else []
     keys = list(clustering.group_cols)
     share = _unusual_share(unusual, words)

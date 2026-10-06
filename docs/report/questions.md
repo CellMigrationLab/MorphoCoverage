@@ -98,6 +98,11 @@ are in [Objects or fields?](objects_or_fields.md).
 
 ## The page, section by section
 
+Every prose line of the text report is wrapped at 100 columns, tables apart, and each
+assumption is said once per section, so the "Shown" note of question 2 comes once, not once
+per feature; a field the inspection lists for a new state alone is not said to be "simply a
+large field" (audit 10, owner, 2026-10-06).
+
 `microscopist_report` assembles the answers in the order of the questions above, with
 a sampling profile of measured quantities; a question without its analysis says "not
 assessed" and what it needs. The HTML page orders the same answers by what a reader acts

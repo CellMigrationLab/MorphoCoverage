@@ -110,7 +110,7 @@ Every test, rule and term the report uses, in plain words, with where it appears
 *Where:* Do the conditions differ?.
 *See:* [CCT8 associates with the MYO10 motor domain and regulates filopodia and breast cancer cell invasion. J Cell Sci. 2026 (the lab datasets).](https://doi.org/10.1242/jcs.265278)
 
-**JCS effect size.** The treated mean minus the control mean over the control SD, from cells drawn as random cells and as whole fields.
+**JCS effect size.** The treated mean minus the control mean over the control SD (Marcotti et al. 2026, which the report names beside it), from cells drawn as random cells and as whole fields.
 
 *Where:* Do the conditions differ?, full detail.
 *See:* [Marcotti et al. J Cell Sci. 2026.](https://doi.org/10.1242/jcs.264367)
