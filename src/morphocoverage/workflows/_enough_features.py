@@ -171,6 +171,7 @@ def _contrast(prepared: pd.DataFrame, fovs: pd.DataFrame, feature: str, setup: S
         fields_independent=setup.fields_independent,
         object_counts=(),
         cell_test=False,
+        scale=setup.scale_of(feature),
         **setup.common,
     )
 

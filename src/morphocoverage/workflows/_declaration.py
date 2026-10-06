@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 from .._caveats import assumption, caveat_lines
 from .._control import control_text
 from .._style import rule_label, wrap
-from .._wording import count, listing, percent, rate
+from .._wording import count, listing, percent, plural, rate
 from ..evidence import Component
 from ..order_check import RANDOM_SAMPLE_ASSUMPTION
 from ..results import COMPONENT_WORDS
@@ -28,6 +28,7 @@ from ..schema import resolve_observation_unit
 from ..statistics import fovs_to_detect
 from ..strategies import ScalarPrecisionStrategy
 from ._contrasts import controls_sentence, normalised_readers
+from ._one_per_field import field_unit
 
 if TYPE_CHECKING:
     from .setup import Setup
@@ -115,10 +116,8 @@ TABLES_CENTRED = (
 
 
 def _tables_centred(per_field: bool) -> str:
-    """``TABLES_CENTRED``, without unusual observations when one per field leaves them out."""
-    if per_field:
-        return TABLES_CENTRED
-    return TABLES_CENTRED.replace("populations, unusual observations and", "populations and")
+    """``TABLES_CENTRED`` (unusual observations run with one per field too, plan v2)."""
+    return TABLES_CENTRED
 
 
 def _no_mean(setup: Setup) -> str:
@@ -141,19 +140,28 @@ NO_READOUT = (
 
 
 def novelty_runs(setup: Setup, per_field: bool = True) -> bool:
-    """Whether new phenotypes are judged: a definition of new, and not one observation per
-    field when a new state needs several similar ones in one field (``_shared``'s
-    ``one_per_field_reasons``)."""
-    needed = int(getattr(setup.novelty, "min_novel_observations", 1))
-    return setup.novelty is not None and (per_field or needed <= 1)
+    """Whether new phenotypes are judged: a definition of new (with one observation per field,
+    its field version, ``_one_per_field.field_novelty``, plan v2)."""
+    return setup.novelty is not None
 
 
 def _unusual_missing(setup: Setup, per_field: bool) -> str:
     """Why unusual observations are not assessed (empty when they are): they need the
-    control and several observations per field."""
-    if setup.reference_control is None:
-        return "not assessed without a control"
-    return "" if per_field else f"not assessed, as each field holds one {setup.unit_word}"
+    control."""
+    return "not assessed without a control" if setup.reference_control is None else ""
+
+
+def _unusual_words(setup: Setup, per_field: bool, label: bool = True) -> str:
+    """``unusual cells (against the control cells, each relative to its own control in its
+    repeat; exploratory)``: biological unusualness (plan v2); with one observation per field,
+    unusual images. ``label=False`` leaves "exploratory" to the caller's sentence."""
+    units = setup.unit_words if per_field else plural(field_unit(setup) or setup.unit_word)
+    against = (
+        "each condition's own control, every value relative to that control in its repeat"
+        if setup.contrast_table is not None
+        else "the control, every value relative to the control of its repeat"
+    )
+    return f"unusual {units} (against {against}{'; exploratory' if label else ''})"
 
 
 def _representation_line(setup: Setup, per_field: bool = True) -> str:
@@ -167,7 +175,12 @@ def _representation_line(setup: Setup, per_field: bool = True) -> str:
             f"{next(iter(tables), 'the table')}"
         )
         missing = _unusual_missing(setup, per_field)
-        unusual = f"{setup.unit_words} {missing}" if missing else f"{setup.unit_words} on {space}"
+        relative = "relative to the control of each repeat; exploratory"
+        unusual = (
+            f"{setup.unit_words} {missing}"
+            if missing
+            else f"{setup.unit_words} on {space} ({relative})"
+        )
         then = "; no" if missing else ", no"
         tables_only = "Representation: the other feature tables only"
         return f"{tables_only}; unusual {unusual}{then} definition of new."
@@ -175,8 +188,7 @@ def _representation_line(setup: Setup, per_field: bool = True) -> str:
 
 
 def _representation(setup: Setup, per_field: bool = True) -> str:
-    """What the declared features are used for; unusual observations need the control and,
-    with new phenotypes, several observations per field."""
+    """What the declared features are used for; unusual observations need the control."""
     units = setup.unit_words
     if not setup.features:
         # Unusual observations and novelty read the declared features only (see report);
@@ -192,43 +204,33 @@ def _representation(setup: Setup, per_field: bool = True) -> str:
     # The other feature tables never enter unusual observations or novelty (owner,
     # 2026-10-06): the declared features alone.
     columns = count(len(setup.features), "declared feature column")
-    against = "each condition's own control" if setup.contrast_table is not None else "the control"
-    if not per_field:  # one observation per field (``_shared.one_per_field_reasons``)
-        one = f"each field holds one {setup.unit_word}"
-        unusual = f"unusual {units} are not assessed" + (
-            " without a control" if setup.reference_control is None else f", as {one}"
-        )
-        if setup.novelty is None:
-            new = "new phenotypes are not assessed (no definition of new: novelty)"
-            return f"{columns}; {unusual}; {new}"
-        new = f"new phenotypes (new: {_new_words(setup)})"
-        if novelty_runs(setup, per_field):
-            return f"{columns} for {new}; {unusual}"
-        return f"{columns}; {unusual}; {new} are not assessed, as {one}"
+    unusual = _unusual_words(setup, per_field)
     if setup.novelty is None:
         new = "new phenotypes are not assessed (no definition of new: novelty)"
         # A contrast table alone gives own controls: unusual observations read them.
         if setup.reference_control is None:
             return f"{columns}; {new}, and unusual {units} are not assessed without a control"
-        return (
-            f"{columns} for unusual {units} (against {against} {units}, their repeats "
-            f"pooled); {new}"
-        )
+        return f"{columns} for {unusual}; {new}"
+    # One observation per field: a state seen once, exploratory (module P10, plan v2); said
+    # once with the unusual images, both exploratory.
+    new = f"new phenotypes (new: {_new_words(setup)})"
     if setup.reference_control is None:
+        seen = new if per_field else new.replace(" (", ", exploratory (", 1)
+        return f"{columns} for {seen}; unusual {units} are not assessed without a control"
+    if not per_field:
         return (
-            f"{columns} for new phenotypes (new: {_new_words(setup)}); "
-            f"unusual {units} are not assessed without a control"
+            f"{columns} for {_unusual_words(setup, per_field, False)} and {new}, both exploratory"
         )
-    return (
-        f"{columns} for unusual {units} (against {against} {units}, their repeats pooled) "
-        f"and new phenotypes (new: {_new_words(setup)})"
-    )
+    return f"{columns} for {unusual} and {new}"
 
 
 def _new_words(setup: Setup) -> str:
-    """What counts as new, plainly: ``at least 3 similar cells that no other field shows``."""
+    """What counts as new, plainly: ``at least 3 similar cells that no other field shows``, or
+    on fields of one observation ``a cell that no other field shows``."""
     least = getattr(setup.novelty, "min_novel_observations", None)
     similar = f"at least {least} similar {setup.unit_words}" if least else "similar observations"
+    one = f"{'an' if setup.unit_word[:1] in 'aeiou' else 'a'} {setup.unit_word}"
+    similar = one if least == 1 else similar
     others = getattr(setup.novelty, "min_other_fovs", 1)
     if others == 1:
         return f"{similar} that no other field shows"

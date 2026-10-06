@@ -37,14 +37,22 @@ def _cells(seed=0):
     return pd.DataFrame(rows)
 
 
+# The scale question of plan v2 (owner, 2026-10-06), asked for features named like an area or
+# an intensity: answered with its default, Enter, unless a test scripts it (``scales=False``).
+SCALE_PROMPT = "Test the changes of "
+
+
 class Script:
     """Answers the prompts in order and records what was said."""
 
-    def __init__(self, answers):
+    def __init__(self, answers, scales=True):
         self.answers, self.said, self.prompts = list(answers), [], []
+        self.scales = scales
 
     def ask(self, prompt):
         self.prompts.append(prompt)
+        if self.scales and prompt.startswith(SCALE_PROMPT):
+            return ""
         if not self.answers:
             raise AssertionError(f"no scripted answer left for {prompt!r}")
         return self.answers.pop(0)

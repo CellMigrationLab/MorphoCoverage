@@ -399,7 +399,9 @@ def test_item10_one_image_per_field_leaves_the_rare_clustering_out_of_question_3
         warnings.simplefilter("ignore")
         for setup, tables in ((explainable, None), (Setup(**common, **rare), {"T": table})):
             short = " ".join(report(objects, fovs, setup, feature_tables=tables).summary().split())
-            assert "3. What limits my sampling? — not applicable: with one image per field" in short
+            # Plan v2: question 3 runs on the images; only the clustering within fields of
+            # the labelled state (and of the unusual images) is said not to apply.
+            assert "or the labelled state cluster in a few fields is not applicable" in short
             assert "spread like random images" not in short
 
 

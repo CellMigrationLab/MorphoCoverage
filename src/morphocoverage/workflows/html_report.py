@@ -50,6 +50,7 @@ from ..retrospective.report import LIMITS_TITLE
 from ..sampling_unit.across_text import across_parts
 from ..sampling_unit.reading_text import readings_parts
 from ..sufficiency_short import rule_tallies
+from ._exploratory import exploratory_html
 from ._feature_space import attached, space
 from ._html_cards import (
     check_rows,
@@ -469,8 +470,8 @@ def html_report(
         # One sentence and a table, then one feature at a time (_html_enough).
         body = enough_body(result, _TERMS.annotate) if key == "enough" else None
         reading = enough_reading(result) if key == "enough" and body is None else []
-        if body is not None:
-            extra, answer = body, None
+        if body is not None:  # the section's text is not printed: its exploratory line is
+            extra, answer = body + exploratory_html(result, key), None
         elif reading:
             # The reading answers in sentences, so the headline is not repeated above it.
             lines = "".join(f"<p>{html.escape(line)}</p>" for line in reading)

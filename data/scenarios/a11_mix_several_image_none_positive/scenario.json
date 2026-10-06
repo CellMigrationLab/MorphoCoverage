@@ -1,7 +1,7 @@
 {
  "name": "a11_mix_several_image_none_positive",
  "kind": "axes",
- "checks": "features; own controls and the rows across experiments; the questions about fields not applicable; a positive control",
+ "checks": "features; own controls and the rows across experiments; the field questions on the images; a positive control",
  "axes": {
   "tables": "mix",
   "controls": "several",
@@ -56,6 +56,7 @@
   "outcome": "runs",
   "results": [
    "contrast",
+   "controls",
    "discovery",
    "enough_features",
    "inspection",
@@ -64,30 +65,30 @@
    "ranking",
    "separation",
    "sufficiency",
+   "unusual",
+   "variability",
    "whole_table"
   ],
   "absent": [
    "clustering",
-   "controls",
    "distribution",
    "fingerprint_precision",
    "label_control",
    "object_rules",
-   "rare_clustering",
-   "unusual",
-   "variability"
+   "rare_clustering"
   ],
   "not_applicable": {
-   "controls": "judged by the definition of new",
-   "enough": "is not asked",
-   "profile": "one image per field",
-   "unit": "each field holds one"
+   "profile": "cluster in a few fields is not applicable",
+   "unit": "random images and whole fields are the same draws"
   },
   "table_column": true,
   "separation_spaces": [
    "Combined",
    "DINO1",
    "Explainable"
+  ],
+  "full": [
+   "judged against the controls cA and cB pooled"
   ],
   "contrast_kinds": [
    "across_normalised",

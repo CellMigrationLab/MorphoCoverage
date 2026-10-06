@@ -316,36 +316,34 @@ def condition_contrast(
     cell_test: bool = True,
     comparisons: Sequence[tuple[Any, Any]] | None = None,
     contrasts: pd.DataFrame | None = None,
+    scale: str | None = None,
 ) -> ConditionContrast:
     """Each condition against the control condition, per repeat, with objects and with fields.
 
-    ``control`` names the control condition by FOV-table value, for example
-    ``{"condition": "MOCK"}``; its key is the condition column unless
-    ``condition_col`` says otherwise. ``repeat_col`` separates the repeats
-    (``None`` compares within the whole table). Every analysis group whose
-    condition is not the control's is compared with the control groups of
-    the same repeat; the groups of one condition (its wells, say) are pooled
-    for the comparison, which the summary states. ``technical_col`` names the
-    technical-repeat column of the FOV table (by default the MorphoBricks
-    ``technical_repeat`` column, when present); its technical repeats are
-    compared and shuffled as units whatever ``group_cols`` says, an analysis
-    group holding several being split by it (see the module). Without it, a
-    group column nested within condition x repeat (a ``well`` column in
-    ``group_cols``) is the unit; without either, there is no randomization
-    test unless ``fields_independent=True`` declares the fields independent
-    draws, when whole fields are shuffled. ``object_counts`` are the JCS
-    sample sizes; counts above what a side holds are left out. ``target_col``
-    names what each condition acts on (default the ``target`` column, when the
-    FOV table has it): the reagents of one target are then said to agree or
-    not across the repeats. ``cell_test=False`` leaves out the cell-level test
-    (``cells`` empty), the slow part, when only the sampling of each feature is
-    asked ("Did I image enough?" per feature). ``comparisons``, ``(condition, reference)``
-    pairs, replace the single control (which may then be ``None``): each pair is compared
-    per repeat, its rows labelled ``condition vs reference`` in the ``condition`` column
-    (``_control``, owner 2026-10-05); the cell-level test pools each reference's own
-    observations. ``contrasts``, a contrast table (``_control.CONTRAST_COLUMNS``), gives
-    the comparisons (its ``own_control`` rows) and the secondary rows, tested on the repeat
-    means (``contrast_across``, the table ``across``).
+    ``control`` names the control condition by FOV-table value, for example ``{"condition":
+    "MOCK"}``; its key is the condition column unless ``condition_col`` says otherwise.
+    ``repeat_col`` separates the repeats (``None`` compares within the whole table). Every analysis
+    group whose condition is not the control's is compared with the control groups of the same
+    repeat; the groups of one condition (its wells, say) are pooled for the comparison, which the
+    summary states. ``technical_col`` names the technical-repeat column of the FOV table (by default
+    the MorphoBricks ``technical_repeat`` column, when present); its technical repeats are compared
+    and shuffled as units whatever ``group_cols`` says, an analysis group holding several being
+    split by it (see the module). Without it, a group column nested within condition x repeat (a
+    ``well`` column in ``group_cols``) is the unit; without either, there is no randomization test
+    unless ``fields_independent=True`` declares the fields independent draws, when whole fields are
+    shuffled. ``object_counts`` are the JCS sample sizes; counts above what a side holds are left
+    out. ``target_col`` names what each condition acts on (default the ``target`` column, when the
+    FOV table has it): the reagents of one target are then said to agree or not across the repeats.
+    ``cell_test=False`` leaves out the cell-level test (``cells`` empty), the slow part, when only
+    the sampling of each feature is asked ("Did I image enough?" per feature). ``comparisons``,
+    ``(condition, reference)`` pairs, replace the single control (which may then be ``None``): each
+    pair is compared per repeat, its rows labelled ``condition vs reference`` in the ``condition``
+    column (``_control``, owner 2026-10-05); the cell-level test pools each reference's own
+    observations. ``contrasts``, a contrast table (``_control.CONTRAST_COLUMNS``), gives the
+    comparisons (its ``own_control`` rows) and the secondary rows, tested on the repeat means
+    (``contrast_across``, the table ``across``). ``scale``, the feature's declared scale
+    (``Setup.scales``: ``"ratio"`` or ``"difference"``; plan v2, owner, 2026-10-06), replaces the
+    automatic rule (``statistics.log_scale``) for the paired test across repeats.
     """
     declared = None if contrasts is None else check_contrast_table(contrasts)
     comparisons = comparisons if declared is None else own_pairs(declared)
@@ -382,7 +380,8 @@ def condition_contrast(
         "random_state": random_state,
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
-        "log_scale": log_scale(data.feature_values(feature)),  # the paired test's scale
+        "log_scale": log_scale(data.feature_values(feature), scale, repr(feature)),
+        "scale": scale,  # declared in the Setup, else None (the automatic rule)
     }
     contrasts = contrasts_of(described)
     # Repeats holding only the control: in no comparison, so not in the pooled control.
@@ -475,7 +474,8 @@ def condition_contrast(
     )
     log = settings["log_scale"]
     repeats = across_repeats(table, repeat_col, random_state, log)
-    between = across_table((all_groups, described, feature, technical_col), declared, random_state)
+    held = (all_groups, described, feature, technical_col)
+    between = across_table(held, declared, random_state, log)
     settings.update(between.attrs)  # the contrast table and the master's repeats
     plan = repeat_plan(table, log=log) if repeat_col else pd.DataFrame(columns=PLAN_COLUMNS)
     targets = _targets(fovs, condition_col, target_col)

@@ -110,7 +110,10 @@ a change ("none", the default, leaves that check out; it can be named later,
 whenever such a condition was imaged); whether you want to know if the average of each
 feature differs, the whole distribution (shape, spread, tails), or both; the features to
 assess (several by number, range or name, or all the numeric columns); the readout among
-them; an optional column that marks a phenotype you care about (true/false or 0/1 per cell,
+them; for the features named like an intensity or an area whose values are all positive,
+whether to test their changes as ratios to the control, yes by default, no testing them as
+differences (`Setup.scales`, saved with the answers; plan v2, owner, 2026-10-06); an
+optional column that marks a phenotype you care about (true/false or 0/1 per cell,
 such as mitotic: `Setup.rare_label`, its share taken as the rare target's prevalence, to be
 seen in 3 fields with 95% chance); and, for the whole distribution, its tolerance (the
 covariance of the standardised features within a share you state; 10% is offered, with no

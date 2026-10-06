@@ -1,4 +1,5 @@
-"""One observation per field (one cell per image): the questions about fields do not apply."""
+"""One observation per field (one cell per image): the field questions run on the rows as
+fields; only the ideas within a field are not applicable (owner, 2026-10-06, plan v2)."""
 
 import sys
 from pathlib import Path
@@ -6,8 +7,13 @@ from pathlib import Path
 import pytest
 
 from morphocoverage._style import CAUTION
+from morphocoverage.sampling_unit.variability import ONE_PER_FIELD
 from morphocoverage.workflows import Setup, default_novelty, report
-from morphocoverage.workflows._shared import one_per_field, one_per_field_reasons
+from morphocoverage.workflows._one_per_field import (
+    field_novelty,
+    one_per_field,
+    one_per_field_reasons,
+)
 
 LAB = Path(__file__).resolve().parents[1] / "data" / "lab"
 sys.path.insert(0, str(LAB))
@@ -36,31 +42,50 @@ def test_one_cell_per_field_is_recognized(cdm):
     assert not one_per_field(*tracks.tables, track_setup)
 
 
-def test_the_field_questions_are_not_applicable_said_once_not_warned(cdm):
+def test_the_field_questions_run_on_the_rows_as_fields(cdm):
     _, _, result = cdm
-    # Neither the field variability, the object rule with whole fields nor the clustering
-    # of unusual cells is run: with one cell per field they cannot be measured.
-    for name in ("variability", "object_rules", "unusual", "clustering"):
+    # The spread over fields and the unusual images run; the clustering within fields and
+    # the count rule with whole fields (the same draws as random cells) do not.
+    assert set(result.results["variability"].groups["status"]) == {ONE_PER_FIELD}
+    assert result.results["unusual"].settings["words"] == "images"
+    for name in ("object_rules", "clustering"):
         assert name not in result.results
     short = result.summary()
     glance = short.split("What is in the dataset")[0]
-    assert "➖ Foundation. Why count fields? — not applicable: each field holds one cell" in glance
-    assert "➖ 3. What limits my sampling? — not applicable: with one cell per field" in glance
+    assert "✅ Foundation. Why count fields? — each field holds one of the cells" in glance
     foundation = short.split("Foundation: why count fields")[1].split("1. Can these")[0]
+    assert "a mean from whole fields is a mean of as many random cells (design effect 1)" in (
+        " ".join(foundation.split())
+    )
     assert CAUTION not in foundation
+    profile = short.split("3. What is limiting my sampling?")[1].split("6. Which")[0]
+    profile = " ".join(profile.split())
+    assert "Unusual images (exploratory, farther from the siCTRL reference" in profile
+    assert "cluster in a few fields is not applicable: each field holds one cell" in profile
 
 
-def test_nothing_new_is_left_out_when_new_needs_several_cells_in_a_field(cdm):
+def test_new_is_judged_across_fields(cdm):
     _, setup, result = cdm
-    reasons = one_per_field_reasons(setup)
-    assert "whether unseen cell states remain is not asked" in reasons["enough"]
+    # A new state needs 3 similar cells in one field: on fields of one cell, a cell no other
+    # field holds within the radius, a state seen once (owner, 2026-10-06).
+    field = field_novelty(setup.novelty)
+    assert (field.min_novel_observations, field.min_other_fovs) == (1, 1)
+    assert "enough" not in one_per_field_reasons(setup)
+    assert "controls" not in one_per_field_reasons(setup)
     enough = " ".join(result.summary().split("2. Did I image enough?")[2].split())
-    assert "a new state needs 3 similar cells in one field" in enough
-    assert "nothing new (≤5%)" not in enough
+    assert "nothing new (≤5%)" in enough
+    assert "'New': a cell that no other field shows" in enough
+    declaration = " ".join(result.summary().split("What this acquisition was asked")[1].split())
+    # Unusual images and novelty labelled once, together (plan v2: one label a section).
+    assert "new phenotypes (new: a cell that no other field shows), both exploratory" in (
+        declaration
+    )
+    assert "exploratory) and new phenotypes" not in declaration
+    assert "unusual images (against the control" in declaration
 
 
 def test_the_contrast_shows_one_d_when_fields_and_cells_coincide(cdm):
     _, _, result = cdm
     full = result.summary(detail="full")
-    within = full.split("Within each repeat:")[1]
-    assert "d cells" in within and "d fields" not in within.split("\n\n")[0]
+    within = full.split("Within each repeat:")[1].split("\n  Planning")[0]
+    assert "d on cells" in within and "d on fields" not in within

@@ -220,7 +220,7 @@ def axes_checks(axes: dict[str, Any], truth: dict[str, Any]) -> str:
     if axes["normalize"]:
         parts.append("normalised and centred views")
     if axes["unit"] == "image":
-        parts.append("the questions about fields not applicable")
+        parts.append("the field questions on the images")
     parts.append(TARGET_WORDS[axes["target"]])
     if truth.get("html"):
         parts.append("the page" + (", its CSVs naming tables" if truth["table_column"] else ""))
@@ -244,44 +244,41 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
     (ran if target.startswith("fp") else absent).append("fingerprint_precision")
     (ran if target == "rare" else absent).append("rare_clustering")
     (ran if other_tables and control else absent).append("whole_table")
-    if not per_field:
-        absent += ["variability", "unusual", "object_rules", "clustering"]
-        reasons["unit"] = "each field holds one"
-        reasons["profile"] = "one image per field"
+    if not per_field:  # the field questions on the images; only ideas within a field not
+        absent += ["object_rules", "clustering"]
+        if control or target == "rare":
+            reasons["profile"] = "cluster in a few fields is not applicable"
     if embedding:
         absent += ["contrast", "discovery", "sufficiency", "inspection", "label_control"]
         reasons["controls"] = reasons["inspect"] = "no explainable features"
-        if per_field:
-            reasons["unit"] = "no explainable features"
-            (ran if control else absent).append("unusual")
-            reasons["profile"] = "Fields against random" if control else "against the control"
-        reasons["conditions"] = "Per feature" if control else "no control declared"
+        reasons["unit"] = "no explainable features"
+        (ran if control else absent).append("unusual")
+        reasons["profile"] = "Fields against random" if control else "against the control"
+        reasons["conditions"] = "Per feature" if control else "no control is declared"
         reasons["enough"] = "Per feature" if target != "tol" else "no target declared"
     else:
         ran += ["sufficiency", "inspection"]
         (ran if target == "rare" else absent).append("label_control")
-        if per_field:
-            ran.append("variability")
+        ran.append("variability")
+        if control and not per_field:  # one observation per field: the same draws
+            reasons["unit"] = "random images and whole fields are the same draws"
         if control:
             ran += ["contrast", "discovery", "enough_features", "ranking"]
             # Beyond the mean reads the explainable features the fingerprint reads only.
             (ran if target == "fp_expl" else absent).append("distribution")
             if target == "fp_dino":
                 full.append("Beyond the mean: not compared, as the fingerprint reads no")
-            if per_field:
-                ran += ["unusual", "object_rules", "clustering"]
+            ran += ["unusual"] + (["object_rules", "clustering"] if per_field else [])
         else:
             absent += ["contrast", "discovery", "unusual", "object_rules", "distribution"]
-            reasons["conditions"] = "needs a control"
-        if target == "positive":
-            (ran if per_field else absent).append("controls")
+            # Plan v2 (owner, 2026-10-06): requested contrasts, not yet supported.
+            reasons["conditions"] = "no control is declared"
+        if target == "positive":  # judged by the field version of new on images
+            ran.append("controls")
             if per_field:  # 5 reference fields seen, as the definition of new needs
                 controls_status = "assessed"
-            if per_field and axes["controls"] == "several":  # the own controls, pooled
+            if axes["controls"] == "several":  # the own controls, pooled
                 full.append("judged against the controls cA and cB pooled")
-            if not per_field:
-                reasons["controls"] = "judged by the definition of new"
-                reasons["enough"] = "is not asked"
     truth: dict[str, Any] = {
         "outcome": "runs",
         "results": sorted(set(ran)),
@@ -304,11 +301,12 @@ def axes_truth(axes: dict[str, Any], tables: dict[str, Any]) -> dict[str, Any]:
 def _fingerprint_headline(target: str, other_tables: bool, per_field: bool) -> str:
     """The fingerprint's part of "Did I image enough?": judged in groups of 12 cells (k = 2),
     not assessable in groups of 4 images (k would be 0)."""
-    named = "the fingerprint"
+    # A covariance criterion: the covariance fingerprint (plan v2, owner, 2026-10-06).
+    named = "the covariance fingerprint"
     if target == "fp_dino":
-        named = "the fingerprint of DINO1"
+        named = "the covariance fingerprint of DINO1"
     elif other_tables:
-        named = "the fingerprint of the explainable features"
+        named = "the covariance fingerprint of the explainable features"
     return f"{named} within its tolerance" if per_field else f"{named} not assessable"
 
 

@@ -21,7 +21,7 @@ tolerance is part of the question, and reports state it with every answer.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
 
@@ -101,6 +101,12 @@ class OutcomeCriterion:
             "direction": self.direction,
             "description": self.description,
         }
+
+    def trained(self, training: ValidatedInput) -> OutcomeCriterion:
+        """The criterion with its metric's fitted state fitted on ``training`` alone
+        (``OutcomeMetric.trained``): the stream of a split, never its held-back fields."""
+        metric = self.metric.trained(training)
+        return self if metric is self.metric else replace(self, metric=metric)
 
     def judge(self, value: float | None) -> Preservation:
         """Preservation for an already computed metric value."""

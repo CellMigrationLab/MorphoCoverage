@@ -33,6 +33,29 @@
         columns swapped or a feature (or a value) missing in one copy only, and observations pasted
         into two or more other fields (they read as recurring).
 
+    ⚠️ Acquisition anomalies (raw values, quality control): 9 fields 5 SDs or more from the other
+       fields of their condition and repeat on the raw values: siCCT8#8 · repeat
+       3 · siCCT8#8|3|cell007 (AR, 24 SDs above, 4.4 times), siCCT8#5 · repeat 2 · siCCT8#5|2|cell018
+       (Perim., 14 SDs above, 6.2 times), siCTRL · repeat 2 · siCTRL|2|cell001 (Minor, 10.2 SDs above,
+       3.5 times), siCCT8#8 · repeat 3 · siCCT8#8|3|cell012 (Area, 8 SDs above, 3.8 times) and 5 more;
+       an engineering quality-control threshold, never a biological verdict: open their images, 174
+       fields judged in 9 groups.
+      the raw values: siCCT8#8 · repeat 3 · siCCT8#8|3|cell007 (AR, 24 SDs above, 4.4 times),
+      siCCT8#5 · repeat 2 · siCCT8#5|2|cell018 (Perim., 14 SDs above, 6.2 times), siCTRL · repeat
+      2 · siCTRL|2|cell001 (Minor, 10.2 SDs above, 3.5 times), siCCT8#8 · repeat 3 · siCCT8#8|3|cell012
+      (Area, 8 SDs above, 3.8 times) and 5 more; an engineering quality-control threshold, never a
+      biological verdict: open their images, 174 fields judged in 9 groups.
+      field                                     feature   field median  other fields  SDs from them
+      siCCT8#8 · repeat 3 · siCCT8#8|3|cell007  AR                5.61          1.28          +24.0
+      siCCT8#5 · repeat 2 · siCCT8#5|2|cell018  Perim.             630           101          +14.0
+      siCTRL · repeat 2 · siCTRL|2|cell001      Minor               43          12.3          +10.2
+      siCCT8#8 · repeat 3 · siCCT8#8|3|cell012  Area          1.07e+03           280           +8.0
+      siCCT8#8 · repeat 1 · siCCT8#8|1|cell003  AR                3.73           1.4           +7.7
+      siCCT8#5 · repeat 3 · siCCT8#5|3|cell015  Area               970           241           +5.5
+      siCCT8#8 · repeat 2 · siCCT8#8|2|cell003  Feret             93.6          27.2           +5.4
+      siCCT8#5 · repeat 1 · siCCT8#5|1|cell017  MinFeret          39.9          18.8           +5.2
+      siCCT8#5 · repeat 2 · siCCT8#5|2|cell003  AR                4.83          1.61           +5.1
+
 What this acquisition was asked to preserve
   - Population summary: the mean of Area over all cells, within 5% and 2.5% of its value on
     held-back fields.
@@ -40,9 +63,14 @@ What this acquisition was asked to preserve
     below speak of the mean, not of the distribution of phenotypes.
   - Rare phenotype: not declared (no RareTarget in rare), so no answer below says whether a rare
     state was sampled enough.
-  - Representation: readout Area; 10 declared feature columns; unusual cells are not assessed, as
-    each field holds one cell; new phenotypes (new: at least 3 similar cells that no other field
-    shows) are not assessed, as each field holds one cell.
+  - Representation: readout Area; 10 declared feature columns for unusual images (against the
+    control, every value relative to the control of its repeat) and new phenotypes (new: a cell that
+    no other field shows), both exploratory.
+  - Report-only rule: with this definition of new, 'Did I image enough?' also judges whether the
+    chance that one more field shows something new is at most 5% (its upper bound; novelty_target).
+    It is not one of the stopping rules (rules): the live decision does not run it, and optimise and
+    benchmark do not calibrate it. A state that fewer than 3 other fields show is counted as seen in
+    few fields (few_fovs).
   - Stopping rules: mean-precision rule, per cell, 5% [scalar_precision_object_upper95
     (feature=Area, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95)] and mean-precision
     rule, per field, 5% [scalar_precision_fov_upper95 (feature=Area, target_cv=0.05,
@@ -58,8 +86,24 @@ What this acquisition was asked to preserve
     targets it has evidence about, and a target no rule decides stays unsupported rather than
     assumed adequate.
 
-➖ Foundation: why count fields, and not only cells?
-  Not applicable: each field holds one cell, so fields and cells coincide and every per-cell answer is also the per-field one.
+✅ Foundation: why count fields, and not only cells?
+  How variable are the fields (Area)? Each field holds one cell, so fields and cells coincide: a
+    mean from whole fields is a mean of as many random cells (design effect 1), and SD / sqrt(n), n
+    the fields, is its error. The fields spread by 26-74% of their mean (the SD over fields; median
+    52%, over 9 groups).
+    group                fields  mean  SD over fields   CV
+    siCCT8#5 · repeat 1      25   375             196  52%
+    siCCT8#5 · repeat 2      21   554             376  68%
+    siCCT8#5 · repeat 3      17   316             212  67%
+    siCCT8#8 · repeat 1      27   408             133  32%
+    siCCT8#8 · repeat 2      16   452             334  74%
+    siCCT8#8 · repeat 3      15   345             221  64%
+    siCTRL · repeat 1        18   456             117  26%
+    siCTRL · repeat 2        24   586             293  50%
+    siCTRL · repeat 3        11   544             185  34%
+
+  The mean-precision count rule is not checked with whole fields: each field holds one cell, so
+    random cells and whole fields are the same draws.
 
 ➖ 1. Can these features detect what I care about?
   Not assessed: name a condition known to change the phenotype as the positive control (the guided session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again; it can be added after the acquisition, whenever such a condition was imaged.
@@ -194,11 +238,13 @@ What this acquisition was asked to preserve
     rule                                met with the fields acquired  fields needed in random orders: median (10-90%)
     mean-precision rule, per cell, 5%   0 of 9                        never
     mean-precision rule, per field, 5%  0 of 9                        never
+    nothing new (≤5%)                   0 of 9                        never
   Fields when first met in random orders; random: the median of the groups' medians, 10-90% from the
     lowest to the highest group.
   Rules: mean-precision rule, per cell, 5% (scalar_precision_object_upper95: averaging_cv <= 0.05;
     config 8d1fdaa201845e06); mean-precision rule, per field, 5% (scalar_precision_fov_upper95:
-    averaging_cv <= 0.05; config 96023624bc06b3a0).
+    averaging_cv <= 0.05; config 96023624bc06b3a0); nothing new (≤5%) (support_novelty:
+    lofo_novel_fov_upper <= 0.05; config 5f8c0334a6a2a227).
   Per group below: whether each rule was met by its own threshold, where it was first met, and the
     fields imaged beyond that point (beyond: a median over the random orders, or the recorded one
     without them; only where the acquired fields are enough).
@@ -207,56 +253,143 @@ What this acquisition was asked to preserve
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.4, bimodality coefficient
       0.589.
+    One more field: chance 20% (nominal 95% bound 38%); 5 of 25 fields showed a state counted as new.
+    Not yet seen: at most 11% of fields (95% confidence, about 3 / 25).
+    Seen in few fields: 2 of 25 fields hold a state seen in 2 to 3 fields; together 8% of fields (95%
+      interval 1%-26%): to see it once with 95% probability, about 36 independent representative
+      fields, up to 303 at the low end of the interval.
+    Fields still needed: at least 34 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 183 more fields if none
+      shows anything new (never, at the current rate of new fields).
 
   siCCT8#5 · repeat 2 — 21 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     Cautions here: mean-precision rule, per cell, 5%: bimodality coefficient 0.677.
+    One more field: chance 29% (nominal 95% bound 49%); 6 of 21 fields showed a state counted as new.
+    Not yet seen: at most 13% of fields (95% confidence, about 3 / 21).
+    Seen in few fields: 3 of 21 fields hold a state seen in 2 to 3 fields; together 14% of fields (95%
+      interval 3%-36%): to see it once with 95% probability, about 20 independent representative
+      fields, up to 97 at the low end of the interval.
+    Fields still needed: at least 38 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 213 more fields if none
+      shows anything new (never, at the current rate of new fields).
 
   siCCT8#5 · repeat 3 — 17 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 5.1, bimodality coefficient
       0.619.
+    One more field: chance 12% (nominal 95% bound 33%); 2 of 17 fields showed a state counted as new.
+    Not yet seen: at most 16% of fields (95% confidence, about 3 / 17).
+    Seen in few fields: 2 of 17 fields hold a state seen in 2 to 3 fields; together 12% of fields (95%
+      interval 1%-36%): to see it once with 95% probability, about 24 independent representative
+      fields, up to 204 at the low end of the interval.
+    Fields still needed: at least 42 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 107 more fields if none
+      shows anything new (never, at the current rate of new fields).
 
   siCCT8#8 · repeat 1 — 27 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
+    One more field: chance 7% (nominal 95% bound 22%); 2 of 27 fields showed a state counted as new.
+    Not yet seen: at most 11% of fields (95% confidence, about 3 / 27).
+    Seen in few fields: 2 of 27 fields hold a state seen in 2 to 3 fields; together 7% of fields (95%
+      interval 0.9%-24%): to see it once with 95% probability, about 39 independent representative
+      fields, up to 328 at the low end of the interval.
+    Fields still needed: at least 32 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 97 more fields if none shows
+      anything new (never, at the current rate of new fields).
 
   siCCT8#8 · repeat 2 — 16 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     Cautions here: mean-precision rule, per cell, 5%: bimodality coefficient 0.569.
+    One more field: chance 31% (nominal 95% bound 55%); 5 of 16 fields showed a state counted as new.
+    Not yet seen: at most 17% of fields (95% confidence, about 3 / 16).
+    Seen in few fields: 4 of 16 fields hold a state seen in 2 to 3 fields; together 25% of fields (95%
+      interval 7%-52%): to see it once with 95% probability, about 11 independent representative
+      fields, up to 40 at the low end of the interval; they may hold several states, each rarer: one
+      seen in only 2 fields needs about 23.
+    Fields still needed: at least 43 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 192 more fields if none
+      shows anything new (never, at the current rate of new fields).
 
   siCCT8#8 · repeat 3 — 15 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 9.0, bimodality coefficient
       0.671.
+    One more field: chance 13% (nominal 95% bound 36%); 2 of 15 fields showed a state counted as new.
+    Not yet seen: at most 18% of fields (95% confidence, about 3 / 15).
+    Seen in few fields: 4 of 15 fields hold a state seen in 2 to 3 fields; together 27% of fields (95%
+      interval 8%-55%): to see it once with 95% probability, about 10 independent representative
+      fields, up to 37 at the low end of the interval; they may hold several states, each rarer: one
+      seen in only 2 fields needs about 21.
+    Fields still needed: at least 44 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 109 more fields if none
+      shows anything new (never, at the current rate of new fields).
 
   siCTRL · repeat 1 — 18 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
+    One more field: chance 6% (nominal 95% bound 24%); 1 of 18 fields showed a state counted as new.
+    Not yet seen: at most 15% of fields (95% confidence, about 3 / 18).
+    Seen in few fields: 7 of 18 fields hold a state seen in 2 to 3 fields; together 39% of fields (95%
+      interval 17%-64%): to see it once with 95% probability, about 7 independent representative
+      fields, up to 16 at the low end of the interval; they may hold several states, each rarer: one
+      seen in only 2 fields needs about 26.
+    Fields still needed: at least 41 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 75 more fields if none shows
+      anything new (never, at the current rate of new fields).
 
   siCTRL · repeat 2 — 24 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 7.3, bimodality coefficient
       0.591.
+    One more field: chance 8% (nominal 95% bound 24%); 2 of 24 fields showed a state counted as new.
+    Not yet seen: at most 12% of fields (95% confidence, about 3 / 24).
+    Seen in few fields: 2 of 24 fields hold a state seen in 2 to 3 fields; together 8% of fields (95%
+      interval 1%-27%): to see it once with 95% probability, about 35 independent representative
+      fields, up to 291 at the low end of the interval.
+    Fields still needed: at least 35 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 100 more fields if none
+      shows anything new (never, at the current rate of new fields).
 
   siCTRL · repeat 3 — 11 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
+    One more field: chance 27% (nominal 95% bound 56%); 3 of 11 fields showed a state counted as new.
+    Not yet seen: at most 24% of fields (95% confidence, about 3 / 11).
+    Seen in few fields: 3 of 11 fields hold a state seen in 2 to 3 fields; together 27% of fields (95%
+      interval 6%-61%): to see it once with 95% probability, about 10 independent representative
+      fields, up to 49 at the low end of the interval.
+    Fields still needed: at least 48 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 142 more fields if none
+      shows anything new (never, at the current rate of new fields).
+
+  'New' means at least 1 observation with no other FOV within distance 3.16228 (robust_standardize),
+    on 10 features (Area, Perim., Major and 7 more).
 
   ⚠️ Mean-precision rule, per cell, 5%, in 4 of 9 groups (siCCT8#5 · repeat 1, siCCT8#5 · repeat 3,
      siCCT8#8 · repeat 3 and siCTRL · repeat 2): the SD between cells exceeds 50% of their mean;
@@ -280,35 +413,108 @@ What this acquisition was asked to preserve
      exceeds 50% of their mean; Zweifach (JCB 2024) advises acquiring more data and repeating the
      estimate.
   Assumptions:
+    - A state below the not-yet-seen bound can remain: rarer states can remain.
+    - A state seen in few fields (fields counted as new are not among them) is not new to the next
+      field but is not established either: it counts as recurrent, so look at those fields before
+      calling the sample settled.
+    - Fields that cluster a state need more fields than the planning numbers.
     - Mean-precision rule, per cell, 5% treats cells as independent draws: it assumes a spatially
       uniform sample.
     - Mean-precision rule, per field, 5%: in simulations its upper bound, a bootstrap of whole
       fields, covered the true averaging error about 85-95% of the time with uneven field sizes and
       93-99% with Poisson sizes.
+    - The next-field bound is approximate: the leave-one-field-out outcomes share their reference
+      fields.
+    - The novelty bounds treat fields as independent, representative draws: neighbouring fields
+      acquired in a raster over patchy states make them too low.
+    - Every novelty bound holds at a number of fields fixed in advance, not at the first field where
+      it passes: stopping there is premature more often than 5% of the time.
 
-  Whether unseen cell states remain is not asked: a new state needs 3 similar cells in one field,
-    and each field holds one.
+  Novelty is exploratory: not yet validated by the benchmark of docs/common/validation.md.
 
-➖ 3. What is limiting my sampling?
-  Not applicable: with one cell per field, how cells spread over fields cannot be measured.
+⚠️ 3. What is limiting my sampling?
+  Measured quantities (the sampling profile), each with where it holds and its source:
+  - each field holds one of the cells, so a mean from whole fields is one of as many random cells
+    (design effect 1) [9 groups; fov_variability]
+  - new states come from 28 fields [all groups; inspect_fovs]
+
+  Unusual images (exploratory): farther from the reference siCTRL than all but 1% of reference
+    images are from the other reference groups (on the 10 explainable features, each relative to its
+    own control's mean in its repeat, as a log ratio when the feature is declared on the ratio scale
+    or, undeclared, every value is positive, else as a difference, standardized, 5 nearest
+    neighbours). Groups: condition · biological repeat · technical repeat.
+    group                images scored  unusual  share  refits agree  threshold  calibrated
+    siCCT8#5 · repeat 1             25        0     0%            0%       4.81  leave-one-group-out
+    siCCT8#5 · repeat 2             21        1     5%          100%       4.81  leave-one-group-out
+    siCCT8#5 · repeat 3             17        2    12%           33%       4.81  leave-one-group-out
+    siCCT8#8 · repeat 1             27        0     0%          100%       4.81  leave-one-group-out
+    siCCT8#8 · repeat 2             16        2    13%           25%       4.81  leave-one-group-out
+    siCCT8#8 · repeat 3             15        1     7%          100%       4.81  leave-one-group-out
+    siCTRL · repeat 1               18        0     0%          100%       6.12  leave-one-group-out
+    siCTRL · repeat 2               24        2     8%           67%       4.22  leave-one-group-out
+    siCTRL · repeat 3               11        0     0%          100%       5.28  leave-one-group-out
+  ⚠️ Refits with other reference samples agree on only 0-67% of the unusual images in 4 of 9 groups
+     (siCCT8#5 · repeat 1, siCCT8#5 · repeat 3, siCCT8#8 · repeat 2 and 1 more; below 90%): treat
+     those labels as unstable.
+  Assumptions:
+    - A state the reference already holds, at any share, is not unusual: only its share can change,
+      and the populations (“Are there groups of cells?”) compare each condition's share of such a
+      state with its control's.
+
+  Whether unusual cells cluster in a few fields is not applicable: each field holds one cell, so a
+    field holds a state or not.
 
 ⚠️ 6. Which fields should I look at?
   Analysis groups: condition · biological repeat · technical repeat.
+  siCCT8#5 · repeat 1: fields to reopen before trusting the result
+    siCCT8#5|1|cell004 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#5|1|cell013 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#5|1|cell017 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#5|1|cell020 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#5|1|cell023 (image_file unrecorded): 1 cell of a state no other field shows.
+  siCCT8#5 · repeat 2: fields to reopen before trusting the result
+    siCCT8#5|2|cell002 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#5|2|cell006 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#5|2|cell008 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#5|2|cell014 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#5|2|cell017 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#5|2|cell018 (image_file unrecorded): 1 cell of a state no other field shows.
   siCCT8#5 · repeat 3: fields to reopen before trusting the result
-    siCCT8#5|3|cell015 (image_file unrecorded): removing it lowers siCCT8#5's mean of Area in this
-      repeat (every cell weighing one, as in the test across repeats) by 13%: its change against the
-      control goes from ×0.77 to ×0.73, the paired t-test's p from 0.21 to 0.24.
+    siCCT8#5|3|cell004 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#5|3|cell015 (image_file unrecorded): 1 cell of a state no other field shows; removing it
+      lowers siCCT8#5's mean of Area in this repeat (every cell weighing one, as in the test across
+      repeats) by 13%: its change against the control goes from ×0.77 to ×0.73, the paired t-test's p
+      from 0.21 to 0.24.
+  siCCT8#8 · repeat 1: fields to reopen before trusting the result
+    siCCT8#8|1|cell003 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#8|1|cell010 (image_file unrecorded): 1 cell of a state no other field shows.
   siCCT8#8 · repeat 2: fields to reopen before trusting the result
-    siCCT8#8|2|cell003 (image_file unrecorded): removing it lowers siCCT8#8's mean of Area in this
-      repeat (every cell weighing one, as in the test across repeats) by 11%: its change against the
-      control goes from ×0.76 to ×0.73, the paired t-test's p from 0.11 to 0.095.
-    siCCT8#8|2|cell009 (image_file unrecorded): removing it lowers siCCT8#8's mean of Area in this
-      repeat (every cell weighing one, as in the test across repeats) by 11%: its change against the
-      control goes from ×0.76 to ×0.73, the paired t-test's p from 0.11 to 0.095.
+    siCCT8#8|2|cell003 (image_file unrecorded): 1 cell of a state no other field shows; removing it
+      lowers siCCT8#8's mean of Area in this repeat (every cell weighing one, as in the test across
+      repeats) by 11%: its change against the control goes from ×0.76 to ×0.73, the paired t-test's p
+      from 0.11 to 0.095.
+    siCCT8#8|2|cell006 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#8|2|cell009 (image_file unrecorded): 1 cell of a state no other field shows; removing it
+      lowers siCCT8#8's mean of Area in this repeat (every cell weighing one, as in the test across
+      repeats) by 11%: its change against the control goes from ×0.76 to ×0.73, the paired t-test's p
+      from 0.11 to 0.095.
+    siCCT8#8|2|cell010 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#8|2|cell016 (image_file unrecorded): 1 cell of a state no other field shows.
   siCCT8#8 · repeat 3: fields to reopen before trusting the result
-    siCCT8#8|3|cell012 (image_file unrecorded): removing it lowers siCCT8#8's mean of Area in this
-      repeat (every cell weighing one, as in the test across repeats) by 15%: its change against the
-      control goes from ×0.76 to ×0.72, the paired t-test's p from 0.11 to 0.16.
+    siCCT8#8|3|cell007 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCCT8#8|3|cell012 (image_file unrecorded): 1 cell of a state no other field shows; removing it
+      lowers siCCT8#8's mean of Area in this repeat (every cell weighing one, as in the test across
+      repeats) by 15%: its change against the control goes from ×0.76 to ×0.72, the paired t-test's p
+      from 0.11 to 0.16.
+  siCTRL · repeat 1: fields to reopen before trusting the result
+    siCTRL|1|cell013 (image_file unrecorded): 1 cell of a state no other field shows.
+  siCTRL · repeat 2: fields to reopen before trusting the result
+    siCTRL|2|cell001 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCTRL|2|cell023 (image_file unrecorded): 1 cell of a state no other field shows.
+  siCTRL · repeat 3: fields to reopen before trusting the result
+    siCTRL|3|cell002 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCTRL|3|cell005 (image_file unrecorded): 1 cell of a state no other field shows.
+    siCTRL|3|cell011 (image_file unrecorded): 1 cell of a state no other field shows.
   None of these is called an error: look at the images to see whether it is biology, technique or
     simply a large field.
 
@@ -333,14 +539,19 @@ What this acquisition was asked to preserve
     candidates, not effects that repeat:
     - siCCT8#5 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -0.57, mean 23% lower than the control); paired t-test on the 3 repeat means p
-      0.21, q 0.26; cell-level screen (exploratory) q 0.018 (balanced, normalised; with no real effect
-      it gives p ≤ 0.05 in about 14% of experiments like this one); siCCT8#8 (CCT8) agrees in 3 of 3
-      biological repeats.
+      0.21, q 0.26; change ×0.82, ×0.946 and ×0.58 in the 3 repeats, ×0.77 overall, 95% t interval
+      ×0.41 to ×1.43; cell-level screen (exploratory) q 0.018 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 14% of experiments like this one); siCCT8#8 (CCT8) agrees in 3
+      of 3 biological repeats.
     - siCCT8#8 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -0.59, mean 24% lower than the control); paired t-test on the 3 repeat means p
-      0.11, q 0.18; cell-level screen (exploratory) q 0.0063 (balanced, normalised; with no real
+      0.11, q 0.18; change ×0.90, ×0.77 and ×0.63 in the 3 repeats, ×0.76 overall, 95% t interval
+      ×0.49 to ×1.17; cell-level screen (exploratory) q 0.0063 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 5% of experiments like this one); siCCT8#5 (CCT8) agrees in 3
       of 3 biological repeats.
+    With 3 biological repeats, very limited biological replication: each verdict gives the change in
+    each repeat and the 95% t interval of the change, which is wide; a change that is not significant
+    is not evidence of no change.
   Across the 3 biological repeats (each repeat's value is the mean of its cells, paired with the
     control of the same repeat):
     condition           vs control, by repeat  d cells per repeat: mean (range)  paired t, raw: p (q)  paired t, normalised: p (q)
@@ -392,16 +603,16 @@ What this acquisition was asked to preserve
     t-test compares (the difference of the means for a feature with a value that is not positive, the
     same scale for every condition); a candidate is significant across repeats when the paired t-test
     on the repeat means also gives q ≤ 0.05:
-    rank  feature       d  condition  change  q cell level  q repeat means  repeats
-       1  Round     +2.06  siCCT8#8    ×2.25        0.0015           0.015  3 of 3 higher
-       2  AR        -1.89  siCCT8#5    ×0.42        0.0015           0.015  3 of 3 lower
-       3  Major     -1.76  siCCT8#5    ×0.57        0.0015           0.027  3 of 3 lower
-       4  Feret     -1.71  siCCT8#8    ×0.55        0.0015          0.0091  3 of 3 lower
-       5  Circ.     +1.20  siCCT8#5    ×1.92        0.0015            0.14  3 of 3 higher
-       6  Solidity  +1.02  siCCT8#5    ×1.12        0.0015            0.14  3 of 3 higher
-       7  Minor     +0.92  siCCT8#8    ×1.28        0.0015            0.14  3 of 3 higher
-       8  Perim.    -0.63  siCCT8#5    ×0.65         0.004            0.19  3 of 3 lower
-       9  Area      -0.59  siCCT8#8    ×0.76        0.0063            0.18  3 of 3 lower
+    rank  feature       d  condition  change  change in each repeat    95% t interval   q cell level  q repeat means  repeats
+       1  Round     +2.06  siCCT8#8    ×2.25  ×2.16, ×2.44 and ×2.15   ×1.88 to ×2.68         0.0015           0.015  3 of 3 higher
+       2  AR        -1.89  siCCT8#5    ×0.42  ×0.41, ×0.40 and ×0.47   ×0.34 to ×0.52         0.0015           0.015  3 of 3 lower
+       3  Major     -1.76  siCCT8#5    ×0.57  ×0.57, ×0.62 and ×0.52   ×0.45 to ×0.71         0.0015           0.027  3 of 3 lower
+       4  Feret     -1.71  siCCT8#8    ×0.55  ×0.57, ×0.55 and ×0.54   ×0.51 to ×0.59         0.0015          0.0091  3 of 3 lower
+       5  Circ.     +1.20  siCCT8#5    ×1.92  ×2.41, ×1.36 and ×2.14   ×0.906 to ×4.05        0.0015            0.14  3 of 3 higher
+       6  Solidity  +1.02  siCCT8#5    ×1.12  ×1.17, ×1.051 and ×1.15  ×0.971 to ×1.30        0.0015            0.14  3 of 3 higher
+       7  Minor     +0.92  siCCT8#8    ×1.28  ×1.43, ×1.31 and ×1.12   ×0.943 to ×1.73        0.0015            0.14  3 of 3 higher
+       8  Perim.    -0.63  siCCT8#5    ×0.65  ×0.51, ×0.911 and ×0.59  ×0.31 to ×1.38          0.004            0.19  3 of 3 lower
+       9  Area      -0.59  siCCT8#8    ×0.76  ×0.90, ×0.77 and ×0.63   ×0.49 to ×1.17         0.0063            0.18  3 of 3 lower
     Significant across repeats (paired t-test on the repeat means, q ≤ 0.05): 4 features (Round, for siCCT8#5 ×2.10 and siCCT8#8 ×2.25; AR, for siCCT8#5 ×0.42 and siCCT8#8 ×0.41; Major, for siCCT8#5 ×0.57 and siCCT8#8 ×0.56; Feret, for siCCT8#5 ×0.57 and siCCT8#8 ×0.55).
   Not a candidate for any condition (1 feature): MinFeret.
   Plotted by default: up to 5 best-ranked features (the readout when none ranks).
@@ -416,7 +627,8 @@ What this acquisition was asked to preserve
       1.5 is found in 98, 90 and 63% of experiments and d 1.0 in 85, 67 and 39% as biological
       repeats differ by 0, 0.25 and 0.5 cell SD (data/simulations/test_choice.py). p uncorrected, q
       corrected (Benjamini-Hochberg within each sub-experiment: the conditions sharing their repeats
-      and control).
+      and control). The false discovery rate is controlled within each family, not across the
+      report.
     - Reagents of one target that go the same way in every repeat speak against an off-target effect
       of one of them; this is described, not tested, since they share the control.
     - Cell-level test (Cohen's d, randomization over the cells): it assumes the cells are
@@ -489,19 +701,21 @@ What this acquisition was asked to preserve
     their standardisation; a group held by few fields, or most of whose cells are in one (in largest
     field), may be an artefact of those images.
 
+  Population enrichment is exploratory: not yet validated by the benchmark of
+    docs/common/validation.md.
+
 What this dataset cannot tell me
-  ➖ Foundation: why count fields, and not only cells?: not applicable: each field holds one cell, so
-     fields and cells coincide and every per-cell answer is also the per-field one.
   ➖ 1. Can these features detect what I care about?: not assessed; needs: name a condition known to
      change the phenotype as the positive control (the guided session asks for it; in Python,
      Setup(positive=PositiveControl(...))) and run the report again; it can be added after the
      acquisition, whenever such a condition was imaged.
-  ➖ 3. What is limiting my sampling?: not applicable: with one cell per field, how cells spread over
-     fields cannot be measured.
   ❌ Data integrity: the checks in the overview name 2 fields in 1 finding (fields that hold another
      field's observations, or their own twice), and every answer counts them as independent fields.
-  ⚠️ 2. Did I image enough? Whether unseen cell states remain is not asked: a new state needs 3
-     similar cells in one field, and each field holds one.
+  ⚠️ Foundation: why count fields, and not only cells? The mean-precision count rule is not checked
+     with whole fields: each field holds one cell, so random cells and whole fields are the same
+     draws.
+  ⚠️ 3. What is limiting my sampling? Whether unusual cells cluster in a few fields is not
+     applicable: each field holds one cell, so a field holds a state or not.
   Assumptions:
     - Every answer holds for the stated features, tolerances and definition of new.
     - Replays, draws and hold-outs describe these samples; they are not independent experiments.
@@ -512,6 +726,13 @@ What this dataset cannot tell me
       and this definition of new cannot see.
     - Technical drift between repeats, batches or plates is not assessed: groups are analysed apart,
       and a shift shared by all fields of a group is not new within it.
+    - Each 'enough' is per technical repeat; the condition mean also varies between technical
+      repeats, which more fields of one technical repeat cannot reduce (question 3; optimise,
+      question 7: more fields or more technical repeats?).
+    - The Foundation, the stopping rules and the inspection's influence and neighbour reasons read
+      the readout (Area) only; the other declared features (Perim., Major, Minor, Circ., Feret and 4
+      more) enter novelty, the unusual cells and the feature ranking, so a heavy tail or a
+      between-well spread in them is not judged by any stopping rule.
     - No stage coordinates: neighbouring fields were not compared, and spatial redundancy and
       dispersed orders were not assessed.
     - No acquisition order: the recorded order was not replayed, and the random orders treat the

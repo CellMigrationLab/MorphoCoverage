@@ -67,6 +67,20 @@ features two objects of one ordinarily variable state often sit farther
 apart than that, and `Setup` warns (reduce the dimension, for example
 `Chain([RobustStandardize(), PCA(k)])`, or declare fewer features).
 
+`scales` declares the scale of a feature's tests across repeats (plan v2, owner,
+2026-10-06): `Setup(scales={"area": "ratio", "velocity": "difference"})`. `"ratio"` tests
+the log ratio of each repeat's mean to its control's, a fold change, and is refused, with a
+message, for a feature holding a value that is not positive; `"difference"` tests the
+difference of the means. A feature not named keeps the automatic rule: the log ratio when
+every observation of the feature is positive, else the difference, one scale per feature for
+every condition. A positive value is not evidence of a multiplicative effect, so declare the
+scale whenever the measurement says which it is: intensities and areas are measured from
+zero and usually change by a factor, a velocity or a signed shape descriptor by an amount.
+The declared scale is used by the paired test, the discovery's second gate, the rows across
+experiments and the pairwise panels, and the test descriptions name it. The guided session
+proposes `"ratio"` for the features named like an intensity or an area whose values are all
+positive, asks to confirm ("No" declares `"difference"`), and saves the answer.
+
 `fields_independent` (default `False`) declares that the fields are
 independent draws of their condition. Only then do the condition contrast and
 the feature ranking give a p-value when the fields have no unit to shuffle
@@ -109,7 +123,8 @@ html_report(result, fovs, fovs, "results", feature_tables={"DINO": dino})
 `readout=None` (its default) with no `features` makes such a Setup (`Setup.embedding_only`);
 features without a readout and `intensity_features` are refused. `normalize` is accepted:
 it centres the tables per biological repeat (for the maps, the populations, unusual
-observations and the separation, never a test) and never divides them, since the other
+observations and the separation, never a test; without it, unusual observations read each
+column relative to its own control's mean in its repeat) and never divides them, since the other
 tables are never divided by a control. The targets are the user's choice among those
 that need no single readout: the **whole distribution**, the fingerprint of each table
 (read on its first principal components,
@@ -161,15 +176,19 @@ values are still divided, with a warning that they are then not multiples of
 the control, and the sentence on normalised values says so (`Caution: ...`). What reads
 the normalised values is listed once, in `_contrasts.normalised_readers`, which the
 overview and the declaration print (audit 8B). With one control, the figures, the
-normalised maps, the populations, the separation, the fingerprint and the outcomes judged
-on held-back fields read the normalised values; the condition contrast, the feature
-ranking and the discovery read the raw values and normalise them themselves; the stopping
-rules and every other analysis read the raw values. With several controls, the figures,
-the normalised maps, the populations, the separation, the fingerprint and the outcomes
-judged on held-back fields read the normalised values; the condition contrast, the feature
-ranking and the discovery read the raw values, each normalising to its own control; the
-stopping rules and every other analysis read the raw values, where levels across
-experiments are read. The fingerprint and the held-back outcomes read the normalised values
+normalised maps, the populations, the separation, unusual observations, new states for the positive control and the fields to check, the
+fingerprint and the outcomes judged on held-back fields read the normalised values; the
+condition contrast, the feature ranking and the discovery read the raw values and
+normalise them themselves; the stopping rules, the acquisition anomalies and every other
+analysis read the raw values. With several controls, the figures, the normalised maps, the
+populations, the separation, unusual observations, new states for the positive control and
+the fields to check, the fingerprint and the outcomes judged on held-back fields read the
+normalised values; the condition contrast, the feature ranking and the discovery read the
+raw values, each normalising to its own control; the stopping rules, the acquisition
+anomalies and every other analysis read the raw values, where levels across experiments
+are read. Unusual observations (biological unusualness) and the new states judged for the
+positive control and the fields to check read the normalised values, the acquisition
+anomalies the raw ones, as quality control (owner, 2026-10-06, plan v2). The fingerprint and the held-back outcomes read the normalised values
 whatever the number of controls (owner, 2026-10-06, audit 8; before, the raw values with
 several controls, so their scale changed with the number of controls). The condition
 contrast reads the raw values and normalises them itself, so its raw columns hold raw values and its normalised ones the values divided by
@@ -268,7 +287,16 @@ judges a field after (its `min_fovs`, 5 for `default_novelty`): with fewer, no f
 would ever be judged. With `novelty`, the report also counts the fields holding a state
 that fewer than `few_fovs` other fields show (seen, but not established);
 `few_fovs` must exceed the definition's `min_other_fovs` and defaults to two
-more than it. Group columns beyond condition and repeat (the `technical_repeat`, say) are part of
+more than it. When every field holds one observation the report reads the definition
+across fields (owner, 2026-10-06, plan v2): a new state's `min_novel_observations` similar
+observations cannot sit in one field, so a field's observation is new when no other field
+holds one within the radius, a state seen once (`support_novelty.per_field`:
+`min_other_fovs` and `min_novel_observations` 1), exploratory; the estimator applies it
+itself on such data, so `optimise`, `benchmark` and a live session judge alike, and the
+declaration says "new phenotypes (new: a cell that no other field shows), both
+exploratory", the unusual images and novelty labelled once.
+Like every stopping rule, the novelty rule reads the raw values, as live does (owner,
+2026-10-06). Group columns beyond condition and repeat (the `technical_repeat`, say) are part of
 a field's identity everywhere, including in the control check. "New" is judged
 on `features` only, never on the readout, and the report names those columns.
 The stopping rules see the same columns (the readout, then `features`) in

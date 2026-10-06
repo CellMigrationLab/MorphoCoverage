@@ -255,6 +255,7 @@ def _next_fov_tables(
             "fovs_without_observations": k - with_observations,
             "confidence": novelty.confidence,
             "min_novel_observations": novelty.min_novel_observations,
+            "min_other_fovs": novelty.min_other_fovs,
             "technical_repeats": _technical_repeats(group_data),
         }
         if chance.availability is not Availability.AVAILABLE:

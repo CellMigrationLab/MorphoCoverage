@@ -151,12 +151,16 @@ def test_a_pilot_headline_counts_the_cell_level_test():
 def test_the_short_note_names_the_q_the_readings_use():
     """#313: the note said 'significant across repeats' uses the normalised q even where a
     repeat mean is not positive and the reading uses the raw one."""
+    from morphocoverage._wording import WITHIN_FAMILY
     from morphocoverage.sampling_unit.repeats_text import repeat_cautions
 
     def note(*rows):
         frame = pd.DataFrame(rows).assign(status="ok", p_paired_t=0.1, p_sign_flip=np.nan)
         [text] = repeat_cautions(_contrast(frame), full=False)
-        return " ".join(text.split())
+        # Plan v2 (owner, 2026-10-06): the note ends saying the q is within each family.
+        joined = " ".join(text.split())
+        assert joined.endswith(f" {WITHIN_FAMILY}")
+        return joined.removesuffix(f" {WITHIN_FAMILY}")
 
     assert note(_row("A", 3, 0, 0.1, 0.1)).endswith("uses the normalised q.")
     assert note(_row("A", 3, 0, 0.1, np.nan)).endswith(

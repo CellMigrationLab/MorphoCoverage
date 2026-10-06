@@ -493,7 +493,13 @@ def _new_in_short(report: Any) -> str | None:
     m = frame["min_novel_observations"].dropna() if "min_novel_observations" in frame else []
     words = observation_words(report)[1]
     least = f"at least {int(max(m))} similar {words}" if len(m) else f"similar {words}"
-    return f"'New': {least} that no other field shows; the exact definition is in the full report."
+    others = frame["min_other_fovs"].dropna() if "min_other_fovs" in frame else []
+    few = int(max(others)) if len(others) else 1
+    shown = "no other field shows" if few == 1 else f"fewer than {few} other fields show"
+    if len(m) and int(max(m)) == 1:  # one observation per field (plan v2): a field's own
+        unit = observation_words(report)[0]
+        least = f"{'an' if unit[:1] in 'aeiou' else 'a'} {unit}"
+    return f"'New': {least} that {shown}; the exact definition is in the full report."
 
 
 def short_summary(report: Any, target: float | None = None) -> str:

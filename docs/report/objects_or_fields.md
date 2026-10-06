@@ -116,6 +116,18 @@ and changed only that one thing.
   its share: the populations question compares such shares instead. In a screen
   of sub-experiments, each condition is judged against the controls of its own
   sub-experiment (`unusual_objects(within_experiment=True)`, the default).
+- **"Unusual" in the report is relative to the control of each repeat.** Called
+  directly on raw values, as below, `unusual_objects` reads acquisition too: a repeat
+  imaged brighter widens its threshold. The report reads each value relative to its own
+  control in its repeat (normalised with `normalize`, else the log ratio or the difference
+  to that control's mean), calls the result exploratory, and lists fields far from the rest
+  of their condition and repeat on the raw values apart, as quality control in "What is in
+  the dataset" (owner, 2026-10-06, plan v2).
+- **One picture per object.** When every picture holds one object (manual single-cell
+  imaging), pictures and objects coincide: the variability check gives the spread over
+  pictures with a design effect of 1, the unusual objects are unusual pictures, and whether
+  objects cluster in a few pictures, or a count rule holds with whole pictures, has no
+  meaning; the report says so once (owner, 2026-10-06).
 - **Some measures shift between runs.** The JCS stability measure varies from
   run to run, so only its direction is reliable: pictures are less stable
   than random objects.

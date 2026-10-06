@@ -24,6 +24,7 @@ from typing import Any
 
 import pandas as pd
 
+from .._control import NO_CONTROL
 from .._style import table
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ._guided_ask import Ask, Say, ask_control, choose, choose_many, text, yes_no
@@ -215,7 +216,7 @@ def contrast_lines(control: Any, parents: Any, master: Any) -> list[str]:
     from .setup import Setup
 
     if control is None:
-        return ["No control: the conditions are described, not tested against a control."]
+        return [f"{NO_CONTROL[:1].upper()}{NO_CONTROL[1:]}."]
     setup = Setup(readout="_", control=control, control_parents=parents, master_control=master)
     found = setup.contrast_table
     if found is None:

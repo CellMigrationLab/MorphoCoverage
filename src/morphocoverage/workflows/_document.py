@@ -1,10 +1,9 @@
 """The assembled report of the retrospective workflows (private): parts, reasons, settings.
 
-- ``assemble`` builds the microscopist's report from the results under the
-  setup's declaration and presets (``Setup.minimum_detection``), and adds
-  what ``microscopist_report`` has no argument for: the declared rare
-  phenotype's clustering, the positive control's pairing and the unusual
-  observations' pooled reference;
+- ``assemble`` builds the microscopist's report from the results under the setup's
+  declaration and presets (``Setup.minimum_detection``), and adds what ``microscopist_report``
+  has no argument for: the declared rare phenotype's clustering, the positive control's pairing
+  and the exploratory lines (``_exploratory``);
 - ``with_reasons`` adds, by question, why an analysis was not assessed
   (``pooling_reason``, ``protocol_reason``, ``no_hierarchy_reasons``);
 - ``report_settings`` and ``plan_settings`` state the computational settings
@@ -27,7 +26,6 @@ import pandas as pd
 from .._caveats import ASSUMPTIONS, assumption, caveat_lines, pool_assumptions
 from .._style import CAUTION, Status, worst, wrap
 from .._wording import count, fields, listing, number, percent
-from ..metadata import REPEAT_COLUMN
 from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_report
 from ..retrospective.effort_design import between_technical_repeats
 from ..retrospective.report import QUESTIONS, with_opening
@@ -46,6 +44,7 @@ from ._declaration import declaration, declaration_short
 from ._distribution import with_distribution
 from ._enough_features import default_precision, with_features
 from ._enough_targets import with_targets
+from ._exploratory import with_exploratory
 from ._label_control import with_label_check
 from ._populations import with_populations
 from ._whole_table import with_whole_table
@@ -55,6 +54,7 @@ if TYPE_CHECKING:
 
 # Results of the report that ``microscopist_report`` does not take; ``assemble`` adds them.
 _EXTRA_RESULTS = (
+    "acquisition",
     "rare_clustering",
     "integrity",
     "enough_features",
@@ -164,22 +164,6 @@ def assemble(
         )
     document = _technical_repeats(document, results)
     document = replace(document, notes=(*document.notes, *coverage_notes(results, setup)))
-    pooled = _reference_repeats(results.get("unusual"))
-    if pooled > 1:
-        units = setup.unit_words
-        text = (
-            f"The reference of the unusual {units} pools the control {units} of "
-            f"{count(pooled, 'repeat')}: a shift shared by one repeat (a staining or plating "
-            f"batch) makes its {units} read as unusual, so compare the unusual share between "
-            "repeats before reading it as biology."
-        )
-        document = with_text(
-            document,
-            "profile",
-            text,
-            status=Status.CAUTION,
-            short_text="\n".join(caveat_lines([text], indent=2)),
-        )
     # Question 2 over every feature alike (the report is neutral).
     features = results.get("enough_features")
     word = group_word(results.get("sufficiency"))
@@ -194,7 +178,8 @@ def assemble(
     # Beyond the mean, with a fingerprint declared (question 9).
     document = with_distribution(document, results.get("distribution"), setup.unit_words, setup)
     # Every other table tested whole, beside the features (owner, 2026-10-06).
-    return with_whole_table(document, results.get("whole_table"), bool(setup.columns))
+    document = with_whole_table(document, results.get("whole_table"), bool(setup.columns))
+    return with_exploratory(document, dict(results), setup)  # plan v2 (owner, 2026-10-06)
 
 
 def _with_integrity(document: MicroscopistReport, integrity: Any) -> MicroscopistReport:
@@ -368,20 +353,6 @@ def coverage_notes(results: Mapping[str, Any], setup: Setup) -> list[str]:
             )
         )
     return notes
-
-
-def _reference_repeats(unusual: Any) -> int:
-    """How many repeats the unusual observations' reference groups come from (0: none)."""
-    if unusual is None or "reference_groups" not in unusual.groups.columns:
-        return 0
-    repeats = {
-        str(group[REPEAT_COLUMN])
-        for groups in unusual.groups["reference_groups"]
-        if isinstance(groups, list | tuple)
-        for group in groups
-        if isinstance(group, Mapping) and REPEAT_COLUMN in group
-    }
-    return len(repeats)
 
 
 def with_text(

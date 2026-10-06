@@ -70,10 +70,18 @@ def reference_words(settings: Mapping[str, Any]) -> str:
     return f"the reference {_selector(settings['reference'])}"
 
 
+def unusual_words(result: Any) -> str:
+    """The unusual observations' plural word: ``images`` when each field holds one
+    observation (``settings["words"]``, plan v2), else the observation unit's."""
+    return result.settings.get("words") or observation_words(result.settings)[1]
+
+
 def _unusual_head(result: Any, words: str) -> str:
     settings = result.settings
+    # Biological unusualness, on values relative to each own control (plan v2), is exploratory.
+    label = f"Unusual {words} (exploratory)" if settings.get("exploratory") else f"Unusual {words}"
     return (
-        f"Unusual {words}: farther from {reference_words(settings)} "
+        f"{label}: farther from {reference_words(settings)} "
         f"than all but {percent(settings['quantile'])} of reference {words} are from the other "
         f"reference groups ({_space(settings)}, "
         f"{settings['n_neighbors']} nearest neighbours)"
@@ -148,7 +156,7 @@ def unusual_parts(
     result: Any, indent: int = 0, *, with_table: bool = True
 ) -> tuple[list[str], list[str]]:
     """The short form of ``unusual_objects``: the definition, the groups in one table."""
-    words = observation_words(result.settings)[1]
+    words = unusual_words(result)
     keys = list(result.group_cols)
     ok = [r for r in result.groups.to_dict("records") if r["status"] == "ok"]
     lines = [wrap(_unusual_head(result, words), indent, hang=indent + 2)]
@@ -175,12 +183,13 @@ def unusual_parts(
                 hang=indent + 2,
             )
         )
-    return lines, [*_unusual_cautions(result, words), _blind_spot(words)]
+    observed = observation_words(result.settings)[1]
+    return lines, [*_unusual_cautions(result, words), _blind_spot(observed)]
 
 
 def unusual_full(result: Any, indent: int = 0) -> str:
     """Every number of ``unusual_objects``, one row per group."""
-    words = observation_words(result.settings)[1]
+    words = unusual_words(result)
     keys = list(result.group_cols)
     rows = result.groups.to_dict("records")
     lines = [

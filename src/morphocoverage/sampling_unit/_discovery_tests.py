@@ -14,7 +14,14 @@ import numpy as np
 
 from .._parallel import UNITS_PER_WORKER, map_units, worker_pool
 from .._seeds import group_rng
-from ..statistics import cohen_d, log_scale, paired_t, repeat_values
+from ..statistics import (
+    cohen_d,
+    contrasts_text,
+    log_scale,
+    paired_t,
+    repeat_effect,
+    repeat_values,
+)
 from ._units import control_label, side_units, sides
 from .contrast_cells import trusted_test
 from .contrast_repeats import MIN_REPEATS
@@ -27,14 +34,20 @@ NO_SPREAD = "no spread within the condition and the control"
 
 
 def _pooled(
-    all_groups: list, described: list, contrasts: list, feature: str, technical_col: str | None
+    all_groups: list,
+    described: list,
+    contrasts: list,
+    feature: str,
+    technical_col: str | None,
+    scale: str | None = None,
 ) -> dict[Any, dict[str, Any]]:
     """Per condition (or comparison), its observations and its own control's per repeat,
     every observation of that control (a comparison's reference) per repeat, as
-    ``condition_contrast`` pools them, and the feature's scale (``log``, from all its
-    observations, ``statistics.log_scale``)."""
+    ``condition_contrast`` pools them, and the feature's scale (``log``: ``scale`` when
+    declared, else from all its observations, ``statistics.log_scale``)."""
     pooled: dict[Any, dict[str, Any]] = {}
-    log = log_scale(np.concatenate([data.feature_values(feature) for _, data in all_groups]))
+    values = np.concatenate([data.feature_values(feature) for _, data in all_groups])
+    log = log_scale(values, scale, repr(feature))
     every: dict[Any, dict[Any, np.ndarray]] = {}
     pairs = getattr(described, "comparisons", None) or {}
     for repeat, condition in contrasts:
@@ -84,6 +97,20 @@ def _paired(
     return paired_t(compared), values, lower, higher, paired_t(means - controls), change
 
 
+def _effect(by_t: dict, by_c: dict, log: bool | None) -> dict[str, Any]:
+    """Each repeat's contrast on the paired test's scale and the t-based 95% interval of the
+    effect (``statistics.repeat_effect``; plan v2, owner, 2026-10-06)."""
+    means = np.array([np.mean(by_t[r]) for r in by_t])
+    controls = np.array([np.mean(by_c[r]) for r in by_t])
+    values, compared, _ = repeat_values(means, controls, log)
+    effect = repeat_effect(values, compared)
+    return {
+        "repeat_contrasts": contrasts_text(list(by_t), effect["contrasts"]),
+        "ci_low": effect["ci_low"],
+        "ci_high": effect["ci_high"],
+    }
+
+
 def _per_repeat(by_t: dict, by_c: dict) -> dict[str, float]:
     """Cohen's d of the observations in each repeat (``condition_contrast``'s ``d_objects``),
     its mean and range, and the fewest and most observations on a side in one repeat, for
@@ -125,6 +152,7 @@ def _row(
         "p_paired_raw": p_raw,
         "status": "ok",
         **_per_repeat(by_t, by_c),
+        **_effect(by_t, by_c, side["log"]),
     }
     values = np.concatenate([*by_t.values(), *side["every"].values()])
     if np.ptp(values) == 0:
@@ -168,15 +196,15 @@ def _feature_tests(
 
 
 def tested_rows(
-    data: tuple[list, Any, list, str | None],
+    data: tuple[list, Any, list, str | None, dict[str, str]],
     features: list[str],
     settings: tuple[int, int, float],
     workers: int,
 ) -> tuple[list[dict[str, Any]], dict[int, Any], dict[Any, set]]:
     """Every feature's rows, in ``workers`` processes: ``data`` is the groups, their
-    description, the contrasts and the technical-repeat column; ``settings`` the shuffles,
-    the random state and alpha. Also what ``refined`` may rerun, by row, and the repeats
-    each condition is compared in."""
+    description, the contrasts, the technical-repeat column and the declared scales;
+    ``settings`` the shuffles, the random state and alpha. Also what ``refined`` may rerun,
+    by row, and the repeats each condition is compared in."""
     rows: list[dict[str, Any]] = []
     retests: dict[int, Any] = {}
     held: dict[Any, set] = {}
@@ -184,7 +212,7 @@ def tested_rows(
         # A few features a worker at a time, so the values of every feature are never held.
         for first in range(0, len(features), workers * UNITS_PER_WORKER):
             jobs = [
-                (feature, _pooled(*data[:3], feature, data[3]))
+                (feature, _pooled(*data[:3], feature, data[3], data[4].get(feature)))
                 for feature in features[first : first + workers * UNITS_PER_WORKER]
             ]
             tested = map_units(_feature_tests, [(*job, *settings) for job in jobs], workers, pool)

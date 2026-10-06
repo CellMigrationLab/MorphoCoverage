@@ -28,11 +28,11 @@ from typing import Any
 
 import pandas as pd
 
-from .._control import not_found
+from .._control import NO_CONTROL, not_found
 from .._former_repeat import renamed_tables
-from .._wording import count
+from .._wording import count, plural
 from ..benchmark import AcquisitionOrder
-from ..data_check import DataCheck, Problem, validate_input_tables
+from ..data_check import DataCheck, Problem
 from ..data_check import check_tables as _check_tables
 from ..metadata import (
     CONDITION_COLUMN,
@@ -54,13 +54,16 @@ from ..sampling_unit import (
     unusual_objects,
 )
 from ..schema import ValidatedInput
+from ..statistics import log_scale
 from ..strategies import FixedFOVStrategy
 from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
 from ._contrasts import declared_conditions
 from ._document import pooling_reason
 from ._feature_space import attached, table_columns, unusual_space, with_table
+from ._one_per_field import field_unit
 from ._rare_share import compared_columns, share_column, with_share
+from ._unusual_values import biological_values
 from .setup import Setup, default_novelty
 
 
@@ -144,6 +147,9 @@ def check_workflow_inputs(
                 f"rare_label {setup.rare_label!r} must hold booleans or 0/1, got "
                 f"{sorted(map(str, labels.unique()))[:5]}"
             )
+    for feature, scale in (setup.scales or {}).items():  # a ratio needs positive values
+        if feature in objects.columns:
+            log_scale(objects[feature].to_numpy(dtype=float), scale, repr(feature))
     columns = setup.columns
     if not check:
         return objects, fovs, None
@@ -225,10 +231,13 @@ def replay_rules(
     checked at every prefix of every run with a fingerprint of the reservoir
     and the revealed fields' keys (``_RevealedFields``), besides the stream
     sizes and stage travel. The first replay judges only that fingerprint and
-    the second runs only a fixed-count rule, whose decisions are discarded.
+    the second runs only a fixed-count rule, whose decisions are discarded. So it is when a
+    criterion reads columns the rules do not (another table's fingerprint): the second replay
+    reads them too, the rules never.
     """
     common = {"feature_cols": setup.columns, "objective": setup.objective(), **setup.common}
-    if prepared is raw:
+    judged = [*setup.columns, *(c for c in setup.judged_columns if c not in setup.columns)]
+    if prepared is raw and judged == setup.columns:
         return replay_acquisitions(
             raw, fovs, strategies=strategies, criteria=criteria, **common, **settings
         )
@@ -240,7 +249,7 @@ def replay_rules(
         fovs,
         strategies=[FixedFOVStrategy(1)],
         criteria=[*criteria, _REVEALED],
-        **common,
+        **{**common, "feature_cols": judged},
         **{**settings, "keep_results": False},
     )
     revealed = scored.outcomes["criterion"] == _REVEALED.name
@@ -265,7 +274,11 @@ def replay_rules(
             **decided.settings,
             "criteria": [c.parameters for c in criteria],
             "labels": {c.name: c.label for c in criteria},
-            "values": "stopping rules on raw values; outcome criteria on normalised values",
+            **(
+                {"values": "stopping rules on raw values; outcome criteria on normalised values"}
+                if prepared is not raw
+                else {}
+            ),
         },
     )
 
@@ -339,64 +352,26 @@ def unusual_label(objects: pd.DataFrame, setup: Setup) -> str:
     return label if label not in objects.columns else f"{label} (report)"
 
 
-def one_per_field(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> bool:
-    """Whether every field with observations holds exactly one (one cell per image)."""
-    columns = setup.columns or table_columns(setup)
-    data = validate_input_tables(objects, fovs=fovs, feature_cols=columns, **setup.common)
-    sizes = data.objects.groupby(list(data.fov_key), dropna=False).size()
-    return bool(len(sizes)) and int(sizes.max()) == 1
-
-
-def one_per_field_reasons(setup: Setup) -> dict[str, str]:
-    """Why the questions about fields do not apply when each field holds one observation,
-    by question (``with_reasons``): fields and observations coincide, so their difference
-    cannot be measured, and a new state needing several similar observations in one field
-    cannot occur."""
-    unit, words = setup.unit_word, setup.unit_words
-    reasons = {
-        "unit": (
-            f"not applicable: each field holds one {unit}, so fields and {words} coincide and "
-            f"every per-{unit} answer is also the per-field one"
-        ),
-        "profile": (
-            f"not applicable: with one {unit} per field, how {words} spread over fields "
-            "cannot be measured"
-        ),
-    }
-    novelty = setup.novelty
-    needed = int(getattr(novelty, "min_novel_observations", 1)) if novelty is not None else 1
-    if needed > 1:
-        reasons["enough"] = (
-            f"whether unseen {unit} states remain is not asked: a new state needs {needed} "
-            f"similar {words} in one field, and each field holds one"
-        )
-        if setup.positive is not None:  # judged by the definition of new
-            reasons["controls"] = (
-                f"not applicable: the positive control is judged by the definition of new, "
-                f"and a new state needs {needed} similar {words} in one field, while each "
-                "field holds one"
-            )
-    return reasons
-
-
 def control_checks(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
     setup: Setup,
     reasons: dict[str, str],
     per_field: bool = True,
+    values: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     """The Foundation's rule check and R4's unusual observations against the control.
 
     Both compare each analysis group with the control's groups, so group
-    columns that pool the control's columns make them "not assessed". With one
-    observation per field (``per_field=False``) neither applies (their fields
-    are their observations), so neither is run.
+    columns that pool the control's columns make them "not assessed". Unusual
+    observations are biological unusualness: they read ``values`` (the values the
+    normalised analyses read, default ``objects``) made relative to each own control in its
+    repeat (``_unusual_values``), exploratory (owner, 2026-10-06, plan v2). With one
+    observation per field (``per_field=False``) they are unusual images, and the rule check
+    and their clustering in fields, ideas within a field, are not run (``_one_per_field``).
     """
     reference = setup.reference_control
     assert reference is not None
-    if not per_field:
-        return {}
     common = setup.common
     pooled = pooled_columns(objects, fovs, setup, list(reference))
     if pooled:
@@ -409,7 +384,7 @@ def control_checks(
             )
         return {}
     results: dict[str, Any] = {}
-    if setup.mean_target:  # the mean-precision rules at the readout's tolerances
+    if setup.mean_target and per_field:  # the mean-precision rules at the readout's tolerances
         results["object_rules"] = object_rule_check(
             objects,
             fovs,
@@ -420,11 +395,16 @@ def control_checks(
             **common,
         )
     # On the explainable features when there are any, whatever the other tables; without
-    # them, on the tables' weighted combined space (owner, 2026-10-06).
-    columns, weights, space = unusual_space(objects, fovs, setup)
-    if columns:
+    # them, on the tables' weighted combined space (owner, 2026-10-06), each relative to its
+    # own control in its repeat (plan v2).
+    raw_columns = unusual_space(objects, fovs, setup)[0]
+    if raw_columns:
+        relative, how = biological_values(
+            objects if values is None else values, fovs, setup, raw_columns
+        )
+        columns, weights, space = unusual_space(relative, fovs, setup)
         unusual = unusual_objects(
-            objects,
+            relative,
             fovs,
             feature_cols=columns,
             reference=reference,
@@ -433,9 +413,12 @@ def control_checks(
             weights=weights,
             **common,
         )
-        if setup.feature_tables or weights:  # which space, said beside the tables
-            unusual.settings["space"] = space
+        unusual.settings.update({"space": f"{space}, {how}", "exploratory": True})
+        if not per_field:  # unusual images: each field holds one observation
+            unusual.settings["words"] = plural(field_unit(setup) or setup.unit_word)
         results["unusual"] = unusual
+        if not per_field:  # a field of one holds a state or not: no clustering in fields
+            return results
         label = unusual_label(objects, setup)
         # The label flags a share of ordinary objects by construction, so a field holds
         # the state only with the novelty rule's m of them, and the control groups'
@@ -487,6 +470,8 @@ def conditions(
             f"not applicable: the FOV table holds one condition, {only}, so no other "
             "condition is compared with the control"
         )
+    if not setup.compares and setup.control is None and held > 1:
+        reasons["conditions"] = f"not applicable: {NO_CONTROL}"  # plan v2 (owner, 2026-10-06)
     if not (setup.compares and held > 1):
         return {}
     pooled = pooled_columns(objects, fovs, setup, [CONDITION_COLUMN, REPEAT_COLUMN])
@@ -502,6 +487,7 @@ def conditions(
             feature=setup.readout,
             random_state=setup.random_state,
             fields_independent=setup.fields_independent,
+            scale=setup.scale_of(setup.readout),
             # One control, or the contrast table: its main verdicts and its secondary rows.
             **(
                 {"control": setup.control}
@@ -520,6 +506,7 @@ def conditions(
             features=compared,
             random_state=setup.random_state,
             n_jobs=setup.n_jobs,
+            scales=setup.scales,
             **setup.contrast_arguments,
             **setup.common,
         )

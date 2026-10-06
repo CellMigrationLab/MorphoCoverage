@@ -25,8 +25,10 @@ which changes none of the statistics below, so it is not applied.
   correlated, by up to ``1/(n − 1)`` in a table of many effective dimensions, and the plain
   t-test rejected 8-20% of null datasets at 5% (``data/simulations/whole_table.py``). The
   t is multiplied by ``sqrt((n − 2) / (2 (n − 1)))``, the factor at that largest
-  correlation (``n − 1`` degrees of freedom): calibrated in wide tables, conservative in
-  narrow ones. It needs ``MIN_REPEATS`` (3) repeats; with fewer, "not tested: n repeats".
+  correlation (``n − 1`` degrees of freedom): an asymptotic high-dimensional (HDLSS)
+  correction, not an exact one, close to calibrated in wide tables (7.5% at 3 repeats) and
+  conservative in narrow ones (plan v2, owner, 2026-10-06). It needs ``MIN_REPEATS`` (3)
+  repeats; with fewer, "not tested: n repeats".
 - **Shuffle test**, exploratory, never in the verdict (owner, 2026-10-06): the distance
   between the condition's and the control's centres (each the mean of its units' means over
   the repeats holding both), with a null that permutes the condition and control labels of

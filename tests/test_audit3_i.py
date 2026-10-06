@@ -364,12 +364,16 @@ def test_i17_setup_validates_the_novelty_target_seed_and_workers():
     assert type(setup.novelty_target) is float
 
 
-def test_i18_the_unusual_reference_states_that_it_pools_repeats():
+def test_i18_the_unusual_values_are_relative_to_the_control_of_their_repeat():
+    # Plan v2 (owner, 2026-10-06): biological unusualness reads each value relative to the
+    # control of its own repeat, so a shift of one repeat is no longer read as unusual and
+    # the caution that the reference pools repeats has no object.
     objects, fovs = _acquisition(n_fovs=6, n_objects=4)
     result = report(objects, fovs, _setup(stage_cols=None))
     profile = result.document.sections["profile"]
-    assert "The reference of the unusual cells pools the control cells of 2 repeats" in profile
-    assert "their repeats pooled" in " ".join(result.setup.declaration())
+    assert "pools the control cells of 2 repeats" not in profile
+    declaration = " ".join(result.setup.declaration())
+    assert "every value relative to the control of its repeat; exploratory" in declaration
 
 
 def test_j2_j16_j17_shared_helpers_are_named_listed_and_word_percentages_once():

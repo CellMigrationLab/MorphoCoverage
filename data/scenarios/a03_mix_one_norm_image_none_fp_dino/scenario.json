@@ -1,7 +1,7 @@
 {
  "name": "a03_mix_one_norm_image_none_fp_dino",
  "kind": "axes",
- "checks": "features; each condition against the control; normalised and centred views; the questions about fields not applicable; a fingerprint on DINO1",
+ "checks": "features; each condition against the control; normalised and centred views; the field questions on the images; a fingerprint on DINO1",
  "axes": {
   "tables": "mix",
   "controls": "one",
@@ -75,6 +75,8 @@
    "ranking",
    "separation",
    "sufficiency",
+   "unusual",
+   "variability",
    "whole_table"
   ],
   "absent": [
@@ -82,17 +84,15 @@
    "distribution",
    "label_control",
    "object_rules",
-   "rare_clustering",
-   "unusual",
-   "variability"
+   "rare_clustering"
   ],
   "not_applicable": {
-   "profile": "one image per field",
-   "unit": "each field holds one"
+   "profile": "cluster in a few fields is not applicable",
+   "unit": "random images and whole fields are the same draws"
   },
   "table_column": true,
   "headlines": {
-   "enough": "the fingerprint of DINO1 not assessable"
+   "enough": "the covariance fingerprint of DINO1 not assessable"
   },
   "separation_spaces": [
    "Combined",

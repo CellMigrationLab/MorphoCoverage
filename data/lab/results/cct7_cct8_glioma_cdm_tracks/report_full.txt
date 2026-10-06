@@ -58,6 +58,16 @@
         columns swapped or a feature (or a value) missing in one copy only, and observations pasted
         into two or more other fields (they read as recurring).
 
+    ⚠️ Acquisition anomalies (raw values, quality control): 1 field 5 SDs or more from the other
+       fields of their condition and repeat on the raw values: siCTRL · repeat CCT8_3 · B1 · B1_01-2
+       (Directionality Rolling, 5.6 SDs below); an engineering quality-control threshold, never a
+       biological verdict: open their images, 73 fields judged in 9 groups.
+      the raw values: siCTRL · repeat CCT8_3 · B1 · B1_01-2 (Directionality Rolling, 5.6 SDs below); an
+      engineering quality-control threshold, never a biological verdict: open their images, 73 fields
+      judged in 9 groups.
+      field                                  feature                 field median  other fields  SDs from them
+      siCTRL · repeat CCT8_3 · B1 · B1_01-2  Directionality Rolling         0.656         0.811           -5.6
+
 What this acquisition was asked to preserve
   - Population summary: the mean of Mean Speed over all tracks, within 5% and 2.5% of its value on
     held-back fields.
@@ -66,8 +76,8 @@ What this acquisition was asked to preserve
   - Rare phenotype: not declared (no RareTarget in rare), so no answer below says whether a rare
     state was sampled enough.
   - Representation: readout Mean Speed; 13 declared feature columns for unusual tracks (against the
-    control tracks, their repeats pooled) and new phenotypes (new: at least 3 similar tracks that no
-    other field shows).
+    control, every value relative to the control of its repeat; exploratory) and new phenotypes
+    (new: at least 3 similar tracks that no other field shows).
   - Report-only rule: with this definition of new, 'Did I image enough?' also judges whether the
     chance that one more field shows something new is at most 5% (its upper bound; novelty_target).
     It is not one of the stopping rules (rules): the live decision does not run it, and optimise and
@@ -686,53 +696,62 @@ What this acquisition was asked to preserve
     - A state carried by fewer than 3 similar tracks per field is never counted, however many fields
       hold it.
 
+  Novelty is exploratory: not yet validated by the benchmark of docs/common/validation.md.
+
 ⚠️ 3. What is limiting my sampling?
   Measured quantities (the sampling profile), each with where it holds and its source:
   - a mean from whole fields varies 1.0 times as much as one from as many random tracks (design
     effect of the variance between the fields of each group (condition, biological_repeat,
     technical_repeat), range 1.0-2.7); 6% of fields differ more than random tracks would (5%
     expected) [median of 18 groups; fov_variability]
-  - unusual tracks: clustered in a few fields (q <= 0.05) in 0 of the 5 groups where it was seen
+  - unusual tracks: clustered in a few fields (q <= 0.05) in 0 of the 9 groups where it was seen
     [all groups; fov_clustering]
   - new states come from 6 fields [all groups; inspect_fovs]
 
-  Unusual tracks: farther from the reference siCTRL than all but 1% of reference tracks are from the
-    other reference groups (13 standardized features, 5 nearest neighbours), each group against the
-    reference of its own sub-experiment (the conditions that share its repeats and control). Groups:
-    condition · biological repeat · technical repeat.
+  Unusual tracks (exploratory): farther from the reference siCTRL than all but 1% of reference
+    tracks are from the other reference groups (on the 13 explainable features, each relative to its
+    own control's mean in its repeat, as a log ratio when the feature is declared on the ratio scale
+    or, undeclared, every value is positive, else as a difference, standardized, 5 nearest
+    neighbours), each group against the reference of its own sub-experiment (the conditions that
+    share its repeats and control). Groups: condition · biological repeat · technical repeat.
     group                          tracks scored  unusual  share  refits agree  threshold  calibrated
-    siCCT7#3 · repeat CCT7_1 · B5             28        0     0%          100%       5.38  leave-one-group-out
-    siCCT7#3 · repeat CCT7_2 · B5             34        1     3%           25%       5.38  leave-one-group-out
-    siCCT7#3 · repeat CCT7_3 · B5             30        0     0%          100%       5.38  leave-one-group-out
-    siCCT7#6 · repeat CCT7_1 · B6             29        0     0%          100%       5.38  leave-one-group-out
-    siCCT7#6 · repeat CCT7_2 · B6             27        1     4%          100%       5.38  leave-one-group-out
-    siCCT7#6 · repeat CCT7_3 · B6             36        0     0%          100%       5.38  leave-one-group-out
-    siCTRL · repeat CCT7_1 · B4               30        0     0%          100%       6.27  leave-one-group-out
-    siCTRL · repeat CCT7_2 · B4               23        0     0%          100%       7.32  leave-one-group-out
-    siCTRL · repeat CCT7_3 · B4               22        2     9%          100%       5.41  leave-one-group-out
-    siCCT8#5 · repeat CCT8_1 · B2             37        1     3%          100%       5.58  leave-one-group-out
-    siCCT8#5 · repeat CCT8_2 · B2             40        0     0%          100%       5.58  leave-one-group-out
-    siCCT8#5 · repeat CCT8_3 · B2             42        0     0%          100%       5.58  leave-one-group-out
-    siCCT8#8 · repeat CCT8_1 · B3             32        0     0%          100%       5.58  leave-one-group-out
-    siCCT8#8 · repeat CCT8_2 · B3             40        0     0%          100%       5.58  leave-one-group-out
-    siCCT8#8 · repeat CCT8_3 · B3             31        0     0%          100%       5.58  leave-one-group-out
-    siCTRL · repeat CCT8_1 · B1               31        0     0%          100%       6.56  leave-one-group-out
-    siCTRL · repeat CCT8_2 · B1               39        0     0%          100%       7.41  leave-one-group-out
-    siCTRL · repeat CCT8_3 · B1               39        2     5%          100%       6.38  leave-one-group-out
-  ⚠️ Refits with other reference samples agree on only 25% of the unusual tracks in 1 of 18 groups
-     (siCCT7#3 · repeat CCT7_2 · B5; below 90%): treat those labels as unstable.
+    siCCT7#3 · repeat CCT7_1 · B5             28        0     0%          100%       4.68  leave-one-group-out
+    siCCT7#3 · repeat CCT7_2 · B5             34        1     3%          100%       4.68  leave-one-group-out
+    siCCT7#3 · repeat CCT7_3 · B5             30        0     0%          100%       4.68  leave-one-group-out
+    siCCT7#6 · repeat CCT7_1 · B6             29        0     0%          100%       4.68  leave-one-group-out
+    siCCT7#6 · repeat CCT7_2 · B6             27        1     4%          100%       4.68  leave-one-group-out
+    siCCT7#6 · repeat CCT7_3 · B6             36        0     0%          100%       4.68  leave-one-group-out
+    siCTRL · repeat CCT7_1 · B4               30        1     3%            0%       5.41  leave-one-group-out
+    siCTRL · repeat CCT7_2 · B4               23        0     0%          100%       5.66  leave-one-group-out
+    siCTRL · repeat CCT7_3 · B4               22        1     5%          100%       4.25  leave-one-group-out
+    siCCT8#5 · repeat CCT8_1 · B2             37        4    11%           75%       4.09  leave-one-group-out
+    siCCT8#5 · repeat CCT8_2 · B2             40        0     0%          100%       4.09  leave-one-group-out
+    siCCT8#5 · repeat CCT8_3 · B2             42        3     7%           67%       4.09  leave-one-group-out
+    siCCT8#8 · repeat CCT8_1 · B3             32        5    16%           80%       4.09  leave-one-group-out
+    siCCT8#8 · repeat CCT8_2 · B3             40        0     0%          100%       4.09  leave-one-group-out
+    siCCT8#8 · repeat CCT8_3 · B3             31        0     0%          100%       4.09  leave-one-group-out
+    siCTRL · repeat CCT8_1 · B1               31        1     3%            0%       4.28  leave-one-group-out
+    siCTRL · repeat CCT8_2 · B1               39        0     0%          100%       4.87  leave-one-group-out
+    siCTRL · repeat CCT8_3 · B1               39        2     5%          100%       4.23  leave-one-group-out
+  ⚠️ Refits with other reference samples agree on only 0-80% of the unusual tracks in 5 of 18 groups
+     (siCTRL · repeat CCT7_1 · B4, siCCT8#5 · repeat CCT8_1 · B2, siCCT8#5 · repeat CCT8_3 · B2 and
+     2 more; below 90%): treat those labels as unstable.
 
   Are the unusual tracks spread over the fields? Clustered in a few fields (q ≤ 0.05 after
-    Benjamini-Hochberg over the 5 tests of every group and state) in none of 5 groups where seen.
+    Benjamini-Hochberg over the 9 tests of every group and state) in none of 9 groups where seen.
     Not seen in siCCT7#3 · repeat CCT7_1 · B5 (28 labelled tracks in 7 fields), siCCT7#3 · repeat
     CCT7_3 · B5 (30 labelled tracks in 7 fields), siCCT7#6 · repeat CCT7_1 · B6 (29 labelled tracks
-    in 7 fields) and 10 more.
-    group                          tracks  in fields  if random  ratio  p  q  holding ≥3  reference holding  to see, 95%  if random
-    siCCT7#3 · repeat CCT7_2 · B5  1 (3%)     1 of 8        1.0    1.0  1  1      0 of 8       0 of 44 (0%)            –          –
-    siCCT7#6 · repeat CCT7_2 · B6  1 (4%)     1 of 8        1.0    1.0  1  1      0 of 8       0 of 44 (0%)            –          –
-    siCTRL · repeat CCT7_3 · B4    2 (9%)     2 of 5        1.8    0.9  1  1      0 of 5       0 of 39 (0%)            –          –
-    siCCT8#5 · repeat CCT8_1 · B2  1 (3%)     1 of 8        1.0    1.0  1  1      0 of 8       0 of 44 (0%)            –          –
-    siCTRL · repeat CCT8_3 · B1    2 (5%)     2 of 8        1.9    0.9  1  1      0 of 8       0 of 36 (0%)            –          –
+    in 7 fields) and 6 more.
+    group                           tracks  in fields  if random  ratio     p  q  holding ≥3  reference holding  to see, 95%  if random
+    siCCT7#3 · repeat CCT7_2 · B5   1 (3%)     1 of 8        1.0    1.0     1  1      0 of 8       0 of 44 (0%)            –          –
+    siCCT7#6 · repeat CCT7_2 · B6   1 (4%)     1 of 8        1.0    1.0     1  1      0 of 8       0 of 44 (0%)            –          –
+    siCTRL · repeat CCT7_1 · B4     1 (3%)     1 of 8        1.0    1.0     1  1      0 of 8       0 of 36 (0%)            –          –
+    siCTRL · repeat CCT7_3 · B4     1 (5%)     1 of 5        1.0    1.0     1  1      0 of 5       0 of 39 (0%)            –          –
+    siCCT8#5 · repeat CCT8_1 · B2  4 (11%)     3 of 8        3.4    1.1  0.58  1      0 of 8       0 of 44 (0%)            –          –
+    siCCT8#5 · repeat CCT8_3 · B2   3 (7%)     3 of 7        2.6    0.9     1  1      0 of 7       0 of 44 (0%)            –          –
+    siCCT8#8 · repeat CCT8_1 · B3  5 (16%)     4 of 8        3.9    1.0  0.81  1      0 of 8       0 of 44 (0%)            –          –
+    siCTRL · repeat CCT8_1 · B1     1 (3%)     1 of 7        1.0    1.0     1  1      0 of 7       0 of 37 (0%)            –          –
+    siCTRL · repeat CCT8_3 · B1     2 (5%)     2 of 8        1.9    0.9     1  1      0 of 8       0 of 36 (0%)            –          –
   In fields: the fields holding the state; if random: the fields as many random tracks would fill;
     p: how often shuffled labels reach as few fields; q: that p corrected over every group and state
     (Benjamini-Hochberg). To see: the fields to see it from its field incidence (up to: from the low
@@ -741,13 +760,15 @@ What this acquisition was asked to preserve
     condition · biological repeat  state           held by
     siCCT7#3 · repeat CCT7_2       unusual tracks  0 of 1 technical repeat
     siCCT7#6 · repeat CCT7_2       unusual tracks  0 of 1 technical repeat
+    siCTRL · repeat CCT7_1         unusual tracks  0 of 1 technical repeat
     siCTRL · repeat CCT7_3         unusual tracks  0 of 1 technical repeat
     siCCT8#5 · repeat CCT8_1       unusual tracks  0 of 1 technical repeat
+    siCCT8#5 · repeat CCT8_3       unusual tracks  0 of 1 technical repeat
+    siCCT8#8 · repeat CCT8_1       unusual tracks  0 of 1 technical repeat
+    siCTRL · repeat CCT8_1         unusual tracks  0 of 1 technical repeat
     siCTRL · repeat CCT8_3         unusual tracks  0 of 1 technical repeat
   ⚠️ No field holds at least 3 unusual tracks in siCCT7#3 · repeat CCT7_2 · B5, siCCT7#6 · repeat
-     CCT7_2 · B6, siCTRL · repeat CCT7_3 · B4 and 2 more, so no field count is given there.
-
-  The reference of the unusual tracks pools the control tracks of 6 repeats: a shift shared by one repeat (a staining or plating batch) makes its tracks read as unusual, so compare the unusual share between repeats before reading it as biology.
+     CCT7_2 · B6, siCTRL · repeat CCT7_1 · B4 and 6 more, so no field count is given there.
   Assumptions:
     - A state the reference already holds, at any share, is not unusual: only its share can change,
       and the populations (“Are there groups of tracks?”) compare each condition's share of such a
@@ -800,25 +821,32 @@ What this acquisition was asked to preserve
     experiment in 4 with 3 repeats). Beside it, the track-level screen (as Plot&Stats, every track an
     independent draw) is exploratory: it finds candidates, not effects that repeat:
     - siCCT7#3 — no consistent direction: lower in 1 and higher in 2 of 3 biological repeats; paired
-      t-test on the 3 repeat means p 0.65, q 0.99; track-level screen (exploratory) q 0.41 (balanced,
-      normalised; with no real effect it gives p ≤ 0.05 in about 36% of experiments like this one);
-      the raw pooled test is not read here: it pools the control of repeats this condition was not
-      imaged in; siCCT7#6 (CCT7) agrees in 2 of 3 biological repeats.
+      t-test on the 3 repeat means p 0.65, q 0.99; change ×0.904, ×1.31 and ×1.004 in the 3 repeats,
+      ×1.061 overall, 95% t interval ×0.66 to ×1.71; track-level screen (exploratory) q 0.41
+      (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 36% of experiments like
+      this one); the raw pooled test is not read here: it pools the control of repeats this condition
+      was not imaged in; siCCT7#6 (CCT7) agrees in 2 of 3 biological repeats.
     - siCCT7#6 — no consistent direction: lower in 2 and higher in 1 of 3 biological repeats; paired
-      t-test on the 3 repeat means p 0.75, q 0.99; track-level screen (exploratory) q 0.87 (balanced,
-      normalised; with no real effect it gives p ≤ 0.05 in about 35% of experiments like this one);
-      the raw pooled test is not read here: it pools the control of repeats this condition was not
-      imaged in; siCCT7#3 (CCT7) agrees in 2 of 3 biological repeats.
+      t-test on the 3 repeat means p 0.75, q 0.99; change ×0.86, ×1.17 and ×0.90 in the 3 repeats,
+      ×0.966 overall, 95% t interval ×0.64 to ×1.45; track-level screen (exploratory) q 0.87
+      (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 35% of experiments like
+      this one); the raw pooled test is not read here: it pools the control of repeats this condition
+      was not imaged in; siCCT7#3 (CCT7) agrees in 2 of 3 biological repeats.
     - siCCT8#5 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.06, mean 35% lower than the control); paired t-test on the 3 repeat means p
-      0.0494, q 0.088; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
+      0.0494, q 0.088; change ×0.62, ×0.79 and ×0.56 in the 3 repeats, ×0.65 overall, 95% t interval
+      ×0.42 to ×0.997; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 34% of experiments like this one); siCCT8#8 (CCT8) agrees in 3
       of 3 biological repeats.
     - siCCT8#8 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.11, mean 36% lower than the control); paired t-test on the 3 repeat means p
-      0.0506, q 0.088; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
+      0.0506, q 0.088; change ×0.70, ×0.71 and ×0.52 in the 3 repeats, ×0.64 overall, 95% t interval
+      ×0.40 to ×1.003; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 35% of experiments like this one); siCCT8#5 (CCT8) agrees in 3
       of 3 biological repeats.
+    With 3 biological repeats, very limited biological replication: each verdict gives the change in
+    each repeat and the 95% t interval of the change, which is wide; a change that is not significant
+    is not evidence of no change.
   Across the 3 biological repeats (each repeat's value is the mean of its tracks, paired with the
     control of the same repeat):
     condition           vs control, by repeat  d tracks per repeat: mean (range)  paired t, raw: p (q)  paired t, normalised: p (q)
@@ -885,19 +913,19 @@ What this acquisition was asked to preserve
     change the paired t-test compares (the difference of the means for a feature with a value that is
     not positive, the same scale for every condition); a candidate is significant across repeats when
     the paired t-test on the repeat means also gives q ≤ 0.05:
-    rank  feature                               d  condition   change  q track level  q repeat means  repeats
-       1  Median Speed                      -1.24  siCCT8#8    -0.162         0.0011           0.088  3 of 3 lower
-       2  Total Turning Angle Rolling       -1.12  siCCT8#8     ×0.63         0.0011           0.088  3 of 3 lower
-       3  Median Speed Rolling              -1.11  siCCT8#8     ×0.60         0.0011           0.088  3 of 3 lower
-       4  Mean Speed                        -1.05  siCCT8#8     ×0.64         0.0011           0.088  3 of 3 lower
-       5  Mean Speed Rolling                -1.04  siCCT8#8     ×0.64         0.0011           0.088  3 of 3 lower
-       6  Total Distance Traveled Rolling   -1.04  siCCT8#8     ×0.64         0.0011           0.088  3 of 3 lower
-       7  Spatial Coverage Rolling          -0.96  siCCT8#5     ×0.44         0.0011           0.088  3 of 3 lower
-       8  Tortuosity Rolling                -0.83  siCCT8#8     ×0.81         0.0011           0.080  3 of 3 lower
-       9  Min Speed Rolling Rolling         -0.69  siCCT8#8   -0.0448         0.0011            0.17  3 of 3 lower
-      10  Max Speed Rolling                 -0.65  siCCT8#8     ×0.75         0.0011            0.22  3 of 3 lower
-      11  Speed Standard Deviation Rolling  -0.52  siCCT8#5     ×0.78         0.0011            0.25  3 of 3 lower
-      12  Speed Standard Deviation          -0.47  siCCT8#5     ×0.82         0.0011            0.27  3 of 3 lower
+    rank  feature                               d  condition   change  change in each repeat         95% t interval     q track level  q repeat means  repeats
+       1  Median Speed                      -1.24  siCCT8#8    -0.162  -0.134, -0.138 and -0.215     -0.275 to -0.0492         0.0011           0.088  3 of 3 lower
+       2  Total Turning Angle Rolling       -1.12  siCCT8#8     ×0.63  ×0.56, ×0.68 and ×0.65        ×0.49 to ×0.80            0.0011           0.088  3 of 3 lower
+       3  Median Speed Rolling              -1.11  siCCT8#8     ×0.60  ×0.64, ×0.67 and ×0.50        ×0.40 to ×0.89            0.0011           0.088  3 of 3 lower
+       4  Mean Speed                        -1.05  siCCT8#8     ×0.64  ×0.70, ×0.71 and ×0.52        ×0.40 to ×1.003           0.0011           0.088  3 of 3 lower
+       5  Mean Speed Rolling                -1.04  siCCT8#8     ×0.64  ×0.69, ×0.72 and ×0.52        ×0.41 to ×0.998           0.0011           0.088  3 of 3 lower
+       6  Total Distance Traveled Rolling   -1.04  siCCT8#8     ×0.64  ×0.69, ×0.72 and ×0.52        ×0.41 to ×0.998           0.0011           0.088  3 of 3 lower
+       7  Spatial Coverage Rolling          -0.96  siCCT8#5     ×0.44  ×0.41, ×0.59 and ×0.35        ×0.22 to ×0.87            0.0011           0.088  3 of 3 lower
+       8  Tortuosity Rolling                -0.83  siCCT8#8     ×0.81  ×0.79, ×0.84 and ×0.79        ×0.74 to ×0.88            0.0011           0.080  3 of 3 lower
+       9  Min Speed Rolling Rolling         -0.69  siCCT8#8   -0.0448  -0.0117, -0.0548 and -0.0681  -0.118 to +0.0284         0.0011            0.17  3 of 3 lower
+      10  Max Speed Rolling                 -0.65  siCCT8#8     ×0.75  ×0.81, ×0.905 and ×0.57       ×0.41 to ×1.37            0.0011            0.22  3 of 3 lower
+      11  Speed Standard Deviation Rolling  -0.52  siCCT8#5     ×0.78  ×0.78, ×0.993 and ×0.62       ×0.44 to ×1.41            0.0011            0.25  3 of 3 lower
+      12  Speed Standard Deviation          -0.47  siCCT8#5     ×0.82  ×0.86, ×0.992 and ×0.65       ×0.48 to ×1.40            0.0011            0.27  3 of 3 lower
     Significant across repeats (paired t-test on the repeat means, q ≤ 0.05): 1 feature (Tortuosity Rolling, for siCCT8#5 ×0.83; not siCCT8#8).
   Not a candidate for any condition (1 feature): Directionality Rolling.
   Plotted by default: up to 5 best-ranked features (the readout when none ranks).
@@ -910,7 +938,8 @@ What this acquisition was asked to preserve
       1.5 is found in 98, 90 and 63% of experiments and d 1.0 in 85, 67 and 39% as biological
       repeats differ by 0, 0.25 and 0.5 cell SD (data/simulations/test_choice.py). p uncorrected, q
       corrected (Benjamini-Hochberg within each sub-experiment: the conditions sharing their repeats
-      and control).
+      and control). The false discovery rate is controlled within each family, not across the
+      report.
     - Reagents of one target that go the same way in every repeat speak against an off-target effect
       of one of them; this is described, not tested, since they share the control.
     - Track-level test (Cohen's d, randomization over the tracks): it assumes the tracks are
@@ -960,6 +989,9 @@ What this acquisition was asked to preserve
     5-dimensional UMAP of their robust standardisation; a cluster holds at least 15 tracks), each
     cluster then judged on all the features: no candidate group passed the neighbours-inside check
     on these features (94% or more of a cluster's tracks' 10 nearest neighbours in it).
+
+  Population enrichment is exploratory: not yet validated by the benchmark of
+    docs/common/validation.md.
 
 What this dataset cannot tell me
   ➖ 1. Can these features detect what I care about?: not assessed; needs: name a condition known to

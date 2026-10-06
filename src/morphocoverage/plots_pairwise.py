@@ -165,12 +165,14 @@ def pairwise_contrasts(
     n_permutations: int = N_PERMUTATIONS,
     random_state: int = 0,
     references: Mapping[Any, Any] | None = None,
+    scale: str | None = None,
 ) -> pd.DataFrame:
     """One row per pair of ``conditions`` (all, the ``control`` first, by default); see the
     module. ``first`` and ``second`` follow the order of the conditions; each pair's shuffles
     are seeded from ``random_state``, the feature and the pair. ``references``, each
     condition's own control when the values are normalised to it (several controls): a pair
-    of conditions normalised to different controls gets no d and no test (``APART``)."""
+    of conditions normalised to different controls gets no d and no test (``APART``).
+    ``scale``: the feature's declared scale (``Setup.scales``), else the automatic rule."""
     # Zero shuffles would give every pair p = 1 as if the test had run.
     n_permutations = as_count(n_permutations, "n_permutations")
     random_state = check_seed(random_state)
@@ -198,7 +200,7 @@ def pairwise_contrasts(
         list(conditions) if conditions is not None else sorted_labels(frame["condition"], control)
     )
     by_condition = {c: block for c, block in frame.groupby("condition", sort=False)}
-    log = log_scale(frame["value"].to_numpy())
+    log = log_scale(frame["value"].to_numpy(), scale, repr(feature))
     rows = []
     for first, second in combinations(order, 2):
         a, b = by_condition.get(first), by_condition.get(second)

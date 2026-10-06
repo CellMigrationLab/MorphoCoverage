@@ -29,6 +29,13 @@ from ._wording import listing
 
 # What joins a comparison's condition and reference in its label.
 VS = " vs "
+# Without a control (plan v2, owner, 2026-10-06; before, "described, not tested"): a direct
+# comparison of two conditions in shared repeats is legitimate, through explicitly requested
+# contrasts, which the contrast layer will estimate; until it ships, said in one sentence.
+NO_CONTROL = (
+    "no control is declared: comparisons are available only for explicitly requested "
+    "contrasts estimable from the repeat design, which the report does not support yet"
+)
 
 
 def _accepted(spec: Any) -> list[Any]:
@@ -273,6 +280,7 @@ __all__ = [
     "CONTRAST_COLUMNS",
     "KINDS",
     "MASTER_RAW",
+    "NO_CONTROL",
     "OWN",
     "VS",
     "across_label",
