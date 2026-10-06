@@ -106,6 +106,8 @@ The closing section, "What this dataset cannot tell me", lists the same limits i
 and the full forms, one line each pointing to its section ("not assessed, see question 1",
 "Answered in part: see question 3"), the reason stated only in the section; the page, which
 leaves out the sections it cannot answer, keeps the reasons in its closing card (owner,
+2026-10-06). The rules' provenance, such as "[fixed_fov (target_fovs=8)]" or a config id, is
+printed in the full text report only, never in the short report or on the page (owner,
 2026-10-06). A stratum where the positive control was not imaged says so, apart from
 one where it was imaged empty, and a single reference group is named as the reference, the
 groups it scores as scored (audit 10, owner, 2026-10-06).

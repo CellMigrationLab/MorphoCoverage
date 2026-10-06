@@ -368,6 +368,23 @@ def rule_label(rule: Any, unit: str | None = None, *, detail: str = "short") -> 
     return f"{label} ({extra})" if extra != label else label
 
 
+# A rule's provenance as the full report prints it: ``[fixed_fov (target_fovs=8)]`` in the
+# declaration, ``(scalar_precision_fov_upper95: averaging_cv <= 0.05; config 8d1f...)`` beside a
+# rule (``rule_label(detail="full")``).
+_PROVENANCE = re.compile(
+    r" \[[a-z][a-z0-9]*_[a-z0-9_]*(?:\s+\(.*?\))?\]"
+    r"| \([a-z][a-z0-9]*_[a-z0-9_]*(?::[^()]*?)?[;,]\s*config [0-9a-f]{16}\)"
+    r"| \([a-z][a-z0-9]*_[a-z0-9_]*:[^()]*?(?:<=|>=|==|<|>)[^()]*?\)",
+    re.DOTALL,
+)
+
+
+def without_provenance(text: str) -> str:
+    """``text`` without the rules' provenance brackets, which the full text report keeps and
+    the short report and the page never show (owner, 2026-10-06)."""
+    return _PROVENANCE.sub("", text)
+
+
 # --- Layout -------------------------------------------------------------------
 
 

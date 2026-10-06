@@ -12,7 +12,7 @@ from __future__ import annotations
 import html
 import re
 
-from .._style import Status
+from .._style import Status, without_provenance
 from ..glossary import GLOSSARY, PHRASES, Term, slug
 
 STATUS_WORDS = {
@@ -256,8 +256,9 @@ def _starts_own(lines: list[str], index: int, hang: int | None) -> bool:
 
 
 def text_html(text: str) -> str:
-    """The report's text as HTML (see the module)."""
-    lines = text.splitlines()
+    """The report's text as HTML (see the module), without the rules' provenance, which only
+    the full text report keeps (owner, 2026-10-06)."""
+    lines = without_provenance(text).splitlines()
     out: list[str] = []
     i = 0
     base = min((_indent(line) for line in lines if line.strip()), default=0)
