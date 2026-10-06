@@ -835,13 +835,13 @@ What this acquisition was asked to preserve
     - siCCT8#5 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.06, mean 35% lower than the control); paired t-test on the 3 repeat means p
       0.0494, q 0.088; change ×0.62, ×0.79 and ×0.56 in the 3 repeats, ×0.65 overall, 95% t interval
-      ×0.42 to ×0.99697; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
+      ×0.42 to ×0.997; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 34% of experiments like this one); siCCT8#8 (CCT8) agrees in 3
       of 3 biological repeats.
     - siCCT8#8 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.11, mean 36% lower than the control); paired t-test on the 3 repeat means p
       0.0506, q 0.088; change ×0.70, ×0.71 and ×0.52 in the 3 repeats, ×0.64 overall, 95% t interval
-      ×0.40 to ×1.0028; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
+      ×0.40 to ×1.003; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
       effect it gives p ≤ 0.05 in about 35% of experiments like this one); siCCT8#5 (CCT8) agrees in 3
       of 3 biological repeats.
     With 3 biological repeats, very limited biological replication: each verdict gives the change in
@@ -917,15 +917,15 @@ What this acquisition was asked to preserve
        1  Median Speed                      -1.24  siCCT8#8    -0.162  -0.134, -0.138 and -0.215     -0.275 to -0.0492         0.0011           0.088  3 of 3 lower
        2  Total Turning Angle Rolling       -1.12  siCCT8#8     ×0.63  ×0.56, ×0.68 and ×0.65        ×0.49 to ×0.80            0.0011           0.088  3 of 3 lower
        3  Median Speed Rolling              -1.11  siCCT8#8     ×0.60  ×0.64, ×0.67 and ×0.50        ×0.40 to ×0.89            0.0011           0.088  3 of 3 lower
-       4  Mean Speed                        -1.05  siCCT8#8     ×0.64  ×0.70, ×0.71 and ×0.52        ×0.40 to ×1.0028          0.0011           0.088  3 of 3 lower
-       5  Mean Speed Rolling                -1.04  siCCT8#8     ×0.64  ×0.69, ×0.72 and ×0.52        ×0.41 to ×0.99815         0.0011           0.088  3 of 3 lower
-       6  Total Distance Traveled Rolling   -1.04  siCCT8#8     ×0.64  ×0.69, ×0.72 and ×0.52        ×0.41 to ×0.99815         0.0011           0.088  3 of 3 lower
+       4  Mean Speed                        -1.05  siCCT8#8     ×0.64  ×0.70, ×0.71 and ×0.52        ×0.40 to ×1.003           0.0011           0.088  3 of 3 lower
+       5  Mean Speed Rolling                -1.04  siCCT8#8     ×0.64  ×0.69, ×0.72 and ×0.52        ×0.41 to ×0.998           0.0011           0.088  3 of 3 lower
+       6  Total Distance Traveled Rolling   -1.04  siCCT8#8     ×0.64  ×0.69, ×0.72 and ×0.52        ×0.41 to ×0.998           0.0011           0.088  3 of 3 lower
        7  Spatial Coverage Rolling          -0.96  siCCT8#5     ×0.44  ×0.41, ×0.59 and ×0.35        ×0.22 to ×0.87            0.0011           0.088  3 of 3 lower
        8  Tortuosity Rolling                -0.83  siCCT8#8     ×0.81  ×0.79, ×0.84 and ×0.79        ×0.74 to ×0.88            0.0011           0.080  3 of 3 lower
        9  Min Speed Rolling Rolling         -0.69  siCCT8#8   -0.0448  -0.0117, -0.0548 and -0.0681  -0.118 to +0.0284         0.0011            0.17  3 of 3 lower
       10  Max Speed Rolling                 -0.65  siCCT8#8     ×0.75  ×0.81, ×0.905 and ×0.57       ×0.41 to ×1.37            0.0011            0.22  3 of 3 lower
-      11  Speed Standard Deviation Rolling  -0.52  siCCT8#5     ×0.78  ×0.78, ×0.9926 and ×0.62      ×0.44 to ×1.41            0.0011            0.25  3 of 3 lower
-      12  Speed Standard Deviation          -0.47  siCCT8#5     ×0.82  ×0.86, ×0.9921 and ×0.65      ×0.48 to ×1.40            0.0011            0.27  3 of 3 lower
+      11  Speed Standard Deviation Rolling  -0.52  siCCT8#5     ×0.78  ×0.78, ×0.993 and ×0.62       ×0.44 to ×1.41            0.0011            0.25  3 of 3 lower
+      12  Speed Standard Deviation          -0.47  siCCT8#5     ×0.82  ×0.86, ×0.992 and ×0.65       ×0.48 to ×1.40            0.0011            0.27  3 of 3 lower
     Significant across repeats (paired t-test on the repeat means, q ≤ 0.05): 1 feature (Tortuosity Rolling, for siCCT8#5 ×0.83; not siCCT8#8).
   Not a candidate for any condition (1 feature): Directionality Rolling.
   Plotted by default: up to 5 best-ranked features (the readout when none ranks).

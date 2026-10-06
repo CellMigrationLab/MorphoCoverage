@@ -226,15 +226,15 @@ What this acquisition was asked to preserve
     - siCCT8#5 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.06, mean 35% lower than the control); paired t-test on the 3 repeat means p
       0.0494, q 0.088; change ×0.62, ×0.79 and ×0.56 in the 3 repeats, ×0.65 overall, 95% t interval
-      ×0.42 to ×0.99697; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no
-      real effect it gives p ≤ 0.05 in about 34% of experiments like this one); siCCT8#8 (CCT8)
-      agrees in 3 of 3 biological repeats.
+      ×0.42 to ×0.997; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 34% of experiments like this one); siCCT8#8 (CCT8) agrees in
+      3 of 3 biological repeats.
     - siCCT8#8 — not significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
       repeat, mean -1.11, mean 36% lower than the control); paired t-test on the 3 repeat means p
       0.0506, q 0.088; change ×0.70, ×0.71 and ×0.52 in the 3 repeats, ×0.64 overall, 95% t interval
-      ×0.40 to ×1.0028; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no
-      real effect it gives p ≤ 0.05 in about 35% of experiments like this one); siCCT8#5 (CCT8)
-      agrees in 3 of 3 biological repeats.
+      ×0.40 to ×1.003; track-level screen (exploratory) q 0.0011 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 35% of experiments like this one); siCCT8#5 (CCT8) agrees in
+      3 of 3 biological repeats.
     With 3 biological repeats, very limited biological replication: each verdict gives the change in
     each repeat and the 95% t interval of the change, which is wide; a change that is not
     significant is not evidence of no change.
@@ -297,8 +297,8 @@ What this acquisition was asked to preserve
        1  Median Speed                 -1.24  siCCT8#8   -0.162  -0.134, -0.138 and -0.215  -0.275 to -0.0492         0.0011           0.088  3 of 3 lower
        2  Total Turning Angle Rolling  -1.12  siCCT8#8    ×0.63  ×0.56, ×0.68 and ×0.65     ×0.49 to ×0.80            0.0011           0.088  3 of 3 lower
        3  Median Speed Rolling         -1.11  siCCT8#8    ×0.60  ×0.64, ×0.67 and ×0.50     ×0.40 to ×0.89            0.0011           0.088  3 of 3 lower
-       4  Mean Speed                   -1.05  siCCT8#8    ×0.64  ×0.70, ×0.71 and ×0.52     ×0.40 to ×1.0028          0.0011           0.088  3 of 3 lower
-       5  Mean Speed Rolling           -1.04  siCCT8#8    ×0.64  ×0.69, ×0.72 and ×0.52     ×0.41 to ×0.99815         0.0011           0.088  3 of 3 lower
+       4  Mean Speed                   -1.05  siCCT8#8    ×0.64  ×0.70, ×0.71 and ×0.52     ×0.40 to ×1.003           0.0011           0.088  3 of 3 lower
+       5  Mean Speed Rolling           -1.04  siCCT8#8    ×0.64  ×0.69, ×0.72 and ×0.52     ×0.41 to ×0.998           0.0011           0.088  3 of 3 lower
     and 7 more ranked features
     Significant across repeats (paired t-test on the repeat means, q ≤ 0.05): 1 feature (Tortuosity Rolling, for siCCT8#5 ×0.83; not siCCT8#8).
   Not a candidate for any condition (1 feature): Directionality Rolling.
