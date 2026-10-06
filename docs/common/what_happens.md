@@ -38,9 +38,11 @@ answers are known.
   Foundation's spread over fields (the SD over fields, a design effect of 1 by
   construction), unusual images, novelty across fields, the positive control and "Did I
   image enough?" per field. A definition of new needing `m` similar observations in one field
-  is read across fields: a field's observation is new when fewer than `m` other fields hold
-  one within the radius, so a new state is one seen in at most `m` fields (scattered outliers
-  are then new too, each field showing one observation). Only the ideas within a field stay
+  is read across fields: a field's observation is new when no other field holds one within
+  the radius, a state seen once (scattered outliers are then new too), exploratory until
+  module P10. The estimator applies this version itself on such data
+  (`support_novelty.per_field`), so the report, `optimise`, `benchmark` and a live session
+  give one verdict (owner, 2026-10-06). Only the ideas within a field stay
   not applicable, with that reason: unusual cells or the labelled state clustering in a few
   fields, and the count rule checked with whole fields (random cells and whole fields are
   the same draws).
@@ -147,8 +149,8 @@ the contrast table, or the one control.
 | Rare label | its share compared like a feature; the label check on the nearest cell of another field; clustering in fields | observation, field | the features' family; clustering over groups and states | label check with a positive control declared; without explainable features, clustering only; one observation per field: no clustering in question 3, the one-per-field reason instead (owner, 2026-10-06) |
 | Populations | the readout and `features` as the figures read them, MFA across two or more explainable tables | observation; enrichment per repeat | groups and conditions per sub-experiment | fewer than 2 columns; enrichment without a control or with fewer than 3 repeats |
 | Unusual observations, biological | the declared `features` relative to each own control in its repeat: divided by its mean with `normalize`, else the log ratio to its mean (every value positive) or the difference; MFA across tables; against each own control, today's threshold, exploratory (owner, 2026-10-06, plan v2) | observation; clustering per field | groups and states | no control, no `features`; one observation per field: unusual images, no clustering |
-| Acquisition anomalies | raw field medians of the readout and `features`, each field against the other fields of its condition and repeat: 5 SDs or more, the larger of their robust SD and SD (owner, 2026-10-06, plan v2) | field | none: quality control in "What is in the dataset", never a biological claim | no explainable column; a condition and repeat of fewer than 8 fields: counted, not judged |
-| Novelty and the positive control | the declared `features`, MFA across tables, fitted on the visible fields; with `normalize`, normalised for the positive control and the fields to check, raw for the novelty rule (the same reading when an analysis group lies in one repeat, the default definition standardising within the group); one observation per field: its field version | field | none | no `novelty` |
+| Acquisition anomalies | raw field medians of the readout and `features`, each field against the other fields of its condition and repeat: 5 SDs or more, the larger of their robust SD and SD, engineering QC thresholds (owner, 2026-10-06, plan v2) | field | none: quality control in "What is in the dataset", never a biological verdict | no explainable column; a condition and repeat of fewer than 8 fields: counted, not judged |
+| Novelty and the positive control | the declared `features`, MFA across tables, fitted on the visible fields; with `normalize`, normalised for the positive control and the fields to check, raw for the novelty rule, as every stopping rule reads raw values, as live does (the same reading when an analysis group lies in one repeat, the default definition standardising within the group); one observation per field: its field version | field | none | no `novelty` |
 | Maps PCA and UMAP | raw, and divided by the own control whenever a control is declared; robustly standardised | observation | none | fewer than 3 columns in the space |
 | Separation scores | by condition as the figures read them; by repeat always raw; one line with one well per condition and repeat | neighbours outside the field, per repeat | none, descriptive | one condition; a space of fewer than 3 columns, which has no map |
 | Copy checks | each explainable table apart, or the features as one table | field | none, exact | `integrity=True` not given; the guided session gives it |

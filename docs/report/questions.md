@@ -64,9 +64,11 @@ single-cell imaging), fields and observations coincide, and the field questions
 run on the rows as fields (owner, 2026-10-06, replacing the earlier "not
 applicable"): the Foundation gives the spread over fields (a design effect of 1
 by construction), R4 the unusual images, R2 and R3 novelty across fields with the
-field version of the definition of new (a field's observation is new when fewer
-than `m` other fields hold one within the radius, `m` the similar observations a
-new state needs), R1 the positive control judged by it, and R7 one d
+field version of the definition of new (a field's observation is new when no
+other field holds one within the radius: a state seen once, exploratory until
+module P10 of the validation protocol; `support_novelty.per_field`, which the
+estimator applies on such data, so `optimise`, `benchmark` and a live session
+judge it alike), R1 the positive control judged by it, and R7 one d
 (`workflows._one_per_field`). Only the ideas within a field are said not to apply,
 once: unusual cells or a labelled state clustering in a few fields, and the
 count rule checked with whole fields (random cells and whole fields are the same
@@ -112,7 +114,8 @@ that repeat one measurement, one row per group: copies, exact affine relations s
 several times in each test family, and with several controls also within each
 experiment, a relation found there only named with where it holds; nothing is dropped,
 keep one of them, owner 2026-10-05); and the **acquisition anomalies**, on the raw values
-as quality control, never a biological claim: the fields 5 SDs or more from the other
+as quality control, never a biological verdict: the fields 5 SDs or more (an engineering
+QC threshold) from the other
 fields of their condition and repeat (the larger of their robust SD and SD, in groups of 8
 fields or more; `sampling_unit.acquisition`), and with several controls the controls apart
 in intensity (owner, 2026-10-06, plan v2)
