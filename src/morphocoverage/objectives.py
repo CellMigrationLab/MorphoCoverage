@@ -16,7 +16,8 @@ class SamplingObjective(str, Enum):
     summary, the phenotypic fingerprint (distribution), the rare phenotype.
     ``POPULATION``, ``DISTRIBUTION`` and ``RARE_DISCOVERY`` need one each;
     ``PHENOTYPE`` the summary and the fingerprint; ``BALANCED`` the summary
-    and the rare state; ``ALL`` every one.
+    and the rare state; ``DISTRIBUTION_RARE`` the fingerprint and the rare state
+    (a Setup with no readout, owner 2026-10-06); ``ALL`` every one.
     """
 
     POPULATION = "population"
@@ -24,6 +25,7 @@ class SamplingObjective(str, Enum):
     RARE_DISCOVERY = "rare_discovery"
     PHENOTYPE = "phenotype"
     BALANCED = "balanced"
+    DISTRIBUTION_RARE = "distribution_rare"
     ALL = "all"
 
 
@@ -34,6 +36,7 @@ REQUIRED_COMPONENTS: dict[SamplingObjective, frozenset[Component]] = {
     SamplingObjective.RARE_DISCOVERY: frozenset({Component.RARE}),
     SamplingObjective.PHENOTYPE: frozenset({Component.POPULATION, Component.DISTRIBUTION}),
     SamplingObjective.BALANCED: frozenset({Component.POPULATION, Component.RARE}),
+    SamplingObjective.DISTRIBUTION_RARE: frozenset({Component.DISTRIBUTION, Component.RARE}),
     SamplingObjective.ALL: frozenset(
         {Component.POPULATION, Component.DISTRIBUTION, Component.RARE}
     ),
@@ -115,7 +118,8 @@ class ObjectiveConfig:
     """User-defined acquisition objective.
 
     ``rare`` is required when rare-state discovery contributes to the objective
-    (``rare_discovery``, ``balanced`` and ``all``), and rejected otherwise so
+    (``rare_discovery``, ``balanced``, ``distribution_rare`` and ``all``), and rejected
+    otherwise so
     that it is never silently ignored. It describes the scientific target, not
     an estimator.
     """
@@ -137,12 +141,13 @@ class ObjectiveConfig:
         if not needs_rare and self.rare is not None:
             raise ValueError(
                 f"a rare target was given for a {self.objective.value} objective, which has no "
-                "rare component; use rare_discovery, balanced or all so the rare target is not "
-                "silently ignored"
+                "rare component; use rare_discovery, balanced, distribution_rare or all so the "
+                "rare target is not silently ignored"
             )
         if needs_rare and self.rare is None:
             raise ValueError(
-                "a RareTarget is required for rare_discovery, balanced and all objectives"
+                "a RareTarget is required for rare_discovery, balanced, distribution_rare and "
+                "all objectives"
             )
 
     @property

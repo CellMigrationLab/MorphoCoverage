@@ -66,10 +66,11 @@ def _order_check(session: OnlineSession, results: list[StrategyResult]) -> Order
     return session.order_check(results[0].group)
 
 
-def embedding_columns(setup: Any, rules: tuple[Any, ...] | None, objective: Any) -> list[str]:
+def embedding_columns(setup: Any, rules: tuple[Any, ...] | None) -> list[str]:
     """The columns a live session of an embedding-only Setup reads (owner, 2026-10-06): its
-    tables' columns, with the rules it is given; refused, with what to do, without rules, the
-    tables' columns or, with both the fingerprint and the rare phenotype, an objective."""
+    tables' columns, with the rules it is given; refused, with what to do, without rules or
+    the tables' columns. With the fingerprint and the rare phenotype the default objective
+    is those two (``Setup.objective``, audit 8), so none need be given."""
     if not rules:
         raise ValueError(
             "live_session needs stopping rules, and a Setup without a readout has no default "
@@ -82,12 +83,6 @@ def embedding_columns(setup: Any, rules: tuple[Any, ...] | None, objective: Any)
         raise ValueError(
             "a Setup without a readout reads the other feature tables: declare their columns, "
             "Setup(feature_tables={name: columns}), and send them with each field"
-        )
-    if objective is None and setup.fingerprint and setup.rare is not None:
-        raise ValueError(
-            "with both the fingerprint and the rare phenotype and no readout, choose what a "
-            "stop needs: objective=ObjectiveConfig('distribution') or "
-            "ObjectiveConfig('rare_discovery', rare=setup.rare)"
         )
     return columns
 

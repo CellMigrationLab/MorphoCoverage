@@ -182,3 +182,33 @@ def test_seed13_the_label_share_is_counted_apart_from_the_features():
     found.settings["share"] = "mitotic share"
     text = " ".join(found.summary().split())
     assert "of 2 features and the mitotic share" in text
+
+
+def test_seed17_an_embedding_only_fingerprint_and_label_need_no_population():
+    from morphocoverage.multivariate_outcomes import CovarianceError
+    from morphocoverage.objectives import RareTarget, SamplingObjective
+    from morphocoverage.retrospective.criteria import OutcomeCriterion
+    from morphocoverage.strategies import FOVBootstrapStrategy
+    from morphocoverage.transforms import Standardize
+    from morphocoverage.workflows import Setup, live_session
+
+    fingerprint = OutcomeCriterion(CovarianceError(("d0", "d1"), True), 0.2, "lower_is_better")
+    rare = RareTarget(
+        detection_probability=0.8, min_fov_occurrences=2, phenotype="r", object_prevalence=0.1
+    )
+    setup = Setup(
+        control={"condition": "ctrl"},
+        feature_tables={"DINO": ("d0", "d1")},
+        fingerprint=(fingerprint,),
+        rare=rare,
+        rare_label="r",
+    )
+    objective = setup.objective()
+    assert objective.objective is SamplingObjective.DISTRIBUTION_RARE
+    assert {c.value for c in objective.required_components} == {"distribution", "rare"}
+    [line] = [line for line in setup.declaration() if line.startswith("Live decision")]
+    assert "(phenotypic fingerprint and rare phenotype)" in line
+    assert "population" not in line
+    rule = FOVBootstrapStrategy("covariance", 0.5, Standardize(), 20, 0, 3)
+    session = live_session(setup, rules=(rule,))
+    assert session.objective.objective is SamplingObjective.DISTRIBUTION_RARE

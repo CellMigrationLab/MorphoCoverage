@@ -112,9 +112,10 @@ Current objective types are:
 - `rare_discovery`
 - `phenotype` (summary and fingerprint)
 - `balanced` (summary and rare phenotype)
+- `distribution_rare` (fingerprint and rare phenotype)
 - `all`
 
-The objectives with a rare component (`rare_discovery`, `balanced`, `all`) require a `RareTarget`: object prevalence and/or FOV incidence, detection probability, minimum number of FOV occurrences, and a declared phenotype definition. `workflows.Setup.objective()` picks the objective whose components are the declared targets.
+The objectives with a rare component (`rare_discovery`, `balanced`, `distribution_rare`, `all`) require a `RareTarget`: object prevalence and/or FOV incidence, detection probability, minimum number of FOV occurrences, and a declared phenotype definition. `workflows.Setup.objective()` picks the objective whose components are the declared targets.
 
 A strategy may perform well for one objective and poorly for another. That is a benchmarking result, not an API failure.
 

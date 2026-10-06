@@ -482,10 +482,11 @@ class Setup:
         assumed adequate.
         """
         if self.readout is None:  # no mean: the fingerprint and the rare phenotype only
-            if self.rare is not None and not self.fingerprint:
-                return ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=self.rare)
             if self.rare is None:
                 return ObjectiveConfig(SamplingObjective.DISTRIBUTION)
+            if self.fingerprint:  # owner, 2026-10-06 (audit 8): no population component
+                return ObjectiveConfig(SamplingObjective.DISTRIBUTION_RARE, rare=self.rare)
+            return ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=self.rare)
         if self.rare is not None and self.fingerprint:
             return ObjectiveConfig(SamplingObjective.ALL, rare=self.rare)
         if self.rare is not None:

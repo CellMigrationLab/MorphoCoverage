@@ -13,6 +13,7 @@ phenotypic fingerprint (the distribution component) and the rare phenotype.
 | `rare_discovery` | rare phenotype |
 | `phenotype` | population summary and phenotypic fingerprint |
 | `balanced` | population summary and rare phenotype |
+| `distribution_rare` | phenotypic fingerprint and rare phenotype (a Setup with no readout; owner, 2026-10-06) |
 | `all` | all three |
 
 ## Population representation

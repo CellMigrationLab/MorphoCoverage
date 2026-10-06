@@ -137,8 +137,10 @@ column, and offers the aim among the whole distribution, the labelled phenotype 
 `Setup(feature_tables={name: columns})`); there is no stopping rule to replay or effort
 projection (both read the readout), and it refuses a Setup with no target it can judge.
 `live_session` has no default rule without a readout: pass `rules=(...)` on the tables'
-columns (a `FOVBootstrapStrategy`) or the label (a `RareIncidenceStrategy`), and with both
-the fingerprint and the rare phenotype an `objective=`; it refuses otherwise, saying so.
+columns (a `FOVBootstrapStrategy`) or the label (a `RareIncidenceStrategy`); it refuses
+otherwise, saying so. With both the fingerprint and the rare phenotype the objective is those
+two, `distribution_rare`, with no population component, and the declaration lists only them
+(owner, 2026-10-06); `objective=` may still narrow it.
 
 ## Normalising to the control
 

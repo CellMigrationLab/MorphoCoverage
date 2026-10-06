@@ -623,7 +623,7 @@ For substantive work, report briefly:
 
 ## 17. Sampling objectives, MorphoBricks defaults, and benchmarking
 
-The sampling objective is separate from the mathematical strategy. Its components are the targets the microscopist declares: the population summary, the phenotypic fingerprint (the `distribution` component) and the rare phenotype with an explicit user target. The objectives are `population`, `distribution`, `rare_discovery`, `phenotype` (summary and fingerprint), `balanced` (summary and rare) and `all`. A rule with no evidence about a required component is `unsupported` for the objective and never `stop`; its own verdict is `StrategyResult.rule_decision`, which self-assessments, replays and calibrations read (`docs/optimise/sampling_objectives.md`).
+The sampling objective is separate from the mathematical strategy. Its components are the targets the microscopist declares: the population summary, the phenotypic fingerprint (the `distribution` component) and the rare phenotype with an explicit user target. The objectives are `population`, `distribution`, `rare_discovery`, `phenotype` (summary and fingerprint), `balanced` (summary and rare), `distribution_rare` (fingerprint and rare: a Setup with no readout declaring both, owner 2026-10-06) and `all`. A rule with no evidence about a required component is `unsupported` for the objective and never `stop`; its own verdict is `StrategyResult.rule_decision`, which self-assessments, replays and calibrations read (`docs/optimise/sampling_objectives.md`).
 
 MorphoBricks metadata handling is centralized. When available, condition, biological_repeat and technical_repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; `position_id` is preferred as the spatial FOV identifier and `image_file` is only a fallback when one file equals one position; shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
 
@@ -668,7 +668,7 @@ Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
 | Decision policy | Turns evidence and effort into continue/stop for one objective component. |
 | Component | The part of an objective a quantity or policy addresses: `population`, `distribution` or `rare`. |
 | config_id | A stable hash of an estimator's, policy's or strategy's class and parameters. |
-| Objective | What "enough imaging" means: `population`, `distribution`, `rare_discovery`, `phenotype` (summary and fingerprint), `balanced` (summary and rare) or `all` (section 17). |
+| Objective | What "enough imaging" means: `population`, `distribution`, `rare_discovery`, `phenotype` (summary and fingerprint), `balanced` (summary and rare), `distribution_rare` (fingerprint and rare) or `all` (section 17). |
 | Feature transform | Preprocessing (standardization, PCA, ...) fitted inside `estimate` on the visible prefix only; its fitted state is recorded as provenance. |
 | Outcome metric | A retrospective, strategy-independent score of a stop against the full acquisition of the same group. |
 | Dataset role | `development` (may be used for tuning) or `held_out` (never tuned on); declared in a `BenchmarkRegistry`. |
