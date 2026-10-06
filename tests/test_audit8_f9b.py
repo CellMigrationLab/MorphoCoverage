@@ -152,3 +152,33 @@ def test_seed11_the_trend_line_needs_six_repeats():
 
     assert whole(5) == "no whole-table shift significant across repeats"
     assert whole(6).endswith("a shifted the same way in every repeat")
+
+
+def test_seed13_the_label_share_is_counted_apart_from_the_features():
+    from morphocoverage._wording import features_counted
+    from morphocoverage.sampling_unit._experiments import family_words
+    from morphocoverage.sampling_unit.discovery import feature_discovery
+
+    assert features_counted(5, "mitotic share") == "4 features and the mitotic share"
+    assert features_counted(["area", "mitotic share"], "mitotic share", ", ") == (
+        "1 feature, the mitotic share"
+    )
+    assert features_counted(["mitotic share"], "mitotic share") == "the mitotic share"
+    assert features_counted(["area", "perimeter"], "mitotic share") == "2 features"
+    settings = {"family_features": 5, "family_share": "mitotic share"}
+    assert family_words(settings).endswith(
+        "over its 4 features, the mitotic share and their conditions"
+    )
+    objects, fovs = _signed(offset_b=3.0)
+    objects["mitotic share"] = (objects["area"] > 2.5).astype(float)
+    found = feature_discovery(
+        objects,
+        fovs,
+        features=["area", "positive", "mitotic share"],
+        control={"condition": "ctrl"},
+        n_permutations=9,
+        fov_col="image_file",
+    )
+    found.settings["share"] = "mitotic share"
+    text = " ".join(found.summary().split())
+    assert "of 2 features and the mitotic share" in text

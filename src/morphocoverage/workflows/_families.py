@@ -78,7 +78,10 @@ def shared_family(contrast: Any, discovery: Any, readout: str) -> Any:
             if p in cells:
                 cells.loc[index, [d, p, q]] = [test["d"], test["p_cells"], test["q_cells"]]
     features = int(tests["feature"].nunique())
-    settings = {**contrast.settings, "family_features": features}
+    # A labelled state's share is tested with the features and counted apart (audit 8).
+    share = discovery.settings.get("share")
+    share = share if share in set(tests["feature"]) else None
+    settings = {**contrast.settings, "family_features": features, "family_share": share}
     return replace(contrast, repeats=repeats, cells=cells, settings=settings)
 
 

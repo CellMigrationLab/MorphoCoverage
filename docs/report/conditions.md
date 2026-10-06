@@ -358,8 +358,11 @@ for one to pass.
 The report compares a rare label's share between the
 conditions like a feature (`"<label> share"`: the ranking, the heatmap, the
 figures, which plot one point per field, its share of labelled cells, while the
-tests keep the cells), and, with a fingerprint, each feature's distribution beyond the
-mean: per biological repeat against its own control, the spread (the SD
+tests keep the cells). The share stays in every family the features are corrected in (the
+main rows and the rows across experiments), and every count names it apart from them: "0
+of 4 features and the mitotic share are candidates", "over its 4 features, the mitotic share
+and their conditions" (owner, 2026-10-06). With a fingerprint, the report also compares
+each feature's distribution beyond the mean: per biological repeat against its own control, the spread (the SD
 ratio) and the 10%, 50% and 90% quantiles (their shift in control SDs), each
 tested across the repeats (Benjamini-Hochberg within each sub-experiment,
 a family of its own). A condition whose distribution differs answers the

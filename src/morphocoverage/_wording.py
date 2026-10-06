@@ -13,6 +13,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._checks import is_integer
+
 
 def percent(value: float) -> str:
     """A share as a short percentage: ``37%``, ``0.3%``, ``99.5%``; ``undefined`` for NaN.
@@ -96,6 +98,20 @@ def count(n: float, word: str, plural: str | None = None) -> str:
     many = plural if plural is not None else _plural(word)
     written = number(n)  # singular when the number as written is 1 (1.04 reads "1 field")
     return f"{written} {word if written == '1' else many}"
+
+
+def features_counted(
+    names: Sequence[Any] | int, share: str | None = None, join: str = " and "
+) -> str:
+    """``5 features``, or with a labelled state's ``share`` among ``names`` (a number counts
+    it), ``4 features and the mitotic share`` (``join`` between them: ``, `` before "and
+    their conditions") and ``the mitotic share`` alone: the share is tested with the
+    features, in their families, and counted apart (owner, 2026-10-06)."""
+    counted = is_integer(names)
+    n = int(names) if counted else len(names)
+    if not share or not (counted or share in set(names)):
+        return count(n, "feature")
+    return f"{count(n - 1, 'feature')}{join}the {share}" if n > 1 else f"the {share}"
 
 
 # Plurals that do not follow the English rules below, for the words this package prints.
@@ -197,6 +213,7 @@ __all__ = [
     "column_word",
     "count",
     "duration",
+    "features_counted",
     "fields",
     "listing",
     "number",

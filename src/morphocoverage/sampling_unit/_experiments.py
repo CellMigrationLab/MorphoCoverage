@@ -20,7 +20,7 @@ import pandas as pd
 
 from .._control import VS
 from .._seeds import group_key
-from .._wording import listing
+from .._wording import features_counted, listing
 from ..statistics import benjamini_hochberg
 
 ALPHA = 0.05
@@ -134,11 +134,13 @@ def family_sizes(p_values: pd.Series, family: pd.Series) -> np.ndarray:
 def family_words(settings: Mapping[str, Any], own: bool = False) -> str:
     """Where a q-value was corrected, in words: within each sub-experiment (``own``: the
     condition's), over every feature and condition of it when the report shares one family
-    across its features (``settings["family_features"]``, ``workflows._families``)."""
+    across its features (``settings["family_features"]``, ``workflows._families``; a
+    labelled state's share among them, ``family_share``, counted apart)."""
     where = "the condition's sub-experiment" if own else "each sub-experiment"
     features = settings.get("family_features")
     if features and features > 1:
-        return f"within {where}, over its {features} features and their conditions"
+        counted = features_counted(int(features), settings.get("family_share"), ", ")
+        return f"within {where}, over its {counted} and their conditions"
     return f"within {where}"
 
 

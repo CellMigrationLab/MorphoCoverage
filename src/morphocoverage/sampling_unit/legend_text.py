@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from .._control import comparison_pairs
-from .._wording import change, count, listing, p_value
+from .._wording import change, count, features_counted, listing, p_value
 from ..data_check import validate_input_tables
 from ..schema import observation_words
 from ..statistics import repeat_values
@@ -176,11 +176,12 @@ def n_sentence(
     return f"{head}. " + "; ".join(entries) + (f"; {wells}" if wells else ""), True
 
 
-def _families(across: pd.DataFrame, features: int | None = None) -> str:
+def _families(across: pd.DataFrame, features: int | None = None, share: str | None = None) -> str:
     """The correction family, counted: ``over 2 tests (siCCT8#5 and siCCT8#8 against
-    siCTRL)``, or the tests in each sub-experiment."""
+    siCTRL)``, or the tests in each sub-experiment; a labelled state's ``share`` among the
+    ``features`` counted apart."""
     if features and features > 1:
-        return f"over {features} features and their conditions"
+        return f"over {features_counted(int(features), share, ', ')} and their conditions"
     tested = across[across["p_paired_t_normalised"].notna() | across["p_paired_t"].notna()]
     groups = list(tested.groupby("experiment", sort=False))
     sizes = sorted({len(block) for _, block in groups})
@@ -292,7 +293,8 @@ def figure_legend(
         )
     across = getattr(contrast, "repeats", None)
     features = contrast.settings.get("family_features")
-    families = _families(across, features) if across is not None and len(across) else ""
+    share = contrast.settings.get("family_share")
+    families = _families(across, features, share) if across is not None and len(across) else ""
     many = across is not None and "experiment" in across and across["experiment"].nunique() > 1
     within = " within each sub-experiment" if many else ""
     if families.startswith("over "):
