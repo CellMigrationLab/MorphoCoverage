@@ -168,7 +168,7 @@ def test_seed3_b4_one_image_per_field_says_why_and_declares_only_what_runs():
     assert result.results["controls"].status != "not assessed"
     for text in (full, short):
         assert "for unusual images" in text and "Positive control: fields of" in text
-        assert "exploratory (new: an image that no other field shows)" in text
+        assert "(new: an image that no other field shows), both exploratory" in text
         assert "unusual images are not assessed" not in text
     assert "cluster in a few fields is not applicable: each field holds one image" in short
 

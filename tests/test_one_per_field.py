@@ -76,7 +76,11 @@ def test_new_is_judged_across_fields(cdm):
     assert "nothing new (≤5%)" in enough
     assert "'New': a cell that no other field shows" in enough
     declaration = " ".join(result.summary().split("What this acquisition was asked")[1].split())
-    assert "new phenotypes, exploratory (new: a cell that no other field shows)" in declaration
+    # Unusual images and novelty labelled once, together (plan v2: one label a section).
+    assert "new phenotypes (new: a cell that no other field shows), both exploratory" in (
+        declaration
+    )
+    assert "exploratory) and new phenotypes" not in declaration
     assert "unusual images (against the control" in declaration
 
 

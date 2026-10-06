@@ -293,7 +293,8 @@ observations cannot sit in one field, so a field's observation is new when no ot
 holds one within the radius, a state seen once (`support_novelty.per_field`:
 `min_other_fovs` and `min_novel_observations` 1), exploratory; the estimator applies it
 itself on such data, so `optimise`, `benchmark` and a live session judge alike, and the
-declaration says "new phenotypes, exploratory (new: a cell that no other field shows)".
+declaration says "new phenotypes (new: a cell that no other field shows), both
+exploratory", the unusual images and novelty labelled once.
 Like every stopping rule, the novelty rule reads the raw values, as live does (owner,
 2026-10-06). Group columns beyond condition and repeat (the `technical_repeat`, say) are part of
 a field's identity everywhere, including in the control check. "New" is judged

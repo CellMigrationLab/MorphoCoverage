@@ -151,17 +151,17 @@ def _unusual_missing(setup: Setup, per_field: bool) -> str:
     return "not assessed without a control" if setup.reference_control is None else ""
 
 
-def _unusual_words(setup: Setup, per_field: bool) -> str:
+def _unusual_words(setup: Setup, per_field: bool, label: bool = True) -> str:
     """``unusual cells (against the control cells, each relative to its own control in its
     repeat; exploratory)``: biological unusualness (plan v2); with one observation per field,
-    unusual images."""
+    unusual images. ``label=False`` leaves "exploratory" to the caller's sentence."""
     units = setup.unit_words if per_field else plural(field_unit(setup) or setup.unit_word)
     against = (
         "each condition's own control, every value relative to that control in its repeat"
         if setup.contrast_table is not None
         else "the control, every value relative to the control of its repeat"
     )
-    return f"unusual {units} (against {against}; exploratory)"
+    return f"unusual {units} (against {against}{'; exploratory' if label else ''})"
 
 
 def _representation_line(setup: Setup, per_field: bool = True) -> str:
@@ -211,11 +211,16 @@ def _representation(setup: Setup, per_field: bool = True) -> str:
         if setup.reference_control is None:
             return f"{columns}; {new}, and unusual {units} are not assessed without a control"
         return f"{columns} for {unusual}; {new}"
-    # One observation per field: a state seen once, exploratory (module P10, plan v2).
-    seen = "new phenotypes" if per_field else "new phenotypes, exploratory"
-    new = f"{seen} (new: {_new_words(setup)})"
+    # One observation per field: a state seen once, exploratory (module P10, plan v2); said
+    # once with the unusual images, both exploratory.
+    new = f"new phenotypes (new: {_new_words(setup)})"
     if setup.reference_control is None:
-        return f"{columns} for {new}; unusual {units} are not assessed without a control"
+        seen = new if per_field else new.replace(" (", ", exploratory (", 1)
+        return f"{columns} for {seen}; unusual {units} are not assessed without a control"
+    if not per_field:
+        return (
+            f"{columns} for {_unusual_words(setup, per_field, False)} and {new}, both exploratory"
+        )
     return f"{columns} for {unusual} and {new}"
 
 
