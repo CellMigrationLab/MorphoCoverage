@@ -121,7 +121,7 @@ the contrast table, or the one control.
 
 | Analysis | Values it reads | Level | Correction family | Not run, or not applicable, when |
 | --- | --- | --- | --- | --- |
-| Paired t across repeats, the main rows | raw means per repeat; tested on the log ratio to the own control, the difference where a mean is not positive; raw beside | biological repeat | Benjamini-Hochberg over every explainable feature, the label share and every main row, per sub-experiment | fewer than 3 repeats: direction and d only; no repeat holds both: "Not compared" |
+| Paired t across repeats, the main rows | raw means per repeat; tested on the log ratio to the own control when every observation of the feature is positive, else the difference, one scale per feature for every condition (owner, 2026-10-06); raw beside | biological repeat | Benjamini-Hochberg over every explainable feature, the label share and every main row, per sub-experiment | fewer than 3 repeats: direction and d only; no repeat holds both: "Not compared" |
 | `across_normalised` rows | per repeat, each condition's log ratio to its own control, their difference | repeats holding all four | one family over every feature and row of this kind | fewer than 3 repeats: named, not compared; no treatment key: no row |
 | `vs_master_raw` rows | per repeat, the raw difference of a control and the master | repeats holding both | one family over every feature and row of this kind | no master; a pair joined by a parent link |
 | Cell-level screen | observations pooled over repeats, divided by the same repeat's control mean when every control mean is positive; balanced when the repeats are unbalanced | observation | the same family as the paired t | the control pooled from other repeats with no balanced test possible |

@@ -1,25 +1,23 @@
-"""'The tests behind the reading' on the HTML page (private; ``html_report``; owner,
-2026-10-02, after an audit found it hard to read): what each test is, first, then one table
-per test, built from the results rather than cut from the text report.
+"""'The tests behind the reading' on the HTML page (private; ``html_report``; owner, 2026-10-02,
+after an audit found it hard to read): what each test is, first, then one table per test, built
+from the results rather than cut from the text report.
 
-- **The tests, in short**: each test in a paragraph (what it compares, on which unit,
-  whether it decides or finds candidates), what Cohen's d is in each table, and what p and
-  the adjusted p are.
-- **Across repeats** (the result): every feature and condition (or the readout's
-  conditions, with one feature): the direction in each repeat, the change, the mean and
-  range of the per-repeat d, p and the adjusted p (Benjamini-Hochberg, one family,
-  ``_families``), and the verdict; the raw values folded. Its rows (``across_frame``) give
-  each figure's legend its numbers (``figure_legends``).
+- **The tests, in short**: each test in a paragraph (what it compares, on which unit, whether it
+  decides or finds candidates), Cohen's d in each table, p and the adjusted p.
+- **Across repeats** (the result): every feature and condition (or the readout's conditions,
+  with one feature): the direction in each repeat, the change, the mean and range of the
+  per-repeat d, p and the adjusted p (Benjamini-Hochberg, one family, ``_families``), the
+  verdict, the raw values folded; its rows (``across_frame``) give each figure's legend.
 - **Cell-level screen** (exploratory): the balance of the repeats, d on the cells, p and
-  adjusted p in the version the report trusts, and for the readout how often it gives
-  p <= 0.05 with no effect; the readout's other versions folded, never a version whose
-  control comes from repeats the condition was not imaged in.
-- **Beyond the mean** (a fingerprint declared): each statistic's value, p and adjusted p.
-- **Reagents**: its paragraph from the text report.
+  adjusted p in the version the report trusts, and for the readout how often it gives p <= 0.05
+  with no effect; the readout's other versions folded, never a version whose control comes from
+  repeats the condition was not imaged in.
+- **Beyond the mean** (a fingerprint declared): each statistic's value, p and adjusted p;
+  **Reagents**: its paragraph from the text report.
 
-The plan for the next experiment is not on this card (owner, 2026-10-02); the card's "Show
-more" holds the section's assumptions only (``page_assumptions``). Each table can be saved
-as CSV (``_html_data``); every number is also in the full text.
+The plan for the next experiment is not on this card (owner, 2026-10-02); the card's "Show more"
+holds the section's assumptions only (``page_assumptions``). Each table can be saved as CSV
+(``_html_data``); every number is also in the full text.
 """
 
 from __future__ import annotations
@@ -161,7 +159,7 @@ def across_frame(result: Any) -> pd.DataFrame:
         )
     elif contrast is not None and len(contrast.repeats):
         rep = contrast.repeats
-        # One mask for the values, the change and p: normalised when every mean is positive.
+        # One mask for the values, the change and p: normalised on the feature's log scale.
         normalised = rep["fold_change"].notna()
         frame = pd.DataFrame(
             {
@@ -262,8 +260,9 @@ def _across(result: Any, folder: Path) -> tuple[str, int]:
         "<p>Each condition against the control of the same biological repeats, on the "
         "repeat means divided by that control's mean. Change: the condition's mean over the "
         "control's, a fold change (the geometric mean over the repeats; the difference of the "
-        "means where a mean is not positive), so a significant change can be read for its "
-        "size. Significant: adjusted p ≤ 0.05.</p>"
+        "means for a feature with a value that is not positive, the same scale for every "
+        "condition), so a significant change can be read for its size. Significant: adjusted "
+        "p ≤ 0.05.</p>"
     )
     return caption + _table(
         columns, rows, "rows"

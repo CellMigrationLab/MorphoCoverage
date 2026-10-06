@@ -281,8 +281,8 @@ def heatmap_data(discovery: Any, folder: Path) -> list[tuple[str, str]]:
 def across_data(contrast: Any, folder: Path, setup: Any = None) -> list[tuple[str, str]]:
     """The secondary rows of every feature (``ACROSS_CSV``, owner 2026-10-05): kind, label,
     feature (and its table, with explainable tables and ``setup``), the biological repeats
-    each used (named), the change (a fold change, or the difference where a mean is not
-    positive), p and q; empty without them."""
+    each used (named), the change (a fold change, or the difference for a feature with a
+    value that is not positive), p and q; empty without them."""
     every = getattr(contrast, "settings", {}).get("across_features")
     if every is None:
         across = getattr(contrast, "across", None)

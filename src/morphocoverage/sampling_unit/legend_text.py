@@ -206,7 +206,7 @@ def _values(rows: pd.DataFrame) -> str:
     if kinds == {"normalised"}:
         return "normalised to each repeat's control, as log ratios"
     if kinds == {"raw"}:
-        return "the differences of the repeat means, a mean not being positive"
+        return "the differences of the repeat means, a value not being positive"
     return (
         "normalised to each repeat's control as log ratios, the differences of the means "
         "where a mean is not positive"
@@ -236,7 +236,8 @@ def described_rows(contrast: Any) -> pd.DataFrame:
         block = block[block["mean"].notna() & block["control_mean"].notna()]
         if not len(block):
             continue
-        values, _, fold = repeat_values(block["mean"], block["control_mean"])
+        log = contrast.settings.get("log_scale")
+        values, _, fold = repeat_values(block["mean"], block["control_mean"], log)
         d = block["d_objects"].to_numpy(float)
         d = d[np.isfinite(d)]
         rows.append(

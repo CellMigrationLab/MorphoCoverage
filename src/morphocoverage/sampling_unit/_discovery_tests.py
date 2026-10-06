@@ -14,7 +14,7 @@ import numpy as np
 
 from .._parallel import UNITS_PER_WORKER, map_units, worker_pool
 from .._seeds import group_rng
-from ..statistics import cohen_d, paired_t, repeat_values
+from ..statistics import cohen_d, log_scale, paired_t, repeat_values
 from ._units import control_label, side_units, sides
 from .contrast_cells import trusted_test
 from .contrast_repeats import MIN_REPEATS
@@ -29,10 +29,12 @@ NO_SPREAD = "no spread within the condition and the control"
 def _pooled(
     all_groups: list, described: list, contrasts: list, feature: str, technical_col: str | None
 ) -> dict[Any, dict[str, Any]]:
-    """Per condition (or comparison), its observations and its own control's per repeat, and
+    """Per condition (or comparison), its observations and its own control's per repeat,
     every observation of that control (a comparison's reference) per repeat, as
-    ``condition_contrast`` pools them."""
+    ``condition_contrast`` pools them, and the feature's scale (``log``, from all its
+    observations, ``statistics.log_scale``)."""
     pooled: dict[Any, dict[str, Any]] = {}
+    log = log_scale(np.concatenate([data.feature_values(feature) for _, data in all_groups]))
     every: dict[Any, dict[Any, np.ndarray]] = {}
     pairs = getattr(described, "comparisons", None) or {}
     for repeat, condition in contrasts:
@@ -55,6 +57,7 @@ def _pooled(
                 "by_c": {},
                 "control_condition": control_label(described, controls),
                 "reference": reference,
+                "log": log,
             },
         )
         side["by_t"][repeat] = t_values
@@ -64,16 +67,18 @@ def _pooled(
     return pooled
 
 
-def _paired(by_t: dict, by_c: dict) -> tuple[float, str, int, int, float, float]:
+def _paired(
+    by_t: dict, by_c: dict, log: bool | None = None
+) -> tuple[float, str, int, int, float, float]:
     """The paired t-test on the repeat means (``statistics.repeat_values``: log ratios when
-    every mean is positive), how many repeats are lower and higher than the control, the
+    ``log``, the feature's scale), how many repeats are lower and higher than the control, the
     test on the raw differences (as ``condition_contrast`` gives it beside, so the readout's
     reading shares this family) and the change it tests (a fold change, else the mean
     difference)."""
     means = np.array([np.mean(by_t[r]) for r in by_t])
     controls = np.array([np.mean(by_c[r]) for r in by_t])
     lower, higher = int((means < controls).sum()), int((means > controls).sum())
-    values, compared, change = repeat_values(means, controls)
+    values, compared, change = repeat_values(means, controls, log)
     if len(means) < MIN_REPEATS:
         return np.nan, values, lower, higher, np.nan, change
     return paired_t(compared), values, lower, higher, paired_t(means - controls), change
@@ -106,7 +111,7 @@ def _row(
     """One test's row, and what ``contrast_cells.refined`` reruns when its p is at most
     ``alpha`` (empty otherwise, so only those samples are kept)."""
     by_t, by_c = side["by_t"], side["by_c"]
-    p_paired, paired_values, lower, higher, p_raw, change = _paired(by_t, by_c)
+    p_paired, paired_values, lower, higher, p_raw, change = _paired(by_t, by_c, side["log"])
     row: dict[str, Any] = {
         "feature": feature,
         "condition": condition,

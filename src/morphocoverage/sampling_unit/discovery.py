@@ -16,7 +16,8 @@ the declared control, pooled over the biological repeats:
   A feature's score is the largest |d| among its passing contrasts (capped at
   ``EFFECT_CAP``); the plots draw the best-ranked features.
 - **The second gate (kept beside it)**: the paired t-test on the repeat means (on the log
-  ratios to the control when every mean is positive, else on the differences), corrected
+  ratios to the control when every observation of the feature is positive, else on the
+  differences: one scale per feature, the same for every condition, owner 2026-10-06), corrected
   the same way, within each sub-experiment, over every feature and condition with three or
   more repeats. A passing
   feature that also passes it is *significant across repeats*.
@@ -227,8 +228,9 @@ class FeatureDiscovery:
             f"sub-experiment: {family}{self._shuffles()}).{self._unpaired()} Ranked by the "
             "largest difference "
             "(|d|); change: the condition's mean over the control's, the fold change the "
-            "paired t-test compares (the difference of the means where a mean is not "
-            "positive); a candidate is significant across repeats when the paired t-test on the "
+            "paired t-test compares (the difference of the means for a feature with a value "
+            "that is not positive, the same scale for every condition); a candidate is "
+            "significant across repeats when the paired t-test on the "
             f"repeat means also gives q ≤ {alpha:g}:"
         )
 

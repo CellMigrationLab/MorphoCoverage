@@ -90,8 +90,9 @@ other features' rows at q ≤ 0.05 and a count of them all, and "At a glance" ad
 "across experiments: 1 of 8 significant" when any is. Every row is saved, with its kind,
 label, feature, repeats, change, p and q, as `tests_across_experiments.csv`, with a CSV
 button under the block on the page. A row held in fewer than 3 repeats is named once as not
-compared, and where a mean is not positive (a signed feature) the raw differences are
-compared instead of log ratios, and the table says so for that feature.
+compared, and for a feature with a value that is not positive (a signed feature) the raw
+differences are compared instead of log ratios, the scale of its main test, and the table
+says so for that feature.
 `Setup(contrasts=table)` takes a table of the same columns (`kind`, `condition`,
 `reference`, `condition_control`, `reference_control`, `family`, `label`) in place of the
 generated one. A condition has one `own_control` row: a table giving it two is refused, and
@@ -324,7 +325,11 @@ the paired test kept as the second gate):
   Benjamini-Hochberg over all of them within each sub-experiment, a feature passing at q ≤ 0.05; passing
   features are ranked by |d| and the plots draw the best-ranked.
 - **The second gate**: the paired t on the repeat means (log ratios when every
-  mean is positive), Benjamini-Hochberg over every feature and condition of a
+  observation of the feature is positive, else differences: the scale is chosen once per
+  feature from all its observations, the same for every condition, and the test's
+  description says so; owner, 2026-10-06, after audit 8 found that choosing it per
+  condition from its means let an offset of the feature change the power, from 36% to
+  50% for the same effect), Benjamini-Hochberg over every feature and condition of a
   sub-experiment with 3 or more repeats. A passing feature it also passes is *significant across
   repeats*.
 

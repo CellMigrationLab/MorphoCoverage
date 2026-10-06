@@ -223,7 +223,8 @@ def change_words(contrast: Any, condition: Any) -> str:
         return ""
     rows = table[table["condition"] == condition]
     rows = rows[rows["mean"].notna() & rows["control_mean"].notna()]
-    values, _, fold = repeat_values(rows["mean"], rows["control_mean"])
+    log = getattr(contrast, "settings", {}).get("log_scale")
+    values, _, fold = repeat_values(rows["mean"], rows["control_mean"], log)
     if not len(rows) or values != "normalised":
         return ""
     side = "lower" if fold < 1 else "higher"

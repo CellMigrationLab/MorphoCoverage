@@ -7,7 +7,7 @@ report states is the paired t-test on each biological repeat's mean of the obser
 So in the report a field is influential when leaving it out moves the mean of its
 condition in its repeat, as that test computes it, by at least ``threshold`` of it; the
 reason then says what this does to the result: the condition's change against the control
-(a fold change, or the difference of the means where a mean is not positive) and the paired
+(a fold change, or the difference of the means where a value is not positive) and the paired
 t-test's p, with the field and without it. A control field (a field of the declared
 control's groups) moves every condition compared with it in its repeat: the condition whose
 change it moves most is named. With declared comparisons a field moves each comparison its
@@ -76,27 +76,34 @@ def _where(group: dict[str, Any]) -> dict[str, str]:
     return {"group": where(group), "label": group_label(group)}
 
 
-def _result(means: np.ndarray, controls: np.ndarray, values: str | None = None) -> tuple:
-    """``(change, values, p)`` over the repeats (``statistics.repeat_values``); with
-    ``values`` given, on that scale only (NaN when it no longer applies)."""
-    found, compared, moved = repeat_values(means, controls)
+def _result(
+    means: np.ndarray, controls: np.ndarray, values: str | None = None, log: bool | None = None
+) -> tuple:
+    """``(change, values, p)`` over the repeats (``statistics.repeat_values``, on the
+    readout's scale ``log``); with ``values`` given, on that scale only (NaN when it no
+    longer applies)."""
+    found, compared, moved = repeat_values(means, controls, log)
     if values is not None and found != values:
         return np.nan, values, np.nan
     p = paired_t(compared) if len(compared) >= MIN_REPEATS else np.nan
     return moved, found, p
 
 
-def _effect(block: pd.DataFrame, repeat: Any, column: str, value: float) -> tuple[float, str]:
+def _effect(
+    block: pd.DataFrame, repeat: Any, column: str, value: float, log: bool | None = None
+) -> tuple[float, str]:
     """How far the condition's change moves with the repeat's mean in ``column`` set to
     ``value`` (the field left out), and the change and p before and after, in words, on the
     scale of the test as acquired."""
     means = block["mean"].to_numpy(float)
     controls = block["control_mean"].to_numpy(float)
-    before, values, p_before = _result(means, controls)
+    before, values, p_before = _result(means, controls, log=log)
     moved = (means if column == "mean" else controls).copy()
     moved[(block[REPEAT_COLUMN] == repeat).to_numpy()] = value
     after, _, p_after = (
-        _result(moved, controls, values) if column == "mean" else _result(means, moved, values)
+        _result(moved, controls, values, log)
+        if column == "mean"
+        else _result(means, moved, values, log)
     )
     if np.isnan(after):
         return np.inf, f"{change(before, values)} to one no longer defined as a fold change"
@@ -156,10 +163,11 @@ def _found(
     skipped: list[dict[str, Any]],
     small: list[dict[str, Any]],
     spread: float | None = INFLUENCE_SPREAD,
+    log: bool | None = None,
 ) -> list[dict[str, Any]]:
     """The influence rows of one analysis group's fields (see the module); a mean of 0 has
     no relative change and goes in ``skipped``, as ``inspect_fovs`` records it, and a group
-    too small to judge in ``small``."""
+    too small to judge in ``small``; ``log`` the readout's scale in the test."""
     condition, repeat = group.get(CONDITION_COLUMN), group.get(REPEAT_COLUMN)
     rows, columns = _sides(group_data, condition, table[table[REPEAT_COLUMN] == repeat], setup)
     if rows.empty:
@@ -185,7 +193,12 @@ def _found(
             continue
         # The condition whose change the field moves most (itself, for a treated field).
         effects = [
-            (*_effect(table[table["condition"] == r.condition], repeat, columns[i], without), i)
+            (
+                *_effect(
+                    table[table["condition"] == r.condition], repeat, columns[i], without, log
+                ),
+                i,
+            )
             for i, r in enumerate(rows.itertuples())
         ]
         _, effect, best = max(effects, key=lambda item: item[0])
@@ -243,7 +256,8 @@ def with_result_influence(
                 {**_where(group), "summary": f"mean of {setup.readout}", "reason": _NEGATIVE}
             )
             continue
-        found = _found(group, group_data, table, setup, threshold, skipped, small, spread)
+        log = contrast.settings.get("log_scale")
+        found = _found(group, group_data, table, setup, threshold, skipped, small, spread, log)
         rows += field_rows(group, group_data, found, trace)
     frame = pd.concat([inspection.fovs, pd.DataFrame(rows)], ignore_index=True)
     checked = list(inspection.settings.get("checked", []))
