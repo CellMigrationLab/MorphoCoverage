@@ -432,7 +432,7 @@ def embeddings(
         if values == "raw" or (values == "normalised" and space not in own)
     ]
     data_files = embedding_data(
-        {f"{values}, {s}" if several else values: e for values, s, e in shown}, folder
+        {f"{values}, {s}" if several else values: e for values, s, e in shown}, folder, setup
     )
     comparison = comparison_table(separations[declared]) if several else ""
     if separations[declared] is not None:

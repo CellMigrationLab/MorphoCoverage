@@ -29,6 +29,7 @@ from typing import Any
 import pandas as pd
 
 from ..sampling_unit.across_text import ACROSS_CSV
+from ._feature_space import table_of, with_table
 from ._html_plotly import _observations
 
 # The columns of a feature's observations, named as the MorphoBricks tables name them.
@@ -207,6 +208,10 @@ def feature_data(
         files.append((write_csv(frame, folder, f"{name}_repeats.csv"), "Repeat summaries (CSV)"))
     if pairs:
         frame = pd.concat(pairs, ignore_index=True).drop_duplicates(["values", "first", "second"])
+        # The feature's table, with explainable tables (owner, 2026-10-06; audit 8B).
+        owner = table_of(next(iter(setups.values()))) if setups else {}
+        if feature in owner:
+            frame.insert(0, "table", owner[feature])
         files.append((write_csv(frame, folder, f"{name}_pairs.csv"), "Pairs (CSV)"))
     return files
 
@@ -216,9 +221,14 @@ def _stem(key: str) -> str:
     return re.sub(r"[^\w.-]+", "_", key)
 
 
-def embedding_data(embeddings: Mapping[str, Any], folder: Path) -> list[tuple[str, str]]:
+def embedding_data(
+    embeddings: Mapping[str, Any], folder: Path, setup: Any = None
+) -> list[tuple[str, str]]:
     """Every point of the PCA and UMAP, and the loadings, per kind of values (and feature
-    table, ``raw, DINO``)."""
+    table, ``raw, DINO``); with explainable tables, each loading's table (``setup``)."""
+    owner = table_of(setup) if setup is not None else {}
+    if owner:  # the other tables' columns too, in a combined space
+        owner.update({c: n for n, cols in (setup.feature_tables or {}).items() for c in cols})
     files = []
     for values, embedding in embeddings.items():
         points = embedding.points.rename(
@@ -230,6 +240,8 @@ def embedding_data(embeddings: Mapping[str, Any], folder: Path) -> list[tuple[st
         files.append((write_csv(points, folder, f"embedding_{_stem(values)}.csv"), label))
     for values, embedding in embeddings.items():
         loadings = embedding.loadings.rename(columns={"pc1": "PC1", "pc2": "PC2", "top": "arrow"})
+        if owner:
+            loadings.insert(1, "table", [owner.get(f, "") for f in loadings["feature"]])
         label = f"Loadings, {values} (CSV)" if len(embeddings) > 1 else "Loadings (CSV)"
         files.append((write_csv(loadings, folder, f"pca_loadings_{_stem(values)}.csv"), label))
     return files
@@ -266,10 +278,11 @@ def heatmap_data(discovery: Any, folder: Path) -> list[tuple[str, str]]:
     return [(write_csv(frame, folder, "heatmap_d.csv"), "Data (CSV)")]
 
 
-def across_data(contrast: Any, folder: Path) -> list[tuple[str, str]]:
+def across_data(contrast: Any, folder: Path, setup: Any = None) -> list[tuple[str, str]]:
     """The secondary rows of every feature (``ACROSS_CSV``, owner 2026-10-05): kind, label,
-    feature, the biological repeats each used (named), the change (a fold change, or the
-    difference where a mean is not positive), p and q; empty without them."""
+    feature (and its table, with explainable tables and ``setup``), the biological repeats
+    each used (named), the change (a fold change, or the difference where a mean is not
+    positive), p and q; empty without them."""
     every = getattr(contrast, "settings", {}).get("across_features")
     if every is None:
         across = getattr(contrast, "across", None)
@@ -296,6 +309,7 @@ def across_data(contrast: Any, folder: Path) -> list[tuple[str, str]]:
             "status": every["status"],
         }
     )
+    frame = with_table(frame, setup) if setup is not None else frame
     return [(write_csv(frame, folder, ACROSS_CSV), "Data (CSV)")]
 
 
