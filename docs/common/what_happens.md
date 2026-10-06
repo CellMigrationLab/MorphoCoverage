@@ -68,7 +68,10 @@ between the controls besides every declared column whose name contains "intensit
   target is stated and planned for, not judged.
 - In the guided session, the aim sets the fingerprint: "averages" declares none; "the whole
   distribution" or "both" declares a covariance criterion on the features and one per table
-  at one tolerance, and the default definition of new on the features. "The whole
+  at one tolerance, and the default definition of new on the features. A covariance
+  criterion is named the **covariance fingerprint** in the report, the page and the guided
+  session, since a covariance is not the whole distribution; any other criterion stays "the
+  fingerprint" (plan v2, owner, 2026-10-06). "The whole
   distribution" declares no mean target (`tolerances=()`), so no mean-precision rule, and
   the declaration says so once; "averages" and "both" keep the mean target (owner,
   2026-10-06). Without explainable features the aims are the whole distribution, the
@@ -145,7 +148,7 @@ the contrast table, or the one control.
 | Separation scores | by condition as the figures read them; by repeat always raw; one line with one well per condition and repeat | neighbours outside the field, per repeat | none, descriptive | one condition; a space of fewer than 3 columns, which has no map |
 | Copy checks | each explainable table apart, or the features as one table | field | none, exact | `integrity=True` not given; the guided session gives it |
 | Duplicated or derived features | every declared column, on all rows and within each experiment | column pair | none, a caution | none |
-| Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap | one control |
+| Acquisition gap | raw medians of intensity columns of each pair of controls | control | none, a caution at a 2-fold gap, an engineering threshold for quality control, not a test | one control |
 | `optimise` | criteria on held-back fields, divided as the fingerprint, a fingerprint's components refitted on the fields not held back; the rules replayed raw | analysis group | none | no target it can judge |
 | `live_session` | the raw columns of each field | analysis group | none | none |
 
@@ -176,7 +179,8 @@ observations read the readout alone, as the declaration and the report say (owne
 The whole-table headline names a condition shifted the same way in every repeat as a trend
 when no shift is significant, from 6 repeats only, as the per-feature "same direction in
 every repeat, not significant" (owner, 2026-10-06): with fewer, every repeat goes the same
-way without an effect too often (25% with 3 repeats, 13% with 4). The test, its calibration and its words are in
+way without an effect too often, with the exact chance `2^(1-n)` for a feature's `n`
+independent repeats (25% with 3, 12.5% with 4, 3.1% with 6; plan v2, owner, 2026-10-06). The test, its calibration and its words are in
 [the whole-table test](../report/conditions.md#the-whole-table-test-other-feature-tables);
 the spaces and the centred view in
 [feature tables and maps](../report/feature_tables_and_maps.md).
@@ -249,6 +253,11 @@ without explainable features the combined map has a centred view instead (owner,
 | Whole-table shuffle | wells, else fields | none | exploratory, CSV only |
 | Clustering in fields | field | groups and states | a state called clustered at q 0.05 or less |
 | Acquisition order | field | Bonferroni over its two tests | a caution beside a stop, never a veto |
+
+Benjamini-Hochberg controls the false discovery rate within each family above, never across
+the report: a report of several families can hold more false discoveries overall than any
+one family allows. The report says so once, where it explains its q-values (plan v2, owner,
+2026-10-06).
 
 Descriptive, with no p-value: Cohen's d per repeat, the separation scores, the populations
 and their rules, unusual observations, novelty and the positive control, the label check,

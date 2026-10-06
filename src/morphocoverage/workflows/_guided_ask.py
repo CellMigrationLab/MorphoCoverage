@@ -22,10 +22,10 @@ AIMS = {
 }
 AIM_TEXT = {
     "population": "compare the population averages of the conditions (the readout's mean)",
-    "fingerprint": "compare their phenotypic fingerprints (the distribution over the features)",
-    "both": "the population averages and the fingerprints",
+    "fingerprint": "compare their covariance fingerprints (how the features vary together)",
+    "both": "the population averages and the covariance fingerprints",
     "label": "see the labelled phenotype in enough fields",
-    "fingerprint_label": "the fingerprint of each table and the labelled phenotype",
+    "fingerprint_label": "the covariance fingerprint of each table and the labelled phenotype",
 }
 # The aims of an embedding-only session: no average is offered (owner, 2026-10-06).
 TABLE_AIMS = ("fingerprint", "label", "fingerprint_label")
@@ -304,8 +304,8 @@ def ask_tolerance(ask: Ask, say: Say, features: Sequence[str]) -> float:
         else "each table's first principal components"
     )
     say(
-        f"The fingerprint is the covariance of {what}. No tolerance has a published meaning: "
-        "state yours."
+        f"The fingerprint judged is a covariance fingerprint: the covariance of {what}, not the "
+        "whole distribution. No tolerance has a published meaning: state yours."
     )
     return number(ask, say, "Within what share (0.10 = 10%)?", 0.10, 0.0, 1.0)
 

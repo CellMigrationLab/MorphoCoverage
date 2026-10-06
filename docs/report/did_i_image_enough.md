@@ -52,7 +52,10 @@ with the reasons, marked ➖. When the fields `optimise` holds back (35% of a we
 would themselves err by more than the tolerance, the text report says so
 once: the held-back judgement cannot confirm that target, and the estimate is
 the guide. On the page each target has its own tab, after the features, and a
-line at the top of the card.
+line at the top of the card. A covariance criterion, the one the guided session declares,
+is named the covariance fingerprint ("The covariance fingerprint of DINOv2 (...)"): it
+reads how the features vary together, not their whole distribution (plan v2, owner,
+2026-10-06).
 
 ## The stopping rules and the next field: `sufficiency_report`
 

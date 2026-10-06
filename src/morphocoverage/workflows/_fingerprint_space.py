@@ -43,7 +43,7 @@ from .._seeds import group_key
 from .._wording import count, listing
 from ..embedding import robust_components
 from ..evaluator import iter_analysis_groups
-from ..multivariate_outcomes import ComponentsError
+from ..multivariate_outcomes import ComponentsError, CovarianceError
 from ..schema import validate_input_tables
 
 if TYPE_CHECKING:
@@ -61,6 +61,15 @@ MIN_FIELDS = 4
 def label(criterion: OutcomeCriterion) -> str:
     """The criterion as the report names it: its description, else its metric's name."""
     return criterion.description or criterion.metric.name
+
+
+def noun(criterion: OutcomeCriterion) -> str:
+    """``covariance fingerprint`` for a covariance criterion, on components or as declared, as
+    a covariance is not the whole distribution (plan v2, owner, 2026-10-06); ``fingerprint``
+    for any other."""
+    metric = criterion.metric
+    inner = metric.metric if isinstance(metric, ComponentsError) else metric
+    return "covariance fingerprint" if isinstance(inner, CovarianceError) else "fingerprint"
 
 
 def criterion_columns(criterion: OutcomeCriterion) -> list[str]:
@@ -120,11 +129,13 @@ class Reading:
 class FingerprintSpace:
     """The ``setup`` with each assessable criterion as it is read (on components or as
     declared) and the not assessable left out; ``readings`` by criterion label; ``pairs``
-    each declared criterion with the one read (``None``: not assessable)."""
+    each declared criterion with the one read (``None``: not assessable); ``nouns`` how
+    each is named, by label (``noun``)."""
 
     setup: Setup
     readings: dict[str, Reading] = field(default_factory=dict)
     pairs: tuple[tuple[OutcomeCriterion, OutcomeCriterion | None], ...] = ()
+    nouns: dict[str, str] = field(default_factory=dict)
 
     @property
     def not_assessable(self) -> dict[str, str]:
@@ -135,7 +146,7 @@ class FingerprintSpace:
         """``The fingerprint, <criterion>, is not assessable in pilot R1: fewer than 5 k,
         200 cells.``: the groups too small for the common k, one sentence per criterion."""
         return [
-            f"The fingerprint, {name}, is not assessable in "
+            f"The {self.nouns.get(name, 'fingerprint')}, {name}, is not assessable in "
             f"{listing([n for _, n, _ in r.small], 4)}: fewer than {SHARE} k, "
             f"{count(SHARE * int(r.components or 0), unit, units)}."
             for name, r in self.readings.items()
@@ -220,10 +231,11 @@ def fingerprint_space(
         if reading is not None:
             readings[label(criterion)] = reading
         pairs.append((criterion, read))
+    nouns = {label(c): noun(c) for c in setup.fingerprint}
     if not readings:
-        return FingerprintSpace(setup, {}, tuple(pairs))
+        return FingerprintSpace(setup, {}, tuple(pairs), nouns)
     kept = tuple(read for _, read in pairs if read is not None)
-    return FingerprintSpace(replace(setup, fingerprint=kept), readings, tuple(pairs))
+    return FingerprintSpace(replace(setup, fingerprint=kept), readings, tuple(pairs), nouns)
 
 
 __all__ = [
@@ -235,5 +247,6 @@ __all__ = [
     "criterion_columns",
     "fingerprint_space",
     "label",
+    "noun",
     "table_of",
 ]

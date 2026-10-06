@@ -474,7 +474,8 @@ def optimise(
         f"{count(len(fovs), 'field')}"
     )
     unread = [
-        f"The fingerprint, {c}, is not assessable: {r}." for c, r in space.not_assessable.items()
+        f"The {space.nouns.get(c, 'fingerprint')}, {c}, is not assessable: {r}."
+        for c, r in space.not_assessable.items()
     ]
     unread += space.small_groups(setup.unit_word, setup.unit_words)  # audit 8
     document = replace(

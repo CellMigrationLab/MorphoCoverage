@@ -26,7 +26,7 @@ Every test, rule and term the report uses, in plain words, with where it appears
 
 *Where:* Do the conditions differ?.
 
-**Well (technical repeat).** A well, dish or coverslip within a biological repeat (the data's technical_repeat column); never a biological repeat. With one well per condition in each repeat, the cells of a well are not independent replicates: the repeats are. 'single' in the data when there is one.
+**Well (technical repeat).** A well, dish or coverslip within a biological repeat (the data's technical_repeat column); never a biological repeat. With one well per condition in each repeat, no within-repeat technical replication, the cells of a well are not independent replicates: the repeats are. 'single' in the data when there is one.
 
 *Where:* The data, the plots (point shapes).
 

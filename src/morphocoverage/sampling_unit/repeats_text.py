@@ -18,7 +18,7 @@ import pandas as pd
 from .._caveats import assumption
 from .._control import versus
 from .._style import span
-from .._wording import column_word, count, listing, p_value
+from .._wording import WITHIN_FAMILY, column_word, count, listing, p_value
 from ..schema import observation_words
 from ._experiments import family_words
 from .contrast_repeats import MIN_REPEATS
@@ -144,7 +144,7 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
                 f"The paired t-test on the repeat means treats each {word} as one replicate: "
                 f"it keeps false positives at 5%, but with 3 {word}s only large, consistent "
                 f"effects reach q ≤ 0.05. q: Benjamini-Hochberg {family_words(contrast.settings)}; "
-                f"'significant across repeats' uses {used}."
+                f"'significant across repeats' uses {used}. {WITHIN_FAMILY}"
             )
         )
     elif repeats["p_paired_t"].notna().any():
@@ -168,7 +168,8 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
                     else ""
                 )
                 + ". p uncorrected, q corrected (Benjamini-Hochberg within each "
-                "sub-experiment: the conditions sharing their repeats and control)."
+                "sub-experiment: the conditions sharing their repeats and control). "
+                + WITHIN_FAMILY
             )
         )
     return notes

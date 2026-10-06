@@ -263,8 +263,9 @@ also a difference between the conditions of a repeat, so the score by condition 
 a separation of the conditions (audit 8: a well shift of 0.5 SD with no condition effect
 took the score 34% of the way from chance to 100%, and "the repeats separate more" in half
 the simulations). One line under the maps says so for such a design ("Each condition is
-imaged in one well per biological repeat, so a difference between wells reads here as a
-separation of the conditions."); with two wells or more per condition and repeat, a well is
+imaged in one well per biological repeat, no within-repeat technical replication, so a
+difference between wells reads here as a separation of the conditions."; wording of plan v2,
+owner, 2026-10-06); with two wells or more per condition and repeat, a well is
 never its own observations' neighbour and the line is left out.
 
 Neighbours never come from the observation's own field, nor from its own well when its

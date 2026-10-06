@@ -2,14 +2,37 @@
 of the reviews, the three-repeat verdict, the declared scale, the exploratory labels and the
 report without a control."""
 
+import sys
+from pathlib import Path
+
 import numpy as np
+import pytest
 from test_feature_tables_wide import _wide
 
+from morphocoverage._wording import WITHIN_FAMILY
 from morphocoverage.embedding import robust_components
-from morphocoverage.multivariate_outcomes import ComponentsError, CovarianceError
+from morphocoverage.multivariate_outcomes import ComponentsError, CovarianceError, QuantileError
 from morphocoverage.retrospective.criteria import OutcomeCriterion
+from morphocoverage.sampling_unit.contrast import condition_contrast
 from morphocoverage.workflows import Setup, optimise
-from morphocoverage.workflows._fingerprint_space import fingerprint_space
+from morphocoverage.workflows._acquisition_gap import gap_caution
+from morphocoverage.workflows._fingerprint_space import fingerprint_space, noun
+from morphocoverage.workflows._guided_ask import ask_tolerance
+
+ROOT = Path(__file__).resolve().parents[1]
+DOCS = ROOT / "docs"
+sys.path.insert(0, str(ROOT / "data" / "lab"))
+import catalog
+
+
+@pytest.fixture(scope="module")
+def screen():
+    """The lab's filopodia screen: 3 biological repeats, one coverslip a side and repeat."""
+    data = catalog.load("cct8_filopodia_screen")
+    return condition_contrast(
+        *data.tables, feature="Filopodia number", control=data.control, observation_unit="cell"
+    )
+
 
 # --- 1. The fingerprint's components are fitted on the fields not held back ---------------
 
@@ -65,3 +88,48 @@ def test_a_metric_without_fitted_state_is_its_own_trained_copy():
     metric = CovarianceError(("area", "shape"), True)
     criterion = OutcomeCriterion(metric, 0.5, "lower_is_better")
     assert criterion.trained(None) is criterion  # type: ignore[arg-type]
+
+
+# --- 2. Wording ----------------------------------------------------------------------------
+
+
+def test_the_two_fold_gap_is_said_to_be_an_engineering_threshold_for_quality_control():
+    caution = gap_caution([{"controls": ("a", "b"), "feature": "intensity", "fold": 13.0}])
+    assert caution.endswith("2-fold is an engineering threshold for quality control, not a test.")
+    docs = (DOCS / "report" / "conditions.md").read_text()
+    assert "engineering threshold for quality" in docs
+
+
+def test_a_covariance_criterion_is_called_the_covariance_fingerprint():
+    covariance = OutcomeCriterion(CovarianceError(("a", "b"), True), 0.1, "lower_is_better")
+    quantiles = OutcomeCriterion(QuantileError(("a",), True, (0.1, 0.9)), 0.1, "lower_is_better")
+    assert noun(covariance) == "covariance fingerprint"
+    assert noun(quantiles) == "fingerprint"
+    said = []
+    ask_tolerance(lambda _: "", said.append, ["a", "b"])
+    assert said[0].startswith("The fingerprint judged is a covariance fingerprint: the covariance")
+    assert "not the whole distribution" in said[0]
+
+
+def test_the_report_says_once_that_the_false_discovery_rate_is_within_each_family(screen):
+    joined = " ".join(screen.summary().split())
+    assert joined.count(WITHIN_FAMILY) == 1
+    docs = (DOCS / "common" / "what_happens.md").read_text()
+    assert "controls the false discovery rate within each family" in " ".join(docs.split())
+
+
+def test_one_well_per_condition_is_no_within_repeat_technical_replication(screen):
+    joined = " ".join(screen.summary().split())
+    assert "each condition has one well there, no within-repeat technical replication" in joined
+
+
+def test_the_docs_give_the_exact_chance_of_one_direction_in_every_repeat():
+    docs = " ".join((DOCS / "report" / "conditions.md").read_text().split())
+    assert "the exact chance that all `n` repeats go the same way is `2^(1-n)`: 25% at 3" in docs
+    assert "12.5% at 4" in docs and "3.1% at 6" in docs
+
+
+def test_the_whole_table_correction_is_described_as_asymptotic_not_exact():
+    docs = " ".join((DOCS / "report" / "conditions.md").read_text().split())
+    assert "asymptotic high-dimensional, low-sample-size (HDLSS) correlation correction" in docs
+    assert "not an exact one" in docs

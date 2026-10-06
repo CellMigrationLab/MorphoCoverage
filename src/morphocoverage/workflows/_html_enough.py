@@ -278,11 +278,12 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
                 else ("" if len(criteria) == 1 else f", {criterion},")
             )
             reason = assessable_reason(rows)
+            what = rows["noun"].iloc[0] if "noun" in rows else "fingerprint"
             if reason is not None:  # a wide table and small groups (owner, 2026-10-06)
-                lines.append(f"The fingerprint{named} is not assessable: {reason}.")
+                lines.append(f"The {what}{named} is not assessable: {reason}.")
                 continue
             if not len(own):
-                lines.append(f"The fingerprint{named} is not judged in any {word}.")
+                lines.append(f"The {what}{named} is not judged in any {word}.")
                 continue
             met = int(own["met"].sum())
             every = (precision["criterion"] == criterion).sum() == len(own)
@@ -291,7 +292,7 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
                 if met == len(own) and every
                 else f"in {met} of {count(len(own), word)}" + ("" if every else " judged")
             )
-            lines.append(f"The fingerprint{named} is within its tolerance {within}.")
+            lines.append(f"The {what}{named} is within its tolerance {within}.")
         text = "\n".join(
             fingerprint_lines(precision, word, plural(field), held_back=False, unit=setup.unit_word)
         )

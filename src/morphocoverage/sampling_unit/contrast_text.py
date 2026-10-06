@@ -325,7 +325,8 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
         # across-repeat table, so the table would repeat them.
         unit, units = observation_words(contrast.settings)
         lines[-1] = wrap(
-            "No test within a single repeat: each condition has one well there, and the "
+            "No test within a single repeat: each condition has one well there, no "
+            "within-repeat technical replication, and the "
             f"{units} of one well are not independent replicates (the {unit}-level screen "
             "above treats them as such, and is exploratory). The per-repeat d are in question 2, "
             "and every number in the full report (report_full.txt).",

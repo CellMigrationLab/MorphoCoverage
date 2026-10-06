@@ -35,7 +35,7 @@ from .._wording import count, listing, percent, plural, rate
 from ..evaluator import FovSubsets, iter_analysis_groups
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..schema import validate_input_tables
-from ._fingerprint_space import MIN_FIELDS, fingerprint_space, label, table_of
+from ._fingerprint_space import MIN_FIELDS, fingerprint_space, label, noun, table_of
 from ._fingerprint_space import criterion_columns as _columns
 
 if TYPE_CHECKING:
@@ -86,6 +86,7 @@ def fingerprint_precision(
     pairs = [(o, r) for o, r in space.pairs if o.direction == "lower_is_better"]
     criteria = [r for _, r in pairs if r is not None]
     names = [label(o) for o, r in pairs if r is not None]
+    nouns = [noun(o) for o, r in pairs if r is not None]
     # A criterion whose columns miss values reads the observations holding all of them.
     complete: dict[int, dict[str, Any]] = {}
     # Normalised with several controls, a condition without its own control in a repeat has
@@ -114,7 +115,7 @@ def fingerprint_precision(
         reading = space.readings.get(label(original))
         if read is None and reading is not None:
             rows += [
-                {**row, "table": table_of(_columns(original), setup)}
+                {**row, "table": table_of(_columns(original), setup), "noun": noun(original)}
                 for row in _not_assessable(data, label(original), str(reading.reason))
             ]
     for group, group_data in iter_analysis_groups(data):
@@ -154,6 +155,7 @@ def fingerprint_precision(
                 {
                     **group,
                     "criterion": names[i],
+                    "noun": nouns[i],
                     "table": table_of(_columns(criterion), setup),
                     "left_out": left_out,
                     "no_own_control": no_control,
@@ -253,15 +255,24 @@ def held_back_note(judged: pd.DataFrame, word: str, fields: str) -> str:
 def fingerprint_title(criterion: str, rows: pd.DataFrame) -> str:
     """``The fingerprint, <criterion>``, or with other feature tables ``The fingerprint of
     DINOv2 (<criterion>)``: each table its own verdict (owner, 2026-10-06); a wide table's
-    adds how it is read (``read on its first 4 principal components (k at most ...)``)."""
+    adds how it is read (``read on its first 4 principal components (k at most ...)``); a
+    covariance criterion's is the covariance fingerprint (``_fingerprint_space.noun``)."""
     table = rows["table"].iloc[0] if "table" in rows else None
+    what = _noun(rows)
     title = (
-        f"The fingerprint of {table} ({criterion})"
+        f"The {what} of {table} ({criterion})"
         if isinstance(table, str)
-        else f"The fingerprint, {criterion}"
+        else f"The {what}, {criterion}"
     )
     reading = rows["reading"].iloc[0] if "reading" in rows else None
     return f"{title}, {reading}" if isinstance(reading, str) and reading else title
+
+
+def _noun(rows: pd.DataFrame) -> str:
+    """How the rows' criteria are named: ``covariance fingerprint`` when every one is a
+    covariance, else ``fingerprint``."""
+    nouns = set(rows["noun"]) if "noun" in rows else set()
+    return "covariance fingerprint" if nouns == {"covariance fingerprint"} else "fingerprint"
 
 
 def assessable_reason(rows: pd.DataFrame) -> str | None:
@@ -374,7 +385,8 @@ def targets_status(
         ):
             only = tables.dropna().unique()
             named = table if by_table else (only[0] if len(only) == 1 else None)
-            name = f"the fingerprint of {named}" if isinstance(named, str) else "the fingerprint"
+            what = _noun(rows)
+            name = f"the {what} of {named}" if isinstance(named, str) else f"the {what}"
             judged = rows[rows["met"].notna()]
             if assessable_reason(rows) is not None:
                 parts.append(f"{name} not assessable")

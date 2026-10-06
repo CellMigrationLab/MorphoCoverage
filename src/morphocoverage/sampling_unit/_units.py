@@ -316,8 +316,9 @@ def untested_reason(
     if unit and min(n_technical) == 1:
         named = "" if unit == "technical_repeat" else f" ({unit})"
         return (
-            f"only one technical repeat{named} (well) with observations on one side: the "
-            "fields of one well are not independent replicates, so there is no test"
+            f"only one technical repeat{named} (well) with observations on one side, no "
+            "within-repeat technical replication: the fields of one well are not "
+            "independent replicates, so there is no test"
         )
     if not unit and not fields_independent:
         return NOT_INDEPENDENT

@@ -37,7 +37,8 @@ if TYPE_CHECKING:
     from .setup import Setup
 
 # Two controls whose medians differ this many times or more were likely imaged or processed
-# differently (owner, 2026-10-05).
+# differently (owner, 2026-10-05): an engineering threshold for quality control, not a
+# statistical test (plan v2, owner, 2026-10-06).
 GAP_FOLD = 2.0
 NAME = "Controls apart in intensity"
 _PAIRS = 4  # the pairs named; the rest are counted
@@ -105,7 +106,8 @@ def gap_caution(gaps: list[dict]) -> str | None:
     return (
         f"{'; '.join(parts)}: the experiments may have been imaged or processed differently, "
         "so raw comparisons across them, and maps on raw values, may show acquisition rather "
-        "than biology."
+        f"than biology. {_fold(GAP_FOLD)} is an engineering threshold for quality control, "
+        "not a test."
     )
 
 

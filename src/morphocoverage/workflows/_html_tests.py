@@ -31,7 +31,7 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import _SENTENCE_END, _assumption_block, assumption, assumption_lines
-from .._wording import change, count, listing, p_value, percent
+from .._wording import WITHIN_FAMILY, change, count, listing, p_value, percent
 from ..sampling_unit.cells_text import balance_lines
 from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.distribution import shift_words, spread_words
@@ -226,8 +226,7 @@ def figure_legends(
 
 
 def _across(result: Any, folder: Path) -> tuple[str, int]:
-    """The paired t-test across repeats: the table, its raw values folded; and how many
-    rows it has."""
+    """The paired t-test across repeats: the table, its raw values folded, and its row count."""
     frame = across_frame(result)
     if frame.empty:
         return "", 0
@@ -521,7 +520,8 @@ def _explainer(result: Any, kinds: Sequence[str], family: str) -> str:
     adjusted = (
         "p is each test's own probability of a difference this large with no effect. The "
         f"adjusted p (Benjamini-Hochberg, also called the q-value) allows for testing {family}: "
-        "read it against 0.05. A randomization p cannot fall below 1 in the number of shuffles."
+        f"read it against 0.05. {WITHIN_FAMILY} A randomization p cannot fall below 1 in the "
+        "number of shuffles."
     )
     parts += [("Cohen's d", effect), ("p and adjusted p", adjusted)]
     items = "".join(

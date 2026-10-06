@@ -213,8 +213,8 @@ def test_each_tables_fingerprint_has_its_own_verdict_and_line():
     assert set(precision["table"]) == {"the explainable features", "DINO"}
     assert precision.loc[precision["table"] == "DINO", "left_out"].sum() == 1
     text = " ".join(" ".join(fingerprint_lines(precision, "well", "fields", unit="cell")).split())
-    assert "The fingerprint of the explainable features (the covariance" in text
-    assert "The fingerprint of DINO (the covariance of the standardised DINO" in text
+    assert "The covariance fingerprint of the explainable features (the covariance" in text
+    assert "The covariance fingerprint of DINO (the covariance of the standardised DINO" in text
     assert "1 cell with a missing value of its columns left out." in text
 
 

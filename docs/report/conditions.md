@@ -119,10 +119,13 @@ are compared with each other on every declared column whose name contains "inten
 case) and on those listed in `Setup(intensity_features=...)`: when two controls' medians, over
 all their observations, differ 2-fold or more (`_acquisition_gap.GAP_FOLD`), the report says
 so with one ⚠️ caution among the checks of the values ("Controls apart in intensity: VEC_SiNC
-and VEC differ 13-fold in median Intensity (mean); ...") and in "Do the conditions differ?",
+and VEC differ 13-fold in median Intensity (mean); ... 2-fold is an engineering threshold for
+quality control, not a test.") and in "Do the conditions differ?",
 and names each `across_normalised` or `vs_master_raw` row that joins two such controls under
 its table, and each main verdict that does, a control against its parent, under the
-readings (owner, 2026-10-05). With one control nothing is compared.
+readings (owner, 2026-10-05). The 2-fold mark is an engineering threshold for quality
+control, not a statistical test: it has no error rate, and a smaller gap is not evidence
+that the experiments were imaged alike (plan v2, owner, 2026-10-06). With one control nothing is compared.
 
 A condition never compared, no repeat holding both it and its own control, is named once,
 its comparison's own reference in the label: "Not compared: THBS5_SiFBN2 vs THBS5_SiNC (no
@@ -441,7 +444,11 @@ statistics below.
   positively correlated, by up to `1/(n − 1)` in a table of many effective dimensions, and
   the plain paired t rejected 8-20% of null datasets at 5% in the simulation below. The t is
   multiplied by `sqrt((n − 2) / (2 (n − 1)))`, its value at that largest correlation (`n −
-  1` degrees of freedom): calibrated in wide tables, conservative in narrow ones. It needs 3
+  1` degrees of freedom). This is an asymptotic high-dimensional, low-sample-size (HDLSS)
+  correlation correction, not an exact one: the correlation reaches `1/(n − 1)` only as the
+  effective dimensions grow, so the test is close to calibrated in wide tables (7.5% at 3
+  repeats in the simulation below) and conservative in narrow ones (plan v2, owner,
+  2026-10-06). It needs 3
   repeats; with fewer, "not tested across repeats, 2 repeats". Benjamini-Hochberg: the tests
   of one table form one family per sub-experiment, as the per-feature main rows do, never
   joining the per-feature families.
@@ -518,6 +525,15 @@ repeat as now and twice as many (`sampling_unit.repeat_plan`). No verdict on wha
 is printed (owner, 2026-10-02): from 3 repeats it contradicted the readings, and telling the
 variation between repeats from the sampling within them is P10's question, which needs 5 or
 more units.
+
+**Same direction in every repeat, not significant.** A condition whose paired t is not
+significant but whose repeats all went the same way is named as a trend only from 6 repeats
+(`TREND_REPEATS`; owner, 2026-10-06, audit 8). Without an effect each repeat's sign is a coin
+toss, so the exact chance that all `n` repeats go the same way is `2^(1-n)`: 25% at 3
+repeats, 12.5% at 4, 6.25% at 5 and 3.1% at 6, half of that when the direction is stated in
+advance (plan v2, owner, 2026-10-06). 6 is the first number of repeats where this chance is
+below 5%. With fewer the fact is still shown, the direction in each repeat, never as
+evidence.
 
 With a `target` column, the report also says whether the independent reagents of one
 target (two siRNAs of one gene) are on the same side of the control in every repeat
