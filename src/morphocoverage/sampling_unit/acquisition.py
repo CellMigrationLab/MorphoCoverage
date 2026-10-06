@@ -41,7 +41,7 @@ from .._style import check_detail, group_label, table, wrap
 from .._wording import count, listing, number
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..schema import fov_values
-from ._common import groups, validated
+from ._common import validated
 
 # SDs from the other fields of the group: the quality-control threshold (see module).
 ANOMALY_Z = 5.0
@@ -151,41 +151,54 @@ def _judge(medians: np.ndarray) -> np.ndarray:
     return z
 
 
+def _field_medians(data: Any) -> np.ndarray:
+    """Each field's median of every feature, one row per row of ``data.fovs`` (NaN for a
+    field with no value of it)."""
+    return np.column_stack(
+        [
+            [float(np.median(v)) if len(v) else np.nan for v in fov_values(data, values)]
+            for values in (data.feature_values(f) for f in data.feature_cols)
+        ]
+    )
+
+
 def acquisition_anomalies(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
     *,
     feature_cols: Sequence[str],
     fov_col: str | None = None,
+    group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
 ) -> AcquisitionAnomalies:
-    """The fields far from the other fields of their condition and repeat (see the module)."""
-    own = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN) if c in fovs.columns]
-    data = validated(objects, fovs, feature_cols, fov_col, own, observation_unit)
-    key = list(data.fov_key)
+    """The fields far from the other fields of their condition and repeat (see the module).
+    ``group_cols`` are those of ``validate_input_tables``: they name a field (a well beside
+    its position, say), whatever the condition and repeat the fields are compared within."""
+    data = validated(objects, fovs, feature_cols, fov_col, group_cols, observation_unit)
+    own = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN) if c in data.fovs.columns]
+    key = list(dict.fromkeys([*data.group_cols, *data.fov_key]))
+    medians = _field_medians(data)
+    identity = data.fovs[key].to_dict("records")
     found, rows = [], []
-    for group, group_data in groups(data):
-        medians = np.column_stack(
-            [
-                [float(np.median(v)) if len(v) else np.nan for v in fov_values(group_data, vals)]
-                for vals in (group_data.feature_values(f) for f in data.feature_cols)
-            ]
-        )
+    blocks = data.fovs.groupby(own, sort=False, dropna=False).indices if own else {(): None}
+    for values, members in blocks.items():
+        members = np.arange(len(data.fovs)) if members is None else np.asarray(members)
+        group = dict(zip(own, values if isinstance(values, tuple) else (values,), strict=True))
         before = len(found)
-        z = np.column_stack([_judge(medians[:, j]) for j in range(medians.shape[1])])
+        mine = medians[members]
+        z = np.column_stack([_judge(mine[:, j]) for j in range(mine.shape[1])])
         judged = ~np.isnan(z).all(axis=1)
-        identity = group_data.fovs[key].to_dict("records")
         far = (np.nan_to_num(np.abs(z)) >= ANOMALY_Z).any(axis=1)
         for i in np.flatnonzero(judged & far):
             j = int(np.nanargmax(np.abs(z[i])))
-            others = np.delete(medians[:, j], i)
-            centre = float(np.nanmedian(others))
-            value = float(medians[i, j])
+            centre = float(np.nanmedian(np.delete(mine[:, j], i)))
+            value = float(mine[i, j])
             low, high = sorted((value, centre))
+            field = identity[members[i]]
             found.append(
                 {
-                    **identity[i],
-                    "field": group_label(identity[i]),
+                    **field,
+                    "field": group_label(field),
                     "feature": data.feature_cols[j],
                     "value": value,
                     "others": centre,
@@ -193,8 +206,7 @@ def acquisition_anomalies(
                     "fold": high / low if low > 0 else None,
                 }
             )
-        judged_fields = int(judged.sum())
-        rows.append({**group, "fields": len(group_data.fovs), "judged": judged_fields})
+        rows.append({**group, "fields": len(members), "judged": int(judged.sum())})
         rows[-1]["anomalies"] = len(found) - before
     fields = pd.DataFrame(found)
     if len(fields):

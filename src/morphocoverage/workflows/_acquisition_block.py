@@ -41,6 +41,7 @@ def acquisition_in_report(
         fovs,
         feature_cols=list(setup.columns),
         fov_col=setup.fov_col,
+        group_cols=setup.group_cols,
         observation_unit=setup.observation_unit,
     )
 
