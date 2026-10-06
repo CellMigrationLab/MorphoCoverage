@@ -130,7 +130,12 @@ that the experiments were imaged alike (plan v2, owner, 2026-10-06). With one co
 A condition never compared, no repeat holding both it and its own control, is named once,
 its comparison's own reference in the label: "Not compared: THBS5_SiFBN2 vs THBS5_SiNC (no
 biological repeat holds both)." The readings name every control, never one hidden behind
-"and 1 more" (owner, 2026-10-05).
+"and 1 more" (owner, 2026-10-05). In the table within each repeat such a row reads "no own
+control in this repeat", never "0 vs 0" fields; when no repeat holds any condition with its
+control, the answer is ➖ "nothing compared" with that reason, on the page "Nothing
+compared", never "No consistent difference", and the discovery adds no sentence of its own
+(audit 10, owner, 2026-10-06). A control is named by its label, never as a Python
+dictionary.
 
 ### The tests of the secondary rows
 

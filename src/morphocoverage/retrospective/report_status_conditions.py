@@ -17,7 +17,12 @@ from ..sampling_unit.contrast_text import (
     across_tested,
     design_limited,
 )
-from ..sampling_unit.reading_text import CONFIRMED, condition_readings, readings_headline
+from ..sampling_unit.reading_text import (
+    CONFIRMED,
+    NO_CONTROL,
+    condition_readings,
+    readings_headline,
+)
 from ..sampling_unit.reagents_text import reagents_headline
 from ..schema import observation_words
 
@@ -72,11 +77,24 @@ def _untested_words(statuses: Sequence[str]) -> str:
     return words.pop() if len(words) == 1 else "too few units on a side"
 
 
+# The answer when no repeat holds a condition and its own control.
+NOTHING_COMPARED = "nothing compared: no biological repeat holds both a condition and its control"
+
+
+def _none_compared(table: Any) -> bool:
+    """Whether every contrast lacks its control in its repeat (``NO_CONTROL``)."""
+    return bool(table["status"].astype(str).str.startswith(NO_CONTROL).all())
+
+
 def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Answer:
     """9. Do the conditions differ, and how confidently? (see the module)."""
     if contrast is None and ranking is None and discovery is None:
         return Status.NOT_ASSESSED, "not assessed"
     status, parts, limited, trend = Status.OK, [], False, False
+    if contrast is not None and len(contrast.table) and _none_compared(contrast.table):
+        # No repeat holds a condition and its control: nothing was compared, no difference
+        # sought (audit 10, F12): ➖, never "no consistent difference".
+        return Status.NOT_ASSESSED, NOTHING_COMPARED
     if contrast is not None and len(contrast.table):
         table = contrast.table
         across = getattr(contrast, "repeats", None)
@@ -181,4 +199,4 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
     return status, "; ".join(parts)
 
 
-__all__ = ["conditions_status"]
+__all__ = ["NOTHING_COMPARED", "conditions_status"]

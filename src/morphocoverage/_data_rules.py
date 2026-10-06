@@ -18,7 +18,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._control import control_mask, control_text
+from ._control import control_mask, control_name, control_text
 from ._copy_rules import check_copies
 from ._data_problems import (  # noqa: F401  (re-exported)
     ERROR,
@@ -561,7 +561,7 @@ def _check_control(
             c.warning(
                 f"{count(len(lacking), 'repeat')} {'has' if len(lacking) == 1 else 'have'} no "
                 f"control field.",
-                f"repeats without {control_text(control)}: {_names(lacking)}.",
+                f"repeats without {control_name(control)}: {_names(lacking)}.",
                 "Normalising to the control and comparing conditions work within a repeat; add "
                 "the control to those repeats or leave them out.",
             )

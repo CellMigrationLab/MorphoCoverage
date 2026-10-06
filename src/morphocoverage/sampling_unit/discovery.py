@@ -45,7 +45,7 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._checks import is_number
-from .._control import check_comparisons, compared_name, control_text
+from .._control import check_comparisons, compared_name, control_name
 from .._former_repeat import one_warning, read_former
 from .._parallel import check_n_jobs
 from .._seeds import group_rng
@@ -426,6 +426,8 @@ class FeatureDiscovery:
         list of unranked ones) and its caveats."""
         lines = [wrap(self._head(), indent, hang=indent + 2)]
         if self.tests.empty:
+            if self.settings.get("unpaired"):  # named once, "Not compared" (audit 10, C8)
+                return lines, []
             reason = self.settings.get("reason", "No condition to compare with the control.")
             return [*lines, wrap(reason, indent, hang=indent + 2)], []
         lines += self._table(max_rows, indent + 2)
@@ -516,7 +518,7 @@ def feature_discovery(
         c for c in dict.fromkeys(condition for _, condition in contrasts) if c not in held
     ]
     if not rows:
-        settings["reason"] = f"No condition to compare with the control {control_text(control)}."
+        settings["reason"] = f"No condition to compare with the control, {control_name(control)}."
         empty = pd.DataFrame(columns=RANKING_COLUMNS)  # its columns, for top and the page
         return FeatureDiscovery(pd.DataFrame(columns=TEST_COLUMNS), empty, settings)
     tests = pd.DataFrame(rows).reindex(columns=TEST_COLUMNS)

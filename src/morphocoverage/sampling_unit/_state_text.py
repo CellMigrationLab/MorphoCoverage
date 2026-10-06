@@ -300,8 +300,8 @@ def _state_answer(result: Any, state: Any, block: pd.DataFrame, words: str) -> s
     unseen = [r for r in block.to_dict("records") if r["labelled"] and not r["state_objects"]]
     if unseen:
         where = [
-            f"{_group(r, keys)} ({int(r['labelled'])} labelled {words} in "
-            f"{count(int(r['fovs']), 'field')})"
+            f"{_group(r, keys)} ({int(r['labelled'])} {words} scored in "
+            f"{count(int(r['fovs']), 'field')}, none {result.state_name(state)})"
             for r in unseen
         ]
         text += f" Not seen in {listing(where, 3)}."
@@ -309,7 +309,7 @@ def _state_answer(result: Any, state: Any, block: pd.DataFrame, words: str) -> s
     if unlooked:
         where = [
             f"{_group(r, keys)} (none of the {words} of its "
-            f"{count(int(r['fovs_acquired']), 'field')} is labelled)"
+            f"{count(int(r['fovs_acquired']), 'field')} scored)"
             for r in unlooked
         ]
         text += f" Not looked for in {listing(where, 3)}."
@@ -387,12 +387,15 @@ def _technical_lines(result: Any, indent: int, full: bool) -> list[str]:
     if not found:
         return []
     keys = [c for c in result.group_cols if c != TECHNICAL_REPEAT_COLUMN]
+    # Holding: a field of the technical repeat with at least m of the state (audit 10, C10).
+    m = int(result.settings.get("min_objects_per_fov", 1))
+    holds = f"a field with at least {m} of it" if m > 1 else "a field with one of it"
     if not full and all(f["held"] == f["total"] for f in found):
         text = (
-            f"Technical repeats: every technical repeat holds it, in "
+            f"Technical repeats: every technical repeat holds it ({holds}), in "
             f"{among(len(found), len(found), group_columns(keys) or 'group')}."
             if len({f["state"] for f in found}) == 1
-            else "Technical repeats: every technical repeat holds each state."
+            else f"Technical repeats: every technical repeat holds each state ({holds})."
         )
         return [wrap(text, indent, hang=indent + 2)]
     cells = [
@@ -401,7 +404,7 @@ def _technical_lines(result: Any, indent: int, full: bool) -> list[str]:
     ]
     columns = [group_columns(keys) or "groups", "state", "held by"]
     return [
-        wrap("Technical repeats holding each state:", indent),
+        wrap(f"Technical repeats holding each state ({holds}):", indent),
         table(cells, columns, indent=indent + 2),
     ]
 

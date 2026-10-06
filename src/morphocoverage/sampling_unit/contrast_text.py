@@ -147,6 +147,11 @@ def _contrast_rows(contrast: Any, full: bool) -> tuple[list[list[str]], list[str
     columns += [f"over control SD, every {unit}"] if full else ["p (Bonferroni)"]
     rows = []
     for row in contrast.table.to_dict("records"):
+        if str(row["status"]).startswith(NO_CONTROL):
+            # Nothing was counted without a control: never "0 vs 0" (audit 10, B6 and C7).
+            blank = ["–"] * (len(columns) - 2)
+            rows.append([_name(row, repeat_col), "no own control in this repeat", *blank])
+            continue
         cells = [
             _name(row, repeat_col),
             f"{int(row['fields'])} vs {int(row['control_fields'])}",

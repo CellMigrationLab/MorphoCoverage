@@ -183,6 +183,8 @@ def chip(status: Status | None, key: str = "", answer: str = "", word: str | Non
     few = re.search(r"\bn = ([12])\b", answer) if key in ("conditions", "populations") else None
     if few:
         word = f"No conclusion (n = {few.group(1)})"
+    elif key == "conditions" and answer.startswith("nothing compared"):
+        word = "Nothing compared"
     elif key == "populations" and answer.startswith("no group:"):
         word = "No group"
     elif key == "conditions" and status is Status.OK and answer.startswith("beyond the mean"):

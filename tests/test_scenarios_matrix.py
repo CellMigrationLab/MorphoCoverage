@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+import re
 import sys
 import warnings
 from pathlib import Path
@@ -31,7 +32,7 @@ import pytest
 
 from morphocoverage.sampling_unit.contrast_repeats import TREND_REPEATS
 from morphocoverage.sampling_unit.contrast_text import ONE_UNIT
-from morphocoverage.sampling_unit.reading_text import CONFIRMED, CONSISTENT
+from morphocoverage.sampling_unit.reading_text import CONFIRMED, CONSISTENT, NO_CONTROL
 from morphocoverage.workflows import Setup, html_report, optimise, report
 from morphocoverage.workflows._enough_targets import NO_TARGET
 from morphocoverage.workflows._html_tests import across_frame
@@ -105,9 +106,17 @@ def _words(result: Any) -> None:
     assert full.count("never a biological verdict: open their images") <= 1
     assert full.count("may have been imaged or processed differently") <= 1
     contrast = result.results.get("contrast")
-    statuses = contrast.table["status"].astype(str) if contrast is not None else pd.Series()
+    table = contrast.table if contrast is not None else pd.DataFrame({"status": []})
+    statuses = table["status"].astype(str)
     if "one well in each repeat" in full:  # A6, C5: the reason is the status's
         assert statuses.str.startswith(ONE_UNIT).any()
+    short = " ".join(result.summary().split())
+    for text in (short, full):
+        assert not re.search(r"\b0 vs 0\b", text)  # B6, C7: no own control, never 0 vs 0
+        assert "{'" not in text  # A22, C8, C22: no dict repr
+        assert not ("No condition to compare" in text and "Not compared:" in text)  # C8
+        if statuses.str.startswith(NO_CONTROL).any():  # B4, C9: the reason is the control
+            assert "has a value of every feature" not in text
 
 
 def _tests(result: Any, truth: dict[str, Any]) -> None:

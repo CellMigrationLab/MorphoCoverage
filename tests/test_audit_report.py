@@ -160,8 +160,8 @@ def test_g8_a_group_without_labels_is_not_said_to_lack_the_state():
         group_cols=["condition"],
     ).summary()
     text = " ".join(text.split())
-    assert "Not looked for in MOCK (none of the cells of its 8 fields is labelled)" in text
-    assert "Not seen in KD (240 labelled cells in 8 fields)" in text
+    assert "Not looked for in MOCK (none of the cells of its 8 fields scored)" in text
+    assert "Not seen in KD (240 cells scored in 8 fields, none unusual)" in text
 
 
 def test_g11_g12_spread_ratios_and_small_groups_are_stated():

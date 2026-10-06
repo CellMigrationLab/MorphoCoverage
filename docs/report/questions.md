@@ -80,7 +80,11 @@ differ more than random objects would (`sampling_unit.fov_variability`); the
 mean-precision rule and the JCS stabilisation, each run with random objects and with
 whole fields (`object_rule_check`, `descriptor_spread_check`; also P5);
 whether labelled rare or unusual states are spread over the fields or
-clustered in a few (`fov_clustering`, reported under R4); and, where stage
+clustered in a few (`fov_clustering`, reported under R4; a group where none was found
+reads "15 cells scored in 3 fields, none unusual", a technical repeat holds a state when one
+of its fields holds at least the minimum count of it, and a group whose repeat holds no own
+control is "not assessed: its repeat holds no own control", never said to lack values; audit
+10, owner, 2026-10-06); and, where stage
 coordinates exist, the distance over which neighbouring fields are alike
 (`redundancy_distance`, reported under P7; not yet run by the `report`
 workflow). Whether the imaged positions were the right ones is a separate

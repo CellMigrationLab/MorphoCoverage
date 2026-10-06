@@ -50,7 +50,7 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._checks import is_number
-from .._control import check_comparisons, compared_name, control_text, versus
+from .._control import check_comparisons, compared_name, control_name, versus
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
 from .._style import check_detail, table, wrap
@@ -382,7 +382,7 @@ def feature_ranking(
     contrasts = contrasts_of(described)
     if not contrasts:
         settings["reason"] = (
-            f"Every analysis group is the control {control_text(control)}: no other condition "
+            f"Every analysis group is the control, {control_name(control)}: no other condition "
             "to compare."
         )
         return FeatureRanking(pd.DataFrame(), pd.DataFrame(), settings)

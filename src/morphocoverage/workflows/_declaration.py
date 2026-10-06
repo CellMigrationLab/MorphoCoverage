@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .._caveats import assumption, caveat_lines
-from .._control import control_text
+from .._control import control_name
 from .._style import rule_label, wrap
 from .._wording import count, listing, percent, plural, rate
 from ..evidence import Component
@@ -89,7 +89,7 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
     elif setup.normalize is not None:
         lines.append(
             "Values: every declared feature divided by the mean of the control "
-            f"{control_text(setup.reference_control)} {units} of the same repeat (of the whole "
+            f"{control_name(setup.reference_control)} {units} of the same repeat (of the whole "
             f"table without a repeat column); {normalised_readers()}; every stopping rule "
             "runs on the raw values in the report, optimise and benchmark as in the live "
             "decision."
@@ -290,15 +290,14 @@ def _positive(setup: Setup) -> str:
     # Several own controls are one reference, pooled: named, never as a dict (F10).
     reference = setup.reference_control or {}
     pooled = [str(v) for spec in reference.values() if isinstance(spec, tuple) for v in spec]
-    against = f"the control {control_text(reference)}"
+    against = f"the control {control_name(reference)}"
     if len(pooled) > 1:
         against = f"the controls {listing(pooled)} pooled"
     return (
-        f"Positive control: fields of {dict(positive.selector)} judged against {against} after "
-        f"{count(positive.fovs_seen, 'reference field')}, "
+        f"Positive control: fields of {control_name(positive.selector)} judged against "
+        f"{against} after {count(positive.fovs_seen, 'reference field')}, "
         f"{paired}. If fewer than {percent(setup.minimum_detection)} of its checks are "
-        "recognized (minimum_detection, a provisional preset), every adequacy answer carries "
-        "a warning."
+        "recognized, a provisional threshold, every adequacy answer carries a warning."
     )
 
 
@@ -529,10 +528,10 @@ def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> 
         positive = setup.positive
         pooled = positive.pair_cols is not None and not positive.pair_cols
         lines.append(
-            f"Positive control: fields of {dict(positive.selector)} against the control "
-            f"{control_text(setup.reference_control)}; below "
-            f"{percent(setup.minimum_detection)} recognized "
-            "(minimum_detection, a provisional preset) every adequacy answer is warned."
+            f"Positive control: fields of {control_name(positive.selector)} against the "
+            f"control {control_name(setup.reference_control)}; below "
+            f"{percent(setup.minimum_detection)} recognized, a provisional threshold, every "
+            "adequacy answer is warned."
         )
         if pooled:
             cautions.append(
