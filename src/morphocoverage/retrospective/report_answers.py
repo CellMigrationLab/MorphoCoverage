@@ -34,8 +34,10 @@ _PROBLEMS = ("Weak representation", "Data integrity")
 
 
 def conditions_sections(contrast: Any, ranking: Any, discovery: Any) -> tuple[list[str], str]:
-    """Question 9's full parts and its short section (empty without any result)."""
+    """Question 9's full parts and its short section (empty without any result); a control
+    of few fields shared by conditions significant the same way named once (``⚠️``)."""
     from ..sampling_unit.contrast_text import contrast_parts
+    from ..sampling_unit.reading_text import shared_control_line
 
     shuffled = ranking is not None and (
         discovery is None or bool(len(ranking.ranking) and ranking.ranking["tests"].any())
@@ -46,7 +48,9 @@ def conditions_sections(contrast: Any, ranking: Any, discovery: Any) -> tuple[li
         return full, ""
     answers = [contrast_parts(contrast, indent=2)] if contrast is not None else []
     answers += [r.short_parts(indent=2) for r in shown if r is not contrast]
-    return full, short_section(answers)
+    shared = shared_control_line(contrast, discovery) if contrast is not None else None
+    full += caveat_lines([shared], indent=2) if shared else []
+    return full, short_section(answers, *([shared] if shared else []))
 
 
 def short_section(parts: Sequence[tuple[list[str], list[str]]], *cautions: str) -> str:

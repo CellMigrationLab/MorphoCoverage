@@ -129,7 +129,7 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
         # As ``reading_text._paired``: the normalised q, the raw q where there is none.
         raw = repeats["p_paired_t"].notna() & repeats["q_paired_t_normalised"].isna()
         used = (
-            "the raw q: a repeat mean is not positive, so there is no ratio to the control"
+            "the raw q: a value of the feature is not positive, so there is no ratio to the control"
             if raw[repeats["p_paired_t"].notna()].all()
             else "the normalised q"
             + (

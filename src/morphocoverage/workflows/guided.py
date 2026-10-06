@@ -24,7 +24,8 @@
    proposed to confirm), then the tests that will run, one per line with its family; an
    optional positive control (a condition known to change the phenotype, for question 1);
    whether the average of each feature differs, the whole distribution (shape, spread,
-   tails), or both (stored as ``population``, ``fingerprint``, ``both``); the features to
+   tails; no mean target, ``tolerances=()``, owner 2026-10-06), or both (stored as
+   ``population``, ``fingerprint``, ``both``); the features to
    assess (several, or all the numeric columns); the readout among them; an optional column
    that marks a phenotype (true/false or 0/1 per observation: ``Setup.rare_label``, its
    share the rare target's prevalence, seen in ``RARE_FIELDS`` fields with
@@ -231,6 +232,8 @@ class Answers:
         }
         if goal == "fingerprint":
             values["fingerprint"] = self.fingerprint(scan.settings.get("feature_tables"))
+        if self.aim == "fingerprint":  # the whole distribution: no mean target (owner, 2026-10-06)
+            values["tolerances"] = ()
         if (goal == "fingerprint" and self.features) or self.positive is not None:
             # A positive control is judged by the definition of new.
             values["novelty"] = default_novelty(tuple(self.features))

@@ -54,7 +54,7 @@ def _larger(row: Mapping[str, Any]) -> str:
 def _rows(block: pd.DataFrame, feature: bool = False) -> list[list[str]]:
     rows = []
     for row in block.to_dict("records"):
-        # A fold change where every mean is positive, else the difference.
+        # A fold change on the feature's log scale, else the difference.
         folded = pd.notna(row["fold_change"])
         moved = row["fold_change"] if folded else row["effect"]
         tested = pd.notna(row["p_paired_t"])
@@ -244,7 +244,7 @@ def across_parts(contrast: Any, indent: int = 2) -> list[str]:
     if len(fell):
         lines.append(
             wrap(
-                f"{listing(list(fell['comparison']), 3)}: a mean is not positive, so the "
+                f"{listing(list(fell['comparison']), 3)}: a value is not positive, so the "
                 "differences of the raw differences are compared instead of log ratios.",
                 indent + 2,
                 hang=indent + 4,

@@ -3,10 +3,14 @@ control's, the same way in every biological repeat? (owner, 2026-10-06; question
 
 A feature table that is not read one column at a time, such as a DINO embedding, is tested
 whole, beside the per-feature tests of the explainable features, for each comparison of a
-condition with its own control. In the table's space: its columns robustly standardised on
-every observation holding all of them (``embedding.robust_scale``: median and MAD, the SD
-where the MAD is under a quarter of it), a column with one value left out. The MFA weighting
-of the combined space divides the whole table by one number (its first singular value),
+condition with its own control. In the table's space, scaled per comparison (owner,
+2026-10-06, audit 8): each column divided by the robust scale (``embedding.robust_scale``:
+the MAD as an SD, the SD where the MAD is under a quarter of it) of the within-group
+residuals of the comparison's two sides, every observation minus the centre of its side in
+its repeat, so another condition's effect or a repeat's batch never changes the scale; a
+column that does not vary within the groups is left out. Groups of one observation have no
+residual and are not read for it; with no group of two, "not tested: one observation a side
+and repeat". The MFA weighting of the combined space divides the whole table by one number,
 which changes none of the statistics below, so it is not applied.
 
 - **Repeat-level verdict**, the one to report. The field is the sampling unit: each field's
@@ -19,7 +23,7 @@ which changes none of the statistics below, so it is not applied.
   ``s_r`` is above 0, with its t corrected for the repeats the ``s_r`` share: repeat ``q``
   enters every ``u_−r`` but its own, so under no effect the ``s_r`` are positively
   correlated, by up to ``1/(n − 1)`` in a table of many effective dimensions, and the plain
-  t-test rejected 8-22% of null datasets at 5% (``data/simulations/whole_table.py``). The
+  t-test rejected 8-20% of null datasets at 5% (``data/simulations/whole_table.py``). The
   t is multiplied by ``sqrt((n − 2) / (2 (n − 1)))``, the factor at that largest
   correlation (``n − 1`` degrees of freedom): calibrated in wide tables, conservative in
   narrow ones. It needs ``MIN_REPEATS`` (3) repeats; with fewer, "not tested: n repeats".
@@ -35,9 +39,9 @@ which changes none of the statistics below, so it is not applied.
   shift particular to one repeat's unnamed wells, so it is then anti-conservative when the
   wells of a repeat differ (a batch), as the cell-level screen is.
 - **Effect size**: the length of the mean shift over the repeats, ``|mean_r Δ_r|``, in units
-  of the within-group spread: the root of the summed variances of the observations around
-  their own group's centre (a side in a repeat), the typical distance of an observation from
-  its group's centre. One column of a single feature gives a Cohen's d.
+  of the within-group spread, on the same scale: the root of the summed variances of the
+  observations around their own group's centre (a side in a repeat), the typical distance of
+  an observation from its group's centre. One column of a single feature gives a Cohen's d.
 
 Benjamini-Hochberg: the repeat-level tests of one table form one family per
 sub-experiment (the conditions linked by the repeats they were compared in, ``_experiments``),
@@ -71,6 +75,8 @@ MIN_REPEATS = 3
 MIN_ASSIGNMENTS = 40
 PERMUTATIONS = 999
 ALPHA = 0.05
+# A comparison whose sides hold one observation in every repeat: no within-group residual.
+ONE_EACH = "not tested: one observation a side and repeat"
 COLUMNS = (
     "table",
     "condition",
@@ -170,30 +176,37 @@ class WholeTable:
         return self.tests[self.tests["q_repeats"] <= alpha]
 
 
-def _standardised(matrix: np.ndarray) -> np.ndarray:
-    """The columns that vary, robustly standardised (see the module)."""
-    centre, scale = robust_scale(matrix)
+def _scaled(values: np.ndarray, groups: np.ndarray) -> np.ndarray | None:
+    """``values`` divided by the robust scale of their within-group residuals, the columns
+    that vary within the groups only (see the module); ``None`` when no group of ``groups``
+    holds two observations."""
+    sizes = np.bincount(groups)
+    several = sizes[groups] > 1
+    if not several.any():
+        return None
+    centres, _codes = _mean_by(values, groups)
+    _centre, scale = robust_scale((values - centres[groups])[several])
     varies = scale > 0
-    return (matrix[:, varies] - centre[varies]) / scale[varies]
+    return values[:, varies] / scale[varies]
 
 
 def _table_rows(
     name: str,
-    z: np.ndarray,
+    values: np.ndarray,
     meta: pd.DataFrame,
     pairs: Sequence[tuple[Any, Any]],
     permutations: int,
     random_state: int,
     shuffled: str = "field",
 ) -> list[dict[str, Any]]:
-    """One row per comparison for one table (``z``: standardised complete observations,
-    ``meta`` their condition, repeat, field and, when the data name one, the unit shuffled,
-    ``shuffled`` its name)."""
+    """One row per comparison for one table (``values``: the complete observations, raw,
+    scaled here per comparison; ``meta`` their condition, repeat, field and, when the data
+    name one, the unit shuffled, ``shuffled`` its name)."""
     if "unit" not in meta:
         meta = meta.assign(unit=meta["field"])
-    means, codes = _mean_by(z, meta["field"].to_numpy())
+    field_codes = np.unique(meta["field"].to_numpy(), return_inverse=True)[1].reshape(-1)
     columns = [CONDITION_COLUMN, REPEAT_COLUMN, "unit"]
-    field_meta = meta.groupby(codes, sort=True)[columns].first()
+    field_meta = meta.groupby(field_codes, sort=True)[columns].first()
     condition = field_meta[CONDITION_COLUMN].to_numpy()
     repeat = field_meta[REPEAT_COLUMN].to_numpy()
     unit = field_meta["unit"].to_numpy()
@@ -211,6 +224,17 @@ def _table_rows(
         if not both:
             rows.append({**row, "status": "not tested: no repeat holds both"})
             continue
+        observed = np.isin(meta[REPEAT_COLUMN].to_numpy(), both) & np.isin(
+            meta[CONDITION_COLUMN].to_numpy(), [treated, control]
+        )
+        codes = meta.loc[observed].groupby([CONDITION_COLUMN, REPEAT_COLUMN]).ngroup().to_numpy()
+        z = _scaled(values[observed], codes)
+        if z is None:
+            rows.append({**row, "status": ONE_EACH})
+            continue
+        # Every field mean of the table; the fields outside the comparison stay at 0.
+        means = np.zeros((len(field_meta), z.shape[1]))
+        means[np.unique(field_codes[observed])] = _mean_by(z, field_codes[observed])[0]
         chosen = np.isin(repeat, both) & np.isin(condition, [treated, control])
         side = (condition[chosen] == treated).astype(int)
         deltas = np.array(
@@ -227,16 +251,8 @@ def _table_rows(
         distance, p_shuffle = shuffle_test(
             unit_means, side[first], repeat[chosen][first], permutations, rng
         )
-        observed = np.isin(meta[REPEAT_COLUMN].to_numpy(), both) & np.isin(
-            meta[CONDITION_COLUMN].to_numpy(), [treated, control]
-        )
-        groups = meta.loc[observed].groupby([CONDITION_COLUMN, REPEAT_COLUMN]).ngroup()
-        points = z[observed]
-        codes = groups.to_numpy()
-        sums = np.zeros((codes.max() + 1, z.shape[1]))
-        np.add.at(sums, codes, points)
-        centres = (sums / np.bincount(codes)[:, None])[codes]
-        spread = np.square(points - centres).sum() / max(1, len(points) - len(sums))
+        centres, _codes = _mean_by(z, codes)
+        spread = np.square(z - centres[codes]).sum() / max(1, len(z) - len(centres))
         shift = float(np.linalg.norm(deltas.mean(axis=0)))
         effect = shift / float(np.sqrt(spread)) if spread > 0 else float("nan")
         tested = len(both) >= MIN_REPEATS and np.isfinite(p)
@@ -306,7 +322,6 @@ def whole_table_tests(
         matrix = data.feature_matrix()
         complete = ~np.isnan(matrix).any(axis=1)
         left[name] = int((~complete).sum())
-        z = _standardised(matrix[complete])
         key = frame.loc[complete].groupby(list(data.fov_key), dropna=False).ngroup()
         shuffled, above = _units(data)
         unit = frame.loc[complete].groupby(above, dropna=False).ngroup() if above else key
@@ -318,7 +333,9 @@ def whole_table_tests(
                 "unit": unit.to_numpy(),
             }
         )
-        found = _table_rows(name, z, meta, pairs, permutations, random_state, shuffled)
+        found = _table_rows(
+            name, matrix[complete], meta, pairs, permutations, random_state, shuffled
+        )
         rows += [{**row, "left_out": left[name]} for row in found]
     tests = pd.DataFrame(rows).reindex(columns=list(COLUMNS))
     if len(tests):
@@ -343,6 +360,7 @@ def whole_table_tests(
 __all__ = [
     "MIN_ASSIGNMENTS",
     "MIN_REPEATS",
+    "ONE_EACH",
     "PERMUTATIONS",
     "WholeTable",
     "assignments",

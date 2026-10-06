@@ -118,7 +118,7 @@ def live_session(
         raise TypeError("setup must be a morphocoverage.workflows.Setup")
     if objective is not None and not isinstance(objective, ObjectiveConfig):
         raise TypeError("objective must be a morphocoverage.ObjectiveConfig")
-    columns = embedding_columns(setup, rules, objective) if setup.embedding_only else None
+    columns = embedding_columns(setup, rules)
     return _CheckedSession(
         strategies=list(setup.stopping_rules() if rules is None else rules),
         feature_cols=columns or setup.columns,

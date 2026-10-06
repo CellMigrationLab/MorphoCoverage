@@ -90,15 +90,28 @@ def _block(steps: Sequence[tuple[str, str]]) -> str:
 _GUARD = '# In a script, run this under: if __name__ == "__main__":\n'
 
 
-def _optimise_code(feature: str, counts: list[int], readout: str | None = None) -> str:
-    setup = (
-        "setup = result.setup\n"
-        if feature == readout
-        else f"setup = replace(result.setup, readout={feature!r})\n"
-    )
+def _mean_tolerances(setup: Any) -> tuple[tuple[float, ...], str]:
+    """The tolerances a mean goal plans for, and the code that declares them: the setup's,
+    or the default when it declares no mean target (``tolerances=()``, the whole
+    distribution; owner, 2026-10-06)."""
+    if setup.tolerances:
+        return tuple(setup.tolerances), ""
+    from dataclasses import fields
+
+    default = next(f.default for f in fields(setup) if f.name == "tolerances")
+    return default, f", tolerances={default!r}"
+
+
+def _optimise_code(
+    feature: str, counts: list[int], readout: str | None = None, extra: str = ""
+) -> str:
+    """The code that plans the fields for the mean of ``feature`` (``extra``: more fields
+    of the setup to replace, ``, tolerances=(0.05, 0.025)``)."""
+    replaced = ("" if feature == readout else f", readout={feature!r}") + extra
+    setup = f"setup = replace(result.setup{replaced})\n" if replaced else "setup = result.setup\n"
     return (
         _GUARD
-        + ("" if feature == readout else "from dataclasses import replace\n")
+        + ("from dataclasses import replace\n" if replaced else "")
         + "from morphocoverage.workflows import optimise\n\n"
         + setup
         + f"plan = optimise(objects, fovs, setup, fov_counts={counts}, "

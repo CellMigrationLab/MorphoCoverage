@@ -25,7 +25,7 @@ from .._style import Status, group_label, span
 from .._wording import change, count, listing, p_value
 from ..retrospective.inspection_text import _fields, _keys
 from ..sampling_unit._experiments import not_compared
-from ..sampling_unit.contrast_repeats import MIN_REPEATS
+from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.reading_text import VERDICTS, condition_readings, unpaired_conditions
 from ..schema import observation_words
 from ._distribution import split_words
@@ -221,9 +221,13 @@ def _condition_words(
             words = count(len(confirmed), "feature")
             listed = _named(confirmed, lambda row: _significant(row, unit))
         else:
+            # The trend line from TREND_REPEATS repeats only (owner, 2026-10-06, audit 8).
             consistent = candidates[
-                (candidates["lower"] == candidates["repeats"])
-                | (candidates["higher"] == candidates["repeats"])
+                (
+                    (candidates["lower"] == candidates["repeats"])
+                    | (candidates["higher"] == candidates["repeats"])
+                )
+                & (candidates["repeats"] >= TREND_REPEATS)
             ]
             words = "no feature significant across repeats"
             if len(consistent):

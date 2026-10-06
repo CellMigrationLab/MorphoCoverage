@@ -23,7 +23,7 @@ import pandas as pd
 from .._caveats import assumption
 from .._control import versus
 from .._style import span, table, wrap
-from .._wording import column_word, count, listing, p_value, percent
+from .._wording import column_word, count, features_counted, listing, p_value, percent
 from ..schema import observation_words
 from .contrast_cells import (
     ALPHA,
@@ -258,13 +258,16 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
         names += [f"{words} per repeat, condition / control"] if full else []
         names.append(f"gives p ≤ {ALPHA:g} with no effect")
         lines.append(table(rows, names, indent=indent + 2))
-    features = contrast.settings.get("family_features")
+    settings = contrast.settings
+    features = settings.get("family_features")
     if features and features > 1:
         # The version the reading uses shares the family of every feature (_families).
         lines.append(
             wrap(
                 "q: the version the reading uses (balanced and normalised when given, else "
-                f"normalised) is corrected over the {features} features and their conditions "
+                "normalised) is corrected over the "
+                f"{features_counted(int(features), settings.get('family_share'), ', ')} and "
+                "their conditions "
                 "of each sub-experiment, as the feature ranking; the other columns over this "
                 "feature's conditions only.",
                 indent + 2,

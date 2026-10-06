@@ -42,8 +42,8 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
         (
             f"Population summary: the mean of {setup.readout} over all {units}, within "
             f"{tolerances} of its value on held-back fields."
-            if setup.readout is not None
-            else NO_READOUT
+            if setup.mean_target
+            else _no_mean(setup)
         )
     ]
     if setup.fingerprint:
@@ -121,6 +121,17 @@ def _tables_centred(per_field: bool) -> str:
     return TABLES_CENTRED.replace("populations, unusual observations and", "populations and")
 
 
+def _no_mean(setup: Setup) -> str:
+    """The population-summary line without a mean target: ``NO_READOUT``, or ``NO_MEAN``."""
+    return NO_READOUT if setup.readout is None else NO_MEAN.format(readout=setup.readout)
+
+
+# A readout with tolerances=(), the guided "whole distribution" (owner, 2026-10-06).
+NO_MEAN = (
+    "Population summary: not declared (tolerances=()), the whole distribution being the aim, "
+    "so the mean-precision rules are not declared; the tests still compare the mean of "
+    "{readout} between the conditions."
+)
 # An embedding-only Setup's population summary, the one place it is said (owner, 2026-10-06).
 NO_READOUT = (
     "Population summary: none, as there is no readout (no explainable features, an "
@@ -307,8 +318,12 @@ def _rules(setup: Setup) -> str:
         line += (
             f" The mean-precision rules stop when the standard error of the mean is {cvs} of "
             f"the mean (its averaging CV), not on a bound of ±{rate(targets[0])} on its error; "
-            f"whether the mean is within {' and '.join(rate(t) for t in setup.tolerances)} is "
-            "judged on held-back fields by optimise, never by the rules or this report."
+            + (
+                f"whether the mean is within {' and '.join(rate(t) for t in setup.tolerances)} "
+                "is judged on held-back fields by optimise, never by the rules or this report."
+                if setup.tolerances
+                else "no mean target is declared (tolerances=())."
+            )
         )
     return line
 
@@ -470,8 +485,8 @@ def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> 
         (
             f"Population summary: the mean of {setup.readout} over all {setup.unit_words}, within "
             f"{tolerances} (judged on held-back fields by optimise)."
-            if setup.readout is not None
-            else NO_READOUT
+            if setup.mean_target
+            else _no_mean(setup)
         )
     ]
     cautions = []
@@ -524,9 +539,13 @@ def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> 
         cautions.append(
             assumption(
                 f"the mean-precision rules stop when the standard error of the mean is {cvs} of "
-                f"the mean (its averaging CV), not on a ±{rate(targets[0])} bound on its error; "
-                f"whether the mean is within {tolerances} is judged on held-back fields by "
-                "optimise"
+                f"the mean (its averaging CV), not on a ±{rate(targets[0])} bound on its error"
+                + (
+                    f"; whether the mean is within {tolerances} is judged on held-back fields "
+                    "by optimise"
+                    if setup.tolerances
+                    else ""
+                )
             )
         )
     order, order_cautions = _order_short(setup)

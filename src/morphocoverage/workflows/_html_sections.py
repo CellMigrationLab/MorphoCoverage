@@ -216,7 +216,7 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
             "that the features see a change."
         )
     tolerances = " and ".join(rate(t) for t in setup.tolerances)
-    if setup.readout is not None:
+    if setup.mean_target:
         lines.append(
             f"Precision asked: the mean of {setup.readout} within {tolerances} of its value "
             "(judged on held-back fields by optimise; the stopping rules stop when its standard "

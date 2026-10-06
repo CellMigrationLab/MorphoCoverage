@@ -152,8 +152,8 @@ def test_question_9_leads_with_the_answer_across_repeats(screen):
     assert headline == (
         "Filopodia number, 12 conditions against the control, each in 3 biological repeats "
         "(18 in all): significant across repeats: siCCT8#5, siCCT8#8, siCSNK1A1#11, "
-        "siCSNK1A1#5, siSCRIB#6 and siSCRIB#7 (lower); siMAP4K4#5 (higher); same direction in "
-        "every repeat, not significant: siMINK1#10 and siMINK1#3 (lower); siMAP4K4#6, "
+        "siCSNK1A1#5, siSCRIB#6 and siSCRIB#7 (lower); siMAP4K4#5 (higher); not significant "
+        "across repeats: siMINK1#10 and siMINK1#3 (lower); siMAP4K4#6, "
         "siNF2#17 and siNF2#7 (higher); the reagents of a target go the same way in every "
         "repeat for 6 of 6 targets (described, not tested)"
     )
@@ -167,7 +167,7 @@ def test_two_repeats_and_one_coverslip_are_described_not_flagged(screen):
     )
     status, headline = conditions_status(two, None)
     assert status.name == "NOT_ASSESSED"
-    assert "each in 2 biological repeats (12 in all): same direction in every repeat" in headline
+    assert "each in 2 biological repeats (12 in all): not tested across repeats" in headline
     assert "within repeats: no test (one well per condition in a" in headline
     assert "⚠️" not in two.summary()
     assert "the paired test across repeats needs 3" in " ".join(two.summary().split())

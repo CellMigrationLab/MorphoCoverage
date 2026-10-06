@@ -66,9 +66,11 @@ between the controls besides every declared column whose name contains "intensit
   target is stated and planned for, not judged.
 - In the guided session, the aim sets the fingerprint: "averages" declares none; "the whole
   distribution" or "both" declares a covariance criterion on the features and one per table
-  at one tolerance, and the default definition of new on the features. The mean stays a
-  target whenever there is a readout. Without explainable features the aims are the whole
-  distribution, the labelled phenotype, or both.
+  at one tolerance, and the default definition of new on the features. "The whole
+  distribution" declares no mean target (`tolerances=()`), so no mean-precision rule, and
+  the declaration says so once; "averages" and "both" keep the mean target (owner,
+  2026-10-06). Without explainable features the aims are the whole distribution, the
+  labelled phenotype, or both.
 
 **Repeats and wells.**
 
@@ -102,7 +104,7 @@ flowchart TD
     OWN --> NRM{"normalize?"}
     NRM -- "yes" --> NV["Populations and separation on normalised and centred values"]
     IN --> FP{"Fingerprint?"}
-    FP -- "yes" --> FPT["Fingerprint per table; beyond the mean with a control"]
+    FP -- "yes" --> FPT["Fingerprint per table; beyond the mean on its explainable features, with a control"]
     IN --> LB{"rare_label?"}
     LB -- "yes" --> LBT["Rare clustering; with explainable features, label share tested and label check"]
 ```
@@ -121,7 +123,7 @@ the contrast table, or the one control.
 
 | Analysis | Values it reads | Level | Correction family | Not run, or not applicable, when |
 | --- | --- | --- | --- | --- |
-| Paired t across repeats, the main rows | raw means per repeat; tested on the log ratio to the own control, the difference where a mean is not positive; raw beside | biological repeat | Benjamini-Hochberg over every explainable feature, the label share and every main row, per sub-experiment | fewer than 3 repeats: direction and d only; no repeat holds both: "Not compared" |
+| Paired t across repeats, the main rows | raw means per repeat; tested on the log ratio to the own control when every observation of the feature is positive, else the difference, one scale per feature for every condition (owner, 2026-10-06); raw beside | biological repeat | Benjamini-Hochberg over every explainable feature, the label share and every main row, per sub-experiment | fewer than 3 repeats: direction and d only; no repeat holds both: "Not compared" |
 | `across_normalised` rows | per repeat, each condition's log ratio to its own control, their difference | repeats holding all four | one family over every feature and row of this kind | fewer than 3 repeats: named, not compared; no treatment key: no row |
 | `vs_master_raw` rows | per repeat, the raw difference of a control and the master | repeats holding both | one family over every feature and row of this kind | no master; a pair joined by a parent link |
 | Cell-level screen | observations pooled over repeats, divided by the same repeat's control mean when every control mean is positive; balanced when the repeats are unbalanced | observation | the same family as the paired t | the control pooled from other repeats with no balanced test possible |
@@ -132,8 +134,8 @@ the contrast table, or the one control.
 | "Did I image enough?" per feature | per repeat, the bootstrap interval of d over wells then fields; the mean-precision rules on raw values | repeat and condition; each analysis group | none | fewer than 2 explainable columns: the readout's answer only; no control |
 | Mean-precision stopping rules | the raw readout, upper 95% bound at the first tolerance | analysis group, per object and per field | none | no readout |
 | Fingerprint | as declared, or on the first k principal components when wider than a fifth of the smallest group; divided by the control with one control and `normalize`, raw with several | analysis group of at least 4 fields | none | groups of fewer than 4 fields: not judged |
-| Beyond the mean | per repeat against the own control: SD ratio, 10%, 50% and 90% quantile shifts | biological repeat | its own family per sub-experiment | no fingerprint, of any table; no control |
-| Rare label | its share compared like a feature; the label check on the nearest cell of another field; clustering in fields | observation, field | the features' family; clustering over groups and states | label check with a positive control declared; without explainable features, clustering only |
+| Beyond the mean | the explainable features the fingerprint reads, per repeat against the own control on field-balanced subsamples (owner, 2026-10-06): SD ratio, 10%, 50% and 90% quantile shifts | biological repeat | its own family per sub-experiment | no fingerprint; a fingerprint reading no explainable feature, said once; no control |
+| Rare label | its share compared like a feature; the label check on the nearest cell of another field; clustering in fields | observation, field | the features' family; clustering over groups and states | label check with a positive control declared; without explainable features, clustering only; one observation per field: no clustering in question 3, the one-per-field reason instead (owner, 2026-10-06) |
 | Populations | the readout and `features` as the figures read them, MFA across two or more explainable tables | observation; enrichment per repeat | groups and conditions per sub-experiment | fewer than 2 columns; enrichment without a control or with fewer than 3 repeats |
 | Unusual observations | the declared `features` raw, MFA across tables, against each own control | observation; clustering per field | groups and states | no control, no `features`, one observation per field |
 | Novelty and the positive control | the declared `features` raw, MFA across tables, fitted on the visible fields | field | none | no `novelty`; one observation per field when a new state needs several in one field |
@@ -155,7 +157,7 @@ names only the tables.
 | Analysis | Values it reads | Level | Correction family | Not run, or not applicable, when |
 | --- | --- | --- | --- | --- |
 | Per-feature tests, heatmap, SuperPlots, "enough" per feature | never | | | always |
-| Whole-table test, the verdict | raw columns robustly standardised, field means, the shift per repeat projected on the other repeats' mean shift | biological repeat | per table and sub-experiment, apart from the features | no control or no repeat column; fewer than 3 repeats: "not tested"; rows across experiments are not tested |
+| Whole-table test, the verdict | raw columns robustly scaled per comparison on its two sides' within-group residuals (owner, 2026-10-06), field means, the shift per repeat projected on the other repeats' mean shift | biological repeat | per table and sub-experiment, apart from the features | no control or no repeat column; fewer than 3 repeats: "not tested"; rows across experiments are not tested |
 | Whole-table shuffle | the same centres, labels of units shuffled within repeats, 999 times | wells, else the group columns beyond condition and repeat, else fields | none, in `tests_whole_table.csv` only | fewer than 40 distinct assignments |
 | Mean-precision rules | none | | | always |
 | Fingerprint per table | raw columns robustly standardised, the first k principal components fitted on every complete observation | analysis group of at least 4 fields | none | k under 2: not assessable; no group of 4 fields: kept as declared, judged in no group |
@@ -170,7 +172,9 @@ names only the tables.
 | `live_session` | the columns sent with each field | analysis group | none | no `rules` in an embedding-only Setup |
 
 The whole-table headline names a condition shifted the same way in every repeat as a trend
-when no shift is significant. The test, its calibration and its words are in
+when no shift is significant, from 6 repeats only, as the per-feature "same direction in
+every repeat, not significant" (owner, 2026-10-06): with fewer, every repeat goes the same
+way without an effect too often (25% with 3 repeats, 13% with 4). The test, its calibration and its words are in
 [the whole-table test](../report/conditions.md#the-whole-table-test-other-feature-tables);
 the spaces and the centred view in
 [feature tables and maps](../report/feature_tables_and_maps.md).
@@ -203,8 +207,9 @@ report. No test reads them: the whole-table test and the fingerprint read raw va
 
 **Robust standardisation and MFA weighting.** Before distances or principal components,
 each column is centred on its median and divided by its MAD as an SD, or by its SD when the
-MAD is under a quarter of it: the maps, the populations, the separation, the whole-table
-test and a wide fingerprint read this. Novelty uses its own transform, `RobustStandardize`
+MAD is under a quarter of it: the maps, the populations, the separation and a wide
+fingerprint read this; the whole-table test divides by the same robust scale, taken per
+comparison on the within-group residuals of its two sides (owner, 2026-10-06). Novelty uses its own transform, `RobustStandardize`
 by default, and unusual observations a mean and SD fitted on the reference. MFA weighting
 divides each table by its first singular value so that a wide or correlated table does not
 outweigh another: the explainable tables among themselves when there are two or more, for

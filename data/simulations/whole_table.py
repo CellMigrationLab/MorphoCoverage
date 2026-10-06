@@ -24,7 +24,8 @@ Each setting is ``N_REPLICATES`` datasets; ``rate`` is the share with p <= 0.05,
 standard error. The plain paired t on the ``s_r`` (``plain``) is given beside the corrected
 one the package uses (``repeats``), for the reason of the correction, and the image-level
 test (``image``). The tests are the package's own (``whole_table._table_rows``) on the
-generated observations, standardised as the package does.
+generated observations, scaled as the package does: on the within-group residuals of the
+comparison's two sides (owner, 2026-10-06, audit 8).
 
 Results: ``results/whole_table.csv``. Usage, from the repository root::
 
@@ -44,7 +45,7 @@ import pandas as pd
 from scipy import stats
 
 from morphocoverage.metadata import CONDITION_COLUMN, REPEAT_COLUMN
-from morphocoverage.sampling_unit.whole_table import _standardised, _table_rows, projections
+from morphocoverage.sampling_unit.whole_table import _scaled, _table_rows, projections
 
 N_REPLICATES = 400
 PERMUTATIONS = 199
@@ -120,11 +121,11 @@ def _setting(arguments: tuple) -> dict:
             repr((repeats, unit, dimensions, batch, uneven, effect, replicate)).encode()
         )
         values, meta = _dataset(repeats, unit, dimensions, batch, uneven, effect, seed)
-        z = _standardised(values)
-        row = _table_rows("t", z, meta, [("cond", "ctrl")], PERMUTATIONS, replicate)[0]
+        row = _table_rows("t", values, meta, [("cond", "ctrl")], PERMUTATIONS, replicate)[0]
         hits["repeat_level"] += row["p_repeats"] <= 0.05
         hits["image_level"] += row["p_shuffle"] <= 0.05
-        hits["plain"] += _plain_p(z, meta) <= 0.05
+        groups = meta.groupby([CONDITION_COLUMN, REPEAT_COLUMN]).ngroup().to_numpy()
+        hits["plain"] += _plain_p(_scaled(values, groups), meta) <= 0.05
     rows = {}
     for test, hit in hits.items():
         rate = hit / N_REPLICATES

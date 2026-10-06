@@ -90,8 +90,9 @@ other features' rows at q ≤ 0.05 and a count of them all, and "At a glance" ad
 "across experiments: 1 of 8 significant" when any is. Every row is saved, with its kind,
 label, feature, repeats, change, p and q, as `tests_across_experiments.csv`, with a CSV
 button under the block on the page. A row held in fewer than 3 repeats is named once as not
-compared, and where a mean is not positive (a signed feature) the raw differences are
-compared instead of log ratios, and the table says so for that feature.
+compared, and for a feature with a value that is not positive (a signed feature) the raw
+differences are compared instead of log ratios, the scale of its main test, and the table
+says so for that feature.
 `Setup(contrasts=table)` takes a table of the same columns (`kind`, `condition`,
 `reference`, `condition_control`, `reference_control`, `family`, `label`) in place of the
 generated one. A condition has one `own_control` row: a table giving it two is refused, and
@@ -213,6 +214,15 @@ small, nothing is balanced and only the test as provided is given.
 - **The paired t** assumes the per-repeat differences (raw) or log ratios
   (normalised) are normally distributed and the repeats are independent. It
   pairs each condition with the control of the same repeat.
+- **A shared control** enters every comparison with it, so a control mean off by chance in
+  a repeat moves them all: the false-discovery rate holds, but the conditions' verdicts are
+  not independent. When two or more conditions are significant the same way against a
+  control imaged in fewer than 3 fields in a repeat, the section says so in one line
+  ("Shared small control: on area, siA#1 and siA#2 against siCTRL, 1 field in a repeat";
+  owner, 2026-10-06). Three fields is where the dependence levels off (audit 8, two
+  conditions of 3 fields of 20 cells under no effect: their changes correlate at 0.82 with a
+  control of one field of 4 cells, 0.66 with one field of 20, 0.56 with two, 0.37-0.39 with
+  three or five).
 - **Normalising** assumes a positive feature on a ratio scale. It is not
   computed when a control mean is 0 or below (a signed feature, a difference
   already).
@@ -324,7 +334,11 @@ the paired test kept as the second gate):
   Benjamini-Hochberg over all of them within each sub-experiment, a feature passing at q ≤ 0.05; passing
   features are ranked by |d| and the plots draw the best-ranked.
 - **The second gate**: the paired t on the repeat means (log ratios when every
-  mean is positive), Benjamini-Hochberg over every feature and condition of a
+  observation of the feature is positive, else differences: the scale is chosen once per
+  feature from all its observations, the same for every condition, and the test's
+  description says so; owner, 2026-10-06, after audit 8 found that choosing it per
+  condition from its means let an offset of the feature change the power, from 36% to
+  50% for the same effect), Benjamini-Hochberg over every feature and condition of a
   sub-experiment with 3 or more repeats. A passing feature it also passes is *significant across
   repeats*.
 
@@ -353,17 +367,40 @@ for one to pass.
 The report compares a rare label's share between the
 conditions like a feature (`"<label> share"`: the ranking, the heatmap, the
 figures, which plot one point per field, its share of labelled cells, while the
-tests keep the cells), and, with a fingerprint, each feature's distribution beyond the
-mean: per biological repeat against its own control, the spread (the SD
-ratio) and the 10%, 50% and 90% quantiles (their shift in control SDs), each
-tested across the repeats (Benjamini-Hochberg within each sub-experiment,
-a family of its own). A condition whose distribution differs answers the
-question like a feature significant across repeats. When a condition's cells
-may split into two groups on a feature where the control's do not (Sarle's
+tests keep the cells). The share stays in every family the features are corrected in (the
+main rows and the rows across experiments), and every count names it apart from them: "0
+of 4 features and the mitotic share are candidates", "over its 4 features, the mitotic share
+and their conditions" (owner, 2026-10-06). With a fingerprint, the report also compares
+beyond the mean the distribution of each explainable feature the fingerprint reads (none
+for a fingerprint declared on a DINO table alone, which the section says once): per
+biological repeat against its own control, the spread (the SD ratio) and the 10%, 50% and
+90% quantiles (their shift in control SDs), each tested across the repeats
+(Benjamini-Hochberg within each sub-experiment, a family of its own). A condition whose
+distribution differs answers the question like a feature significant across repeats.
+
+Both sides are read on **field-balanced subsamples** (owner, 2026-10-06): per repeat, the
+same number of fields a side, the smaller side's, drawn at random among each side's fields,
+and the same number of cells in each field, the smallest field's of either side (at most
+100), drawn at random; the statistics are averaged over 50 such draws, seeded as every
+draw of the package (one draw when nothing is left out). On the cells pooled, the field
+design read as an effect: a control of one field of 60 cells against three fields of 20
+has no field-to-field variation in its spread. Null calibration
+(`data/simulations/beyond_the_mean.py`, results in
+`data/simulations/results/beyond_the_mean.csv`; 400 datasets per setting, 3 and 6 repeats,
+5 features, field SD 0.5 or 1 cell SD, equal sides, a control of one field of 60 or of 6
+cells, a condition that lost cells, and uneven random counts): each statistic gave
+p ≤ 0.05 in 3.6-5.8% of tests, and any q ≤ 0.05 over the 20 tests in 2.8-7.0% of
+datasets. The same tests on the pooled cells gave up to 56% for the spread and up to 13%
+for the outer quantiles, and up to 31% of datasets with a q ≤ 0.05 (6 repeats, a control of
+one field of 60 cells, field SD 1; audit 8 found 56% and 34% on its own design, now 4%
+and 3%).
+
+When a condition's cells may split into two groups on a feature where the control's do not (Sarle's
 bimodality coefficient above 5/9 for the condition without a heavy tail, excess
 kurtosis at most 2, since a skewed single-peaked feature reaches 5/9 too, and
 below 5/9 for the control, in at least half of its repeats that can be assessed),
-the summary says so and points to its figure: described, not tested. A repeat
+the summary says so and points to its figure: described, not tested, on every observation
+pooled. A repeat
 whose coefficient is undefined, with fewer than 4 cells on a side or no spread,
 leaves the denominator and is named ("1 repeat not assessed: 3 cells"), and a
 condition with no repeat assessed is said not assessed (owner, 2026-10-05).
@@ -381,10 +418,17 @@ are the main rows of the contrast table (each condition against its own control,
 against its parent); its rows across experiments are tested feature by feature only, as a
 difference of log ratios has no meaning in an embedding, and the report says so once.
 
-The table's columns are robustly standardised on every observation holding all of them, as
-the maps do (median and MAD, the SD where the MAD is under a quarter of it). The MFA
-weighting of the combined space divides a whole table by one number, which changes none of
-the statistics below.
+Each comparison scales the table's columns on its own two sides (owner, 2026-10-06): every
+observation of the condition and of its control, in the repeats holding both, minus the
+centre of its side in its repeat; each column is divided by the robust scale of these
+within-group residuals, as the maps scale theirs (the MAD as an SD, the SD where the MAD is
+under a quarter of it). Another condition's effect or a repeat's batch thus never changes
+a comparison's scale: on all the observations, a condition shifted 4 SDs on one column cut
+another comparison's power from 43% to 9% (audit 8); scaled on its own sides, it stays at 46%. A column that does not vary within
+the groups is left out; a comparison whose sides hold one observation in every repeat has
+no residual and is "not tested, one observation a side and repeat". The MFA weighting of
+the combined space divides a whole table by one number, which changes none of the
+statistics below.
 
 - **Across repeats, the verdict.** The field is the sampling unit: each field's
   observations are averaged first (a field of one image is that image), and a side's
@@ -395,7 +439,7 @@ the statistics below.
   paired t-test across repeats with its t **corrected for the repeats the projections
   share**: repeat `q` enters every `u_−r` but its own, so without an effect the `s_r` are
   positively correlated, by up to `1/(n − 1)` in a table of many effective dimensions, and
-  the plain paired t rejected 8-22% of null datasets at 5% in the simulation below. The t is
+  the plain paired t rejected 8-20% of null datasets at 5% in the simulation below. The t is
   multiplied by `sqrt((n − 2) / (2 (n − 1)))`, its value at that largest correlation (`n −
   1` degrees of freedom): calibrated in wide tables, conservative in narrow ones. It needs 3
   repeats; with fewer, "not tested across repeats, 2 repeats". Benjamini-Hochberg: the tests
@@ -412,7 +456,7 @@ the statistics below.
   units differ, not whether the shift repeats, and shuffling fields counts any well effect
   the data do not name.
 - **The effect size**: the length of the mean shift over the repeats in within-group SDs,
-  the root of the summed variances of the observations around their own group's centre (a
+  on the comparison's scale: the root of the summed variances of the observations around their own group's centre (a
   side in a repeat), the typical distance of an observation from its group's centre. For one
   column it is a Cohen's d.
 
@@ -420,7 +464,10 @@ The text reads, per table and comparison: "DINO (384 columns): - THBS5_SiCol6a1 
 THBS5_SiNC: shifted the same way in 4 of 5 repeats, p 0.03 (q 0.06) across repeats; the
 centres 0.41 within-group SDs apart." A shift
 significant across repeats is named in the answer's line, so "At a glance" mentions it,
-and turns the marker to ✅. The page shows the block under "Do the conditions differ?" and
+and turns the marker to ✅. When none is, a comparison shifted the same way in every repeat
+is named as a trend from 6 repeats only (owner, 2026-10-06): with fewer, the projections are
+all positive without an effect too often (25% of null datasets with 3 repeats, 13-15% with
+4, 7-9% with 5, 3-5% with 6; audit 8). The page shows the block under "Do the conditions differ?" and
 saves the tests as `tests_whole_table.csv`. Observations missing a value of the table are
 left out, counted. The cost is a few matrix products per comparison: under a second for the
 ECM tables, little beside the per-feature work.
@@ -429,17 +476,22 @@ ECM tables, little beside the per-feature work.
 `data/simulations/results/whole_table.csv`): 400 datasets per setting, 3, 4 and 6 repeats,
 one image per field (6 a side and repeat) or 20 cells in each of 5 fields, 50 and 384
 correlated columns, with and without a batch (a shift of each repeat and of each well),
-even and uneven counts (2 to 10 fields a side and repeat). Without an effect, the repeat-level
-test rejected 2.3-7.5% at 5% (mean 4.1% without a batch, 4.5% with one; the highest, 7.5%,
-with 3 repeats, within two standard errors of 5%); the plain paired t on the same
-projections 8-22%. The shuffle test, on fields since the simulated wells are not named,
-rejected 2.5-7.8% without a batch, and with one it is **anti-conservative**, as the
-cell-level screen is: 13-22% with one image per field and 39-58% with 20 cells per field,
-since a well's own shift counts for it; hence wells shuffled when named, and never a
-verdict. Power, a shift of
-0.3 within-group SDs in every repeat: 58% with 3 repeats, 79% with 4, 97% with 6 (34%, 57%
-and 86% with a batch); a shift of 0.6: 94% with 3 repeats (82% with a batch) and at least
-98% from 4.
+even and uneven counts (2 to 10 fields a side and repeat), each comparison scaled on its own
+two sides. Without an effect, the repeat-level test rejected 1.8-7.5% at 5% (mean 4.1%
+without a batch, 4.4% with one; the highest, 7.5%, with 3 repeats, within two standard
+errors of 5%); the plain paired t on the same projections 8-20%. The shuffle test, on fields
+since the simulated wells are not named, rejected 3.0-8.3% without a batch, and with one it
+is **anti-conservative**, as the cell-level screen is: 17-29% with one image per field and
+38-62% with 20 cells per field, since a well's own shift counts for it; hence wells shuffled
+when named, and never a verdict. Power, a shift of 0.3 within-group SDs in every repeat: 60%
+with 3 repeats, 81% with 4, 98% with 6 (36%, 59% and 87% with a batch); a shift of 0.6: 96%
+with 3 repeats (86% with a batch) and at least 99% from 4 (scaled on every observation of
+the table, before audit 8: 2.3-7.5% without an effect, and 58%, 79% and 97% power).
+In narrow tables the test is conservative, as its correction is set for the largest
+correlation of the projections, reached in wide tables (audit 8, 400 null datasets each,
+cells in fields): one column 2.8% at 5% with 3 or 4 repeats and 1.8% with 6, two columns
+4.5% with 3 repeats, against 4.5% with 200 columns; and with very uneven fields (100 cells a
+field in one repeat, 3 in the others) 0.8%.
 
 ## Reading them together
 

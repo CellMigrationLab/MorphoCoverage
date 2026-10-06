@@ -137,8 +137,8 @@ def assemble(
             text = "\n\n".join(p for p in (document.overview, full) if p)
             document = replace(document, overview=text)
         document = _with_integrity(document, integrity)
-    rare = results.get("rare_clustering")
-    if rare is not None:
+    rare = results.get("rare_clustering")  # clustering in fields needs several a field
+    if rare is not None and per_field:
         rows = sampling_profile(None, None, None, None, clustering=rare)
         lines = "\n".join(f"{r.statement} [{r.where}; {r.source}]" for r in rows.itertuples())
         text = "\n\n".join(part for part in (lines, rare.summary(detail="full")) if part)
@@ -192,7 +192,7 @@ def assemble(
     document = with_populations(document, results.get("populations"), setup)
     document = with_label_check(document, results.get("label_control"), results)
     # Beyond the mean, with a fingerprint declared (question 9).
-    document = with_distribution(document, results.get("distribution"), setup.unit_words)
+    document = with_distribution(document, results.get("distribution"), setup.unit_words, setup)
     # Every other table tested whole, beside the features (owner, 2026-10-06).
     return with_whole_table(document, results.get("whole_table"), bool(setup.columns))
 

@@ -21,6 +21,7 @@ from ._repeat_statistics import (
     BIMODAL,
     bimodality_coefficient,
     excess_kurtosis,
+    log_scale,
     paired_t,
     repeat_values,
 )
@@ -571,6 +572,7 @@ __all__ = [
     "jcb_required_objects",
     "jcs_effect_size",
     "kish_effective_fields",
+    "log_scale",
     "mean_is_zero",
     "median_standard_error",
     "nested_variance_components",

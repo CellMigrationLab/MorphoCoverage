@@ -50,7 +50,7 @@ from .metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from .sampling_unit.contrast_cells import cell_randomization
 from .sampling_unit.contrast_repeats import MIN_REPEATS
 from .schema import fov_positions
-from .statistics import benjamini_hochberg, cohen_d, paired_t, repeat_values
+from .statistics import benjamini_hochberg, cohen_d, log_scale, paired_t, repeat_values
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -110,10 +110,10 @@ PAIR_NOTE_SEVERAL = PAIR_NOTE.replace(
 PAIRED_NOTE = (
     f"{PAIRED_READING} The paired t-test on the biological repeats' means: each condition's "
     "mean paired with the other's in every repeat that imaged both (on the log ratios when "
-    "every mean is positive). Lower left: its p-value, unadjusted; upper right: adjusted "
-    "over the pairs of this figure (Benjamini-Hochberg; the tables adjust over every feature "
-    "and condition). Green at ≤ 0.05, darker the smaller; – : fewer than 3 repeats imaged "
-    "both."
+    "every value of the feature is positive). Lower left: its p-value, unadjusted; upper "
+    "right: adjusted over the pairs of this figure (Benjamini-Hochberg; the tables adjust "
+    "over every feature and condition). Green at ≤ 0.05, darker the smaller; – : fewer than "
+    "3 repeats imaged both."
 )
 PAIR_COLUMNS = [
     "feature",
@@ -139,15 +139,16 @@ P_STRONG, P_WEAK = (46, 125, 50), (240, 239, 236)
 _VALUE_WORDS = {"normalised": "log ratios", "raw": "differences"}
 
 
-def _paired(first: dict, second: dict) -> tuple[float, str, int]:
-    """The paired t-test of two conditions on the repeats they share, the values it
-    compares, and how many repeats they share (no test below ``MIN_REPEATS``)."""
+def _paired(first: dict, second: dict, log: bool | None = None) -> tuple[float, str, int]:
+    """The paired t-test of two conditions on the repeats they share, on the feature's scale
+    ``log`` (``statistics.log_scale``), the values it compares, and how many repeats they
+    share (no test below ``MIN_REPEATS``)."""
     shared = [r for r in first if r in second]
     if len(shared) < MIN_REPEATS:
         return np.nan, "", len(shared)
     a = np.array([np.mean(first[r]) for r in shared])
     b = np.array([np.mean(second[r]) for r in shared])
-    values, compared, _ = repeat_values(a, b)
+    values, compared, _ = repeat_values(a, b, log)
     return paired_t(compared), _VALUE_WORDS[values], len(shared)
 
 
@@ -197,6 +198,7 @@ def pairwise_contrasts(
         list(conditions) if conditions is not None else sorted_labels(frame["condition"], control)
     )
     by_condition = {c: block for c, block in frame.groupby("condition", sort=False)}
+    log = log_scale(frame["value"].to_numpy())
     rows = []
     for first, second in combinations(order, 2):
         a, b = by_condition.get(first), by_condition.get(second)
@@ -207,7 +209,7 @@ def pairwise_contrasts(
             continue
         repeats_a = {r: g.to_numpy() for r, g in a.groupby("repeat", sort=False)["value"]}
         repeats_b = {r: g.to_numpy() for r, g in b.groupby("repeat", sort=False)["value"]}
-        p_paired, paired_values, shared = _paired(repeats_a, repeats_b)
+        p_paired, paired_values, shared = _paired(repeats_a, repeats_b, log)
         # Compared on the repeats that imaged both (each condition against the control of
         # its own repeats): pooling repeats one side was not imaged in reads a batch as an
         # effect. Two conditions with no repeat in common (two sub-experiments) get their d,

@@ -16,7 +16,8 @@ the declared control, pooled over the biological repeats:
   A feature's score is the largest |d| among its passing contrasts (capped at
   ``EFFECT_CAP``); the plots draw the best-ranked features.
 - **The second gate (kept beside it)**: the paired t-test on the repeat means (on the log
-  ratios to the control when every mean is positive, else on the differences), corrected
+  ratios to the control when every observation of the feature is positive, else on the
+  differences: one scale per feature, the same for every condition, owner 2026-10-06), corrected
   the same way, within each sub-experiment, over every feature and condition with three or
   more repeats. A passing
   feature that also passes it is *significant across repeats*.
@@ -49,7 +50,7 @@ from .._former_repeat import one_warning, read_former
 from .._parallel import check_n_jobs
 from .._seeds import group_rng
 from .._style import check_detail, span, table, wrap
-from .._wording import change, column_word, count, listing, p_value
+from .._wording import change, column_word, count, features_counted, listing, p_value
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
 from ._common import groups, validated
@@ -218,7 +219,7 @@ class FeatureDiscovery:
             else count(n_tests, "test")
         )
         return (
-            f"Which features separate the conditions? {passing} of {count(n, 'feature')} "
+            f"Which features separate the conditions? {passing} of {self._counted(n)} "
             f"{'is a candidate' if passing == 1 else 'are candidates'} in the exploratory "
             f"{self._unit()}-level screen: they differ for at least one condition (each "
             f"condition against {against}: Cohen's d on the observations normalised to each "
@@ -227,10 +228,19 @@ class FeatureDiscovery:
             f"sub-experiment: {family}{self._shuffles()}).{self._unpaired()} Ranked by the "
             "largest difference "
             "(|d|); change: the condition's mean over the control's, the fold change the "
-            "paired t-test compares (the difference of the means where a mean is not "
-            "positive); a candidate is significant across repeats when the paired t-test on the "
+            "paired t-test compares (the difference of the means for a feature with a value "
+            "that is not positive, the same scale for every condition); a candidate is "
+            "significant across repeats when the paired t-test on the "
             f"repeat means also gives q ≤ {alpha:g}:"
         )
+
+    def _counted(self, features: list[str] | int) -> str:
+        """``features`` (names, or a number of all the features), the labelled state's share
+        among them counted apart (``_wording.features_counted``)."""
+        share = self.settings.get("share")
+        if isinstance(features, int) and share not in set(self.ranking["feature"]):
+            share = None
+        return features_counted(features, share)
 
     def _shuffles(self) -> str:
         """The shuffles of the p-values rerun so that q can reach alpha (``contrast_cells
@@ -294,7 +304,7 @@ class FeatureDiscovery:
             + (
                 "Significant across repeats (paired t-test on the repeat means, q ≤ "
                 f"{self.settings['alpha']:g}): "
-                f"{count(len(confirmed), 'feature')}"
+                f"{self._counted(confirmed)}"
                 + (f" ({self._confirmed_where(confirmed)})." if confirmed else ".")
             )
         )
@@ -306,7 +316,7 @@ class FeatureDiscovery:
         failing = unranked.loc[unranked["tests"] > 0, "feature"].tolist()
         if failing:
             lines.append(
-                f"Not a candidate for any condition ({count(len(failing), 'feature')}): "
+                f"Not a candidate for any condition ({self._counted(failing)}): "
                 f"{listing(failing, limit)}."
             )
         # The features no condition could be tested for, by why (each condition's status).
@@ -316,8 +326,7 @@ class FeatureDiscovery:
             why.setdefault(reasons.pop() if len(reasons) == 1 else UNTESTED, []).append(feature)
         for reason, untested in why.items():
             lines.append(
-                f"Not tested ({count(len(untested), 'feature')}, {reason}): "
-                f"{listing(untested, limit)}."
+                f"Not tested ({self._counted(untested)}, {reason}): {listing(untested, limit)}."
             )
         return lines
 

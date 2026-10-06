@@ -31,7 +31,14 @@ from .._control import VS
 from .._style import Status, wrap
 from .._wording import count, listing, p_value
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
-from ..sampling_unit.whole_table import ALPHA, MIN_REPEATS, WholeTable, whole_table_tests
+from ..sampling_unit.contrast_repeats import TREND_REPEATS
+from ..sampling_unit.whole_table import (
+    ALPHA,
+    MIN_REPEATS,
+    ONE_EACH,
+    WholeTable,
+    whole_table_tests,
+)
 
 if TYPE_CHECKING:
     from ..retrospective import MicroscopistReport
@@ -91,6 +98,8 @@ def _line(row: Any) -> str:
     name = f"{row.condition}{VS}{row.control}"
     if row.status != "tested" and not row.repeats:
         return f"- {name}: not tested, no biological repeat holds both."
+    if row.status == ONE_EACH:
+        return f"- {name}: not tested, one observation a side and repeat, no spread to scale on."
     if row.status == "tested":
         verdict = (
             f"shifted the same way in {row.same_way} of {count(row.repeats, 'repeat')}, "
@@ -128,8 +137,9 @@ def whole_table_lines(result: WholeTable, indent: int = 2) -> list[str]:
         lines += [wrap(_line(row), indent, hang=indent + 2) for row in rows.itertuples()]
     permutations = int(result.settings["permutations"])
     how = (
-        "Across repeats, the verdict: per repeat, the shift of the condition's centre from its "
-        "control's (each field's observations averaged first), projected on the other "
+        "Across repeats, the verdict: each comparison's columns scaled on the spread of its "
+        "two sides within their repeats; per repeat, the shift of the condition's centre from "
+        "its control's (each field's observations averaged first), projected on the other "
         "repeats' mean shift; a one-sided paired t-test that the projections are positive, "
         f"corrected for the repeats they share, from {MIN_REPEATS} repeats; q within each "
         "table and sub-experiment. Within-group SDs: the typical distance of an observation "
@@ -162,13 +172,17 @@ def whole_headline(result: WholeTable) -> tuple[Status, str]:
             parts.append(f"the whole {name} table shifted across repeats in {named}")
         return Status.OK, "; ".join(parts)
     tested = tests[tests["status"] == "tested"]
+    if len(tests) and tests["status"].eq(ONE_EACH).all():
+        return Status.NOT_ASSESSED, "no whole-table test: one observation a side and repeat"
     if not len(tested):
         fewest = int(tests["repeats"].max()) if len(tests) else 0
         return Status.NOT_ASSESSED, (
             f"no whole-table test: at most {count(fewest, 'repeat')} hold a condition and its "
             f"control, and the test needs {MIN_REPEATS}"
         )
-    every = tested[tested["same_way"] == tested["repeats"]]
+    # The trend from TREND_REPEATS repeats only (owner, 2026-10-06, audit 8): with fewer,
+    # every repeat goes the same way without an effect too often (25% with 3).
+    every = tested[(tested["same_way"] == tested["repeats"]) & (tested["repeats"] >= TREND_REPEATS)]
     if len(every):
         names = listing([str(c) for c in dict.fromkeys(every["condition"])], 4)
         return Status.CAUTION, (
