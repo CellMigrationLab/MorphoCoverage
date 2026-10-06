@@ -121,8 +121,15 @@ and changed only that one thing.
   imaged brighter widens its threshold. The report reads each value relative to its own
   control in its repeat (normalised with `normalize`, else the log ratio or the difference
   to that control's mean), calls the result exploratory, and lists fields far from the rest
-  of their condition and repeat on the raw values apart, as quality control in "What is in
-  the dataset" (owner, 2026-10-06, plan v2).
+  of their condition and repeat apart, as quality control in "What is in the dataset"
+  (owner, 2026-10-06, plan v2).
+- **Every share reads against the controls' own.** The controls' own share flagged by the
+  same rule is always printed beside the shares, as their background (the "all but 1%"
+  threshold flagged 16-21% of the controls' own images in one screen), the shares are those
+  of each scored group, and a group with no unusual observation reads "– (none unusual;
+  refits flag k)" rather than an agreement of 0%. On one feature, unusual observations
+  restate its shift from the control, so the report says "not informative beyond the mean
+  shift in question 9" and gives no share (owner, 2026-10-06, audit 10).
 - **One picture per object.** When every picture holds one object (manual single-cell
   imaging), pictures and objects coincide: the variability check gives the spread over
   pictures with a design effect of 1, the unusual objects are unusual pictures, and whether

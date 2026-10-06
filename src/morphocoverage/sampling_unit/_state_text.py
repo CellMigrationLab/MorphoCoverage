@@ -99,8 +99,63 @@ def _space(settings: Any) -> str:
     other feature tables, which (owner, 2026-10-06: the explainable features, or without them
     the tables' weighted combined space)."""
     space = settings.get("space")
-    standardized = f"{len(settings['feature_cols'])} standardized features"
+    standardized = f"{count(len(settings['feature_cols']), 'standardized feature')}"
     return f"on {space}, standardized" if space else standardized
+
+
+def single_feature(result: Any) -> bool:
+    """Whether the unusual observations read one feature: they then restate its shift from
+    the control (owner, 2026-10-06, audit 10: the share flagged followed the mean shift,
+    Spearman 0.82, and 88% sat on its low side)."""
+    return len(result.settings.get("feature_cols", ())) == 1
+
+
+def _restated(result: Any, words: str) -> str:
+    """The sentence in place of the shares when one feature is read."""
+    feature = result.settings["feature_cols"][0]
+    return (
+        f"On one feature, {feature}, unusual {words} restate its shift from the control: not "
+        "informative beyond the mean shift in question 9, so no share is given."
+    )
+
+
+def _agreement(row: Mapping[str, Any]) -> str | None:
+    """``93%``, or with no unusual observation ``– (none unusual; refits flag 2)``."""
+    if _present(row.get("seed_agreement")):
+        return percent(row["seed_agreement"])
+    refits = row.get("refit_unusual")
+    if row.get("unusual") == 0 and _present(refits):
+        return f"– (none unusual; refits flag {int(refits)})" if refits else "– (none unusual)"
+    return None
+
+
+def scored_shares(result: Any) -> list[float]:
+    """The unusual share of each scored group that is not a control (all scored groups when
+    every one is a control)."""
+    ok = result.groups[result.groups["status"] == "ok"]
+    tested = ok[~ok["reference_group"].astype(bool)] if "reference_group" in ok else ok
+    return [float(v) for v in (tested if len(tested) else ok)["unusual_share"]]
+
+
+def background(result: Any, words: str) -> str:
+    """The controls' own share flagged by the same rule, the background every share reads
+    against, always said (owner, 2026-10-06, audit 10: the threshold flagged 16-21% of the
+    controls' own images), or why the controls are not scored."""
+    groups = result.groups
+    if "reference_group" not in groups:
+        return ""
+    controls = groups[groups["reference_group"].astype(bool)]
+    ok = controls[controls["status"] == "ok"]
+    if not len(ok):
+        reasons = listing(list(dict.fromkeys(str(r) for r in controls["status"])), 2)
+        why = f": {reasons}" if reasons else ""
+        return f"The controls' own {words} are not scored{why}, so no share has a background."
+    flagged, scored = int(ok["unusual"].sum()), int(ok["scored"].sum())
+    return (
+        f"Background: the controls' own {words}, scored the same way against the other "
+        f"control groups, are {percent(flagged / scored)} unusual, {flagged} of {scored}; "
+        "a condition's share reads against it."
+    )
 
 
 def _blind_spot(words: str) -> Any:
@@ -124,7 +179,8 @@ def _unusual_cautions(result: Any, words: str) -> list[str]:
             reasons.setdefault(str(row["status"]), []).append(_group(row, keys))
     for reason, groups in reasons.items():
         cautions.append(f"unusual {words} not scored in {listing(groups, limit=3)}: {reason}")
-    agreements = [r for r in ok if _present(r["seed_agreement"])]
+    # One feature: the labels restate the mean shift, so their stability is not at issue.
+    agreements = [] if single_feature(result) else [r for r in ok if _present(r["seed_agreement"])]
     unstable = [r for r in agreements if r["seed_agreement"] < SEED_AGREEMENT_WARNING]
     if unstable:
         shares = [float(r["seed_agreement"]) for r in unstable]
@@ -160,29 +216,33 @@ def unusual_parts(
     keys = list(result.group_cols)
     ok = [r for r in result.groups.to_dict("records") if r["status"] == "ok"]
     lines = [wrap(_unusual_head(result, words), indent, hang=indent + 2)]
-    if ok and with_table:
+    if ok and single_feature(result):
+        lines.append(wrap(_restated(result, words), indent, hang=indent + 2))
+    elif ok and with_table:
         cells = [
             [
                 _group(r, keys),
                 int(r["scored"]),
                 int(r["unusual"]),
                 percent(r["unusual_share"]),
-                percent(r["seed_agreement"]) if _present(r["seed_agreement"]) else None,
+                _agreement(r),
             ]
             for r in ok
         ]
         columns = ["group", f"{words} scored", "unusual", "share", "refits agree"]
         lines.append(table(cells, columns, indent=indent + 2, align="lrrrr"))
     elif ok:
-        shares = [float(r["unusual_share"]) for r in ok]
         lines.append(
             wrap(
-                f"{span(shares, 'percent')} of the {words} of each group are unusual "
-                f"({span(int(r['unusual']) for r in ok)} {words}, over {count(len(ok), 'group')}).",
+                f"{span(scored_shares(result), 'percent')} of the {words} of each scored group "
+                f"are unusual ({span(int(r['unusual']) for r in ok)} {words}, over "
+                f"{count(len(ok), 'group')}).",
                 indent,
                 hang=indent + 2,
             )
         )
+    if not single_feature(result) and background(result, words):
+        lines.append(wrap(background(result, words), indent, hang=indent + 2))
     observed = observation_words(result.settings)[1]
     return lines, [*_unusual_cautions(result, words), _blind_spot(observed)]
 
@@ -199,18 +259,19 @@ def unusual_full(result: Any, indent: int = 0) -> str:
             hang=indent + 2,
         )
     ]
+    if single_feature(result):
+        return "\n".join([*lines, wrap(_restated(result, words), indent, hang=indent + 2)])
     cells = []
     for r in rows:
         if r["status"] != "ok":
             continue
-        agreement = r["seed_agreement"]
         cells.append(
             [
                 _group(r, keys),
                 int(r["scored"]),
                 int(r["unusual"]),
                 percent(r["unusual_share"]),
-                percent(agreement) if _present(agreement) else None,
+                _agreement(r),
                 f"{float(r['threshold']):.3g}" if _present(r.get("threshold")) else None,
                 "single reference"
                 if r.get("calibration") == LEAVE_ONE_FIELD_OUT
@@ -221,6 +282,8 @@ def unusual_full(result: Any, indent: int = 0) -> str:
         columns = ["group", f"{words} scored", "unusual", "share", "refits agree"]
         columns += ["threshold", "calibrated"]
         lines.append(table(cells, columns, indent=indent + 2, align="lrrrrrl"))
+    if background(result, words):
+        lines.append(wrap(background(result, words), indent, hang=indent + 2))
     return "\n".join(lines)
 
 
@@ -440,8 +503,11 @@ def clustering_parts(
 __all__ = [
     "CLUSTER_ALPHA",
     "SEED_AGREEMENT_WARNING",
+    "background",
     "clustered",
     "clustering_parts",
+    "scored_shares",
+    "single_feature",
     "state_words",
     "unusual_full",
     "unusual_parts",

@@ -36,6 +36,8 @@ from ..sampling_unit._state_text import (
     CLUSTER_ALPHA,
     SEED_AGREEMENT_WARNING,
     clustering_parts,
+    scored_shares,
+    single_feature,
     state_words,
     unusual_full,
     unusual_parts,
@@ -299,11 +301,13 @@ def _fields_line(profile: pd.DataFrame, variability: Any, observations: str) -> 
 
 def _unusual_share(unusual: Any, words: str) -> str:
     """`` (farther from the siCTRL reference than all but 1% of its cells; 0-9% of each
-    group)``, empty when no group was scored."""
+    scored group)``, empty when no group was scored."""
     ok = unusual.groups[unusual.groups["status"] == "ok"] if unusual is not None else []
     if not len(ok):
         return ""
-    shares = span([float(v) for v in ok["unusual_share"]], "percent")
+    if single_feature(unusual):  # it restates the mean shift (audit 10)
+        return " (on one feature: not informative beyond the mean shift in question 9)"
+    shares = span(scored_shares(unusual), "percent")
     settings = unusual.settings
     # Each against its own control with several; names joined by "/", never a tuple.
     reference = (
@@ -314,7 +318,7 @@ def _unusual_share(unusual: Any, words: str) -> str:
     exploratory = "exploratory, " if settings.get("exploratory") else ""
     return (
         f" ({exploratory}{reference} than all but {percent(settings['quantile'])} of its "
-        f"{words}; {shares} of each group)"
+        f"{words}; {shares} of each scored group)"
     )
 
 
@@ -358,8 +362,9 @@ def states_lines(clustering: Any, unusual: Any, words: str) -> list[str]:
 def _short_statement(row: Any) -> str:
     """A profile statement without the clause that repeats its method (full keeps it)."""
     text = str(row.statement)
-    if row.source == "inspect_fovs" and ": the declared reference's" in text:
-        text = text.split(": the declared reference's")[0] + ")"
+    for method in (": the declared reference's", ": this definition of new"):
+        if row.source == "inspect_fovs" and method in text:
+            text = text.split(method)[0]
     return text
 
 
@@ -461,16 +466,16 @@ def _seen_states(clustering: Sequence[Any], words: str) -> str:
 
 
 def unusual_alone(unusual: Any, clustering: Sequence[Any] = ()) -> str:
-    """``unusual images 0-8% of each group (exploratory)`` when unusual observations were
+    """``unusual images 0-8% of each scored group (exploratory)`` when unusual observations were
     scored without a clustering in fields (one observation per field), else empty."""
     if unusual is None or any(c is not None for c in clustering):
         return ""
     ok = unusual.groups[unusual.groups["status"] == "ok"]
-    if not len(ok):
+    if not len(ok) or single_feature(unusual):
         return ""
-    shares = span([float(v) for v in ok["unusual_share"]], "percent")
+    shares = span(scored_shares(unusual), "percent")
     words = unusual.settings.get("words") or observation_words(unusual.settings)[1]
-    return f"unusual {words} {shares} of each group (exploratory)"
+    return f"unusual {words} {shares} of each scored group (exploratory)"
 
 
 def profile_answer(profile: pd.DataFrame, clustering: Sequence[Any], unusual: Any) -> list[str]:

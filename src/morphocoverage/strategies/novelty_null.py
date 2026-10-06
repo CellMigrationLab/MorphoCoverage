@@ -30,7 +30,6 @@ import json
 import zlib
 from collections.abc import Sequence
 from functools import lru_cache
-from typing import Any
 
 import numpy as np
 
@@ -108,9 +107,4 @@ def not_informative(
     return reason, rate
 
 
-def null_settings(rate: float | None) -> dict[str, Any]:
-    """The rate and its threshold, for a result's settings."""
-    return {"null_rate": rate, "not_informative_above": NOT_INFORMATIVE}
-
-
-__all__ = ["NOT_INFORMATIVE", "NULL_DRAWS", "not_informative", "null_rate", "null_settings"]
+__all__ = ["NOT_INFORMATIVE", "NULL_DRAWS", "not_informative", "null_rate"]

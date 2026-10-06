@@ -20,6 +20,7 @@ FEATURES = ("area", "intensity_mean", "ecc")
 # The share of the control's observations called unusual (``unusual_objects``' quantile):
 # the null rate of biological unusualness.
 NULL_RATE = 0.01
+CTRL = {"condition": "ctrl"}
 
 
 def _tables(
@@ -275,7 +276,8 @@ def test_one_image_per_field_lists_a_qc_field_once_not_again_as_a_new_state():
     observations, so a field they name is not listed again as a new state in question 6."""
     from morphocoverage.workflows import default_novelty
 
-    objects, fovs = _tables(("ctrl", "a"), repeats=3, fields=10, cells=1, seed=4)
+    # 30 fields a group: novelty on 3 features is informative there (null rate 5%).
+    objects, fovs = _tables(("ctrl", "a"), repeats=3, fields=30, cells=1, seed=4)
     far = objects["condition"].eq("a") & objects["biological_repeat"].eq("R2")
     far &= objects["position_id"].eq(5)
     objects.loc[far, "area"] *= 1000.0
@@ -296,3 +298,38 @@ def test_one_image_per_field_lists_a_qc_field_once_not_again_as_a_new_state():
     assert not again.any()
     full = _flat(result.summary(detail="full"))
     assert "1 field named among the acquisition anomalies is not listed again" in full
+
+
+def test_unusual_shares_read_against_the_controls_and_say_when_they_restate_a_shift():
+    """Audit 10 (A5, B8, C32, A15/B9; owner, 2026-10-06): the controls' own share flagged is
+    always printed as the background; the shares are of each scored group; one feature is
+    "not informative beyond the mean shift in question 9", with no table of shares; a group
+    with no unusual observation reads "– (none unusual; refits flag k)", never 0% agreement."""
+    objects, fovs = _tables(("ctrl", "a"), repeats=3, fields=6, cells=15, planted="a")
+    found = unusual_objects(objects, fovs, feature_cols=list(FEATURES), reference=CTRL)
+    short = _flat(found.summary())
+    assert "Background: the controls' own cells, scored the same way against the other " in short
+    controls = found.groups[found.groups["reference_group"]]
+    flagged, scored = int(controls["unusual"].sum()), int(controls["scored"].sum())
+    assert f"unusual, {flagged} of {scored}; a condition's share reads against it" in short
+    assert "Background" in _flat(found.summary(detail="full"))
+    # A group with no unusual observation: no agreement, the refits' count instead.
+    none = found.groups[(found.groups["status"] == "ok") & (found.groups["unusual"] == 0)]
+    assert len(none) and none["seed_agreement"].isna().all()
+    assert "– (none unusual" in short and "agree on only 0%" not in short
+    # One feature: the shares restate the shift; no table, no stability caution.
+    one = unusual_objects(objects, fovs, feature_cols=["area"], reference=CTRL)
+    text = _flat(one.summary())
+    assert "not informative beyond the mean shift in question 9, so no share is given" in text
+    assert "refits agree" not in text and "unstable" not in text and "Background" not in text
+
+
+def test_the_glance_reads_each_scored_group_and_one_feature_says_nothing():
+    from morphocoverage.retrospective.report_sampling import states_lines, unusual_alone
+
+    objects, fovs = _tables(("ctrl", "a"), repeats=3, fields=6, cells=1, planted=None)
+    found = unusual_objects(objects, fovs, feature_cols=list(FEATURES), reference=CTRL)
+    assert "of each scored group (exploratory)" in unusual_alone(found)
+    one = unusual_objects(objects, fovs, feature_cols=["area"], reference=CTRL)
+    assert unusual_alone(one) == ""
+    assert "not informative beyond the mean shift" in states_lines(None, one, "cells")[0]
