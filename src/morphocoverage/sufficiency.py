@@ -87,7 +87,7 @@ from .calibration import calibrate_next_fov_novelty
 from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups
 from .evidence import Availability
-from .metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
+from .metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, column_names
 from .objectives import ObjectiveConfig, SamplingObjective
 from .schema import ValidatedInput, fov_positions
 from .statistics import fovs_to_detect
@@ -433,10 +433,13 @@ def sufficiency_report(
     check_n_jobs(n_jobs)
     strategies, orders = list(strategies), list(orders)
     _check_report_inputs(strategies, orders, novelty, novelty_target, calibration)
+    feature_cols = column_names(feature_cols, "feature_cols")  # read once: may be a generator
+    group_cols = column_names(group_cols, "group_cols")
+    novelty_cols = column_names(novelty_cols, "novelty_cols")
     if novelty_cols is not None:
-        if isinstance(novelty_cols, str) or not novelty_cols:
+        if not novelty_cols:
             raise TypeError("novelty_cols must be a non-empty sequence of column names")
-        outside = [c for c in novelty_cols if c not in list(feature_cols)]
+        outside = [c for c in novelty_cols if c not in feature_cols]
         if outside or novelty is None:
             raise ValueError(
                 "novelty_cols must be columns of feature_cols, with a novelty definition; "

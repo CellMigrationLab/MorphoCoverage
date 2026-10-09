@@ -95,6 +95,7 @@ from .._frozen import owned
 from .._seeds import group_rng
 from .._wording import rows_of
 from ..data_check import validate_input_tables
+from ..metadata import column_names
 from ..schema import fov_positions
 from ..statistics import design_effect as _design_effect
 from ..statistics import nested_variance_components
@@ -434,7 +435,9 @@ def effort_projection(
     """
     _check_arguments(hierarchy, n_boot, random_state)
     chosen = _check_allocations(allocations)
-    objects, fovs, strata = read_former(objects=objects, fovs=fovs, strata=list(strata))
+    objects, fovs, strata = read_former(
+        objects=objects, fovs=fovs, strata=list(column_names(strata, "strata"))
+    )
     missing_levels = [c for c in hierarchy.levels if c not in fovs.columns]
     if missing_levels:
         raise ValueError(f"hierarchy columns missing from the FOV table: {missing_levels}")

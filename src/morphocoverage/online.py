@@ -36,6 +36,7 @@ from .evaluator import IncrementalReplay, restrict_input
 from .metadata import (
     MORPHOBRICKS_FOV_CANDIDATES,
     MORPHOBRICKS_GROUP_COLUMNS,
+    column_names,
     drop_empty_optional_columns,
     resolve_fov_col,
     resolve_group_cols,
@@ -153,9 +154,7 @@ class OnlineSession:
             raise ValueError("OnlineSession needs at least one strategy")
         if any(not isinstance(strategy, SamplingStrategy) for strategy in self.strategies):
             raise TypeError("strategies must contain SamplingStrategy instances")
-        if isinstance(feature_cols, str):
-            raise TypeError("feature_cols must be a sequence of column names, not a string")
-        self.feature_cols = tuple(feature_cols)
+        self.feature_cols = column_names(feature_cols, "feature_cols")
         if not self.feature_cols:
             raise ValueError("feature_cols must contain at least one feature")
         if not isinstance(objective, ObjectiveConfig):
@@ -163,15 +162,13 @@ class OnlineSession:
         self.objective = objective
         if fov_col is not None and not isinstance(fov_col, str):
             raise TypeError("fov_col must be a column name")
-        if isinstance(group_cols, str):
-            raise TypeError("group_cols must be a sequence of column names, not a string")
         # The former name of the biological repeat, read as the new one (``_former_repeat``).
         former = Reader()
         fov_col = former.column(fov_col, "fov_col")
         group_cols = former.columns(group_cols, "group_cols")
         former.warn()
         self._requested_fov_col = fov_col
-        self._requested_group_cols = None if group_cols is None else tuple(group_cols)
+        self._requested_group_cols = column_names(group_cols, "group_cols")
         self.observation_unit, self._unit_declared = resolve_observation_unit(observation_unit)
         self._resolved_fov_col: str | None = None
         self._resolved_group_cols: tuple[str, ...] | None = None

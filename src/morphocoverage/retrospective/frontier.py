@@ -82,6 +82,7 @@ from scipy import stats
 from .._checks import as_count
 from .._former_repeat import read_former
 from .._frozen import owned
+from ..metadata import column_names
 from ..policies import ThresholdPolicy, redecide
 from .adequacy import adequacy_points
 from .criteria import Preservation
@@ -366,6 +367,7 @@ def frontier(
     if not alphas or not all(0 < a < 1 for a in alphas):
         raise ValueError("alphas must be risk levels between 0 and 1")
     (unit_cols,) = read_former(unit_cols=unit_cols)  # the former name ``repeat``
+    unit_cols = column_names(unit_cols, "unit_cols")
     missing = [c for c in unit_cols if c not in replay.group_cols]
     if missing:
         raise ValueError(f"unit columns {missing} are not group columns of the replay")

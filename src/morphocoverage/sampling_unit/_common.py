@@ -17,6 +17,7 @@ from .._control import control_text, group_matches
 from .._identity import canonical_order
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
+from ..metadata import column_names
 from ..schema import ValidatedInput
 
 
@@ -32,7 +33,7 @@ def validated(
     return validate_input_tables(
         objects,
         fovs=fovs,
-        feature_cols=list(feature_cols),
+        feature_cols=column_names(feature_cols, "feature_cols"),
         fov_col=fov_col,
         group_cols=group_cols,
         observation_unit=observation_unit,

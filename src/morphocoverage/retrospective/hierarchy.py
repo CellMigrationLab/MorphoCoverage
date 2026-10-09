@@ -27,7 +27,7 @@ from typing import Any
 import pandas as pd
 
 from .._former_repeat import read_fields
-from ..metadata import empty_values
+from ..metadata import column_names, empty_values
 
 
 @dataclass(frozen=True)
@@ -44,12 +44,8 @@ class SamplingHierarchy:
     technical_levels: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if isinstance(self.technical_levels, str):
-            # tuple("plate") would be five one-letter columns.
-            raise TypeError(
-                "technical_levels must be a sequence of column names, for example ('plate',)"
-            )
-        object.__setattr__(self, "technical_levels", tuple(self.technical_levels))
+        levels = column_names(self.technical_levels, "technical_levels")
+        object.__setattr__(self, "technical_levels", () if levels is None else levels)
         # A level named ``repeat``, the former name of the biological repeat's column.
         read_fields(self, "fov", "sample", "biological_repeat", "technical_levels")
         names = [self.fov, self.sample, *self.technical_levels]

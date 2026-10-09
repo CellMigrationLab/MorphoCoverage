@@ -48,7 +48,7 @@ from ._control import control_mask, control_text
 from ._former_repeat import one_warning, read_former
 from ._wording import listing
 from .data_check import validate_input_tables
-from .metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN
+from .metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, column_names
 from .statistics import mean_is_zero
 
 CONTROL_MEAN = "control_mean"
@@ -228,7 +228,7 @@ def _control_rows(
     data = validate_input_tables(
         objects,
         fovs=fovs,
-        feature_cols=list(feature_cols),
+        feature_cols=column_names(feature_cols, "feature_cols"),
         fov_col=fov_col,
         group_cols=group_cols,
         observation_unit=observation_unit,
@@ -243,7 +243,7 @@ def _control_rows(
     rows = []
     for repeat in dict.fromkeys(repeats.tolist()):
         in_repeat = repeats.to_numpy() == repeat if repeat is not None else np.ones_like(is_control)
-        chosen = attached.loc[in_repeat & is_control, list(feature_cols)]
+        chosen = attached.loc[in_repeat & is_control, list(data.feature_cols)]
         label = f"{repeat_col}={repeat}" if repeat_col else "the whole table"
         if chosen.empty and leave_out_missing:
             continue  # left out of the normalised values (NaN), as the caller asked
@@ -332,7 +332,7 @@ def normalize_to_control(
     data = validate_input_tables(
         objects,
         fovs=fovs,
-        feature_cols=list(feature_cols),
+        feature_cols=column_names(feature_cols, "feature_cols"),
         fov_col=fov_col,
         group_cols=group_cols,
         observation_unit=observation_unit,
@@ -343,13 +343,13 @@ def normalize_to_control(
     repeat_col = _repeat_column(repeat_col, attached.columns)
     normalized = objects.copy()
     if repeat_col is None:
-        divisors = means.iloc[[0] * len(objects)][list(feature_cols)].to_numpy()
+        divisors = means.iloc[[0] * len(objects)][list(data.feature_cols)].to_numpy()
     else:
-        by_repeat = means.set_index(REPEAT_COLUMN)[list(feature_cols)]
+        by_repeat = means.set_index(REPEAT_COLUMN)[list(data.feature_cols)]
         # A repeat left out (``leave_out_missing``) has no divisor: its values are NaN.
         divisors = by_repeat.reindex(attached[repeat_col].tolist()).to_numpy()
-    values = objects[list(feature_cols)].to_numpy(dtype=float) / divisors
-    normalized[list(feature_cols)] = values
+    values = objects[list(data.feature_cols)].to_numpy(dtype=float) / divisors
+    normalized[list(data.feature_cols)] = values
     note = negative_values_sentence(means)
     if note is not None:
         # Normalised as asked, but the reader must know the ratios are not "x control".
@@ -378,7 +378,7 @@ def normalize_to_own(
     data = validate_input_tables(
         objects,
         fovs=fovs,
-        feature_cols=list(feature_cols),
+        feature_cols=column_names(feature_cols, "feature_cols"),
         fov_col=fov_col,
         group_cols=group_cols,
         observation_unit=observation_unit,
@@ -405,12 +405,14 @@ def normalize_to_own(
             leave_out_missing=True,
         )
         notes += [negative_values_sentence(means)]
-        by_repeat = means.set_index(REPEAT_COLUMN)[list(feature_cols)]
+        by_repeat = means.set_index(REPEAT_COLUMN)[list(data.feature_cols)]
         mine = np.isin(conditions, [c for c, r in own.items() if r == reference])
         rows = [repeats[i] for i in np.flatnonzero(mine)]
         divisors[mine] = by_repeat.reindex(rows).to_numpy()
     normalized = objects.copy()
-    normalized[list(feature_cols)] = objects[list(feature_cols)].to_numpy(dtype=float) / divisors
+    normalized[list(data.feature_cols)] = (
+        objects[list(data.feature_cols)].to_numpy(dtype=float) / divisors
+    )
     note = next((n for n in notes if n), None)
     if note is not None:
         normalized.attrs["normalization_note"] = note

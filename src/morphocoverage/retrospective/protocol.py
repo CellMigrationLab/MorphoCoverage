@@ -57,6 +57,7 @@ from .._checks import as_count, check_seed
 from .._former_repeat import read_former
 from .._frozen import owned
 from .._seeds import group_rng
+from ..metadata import column_names
 from ..statistics import bootstrap_fields
 from .hierarchy import SamplingHierarchy
 from .protocol_text import FEW_UNITS, protocol_summary
@@ -134,7 +135,7 @@ def _check(
             f"columns {missing} are not analysis-group columns of the reliability result; "
             "run sampling_reliability with one analysis group per sample"
         )
-    strata = list(strata)
+    strata = list(column_names(strata, "strata"))
     if any(c in sample_cols for c in strata):
         raise ValueError("strata must be columns above the sample, for example condition")
     return sample_cols, unit_cols, strata
