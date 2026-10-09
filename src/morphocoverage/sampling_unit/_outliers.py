@@ -27,6 +27,7 @@ from typing import Any
 import numpy as np
 from scipy.spatial import cKDTree
 
+from .._identity import row_keys
 from ..schema import ValidatedInput, fov_positions
 from ..transforms import Standardize
 from ._common import canonical_fields
@@ -55,7 +56,7 @@ def reference_sample(
     rows, fov_ids, group_ids, offset = [], [], [], 0
     orders = [canonical_fields(data) for data in group_datas]
     keys = [
-        [repr(k) for k in data.fovs[list(data.fov_key)].iloc[order].itertuples(index=False)]
+        row_keys(data.fovs.iloc[order], list(data.fov_key))
         for data, order in zip(group_datas, orders, strict=True)
     ]
     # Group ids are canonical ranks, so the left-out group each tested object gets is too.

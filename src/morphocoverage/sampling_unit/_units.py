@@ -44,6 +44,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count, check_seed
+from .._identity import IdentityKey, identity_key
 from .._seeds import group_key
 from .._wording import column_word, listing
 from ..metadata import REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, empty_values
@@ -179,9 +180,9 @@ def resolve_unit(
     if not extras:
         return None, None
     name = "/".join(extras)
-    per_side: dict[tuple[str, str], int] = {}
+    per_side: dict[tuple[IdentityKey, IdentityKey], int] = {}
     for d in described:
-        side = (repr(d["repeat"]), repr(d["condition"]))
+        side = (identity_key(d["repeat"]), identity_key(d["condition"]))
         per_side[side] = per_side.get(side, 0) + 1
     if max(per_side.values()) < 2:
         return None, (

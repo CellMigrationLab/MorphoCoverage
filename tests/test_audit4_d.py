@@ -429,9 +429,9 @@ def test_p2_12_a_missing_value_names_its_field_and_object_and_what_to_do():
     rule = ScalarPrecisionStrategy("x", 0.05, "fov", "upper_95")
     full, incremental = _replay(objects, fovs, [rule]), _replay(objects, fovs, [rule], True)
     expected = (
-        "missing values in the selected scalar feature: object 3 of FOV 'p1' has none{}; the "
-        "rule stays undefined for this group until the value is filled in, since values are "
-        "never imputed or dropped"
+        "missing values in the selected scalar feature: object 3 of FOV 'position_id=p1' has "
+        "none{}; the rule stays undefined for this group until the value is filled in, since "
+        "values are never imputed or dropped"
     )
     for a, b in zip(full, incremental, strict=True):
         qa, qb = _quantity(a.result, "averaging_cv"), _quantity(b.result, "averaging_cv")

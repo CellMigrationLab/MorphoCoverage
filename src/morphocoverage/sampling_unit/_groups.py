@@ -19,6 +19,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from .._control import comparison_pairs, not_found
+from .._identity import identity_key
 from ..schema import ValidatedInput
 from ._common import no_match_message
 
@@ -93,7 +94,7 @@ def contrasts_of(described: list[dict[str, Any]]) -> list[tuple[Any, Any]]:
         }
     else:
         found = {(d["repeat"], d["condition"]) for d in described if not d["is_control"]}
-    return sorted(found, key=lambda pair: (str(pair[0]), str(pair[1])))
+    return sorted(found, key=lambda pair: (identity_key(pair[0]), identity_key(pair[1])))
 
 
 def sides(

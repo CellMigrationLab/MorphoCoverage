@@ -229,7 +229,7 @@ def test_d_susp_a_feature_varying_in_one_fov_is_named_in_the_reason():
     )
     for quantity in evidence.quantities.values():
         assert quantity.availability.value == "insufficient_data"
-        assert "feature 'b' varies only in FOV f5.tif" in quantity.reason
+        assert "feature 'b' varies only in FOV image_file=f5.tif" in quantity.reason
 
 
 def test_j_16_modules_list_their_public_names():

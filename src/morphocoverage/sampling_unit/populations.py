@@ -58,6 +58,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count, check_seed
+from .._identity import canonical_row_codes, row_keys
 from ..embedding import _sample, _standardised, combined
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..schema import fov_positions, validate_input_tables
@@ -255,7 +256,7 @@ def _support(member: np.ndarray, field_keys: pd.Series, meta: pd.DataFrame) -> d
     if TECHNICAL_REPEAT_COLUMN not in meta:
         return {"largest_field": largest, "technical_repeats": None}
     columns = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN) if c in meta]
-    wells = meta.loc[member, columns].astype(str).drop_duplicates()
+    wells = set(row_keys(meta.loc[member], columns))
     return {"largest_field": largest, "technical_repeats": len(wells)}
 
 
@@ -327,8 +328,8 @@ def find_populations(
     labels = pd.Series([None] * len(data.objects), index=data.objects.index, dtype=object)
     labels.iloc[np.flatnonzero(complete)] = [names.get(c) for c in raw]
     # One key per field: the FOV identity (its groups and its identifier).
-    keys = np.array([" · ".join(map(str, row)) for row in meta[list(data.fov_key)].to_numpy()])
-    field_keys = pd.Series(keys, dtype=object)
+    keys = canonical_row_codes(meta, list(data.fov_key))
+    field_keys = pd.Series(keys)
     rows = []
     for cluster, name in names.items():
         member = raw == cluster
