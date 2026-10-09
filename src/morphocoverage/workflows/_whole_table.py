@@ -21,6 +21,7 @@ test of "Do the conditions differ?". Here:
 
 from __future__ import annotations
 
+import html
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
@@ -272,3 +273,12 @@ __all__ = [
     "whole_table_lines",
     "with_whole_table",
 ]
+
+
+def whole_summary_html(result: WholeTable) -> str:
+    """One line for the top of "Do the conditions differ?", so the chip and the lead agree:
+    the whole-table result in words (``whole_headline``), empty without a tested table."""
+    status, words = whole_headline(result)
+    if status is Status.NOT_ASSESSED:
+        return ""
+    return f"<p><strong>Whole feature tables:</strong> {html.escape(words)}.</p>"

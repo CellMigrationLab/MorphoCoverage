@@ -41,10 +41,13 @@ from ._feature_space import (
 )
 from ._html_data import data_buttons, embedding_data, json_island, write_csv
 from ._html_figures import figure_block, file_stem, save
+from ._html_map_controls import colour_menu, find_box, values_controls
 from ._html_map_text import (
+    METHOD_WORDS,
     NEIGHBOURS,
     ONE_CONDITION,
-    VALUE_WORDS,
+    VALUE_HELP,
+    VIEW_ORDER,
     centred_note,
     combined_words,
     comparison_table,
@@ -209,42 +212,6 @@ def _set(
         "arrows": arrows,
         **_extras(points, *extras),
     }
-
-
-def _colour_menu(data: dict[str, Any], n_features: int) -> str:
-    """The "Colour by" menu: condition, population (when found) or a feature, and how many of
-    the ``n_features`` it offers when it cannot offer them all (``MAP_FEATURES``)."""
-    options = ['<option value="condition">condition</option>']
-    if data["populations"]:
-        options.append('<option value="population">population</option>')
-    options += [
-        f'<option value="{html.escape(f)}">{html.escape(f)}</option>' for f in data["features"]
-    ]
-    shown = len(data["features"])
-    limit = (
-        f'<span class="note">Colour by and the selection use the {shown} best-ranked of '
-        f"{n_features} features.</span>"
-        if shown < n_features
-        else ""
-    )
-    return (
-        '<label class="colour-by-label">Colour by <select class="colour-by">'
-        + "".join(options)
-        + "</select></label>"
-        + limit
-    )
-
-
-def _find(names: list[str], colours: list[str]) -> str:
-    """Past 12 conditions, a search box to pick one and see it highlighted on the map."""
-    if GREY not in colours:
-        return ""
-    options = "".join(f'<option value="{html.escape(n)}"></option>' for n in names)
-    return (
-        '<label class="find-label">Find a condition <input type="search" class="find" '
-        'list="embedding-conditions" placeholder="name" aria-label="Find a condition">'
-        f'</label><datalist id="embedding-conditions">{options}</datalist>'
-    )
 
 
 def _tables(
@@ -438,7 +405,7 @@ def embeddings(
         if found is not None
         else [],
         "label": label,
-        "values": list(sets),
+        "values": sorted(sets, key=lambda v: VIEW_ORDER.get(v, len(VIEW_ORDER))),
         "sets": sets,
         **({"tables": spaces} if several else {}),
     }
@@ -473,11 +440,7 @@ def embeddings(
         f'aria-pressed="{str(i == 0).lower()}">{m}</button>'
         for i, m in enumerate(data["methods"])
     )
-    values_buttons = "".join(
-        f'<button type="button" data-key="values" data-value="{v}" '
-        f'aria-pressed="{str(i == 0).lower()}">{VALUE_WORDS.get(v, v.capitalize())}</button>'
-        for i, v in enumerate(data["values"])
-    )
+    values_buttons, method_menu = values_controls(data["values"])
     table_buttons = "".join(
         f'<button type="button" data-key="table" data-value="{html.escape(t)}" '
         f'aria-pressed="{str(i == 0).lower()}">{html.escape(t)}</button>'
@@ -493,11 +456,12 @@ def embeddings(
         + f'<span class="seg" role="group" aria-label="Method">{buttons}</span>'
         + (
             f'<span class="seg" role="group" aria-label="Values">{values_buttons}</span>'
+            + method_menu
             if len(data["values"]) > 1
             else ""
         )
-        + _colour_menu(data, len(setup.columns))
-        + _find(data["conditions"], colours)
+        + colour_menu(data, len(setup.columns))
+        + find_box(data["conditions"], colours)
         + '<button type="button" class="dl full">Enlarge</button>'
         '<span class="note">Click an entry in the legend to hide it, double-click to show '
         "it alone; draw around points (the lasso is on) to see which conditions and "
@@ -507,6 +471,15 @@ def embeddings(
         '<div class="selection" aria-live="polite"></div></div>'
         '<p class="caption note" style="white-space: pre-line"></p>'
         + (f'<p class="note">{html.escape(note)}</p>' if note else "")
+        + (
+            '<p class="note"><strong>Normalisation.</strong> '
+            + html.escape(
+                " ".join(f"{METHOD_WORDS.get(v, 'Raw')}: {VALUE_HELP[v]}" for v in data["values"])
+            )
+            + "</p>"
+            if len(data["values"]) > 1
+            else ""
+        )
         + comparison
         + f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
         f'<p class="note">{html.escape(neighbours)}</p>'

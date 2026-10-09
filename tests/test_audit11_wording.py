@@ -50,3 +50,20 @@ def test_the_scan_says_one_image_not_one_images():
     )
     text = " ".join(scan.summary().split())
     assert "(1 image)" in text and "1 images" not in text
+
+
+def test_the_maps_have_raw_and_normalised_buttons_and_a_method_menu(tmp_path):
+    import warnings
+
+    from test_audit8_b import _embedding_only
+
+    from morphocoverage.workflows import html_report
+
+    objects, fovs, table, result = _embedding_only(normalize="control_mean")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        page = html_report(result, objects, fovs, tmp_path, feature_tables={"DINO": table})
+    text = page.read_text()
+    assert 'data-value="@corrected"' in text and 'data-value="raw"' in text
+    assert "Divided by the control mean" in text or "Minus the repeat median" in text
+    assert 'aria-label="Values"' in text

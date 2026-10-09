@@ -228,8 +228,9 @@ dl.glossary { margin: 6px 0 14px; }
 .long-table button.show-all { border: 1px solid var(--border); background: var(--surface);
   color: var(--link); border-radius: 6px; padding: 3px 10px; font: inherit; font-size: 13px;
   cursor: pointer; margin: 6px 0; }
-.colour-by-label { font-size: 14px; color: var(--text-2); }
-.colour-by-label select { margin-left: 4px; padding: 3px 8px; border-radius: 6px; font: inherit;
+.colour-by-label, .values-label { font-size: 14px; color: var(--text-2); }
+.colour-by-label select, .values-label select { margin-left: 4px; padding: 3px 8px;
+  border-radius: 6px; font: inherit;
   border: 1px solid var(--border); background: var(--bg); color: var(--text); }
 .help { position: relative; display: inline-flex; align-items: center; justify-content: center;
   width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border);

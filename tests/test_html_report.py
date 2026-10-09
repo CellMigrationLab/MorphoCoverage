@@ -99,7 +99,7 @@ def test_the_page_holds_every_answer_and_its_figures(tmp_path):
     for name in ("area", "pca_raw", "umap_raw", "pca_normalised", "umap_normalised"):
         assert (tmp_path / "figures" / f"{name}.pdf").exists()
     data = json.loads(re.search(r'id="embedding-data">(.*?)</script>', page).group(1))
-    assert data["conditions"] == ["ctrl", "drug"] and data["values"] == ["raw", "normalised"]
+    assert data["conditions"] == ["ctrl", "drug"] and data["values"] == ["normalised", "raw"]
     pca = data["sets"]["raw"]["PCA"]
     assert len(pca["x"]) == len(objects) and pca["arrows"][0][0] == "area"
     # The control is drawn first, so the condition sits over it.
