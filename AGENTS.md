@@ -374,6 +374,7 @@ src/morphocoverage/
         _html_sections.py  # private: the page's order, titles, plain answers, heatmap, no numbers
         _html_figures.py   # private: the feature figures as PNG/PDF, palette
         _html_maps.py      # private: the PCA/UMAP data and markup, a map per feature table and the combined one, with the neighbours line under each
+        _html_map_controls.py  # private: the maps' controls: colour by, search, the Normalised / Raw buttons and the method menu
         _html_map_text.py  # private: the words around the maps: the comparison of the tables, the neighbours and centred notes, each table's share of an axis
         _html_plotly.py    # private: plotly.js (assets/) and the feature figures' data for it
         _html_plotly_script.py  # private: the script drawing the Plotly figures

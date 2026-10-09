@@ -474,11 +474,14 @@ def dataset_overview(
     return DatasetOverview(counts, layout, tuple(data.feature_cols), settings, warnings, checks)
 
 
-def normalized_sentence(control: Mapping[str, Any], repeat_col: str | None) -> str:
-    """How the values were normalised, for the overview and the declaration."""
+def normalized_sentence(
+    control: Mapping[str, Any], repeat_col: str | None, observations: str = "objects"
+) -> str:
+    """How the values were normalised, for the overview and the declaration; ``observations``
+    is the declared unit's plural (``images``), ``objects`` when none was declared."""
     where = f"the same {column_word(repeat_col)}" if repeat_col else "the whole table"
     named = control_name(control)
-    return f"every feature divided by the mean of the control {named} objects of {where}"
+    return f"every feature divided by the mean of the control {named} {observations} of {where}"
 
 
 __all__ = ["DatasetOverview", "dataset_overview", "normalized_sentence"]

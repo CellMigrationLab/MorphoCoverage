@@ -14,6 +14,27 @@ from ..separation import K, Separation
 
 # The values views, as their buttons name them.
 VALUE_WORDS = {"raw": "Raw", "normalised": "Normalised", "centred": "Centred per repeat"}
+# The Normalisation menu: the normalised view first, then the raw values, the centred last.
+# The methods behind the Normalised button, named by what they do.
+METHOD_WORDS = {
+    "normalised": "Divided by the control mean",
+    "centred": "Minus the repeat median",
+}
+# The button when a method is alone.
+METHOD_NAMES = {"normalised": "Normalised", "centred": "Centred per repeat"}
+VIEW_ORDER = {"normalised": 0, "raw": 1, "centred": 2}
+VALUE_HELP = {
+    "raw": "The values as measured, no correction.",
+    "normalised": (
+        "Each explainable feature divided by the mean of its control in the same biological "
+        "repeat (a fold change); other feature tables are left as measured."
+    ),
+    "centred": (
+        "Each column of an other feature table (an embedding) minus a median of its biological "
+        "repeat, which removes a shift shared by the whole repeat; the explainable features are "
+        "not shown in this view."
+    ),
+}
 
 # What the line under each map says (``separation``), once under the maps.
 NEIGHBOURS = (
@@ -120,6 +141,8 @@ def comparison_table(found: Separation | None) -> str:
 
 __all__ = [
     "CENTRED",
+    "METHOD_NAMES",
+    "METHOD_WORDS",
     "NEIGHBOURS",
     "VALUE_WORDS",
     "combined_words",

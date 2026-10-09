@@ -478,24 +478,58 @@ PLOTLY_SCRIPT = r"""
       Plotly.react(node, traces, layout, config);
       describe(null);
     }
-    // A view a table lacks (the centred view of the explainable features): its button off.
+    // The values views: "raw" and the corrected ones (the methods of the dropdown, shown only
+    // when the Normalised button is on and there is more than one); a view a table lacks (the
+    // centred view of the explainable features) is off.
+    var methods = data.values.filter(function (v) { return v !== 'raw'; });
+    var methodMenu = viz.querySelector('select.values-menu');
+    // A view the table has of its own: an other table's normalised map is its raw one, so
+    // "divided by the control mean" is not offered for it.
+    function ownSet(v) {
+      return data.tables ? !!(data.sets[v] && data.sets[v][state.table]) : !!data.sets[v];
+    }
     function sync() {
-      if (!data.tables) return;
-      var have = function (v) { return !!setOf(v, state.table); };
-      if (!have(state.values)) state.values = data.values[0];
+      var have = ownSet;
+      // The reader's choice (Normalised or Raw) is kept across tables: a table without the
+      // method shown moves to one it has, and back when the table does.
+      if (state.wantCorrected === undefined) state.wantCorrected = state.values !== 'raw';
+      var mine = methods.filter(have);
+      if (state.wantCorrected && mine.length) {
+        if (!have(state.values) || state.values === 'raw') state.values = mine[0];
+      } else if (have('raw')) state.values = 'raw';
+      else state.values = mine[0] || data.values[0];
+      var corrected = state.values !== 'raw';
       viz.querySelectorAll('.seg button[data-key="values"]').forEach(function (o) {
-        o.disabled = !have(o.dataset.value);
-        o.setAttribute('aria-pressed', o.dataset.value === state.values ? 'true' : 'false');
+        var isRaw = o.dataset.value === 'raw';
+        o.disabled = isRaw ? !have('raw') : !methods.some(have);
+        o.setAttribute('aria-pressed', isRaw !== corrected ? 'true' : 'false');
       });
+      if (methodMenu) {
+        Array.prototype.forEach.call(methodMenu.options, function (o) {
+          o.disabled = !have(o.value);
+        });
+        if (corrected) methodMenu.value = state.values;
+        methodMenu.parentNode.hidden = !corrected;
+      }
     }
     viz.querySelectorAll('.seg button').forEach(function (b) {
       b.addEventListener('click', function () {
-        state[b.dataset.key] = b.dataset.value;
-        viz.querySelectorAll('.seg button[data-key="' + b.dataset.key + '"]').forEach(
-          function (o) { o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); });
+        if (b.dataset.key === 'values') {
+          var have = ownSet;
+          state.wantCorrected = b.dataset.value !== 'raw';
+          state.values = b.dataset.value === 'raw' ? 'raw'
+            : (methodMenu && have(methodMenu.value) ? methodMenu.value : methods.filter(have)[0]);
+        } else {
+          state[b.dataset.key] = b.dataset.value;
+          viz.querySelectorAll('.seg button[data-key="' + b.dataset.key + '"]').forEach(
+            function (o) { o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); });
+        }
         sync();
         draw();
       });
+    });
+    if (methodMenu) methodMenu.addEventListener('change', function () {
+      state.values = methodMenu.value; sync(); draw();
     });
     sync();
     if (menu) menu.addEventListener('change', function () { state.colour = menu.value; draw(); });

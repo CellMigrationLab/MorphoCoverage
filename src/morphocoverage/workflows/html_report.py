@@ -94,7 +94,7 @@ from ._html_sections import (
 )
 from ._html_style import CSS
 from ._html_tests import figure_legends, page_assumptions, tests_section
-from ._whole_table import whole_table_html, whole_table_lines
+from ._whole_table import whole_summary_html, whole_table_html, whole_table_lines
 from .retrospective import REPORT_QUESTIONS, Report
 
 REPORT_FILE = "report.html"
@@ -314,6 +314,9 @@ def _conditions_card(
     summary = significant_summary(result, _TERMS.annotate) or readout_summary(
         result, _TERMS.annotate
     )
+    whole = result.results.get("whole_table")
+    if summary and whole is not None and len(whole.tests):
+        summary += whole_summary_html(whole)
     rest = short[len(reading) :].lstrip("\n") if reading and short.startswith(reading) else short
     whole = result.results.get("whole_table")
     if whole is not None and len(whole.tests):  # its own block, among the extras

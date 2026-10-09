@@ -464,8 +464,10 @@ def normalized_text(
         return None
     if setup.own_references is None:
         assert setup.control is not None
+        words = setup.unit_words if setup.observation_unit is not None else "objects"
         text = (
-            f"{normalized_sentence(setup.control, setup.repeat_col(fovs))}; {normalised_readers()}"
+            f"{normalized_sentence(setup.control, setup.repeat_col(fovs), words)}; "
+            f"{normalised_readers()}"
         )
         if objects is not None:
             means = control_means(
