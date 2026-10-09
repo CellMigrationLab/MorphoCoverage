@@ -61,6 +61,7 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import assumption, caveat_lines, pool_assumptions
+from .._checks import is_share
 from .._fitted import fitted
 from .._frozen import owned
 from .._style import DASH, PROBLEM, Status, check_detail, headline, wrap
@@ -326,7 +327,7 @@ def microscopist_report(
     per target (``workflows.Setup.declaration()``), and ``overview`` what the
     tables hold (``dataset_overview``); the report prints them first.
     """
-    if isinstance(minimum_detection, bool) or not 0 < float(minimum_detection) <= 1:
+    if not is_share(minimum_detection, closed_high=True):
         raise ValueError("minimum_detection must be a share in (0, 1]")
     if isinstance(declaration, str) or any(not isinstance(d, str) for d in declaration):
         raise TypeError("declaration must be a sequence of sentences")

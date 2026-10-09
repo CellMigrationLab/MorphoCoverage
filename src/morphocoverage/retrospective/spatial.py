@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import distance as _distances
 
-from .._checks import as_count, check_seed
+from .._checks import as_count, check_seed, is_positive_finite, is_share
 from .._frozen import owned
 from .._seeds import group_rng
 from .._stage_coordinates import stage_matrix, stage_names
@@ -121,8 +121,8 @@ def order_efficiency(
         (per_move_seconds, "per_move_seconds"),
         (stage_speed, "stage_speed"),
     ):
-        if value is not None and not float(value) > 0:
-            raise ValueError(f"{label} must be positive")
+        if value is not None and not is_positive_finite(value):
+            raise ValueError(f"{label} must be a positive, finite number")
     adequacy = adequacy_points(replay) if adequacy is None else adequacy
     _check_same_replay(replay, adequacy)
     groups = list(replay.group_cols)
@@ -311,7 +311,7 @@ def redundancy_distance(
     in ``reason``, and the other groups are still computed. With several
     features, standardize them beforehand if their scales differ.
     """
-    if not 0 < float(share) <= 1:
+    if not is_share(share, closed_high=True):
         raise ValueError("share must be in (0, 1]")
     n_permutations = as_count(n_permutations, "n_permutations")
     random_state = check_seed(random_state)

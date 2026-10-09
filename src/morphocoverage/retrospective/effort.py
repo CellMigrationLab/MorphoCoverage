@@ -89,7 +89,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._checks import is_integer
+from .._checks import check_seed, is_integer
 from .._former_repeat import one_warning, read_former
 from .._frozen import owned
 from .._seeds import group_rng
@@ -386,6 +386,7 @@ def _check_arguments(hierarchy: SamplingHierarchy, n_boot: object, random_state:
         raise ValueError("n_boot must be an integer of at least 2")
     if not is_integer(random_state):
         raise TypeError("random_state must be an integer seed")
+    check_seed(random_state)  # and not negative
 
 
 def _missing_stratum(data_fovs: pd.DataFrame, stratum: dict[str, Any]) -> str | None:

@@ -53,7 +53,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .._checks import as_count, check_seed
+from .._checks import as_count, check_seed, is_share
 from .._former_repeat import read_former
 from .._frozen import owned
 from .._seeds import group_rng
@@ -118,7 +118,7 @@ def _check(
     if not isinstance(hierarchy, SamplingHierarchy):
         raise TypeError("hierarchy must be a SamplingHierarchy")
     for value, label in ((threshold, "threshold"), (protocol_share, "protocol_share")):
-        if isinstance(value, bool) or not 0 < float(value) <= 1:
+        if not is_share(value, closed_high=True):
             raise ValueError(f"{label} must be a share in (0, 1]")
     as_count(n_boot, "n_boot")
     check_seed(random_state)
