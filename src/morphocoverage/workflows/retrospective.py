@@ -44,6 +44,7 @@ from typing import Any
 
 import pandas as pd
 
+from .._checks import is_share
 from .._integrity_tables import integrity_by_table
 from .._style import DASH
 from .._wording import count
@@ -382,6 +383,10 @@ def optimise(
     given_tables = (objects, fovs)
     objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     source = source_identity(*given_tables)
+    if not is_share(protocol_threshold, closed_high=True):  # read even where no hierarchy runs it
+        raise ValueError(
+            f"protocol_threshold must be a share in (0, 1], not {protocol_threshold!r}"
+        )
     # One observation per field: the field version of new, as the report and the estimator
     # read it (plan v2); the Plan keeps the declared Setup.
     declared, setup = setup, field_setup(setup) if one_per_field(objects, fovs, setup) else setup

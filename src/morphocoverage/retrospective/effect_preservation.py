@@ -60,7 +60,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._checks import as_count, check_seed, is_integer, is_number
+from .._checks import as_count, check_seed, is_integer, is_number, is_share
 from .._control import check_comparisons
 from .._former_repeat import one_warning, read_former
 from .._frozen import owned
@@ -169,7 +169,7 @@ def _check_settings(
     counts = [fov_counts] if is_integer(fov_counts) else list(fov_counts)
     if not counts or not all(is_integer(k) and int(k) >= 1 for k in counts):
         raise ValueError(f"fov_counts must be positive integers, not {fov_counts!r}")
-    if not is_number(reservoir_fraction) or not 0 < float(reservoir_fraction) < 1:
+    if not is_share(reservoir_fraction):
         raise ValueError(f"reservoir_fraction must be between 0 and 1, not {reservoir_fraction!r}")
     if not is_number(tolerance) or not 0 <= float(tolerance) < math.inf:
         raise ValueError(f"tolerance must be a non-negative number of d units, not {tolerance!r}")

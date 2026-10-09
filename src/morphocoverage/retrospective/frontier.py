@@ -79,7 +79,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .._checks import as_count
+from .._checks import as_count, is_share
 from .._former_repeat import read_former
 from .._frozen import owned
 from ..metadata import column_names
@@ -363,9 +363,10 @@ def frontier(
     """
     if not isinstance(replay, ReplayResult):
         raise TypeError("replay must be a ReplayResult")
-    alphas = [float(a) for a in alphas]
-    if not alphas or not all(0 < a < 1 for a in alphas):
+    alphas = list(alphas)
+    if not alphas or not all(is_share(a) for a in alphas):
         raise ValueError("alphas must be risk levels between 0 and 1")
+    alphas = [float(a) for a in alphas]
     (unit_cols,) = read_former(unit_cols=unit_cols)  # the former name ``repeat``
     unit_cols = column_names(unit_cols, "unit_cols")
     missing = [c for c in unit_cols if c not in replay.group_cols]

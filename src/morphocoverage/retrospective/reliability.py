@@ -76,7 +76,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._checks import as_count, check_seed, is_integer
+from .._checks import as_count, check_seed, is_integer, is_share
 from .._frozen import owned
 from .._parallel import check_n_jobs, map_units
 from .._seeds import group_key, group_rng, split_seed
@@ -161,7 +161,7 @@ def _check_settings(
     if not counts or not all(is_integer(k) and k >= 1 for k in counts):
         raise ValueError("fov_counts must be positive integers")
     counts = sorted({int(k) for k in counts})  # numpy integers (np.arange) accepted
-    if isinstance(reservoir_fraction, bool) or not 0 < float(reservoir_fraction) < 1:
+    if not is_share(reservoir_fraction):
         raise ValueError("reservoir_fraction must be between 0 and 1")
     as_count(n_splits, "n_splits")
     as_count(draws, "draws")

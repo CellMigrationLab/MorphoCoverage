@@ -70,7 +70,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._checks import is_integer
+from .._checks import check_seed, is_integer
 from .._former_repeat import one_warning, read_former
 from .._frozen import owned
 from .._parallel import check_n_jobs, map_units, worker_pool
@@ -401,7 +401,7 @@ def representation_control(
             raise ValueError(f"{label} must be a positive integer")
     if not is_integer(random_state):
         raise TypeError("random_state must be an integer seed")
-    fovs_seen, draws, random_state = int(fovs_seen), int(draws), int(random_state)
+    fovs_seen, draws, random_state = int(fovs_seen), int(draws), check_seed(random_state)
     feature_cols = column_names(feature_cols, "feature_cols")  # read once: may be a generator
     pair_cols, identity_cols, lofo_group_cols = read_former(
         pair_cols=list(column_names(pair_cols, "pair_cols")),

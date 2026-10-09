@@ -46,7 +46,7 @@ from typing import Any
 
 import pandas as pd
 
-from .._checks import as_count, check_seed
+from .._checks import as_count, check_column, check_flag, check_seed, is_share
 from .._frozen import owned
 from .._parallel import check_n_jobs, map_units
 from .._seeds import group_identity
@@ -200,6 +200,7 @@ def _check(
     as_count(n_splits, "n_splits")
     as_count(min_fovs, "min_fovs")
     check_seed(random_state)
+    check_column(acquisition_order_col, "acquisition_order_col")
     return strategies, criteria, orders
 
 
@@ -412,6 +413,12 @@ def replay_acquisitions(
         random_state,
         min_fovs,
         stage_cols,
+    )
+    if not is_share(reservoir_fraction):
+        raise ValueError(f"reservoir_fraction must be between 0 and 1, not {reservoir_fraction!r}")
+    incremental, keep_results = (
+        check_flag(incremental, "incremental"),
+        check_flag(keep_results, "keep_results"),
     )
     # numpy integers are accepted and recorded as the Python values they hold.
     n_splits, min_fovs, random_state = int(n_splits), int(min_fovs), int(random_state)
