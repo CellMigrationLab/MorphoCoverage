@@ -497,7 +497,7 @@ PLOTLY_SCRIPT = r"""
       if (state.wantCorrected && mine.length) {
         if (!have(state.values) || state.values === 'raw') state.values = mine[0];
       } else if (have('raw')) state.values = 'raw';
-      else state.values = mine[0] || data.values[0];
+      else state.values = mine[0];
       var corrected = state.values !== 'raw';
       viz.querySelectorAll('.seg button[data-key="values"]').forEach(function (o) {
         var isRaw = o.dataset.value === 'raw';
