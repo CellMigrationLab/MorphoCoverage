@@ -122,7 +122,7 @@ smallest and largest visible block.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -262,7 +262,7 @@ class FOVBootstrapEstimator(Estimator):
         missing = [f for f in self.features if f not in data.feature_cols]
         if missing:
             raise ValueError(f"FOV bootstrap features {missing} are not feature columns")
-        return replace(data, feature_cols=self.features)
+        return data.with_tables(feature_cols=self.features)
 
     def _values(self, data: ValidatedInput) -> tuple[np.ndarray | None, dict[str, Any], str]:
         """Feature values in the estimator's units, provenance, and those units' name."""

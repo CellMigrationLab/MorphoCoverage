@@ -12,18 +12,30 @@ FOV so far).
 from __future__ import annotations
 
 import os
-import re
 import sys
 import warnings
 from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
+from dataclasses import fields as fields_of
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from ._former_repeat import Reader
+from ._input_invariants import check_input, trusted_input
 from ._input_traps import warn_invalid_rows
+from ._observation_units import (  # noqa: F401  (re-exported: the observation unit)
+    _UNIT_ALIASES,
+    DEFAULT_OBSERVATION_UNIT,
+    DEFAULT_UNIT_WORD,
+    OBJECT_LIKE_UNITS,
+    normalize_observation_unit,
+    observation_words,
+    resolve_observation_unit,
+    unit_plural,
+    unit_words,
+)
 from ._plane_rules import (  # noqa: F401  (re-exported: the plane rule)
     PLANE_FEATURE_ADVICE,
     PLANE_LEVEL_UNITS,
@@ -34,7 +46,7 @@ from ._plane_rules import (  # noqa: F401  (re-exported: the plane rule)
     _within_fov_axes,
     plane_features,
 )
-from ._wording import count, plural
+from ._wording import count
 from .metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
     _tables,
@@ -48,83 +60,6 @@ from .metadata import (
     resolve_identity_cols,
     unambiguous_index,
 )
-
-# Units whose rows are individual detected objects, as the cell-number
-# baselines (JCB, Marcotti) assume.
-OBJECT_LIKE_UNITS = frozenset({"object", "cell", "nucleus"})
-
-# Plural and spelling variants mapped to one canonical label, so that "cells"
-# and "Cell" do not silently count as a different unit from "cell".
-_UNIT_ALIASES = {
-    "objects": "object",
-    "cells": "cell",
-    "nuclei": "nucleus",
-    "nucleuses": "nucleus",
-    "patches": "patch",
-    "slices": "slice",
-    "planes": "plane",
-    "embeddings": "embedding",
-    "fov_summaries": "fov_summary",
-}
-
-
-# Assumed when the caller does not say what a row is. Results record that the
-# unit was assumed (``observation_unit_declared=False``), never silently.
-DEFAULT_OBSERVATION_UNIT = "object"
-
-
-# The words for observations whose unit was not declared (owner, 2026-10-02: "cells could
-# be the default"): the report calls them cells, while the analysis still treats them as
-# generic objects (``DEFAULT_OBSERVATION_UNIT``, ``observation_unit_declared=False``).
-DEFAULT_UNIT_WORD = "cell"
-
-
-def unit_words(observation_unit: str | None, declared: bool = True) -> tuple[str, str]:
-    """The observations in words, singular and plural (``nucleus``, ``nuclei``): the
-    declared unit's, or ``cell`` and ``cells`` when none was declared (``None``, or
-    ``declared=False`` for a validated input's assumed unit)."""
-    if observation_unit is None or not declared:
-        return DEFAULT_UNIT_WORD, unit_plural(DEFAULT_UNIT_WORD)
-    unit = normalize_observation_unit(observation_unit)
-    return unit, unit_plural(unit)
-
-
-def observation_words(settings: Any) -> tuple[str, str]:
-    """``unit_words`` of a result's ``settings``, or of an object with those attributes."""
-    if not isinstance(settings, dict):
-        settings = {
-            "observation_unit": getattr(settings, "observation_unit", None),
-            "observation_unit_declared": getattr(settings, "observation_unit_declared", True),
-        }
-    return unit_words(
-        settings.get("observation_unit"), bool(settings.get("observation_unit_declared", True))
-    )
-
-
-def unit_plural(observation_unit: str) -> str:
-    """Plural of an observation unit for sentences, e.g. ``nuclei`` (``_wording.plural``)."""
-    return plural(observation_unit)
-
-
-def resolve_observation_unit(unit: str | None) -> tuple[str, bool]:
-    """The canonical unit and whether the caller declared it (``None`` means assumed)."""
-    if unit is None:
-        return DEFAULT_OBSERVATION_UNIT, False
-    return normalize_observation_unit(unit), True
-
-
-def normalize_observation_unit(unit: object) -> str:
-    """Canonical observation-unit label: lowercase, ``_`` for spaces/hyphens, singular.
-
-    Any non-empty label is accepted, since rows may be of a kind this package
-    does not know; known plurals are mapped to their singular.
-    """
-    if not isinstance(unit, str) or not unit.strip():
-        raise ValueError(
-            "observation_unit must be a non-empty description such as 'cell' or 'slice'"
-        )
-    label = re.sub(r"[\s-]+", "_", unit.strip().lower())
-    return _UNIT_ALIASES.get(label, label)
 
 
 @dataclass(frozen=True)
@@ -150,14 +85,20 @@ class ValidatedInput:
     observation_unit: str = DEFAULT_OBSERVATION_UNIT
     observation_unit_declared: bool = False
     fovs_from_observations: bool = False
-    # The feature matrix and FOV positions, computed once per input: selecting columns from a
-    # DataFrame costs about a millisecond, and resampling analyses read the same
-    # input thousands of times. Inputs are treated as immutable; the framework
-    # hands every estimator call a fresh copy with an empty cache
-    # (``evaluator._isolated_input``). Code that edits ``objects`` in place and
-    # then reads the features again must call ``clear_cache`` in between.
+    # The feature matrix and FOV positions, computed once per input (resampling reads them
+    # thousands of times). Inputs are immutable: the framework hands every estimator call a
+    # fresh copy with an empty cache; code editing ``objects`` in place calls ``clear_cache``.
     # Never passed in, so ``dataclasses.replace`` gives every copy an empty cache.
     _feature_cache: dict = field(default_factory=dict, init=False, compare=False, repr=False)
+
+    def __post_init__(self) -> None:
+        check_input(self)  # a hand-built input cannot masquerade as validated (issue 117)
+
+    def with_tables(self, **changes: Any) -> ValidatedInput:
+        """A copy of this input with other tables or feature columns (``objects``, ``fovs``,
+        ``feature_cols``), trusted: the framework's subsets of an input that was validated."""
+        fields = {f.name: getattr(self, f.name) for f in fields_of(self) if f.init}
+        return trusted_input(type(self), **{**fields, **changes})
 
     def clear_cache(self) -> None:
         """Forget the cached feature matrix and FOV positions, after editing tables in place."""
@@ -491,7 +432,8 @@ def _validate_input_tables(
             stacklevel=_caller_stacklevel(),
         )
 
-    return ValidatedInput(
+    return trusted_input(
+        ValidatedInput,
         objects=objects.copy(),
         fovs=validated_fovs,
         feature_cols=feature_cols,

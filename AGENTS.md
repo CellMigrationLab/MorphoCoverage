@@ -212,6 +212,8 @@ src/morphocoverage/
     _control.py            # private: the control resolved in one place: control rows, pooled controls, labels, the contrast table's columns
     _spelling.py           # private: typing errors of a name (edits), for metadata's near-miss spellings
     schema.py              # ValidatedInput and linked-table validation
+    _input_invariants.py   # private: the invariants of a ValidatedInput (checked when built by hand) and its trusted construction for the framework's own subsets
+    _observation_units.py  # private: the observation unit: normalised labels, the words for observations (re-exported by schema)
     _plane_rules.py        # private: the plane rule (z/c/t planes are not fields, never features)
     planes.py              # planes_as_features: one feature per plane, objects matched by label_id
     integrity.py           # exact data-integrity checks: copied, reordered or scaled fields, repeated blocks and summaries
