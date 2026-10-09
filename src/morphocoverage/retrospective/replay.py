@@ -44,13 +44,13 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from .._checks import as_count, check_seed
 from .._frozen import owned
 from .._parallel import check_n_jobs, map_units
 from .._seeds import group_identity
+from .._stage_coordinates import stage_matrix, stage_names
 from .._style import rule_label
 from ..benchmark import AcquisitionOrder, permuted_fovs
 from ..data_check import validate_input_tables
@@ -431,17 +431,8 @@ def replay_acquisitions(
             raise ValueError(f"fovs is missing required columns: {[acquisition_order_col]}")
         _check_order_values(data.fovs, acquisition_order_col)
     if stage_cols is not None:
-        if len(stage_cols) != 2:
-            raise TypeError("stage_cols must be two column names (x, y)")
-        if stage_cols[0] == stage_cols[1]:
-            raise ValueError("stage_cols must be two different columns (x, y), not one axis twice")
-        absent = [c for c in stage_cols if c not in data.fovs.columns]
-        if absent:
-            raise ValueError(f"stage columns missing from the FOV table: {absent}")
-        if data.fovs[list(stage_cols)].isna().any().any():
-            raise ValueError("stage coordinates contain missing values")
-        if np.isinf(data.fovs[list(stage_cols)].to_numpy(dtype=float)).any():
-            raise ValueError("stage coordinates must be finite: correct or drop the infinite ones")
+        stage_cols = stage_names(stage_cols)
+        stage_matrix(data.fovs, stage_cols)  # real, finite, complete: before any order is made
         if any(c in feature_cols for c in stage_cols):
             raise ValueError("stage coordinates cannot also be phenotype features")
     split_settings = (float(reservoir_fraction), block_col, n_splits, random_state)

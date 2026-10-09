@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import distance
 
+from ._stage_coordinates import stage_matrix
 from .schema import ValidatedInput, fov_positions
 from .transforms import missing_values_reason
 
@@ -122,11 +123,9 @@ def fov_semivariogram(
     squared differences are averaged over features. ``data`` must hold one
     analysis group (see ``fov_means``).
     """
-    for column in (x_col, y_col):
-        if column not in data.fovs.columns:
-            raise ValueError(f"{column!r} is not a column of the FOV table")
+    coordinates = stage_matrix(data.fovs, (x_col, y_col), missing="keep")
     means, rows = fov_means(data)
-    coords = data.fovs[[x_col, y_col]].to_numpy(dtype=float)[rows]
+    coords = coordinates[rows]
     return empirical_semivariogram(means, coords, bin_edges)
 
 

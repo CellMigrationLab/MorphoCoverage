@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
 
+from .._stage_coordinates import stage_matrix
 from .._wording import count
 from ..schema import ValidatedInput, fov_positions
 
@@ -70,7 +71,7 @@ def neighbour_rows(
     data: ValidatedInput, x_col: str, y_col: str, k: int, threshold: float, unit: str
 ) -> list[dict]:
     fovs = data.fovs
-    xy = fovs[[x_col, y_col]].to_numpy(dtype=float)
+    xy = stage_matrix(fovs, (x_col, y_col), missing="keep")
     if stage_skipped(fovs, x_col, y_col, k) is not None:
         return []
     positions = fov_positions(data, fovs)

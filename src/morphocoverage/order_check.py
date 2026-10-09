@@ -48,6 +48,7 @@ import pandas as pd
 from scipy import sparse, spatial, stats
 
 from ._caveats import assumption
+from ._stage_coordinates import stage_matrix
 from ._wording import count, percent
 from .schema import ValidatedInput, fov_values
 
@@ -263,8 +264,7 @@ def _positions(fovs: pd.DataFrame, stage_cols: tuple[str, str]) -> np.ndarray | 
     """The stage position of each field (NaN where a coordinate is missing), or ``None``."""
     if any(column not in fovs.columns for column in stage_cols):
         return None
-    columns = [pd.to_numeric(fovs[c], errors="coerce") for c in stage_cols]
-    return np.column_stack([c.to_numpy(dtype=float) for c in columns])
+    return stage_matrix(fovs, stage_cols, missing="keep")
 
 
 def _moran(means: np.ndarray, positions: np.ndarray) -> tuple[float | None, float | None, str]:

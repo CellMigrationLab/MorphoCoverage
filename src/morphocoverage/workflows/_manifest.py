@@ -10,7 +10,7 @@ import csv
 import hashlib
 import io
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -98,6 +98,32 @@ def _manifest_rows(manifest: Path) -> int:
         return 0
     with open(manifest, newline="") as handle:
         return max(0, sum(1 for line in handle if line.endswith("\n")) - 1)
+
+
+def value_kind(values: pd.Series) -> str:
+    """``number``, ``text`` or ``other``: what the non-missing values of a key column are."""
+    kind = pd.api.types.infer_dtype(values, skipna=True)
+    if kind in ("integer", "floating", "mixed-integer-float", "decimal"):
+        return "number"
+    return "text" if kind == "string" else "other"
+
+
+def read_coordinates(typed: Mapping[str, Any], stage_cols: Sequence[str]) -> dict[str, float]:
+    """The stage columns the manifest holds as text, read once as numbers (the analyses refuse
+    text coordinates, so the folder converts the declared ones here); a ``ValueError`` names
+    the column and the text that is not a number."""
+    found: dict[str, float] = {}
+    for column in stage_cols:
+        text = typed.get(column)
+        if not isinstance(text, str):
+            continue
+        try:
+            found[column] = float(text)
+        except ValueError:
+            raise ValueError(
+                f"{MANIFEST}: stage column {column!r} holds {text!r}, which is not a number"
+            ) from None
+    return found
 
 
 class ManifestReader:

@@ -254,6 +254,7 @@ src/morphocoverage/
     _seeds.py              # private: per-group seeds (group_identity, group_seed, group_rng, split_seed) and group_key
     _identity.py           # private: typed identity of FOVs, blocks, conditions and repeats: (text, type) keys, canonical order and codes, display labels (1 and "1" are two values)
     _frozen.py             # private: owned, read-only containers (FrozenDict/FrozenList, freeze, thaw) for frozen result snapshots
+    _stage_coordinates.py  # private: the one contract for stage coordinates: two distinct real numeric columns, no booleans, complex, text or coercion, finite (stage_names, stage_matrix, check_xy)
     _checks.py             # private: integer and number checks that accept numpy types
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new

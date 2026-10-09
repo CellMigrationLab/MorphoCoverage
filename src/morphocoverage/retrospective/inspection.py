@@ -49,6 +49,7 @@ import pandas as pd
 
 from .._checks import is_integer, is_number
 from .._frozen import owned
+from .._stage_coordinates import stage_names
 from .._style import group_label
 from .._wording import count, ordinal, percent
 from ..data_check import validate_input_tables
@@ -345,10 +346,8 @@ def _check(
         raise ValueError("influence_spread must be a positive number, or None")
     if not is_integer(k) or k < 1:
         raise ValueError("n_neighbours must be a positive integer")
-    if stage is not None and (len(stage) != 2 or not all(isinstance(c, str) for c in stage)):
-        raise TypeError("stage_cols must be two column names (x, y)")
-    if stage is not None and stage[0] == stage[1]:
-        raise ValueError("stage_cols must be two different columns (x, y), not one axis twice")
+    if stage is not None:
+        stage_names(stage)
     return summaries
 
 
