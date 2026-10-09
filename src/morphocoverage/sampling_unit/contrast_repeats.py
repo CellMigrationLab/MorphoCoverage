@@ -61,6 +61,21 @@ from ._reach import reachable
 
 # The fewest biological repeats holding both sides for a test across repeats.
 MIN_REPEATS = 3
+# Why a paired test has no p (issue 90): one vocabulary for the tests, the plan and the words.
+# A missing p carries one of these reasons, never inferred from the number being missing.
+FEW_REPEATS = f"fewer than {MIN_REPEATS} biological repeats hold both the condition and the control"
+NO_SPREAD = "the repeat effects are identical, so the paired test has no variance to test with"
+
+
+def untested_reason(repeats: int, p: float) -> str | None:
+    """Why a paired test of ``repeats`` repeats gave ``p``: ``FEW_REPEATS`` below the minimum,
+    ``NO_SPREAD`` when enough repeats gave no p (the effects do not vary or a value is
+    missing), ``None`` when there is a p."""
+    if repeats < MIN_REPEATS:
+        return FEW_REPEATS
+    return None if np.isfinite(p) else NO_SPREAD
+
+
 # The fewest repeats for the trend line "the same direction in every repeat, not significant"
 # (owner, 2026-10-06, audit 8): without an effect every repeat goes the same way in 25% of
 # experiments with 3 repeats, 13% with 4, 6% with 5 and 3% with 6.
@@ -185,10 +200,7 @@ def across_repeats(
             "ci_high": effect["ci_high"],
         }
         if len(differences) < MIN_REPEATS:
-            row["status"] = (
-                f"fewer than {MIN_REPEATS} biological repeats hold both the condition and the "
-                "control"
-            )
+            row["status"] = FEW_REPEATS
         else:
             rng = group_rng(random_state, {"condition": condition, "control": control})
             p, floor, exact = sign_flip_test(differences, rng)
@@ -199,6 +211,9 @@ def across_repeats(
                 p_paired_t=paired_t(differences),
                 p_paired_t_normalised=paired_t(_log_ratios(block, log)),
             )
+            shown = row["p_paired_t_normalised"]
+            shown = shown if np.isfinite(shown) else row["p_paired_t"]
+            row["status"] = untested_reason(len(differences), shown) or "ok"
         rows.append(row)
     result = pd.DataFrame(rows, columns=REPEAT_COLUMNS)
     if result.empty or result["repeats"].max() < 2:
@@ -264,11 +279,14 @@ def reagent_agreement(table: pd.DataFrame, targets: dict[Any, Any]) -> pd.DataFr
 
 
 __all__ = [
+    "FEW_REPEATS",
     "MIN_REPEATS",
+    "NO_SPREAD",
     "REPEAT_COLUMNS",
     "TARGET_COLUMNS",
     "TREND_REPEATS",
     "across_repeats",
     "reagent_agreement",
     "sign_flip_test",
+    "untested_reason",
 ]

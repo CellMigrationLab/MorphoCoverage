@@ -432,9 +432,14 @@ class FeatureDiscovery:
             )
         ]
         if len(self.tests) and self.tests["p_paired"].isna().all():
+            # The reason from the repeats held, never from the p being missing (issue 90).
+            few = bool((self.tests["repeats"] < MIN_REPEATS).all())
             cautions.append(
                 f"No paired test: fewer than {MIN_REPEATS} biological repeats hold a condition "
                 "and the control."
+                if few
+                else "No paired test: the repeat effects do not vary (or a value is missing), "
+                "so the test has no variance to use."
             )
         mixed = self.tests[self.tests["passes"] & (self.tests["lower"] > 0)]
         mixed = mixed[mixed["higher"] > 0]

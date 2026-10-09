@@ -21,7 +21,7 @@ from .._style import span
 from .._wording import WITHIN_FAMILY, column_word, count, listing, p_value
 from ..schema import observation_words
 from ._experiments import family_words
-from .contrast_repeats import MIN_REPEATS
+from .contrast_repeats import FEW_REPEATS, MIN_REPEATS, NO_SPREAD
 
 
 def _range(values: pd.Series) -> str:
@@ -106,7 +106,17 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
         return []
     word = column_word(contrast.settings["repeat_col"])
     notes = []
-    untested = repeats[repeats["status"] != "ok"]
+    untested = repeats[repeats["status"] == FEW_REPEATS]
+    flat = repeats[repeats["status"] == NO_SPREAD]
+    if len(flat):  # enough repeats, no variance to test with: never "needs 3" (issue 90)
+        names = listing([str(c) for c in flat["condition"]], 3)
+        notes.append(
+            assumption(
+                f"{names} {'has' if len(flat) == 1 else 'have'} the same change in every "
+                f"{word}, so the paired test has no variance to test with: no p is given, and "
+                "the change is described by its direction and size."
+            )
+        )
     if len(untested):
         held = [int(n) for n in untested["repeats"]]
         names = listing([str(c) for c in untested["condition"]], 3)
