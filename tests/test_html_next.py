@@ -211,12 +211,7 @@ def test_with_one_feature_the_summary_gives_the_conditions_by_verdict():
 
 
 def test_the_integrity_fields_are_listed_in_the_code_with_the_others():
-    from morphocoverage.workflows._html_cards import _field_values
-
     key = ["condition", "biological_repeat", "technical_repeat", "position_id"]
-    name = "condition=si#5, biological_repeat=1, technical_repeat=single, position_id=si#5|1|c7"
-    assert _field_values(name, key) == ("si#5", "1", "single", "si#5|1|c7")
-    assert _field_values("condition=a", key) is None
     code = html.unescape(fields_next([("a", "1", "w", "f1"), ("a", "1", "w", "f1")], key))
     assert code.count("('a', '1', 'w', 'f1')") == 1 and "# ..." not in code
 
@@ -287,6 +282,6 @@ def test_quality_control_fields_and_new_states_are_two_cards():
     assert "far from its condition and repeat: x" in qc and "ctrl · repeat R1 · 3" in qc
     assert "ctrl · repeat R1 · 7" not in qc
     code = html.unescape(re.search(r"<pre><code>(.*?)</code></pre>", qc, re.DOTALL).group(1))
-    assert "    # ('ctrl', 'R1', '3')," in code
+    assert "    # ('ctrl', 'R1', 3)," in code
     assert NEW_STATES_TITLE in new and "ctrl · repeat R1 · 7" in new
     assert "Novelty is exploratory" in new

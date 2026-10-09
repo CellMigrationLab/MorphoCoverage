@@ -157,8 +157,9 @@ def flagged_fields(result: Any) -> tuple[list[tuple[str, str]], list[tuple[Any, 
     key = key or list(columns)
     if named and list(columns) == key:
         # The integrity's fields first, as in the table: "condition=a, biological_repeat=1".
-        found = [_field_values(name, key) for name in dict.fromkeys(named)]
-        identities = [f for f in found if f is not None] + identities
+        # The typed key of each field the integrity names (never parsed back from its label).
+        typed = integrity.settings["field_keys"]
+        identities = [typed[name] for name in dict.fromkeys(named) if name in typed] + identities
     return rows, identities, key
 
 
@@ -179,12 +180,6 @@ def new_state_fields(result: Any) -> tuple[list[tuple[str, str]], list[str]]:
                 rows.append((label, "; ".join(own["detail"])))
     line = uninformative_line(inspection.settings.get("uninformative_novelty", []))
     return rows, [line] if line else []
-
-
-def _field_values(name: str, key: list[str]) -> tuple[str, ...] | None:
-    """An integrity finding's field (``col=value, col=value``) as its values of ``key``."""
-    pairs = dict(part.split("=", 1) for part in re.split(r", (?=[\w ]+=)", name) if "=" in part)
-    return tuple(pairs[c] for c in key) if all(c in pairs for c in key) else None
 
 
 def fields_table(rows: list[tuple[str, str]], annotate: Callable[[str], str]) -> str:

@@ -161,27 +161,31 @@ def _fields(data: ValidatedInput) -> tuple[match.Rows, list[str], list[str], dic
     rows = match.Rows.build(data.feature_matrix(), positions, len(data.fovs))
     records = data.fovs.to_dict("records")
     group_key = [column for column in data.fov_key if column != data.fov_col]
-    names, groups, labels = [], [], {"field_labels": [], "group_labels": []}
+    names, groups = [], []
+    labels: dict[str, list] = {"field_labels": [], "group_labels": [], "field_keys": []}
     for record in records:
         field_values = {column: record[column] for column in data.fov_key}
         group_values = {column: record[column] for column in group_key}
         names.append(where(field_values))
         groups.append(where(group_values))
         labels["field_labels"].append(group_label(field_values))
+        labels["field_keys"].append(tuple(field_values.values()))  # typed, for matching
         labels["group_labels"].append(group_label(group_values))
     return rows, names, groups, labels
 
 
 def _labels(
     findings: list[dict[str, Any]], names: list[str], groups: list[str], labels: dict[str, list]
-) -> dict[str, dict[str, str]]:
-    """The printed labels of the fields and groups the findings name, by name."""
+) -> dict[str, dict[str, Any]]:
+    """The printed labels and the typed keys of the fields and groups the findings name."""
     named = {name for f in findings for name in (f["field"], f["other_field"])}
     grouped = {group for f in findings for group in (f["group"], f["other_group"])}
     fields_map = {n: label for n, label in zip(names, labels["field_labels"], strict=True)}
     groups_map = {g: label for g, label in zip(groups, labels["group_labels"], strict=True)}
+    keys_map = dict(zip(names, labels["field_keys"], strict=True))
     return {
         "field_labels": {name: fields_map[name] for name in names if name in named},
+        "field_keys": {name: keys_map[name] for name in names if name in named},
         "group_labels": {group: groups_map[group] for group in grouped},
     }
 
