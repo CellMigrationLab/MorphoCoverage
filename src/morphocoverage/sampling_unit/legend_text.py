@@ -27,7 +27,7 @@ from ..schema import observation_words
 from ..statistics import repeat_values
 from ._experiments import family_noun
 from .contrast_cells import ALPHA
-from .contrast_repeats import MIN_REPEATS
+from .contrast_repeats import FEW_REPEATS, MIN_REPEATS, untested_reason
 
 
 def table_counts(contrast: Any) -> pd.DataFrame:
@@ -294,8 +294,15 @@ def figure_legend(
     if rows["p"].isna().all():
         readings = [_condition(r) for r in rows.itertuples() if pd.notna(r.change)]
         described = f" Described as one experiment: {'; '.join(readings)}." if readings else ""
+        # Why there is no p comes from the repeats held, not from the p being missing (issue 90).
+        reasons = untested_reason(int(rows["repeats"].min()), np.nan)
+        absent = (
+            f"no test across repeats (it needs {MIN_REPEATS})"
+            if reasons == FEW_REPEATS
+            else "no test across repeats (the repeat effects do not vary or a value is missing)"
+        )
         return (
-            f"{n}{join}{lead(f'no test across repeats (it needs {MIN_REPEATS})')}. {drawn}"
+            f"{n}{join}{lead(absent)}. {drawn}"
             f"{described} Repeat the experiment before testing; the {one}-level screen is "
             "exploratory."
         )

@@ -94,6 +94,7 @@ from ._html_sections import (
 )
 from ._html_style import CSS
 from ._html_tests import figure_legends, page_assumptions, tests_section
+from ._source import verify_source
 from ._whole_table import whole_summary_html, whole_table_html, whole_table_lines
 from .retrospective import REPORT_QUESTIONS, Report
 
@@ -348,6 +349,7 @@ def html_report(
     title: str = "MorphoCoverage report",
     attach: Sequence[str | Path] = (),
     feature_tables: Mapping[str, pd.DataFrame | tuple[pd.DataFrame, str]] | None = None,
+    check_source: bool = True,
 ) -> Path:
     """Write ``folder/report.html`` and its figures (see the module); returns the page's path.
 
@@ -355,10 +357,15 @@ def html_report(
     the page carries for download (the design scan, the saved answers): one not found is named
     in the Files card, and two of one name are both carried (``_html_data.page_files``).
     ``feature_tables`` are the feature tables given to ``report`` (with their tags), attached
-    again here.
+    again here. ``objects`` and ``fovs`` must be the very tables the report was run on (their
+    digest is recorded on the report): the page never mixes its answers with figures or
+    downloads from other data. ``check_source=False`` skips the check for a report that records
+    no source (one made before sources were recorded).
     """
     if not isinstance(result, Report):
         raise TypeError("result must be the Report that report() returned")
+    if check_source:
+        verify_source(result.source, objects, fovs)
     # The figures are drawn from these tables, the answers were computed from the report's.
     counts = getattr(result.results.get("overview"), "counts", None)
     if counts is not None and (len(objects), len(fovs)) != (counts["objects"], counts["fields"]):

@@ -331,11 +331,11 @@ def test_static_pngs_of_wide_figures_are_drawn_at_most_2400_pixels(page):
 
 
 def test_the_colour_menu_says_when_it_offers_only_the_best_ranked_features():
-    from morphocoverage.workflows._html_maps import _colour_menu
+    from morphocoverage.workflows._html_map_controls import colour_menu
 
     data = {"populations": [], "features": [f"f{i}" for i in range(60)]}
-    assert "the 60 best-ranked of 300 features" in _colour_menu(data, 300)
-    assert "best-ranked of" not in _colour_menu(data, 60)
+    assert "the 60 best-ranked of 300 features" in colour_menu(data, 300)
+    assert "best-ranked of" not in colour_menu(data, 60)
 
 
 def test_long_condition_names_are_cut_in_the_static_matrices():

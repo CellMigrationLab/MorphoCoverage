@@ -473,9 +473,7 @@ def embeddings(
         + (f'<p class="note">{html.escape(note)}</p>' if note else "")
         + (
             '<p class="note"><strong>Normalisation.</strong> '
-            + html.escape(
-                " ".join(f"{METHOD_WORDS.get(v, 'Raw')}: {VALUE_HELP[v]}" for v in data["values"])
-            )
+            + html.escape(" ".join(f"{METHOD_WORDS[v]}: {VALUE_HELP[v]}" for v in data["values"]))
             + "</p>"
             if len(data["values"]) > 1
             else ""

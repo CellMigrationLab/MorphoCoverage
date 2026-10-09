@@ -47,38 +47,44 @@ def find_box(names: list[str], colours: list[str]) -> str:
     )
 
 
+def _corrected_label(methods: list[str]) -> str:
+    """The first button's word: "Normalised" when that method is there, else the lone
+    method's own name (a ``KeyError`` for a view the page does not know)."""
+    return "Normalised" if "normalised" in methods else METHOD_NAMES[methods[0]]
+
+
+def _values_buttons(values: list[str], methods: list[str]) -> str:
+    """Normalised (the methods' button, when there are methods) and Raw."""
+    pressed = values[0] != "raw"
+    corrected = (
+        '<button type="button" data-key="values" data-value="@corrected" '
+        f'aria-pressed="{str(pressed).lower()}">{html.escape(_corrected_label(methods))}</button>'
+        if methods
+        else ""
+    )
+    return (
+        corrected
+        + '<button type="button" data-key="values" data-value="raw" '
+        + f'aria-pressed="{str(not pressed).lower()}">Raw</button>'
+    )
+
+
+def _method_menu(methods: list[str]) -> str:
+    """The menu of the methods behind Normalised; empty with a single method."""
+    if len(methods) < 2:
+        return ""
+    options = "".join(
+        f'<option value="{v}" title="{html.escape(VALUE_HELP[v])}">'
+        f"{html.escape(METHOD_WORDS[v])}</option>"
+        for v in methods
+    )
+    return (
+        f'<label class="values-label">Method <select class="values-menu">{options}</select></label>'
+    )
+
+
 def values_controls(values: list[str]) -> tuple[str, str]:
     """The Normalised / Raw buttons and the method menu (empty with one method) for the views
     ``values`` (``normalised``, ``raw``, ``centred``)."""
     methods = [v for v in values if v != "raw"]
-    # "Normalised" when that method is there, else the lone method's own name.
-    corrected = (
-        "Normalised"
-        if "normalised" in methods
-        else METHOD_NAMES.get(methods[0], "")
-        if methods
-        else ""
-    )
-    pressed = values[0] != "raw"
-    values_buttons = (
-        (
-            f'<button type="button" data-key="values" data-value="@corrected" '
-            f'aria-pressed="{str(pressed).lower()}">{html.escape(corrected)}</button>'
-            if methods
-            else ""
-        )
-        + '<button type="button" data-key="values" data-value="raw" '
-        f'aria-pressed="{str(not pressed).lower()}">Raw</button>'
-    )
-    method_menu = (
-        '<label class="values-label">Method <select class="values-menu">'
-        + "".join(
-            f'<option value="{v}" title="{html.escape(VALUE_HELP.get(v, ""))}"'
-            f">{html.escape(METHOD_WORDS.get(v, v))}</option>"
-            for v in methods
-        )
-        + "</select></label>"
-        if len(methods) > 1
-        else ""
-    )
-    return values_buttons, method_menu
+    return _values_buttons(values, methods), _method_menu(methods)

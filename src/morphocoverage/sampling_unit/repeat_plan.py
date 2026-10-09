@@ -55,6 +55,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .._checks import is_integer, is_number
 from ..metadata import REPEAT_COLUMN as REPEAT
 from ..statistics import repeat_values
 from ._experiments import experiments
@@ -84,11 +85,37 @@ PLAN_COLUMNS = [
 ]
 
 
+MISSING_VALUE = "a value the plan needs is missing, so the repeats needed are not planned"
+DEGENERATE = (
+    "the estimated variance of the repeat effects is zero: the plan is not defined there, "
+    "which is not evidence of no power"
+)
+
+
+def _check_plan(**values: Any) -> None:
+    """The planning inputs, strictly: finite real delta and sd (sd not negative), alpha and
+    power in (0, 1), a whole number of repeats (booleans and strings are refused)."""
+    for name, value in values.items():
+        if name == "repeats":
+            if not is_integer(value) or value < 1:
+                raise ValueError(f"repeats must be a whole number of at least 1, not {value!r}")
+        elif not is_number(value) or not np.isfinite(value):
+            raise ValueError(f"{name} must be a finite number, not {value!r}")
+        elif name in ("alpha", "power") and not 0 < value < 1:
+            raise ValueError(f"{name} must be between 0 and 1, not {value!r}")
+        elif name == "sd" and value < 0:
+            raise ValueError(f"sd must not be negative, not {value!r}")
+
+
 def paired_power(delta: float, sd: float, repeats: int, alpha: float) -> float:
     """The power of a two-sided paired t-test on ``repeats`` differences of mean ``delta`` and
-    standard deviation ``sd``."""
-    if repeats < 2 or sd <= 0:
+    standard deviation ``sd``; 0 below two repeats (no test can run); NaN when ``sd`` is zero
+    (a degenerate variance estimate, ``DEGENERATE``, not evidence of zero power)."""
+    _check_plan(delta=delta, sd=sd, repeats=repeats, alpha=alpha)
+    if repeats < 2:
         return 0.0
+    if sd == 0:
+        return float("nan")
     df = repeats - 1
     critical = float(stats.t.ppf(1 - alpha / 2, df))
     shift = delta * np.sqrt(repeats) / sd
@@ -101,8 +128,11 @@ def paired_power(delta: float, sd: float, repeats: int, alpha: float) -> float:
 
 def repeats_needed(delta: float, sd: float, alpha: float, power: float = POWER) -> float:
     """The fewest repeats (``MIN_REPEATS`` to ``MAX_REPEATS``) reaching ``power``; ``inf``
-    beyond. It starts at the paired test's minimum: two repeats are never tested, whatever
-    their power would be (audit 10, owner, 2026-10-06)."""
+    beyond; NaN when ``sd`` is zero (``DEGENERATE``). It starts at the paired test's minimum:
+    two repeats are never tested, whatever their power would be (audit 10, owner, 2026-10-06)."""
+    _check_plan(delta=delta, sd=sd, alpha=alpha, power=power)
+    if sd == 0:
+        return float("nan")
     for repeats in range(MIN_REPEATS, MAX_REPEATS + 1):
         if paired_power(abs(delta), sd, repeats, alpha) >= power:
             return float(repeats)
@@ -230,14 +260,21 @@ def repeat_plan(
                 ("repeats_needed_twice_fields", within_twice),
             ):
                 sd = float(np.sqrt(between + error))
+                if not (np.isfinite(mean) and np.isfinite(sd)):
+                    row["status"] = MISSING_VALUE  # said, never read as zero power
+                    continue
                 row[column] = repeats_needed(mean, sd, row["alpha_planned"], power)
+                if np.isnan(row[column]) and row["status"] == "ok":
+                    row["status"] = DEGENERATE
         rows.append(row)
     return pd.DataFrame(rows, columns=PLAN_COLUMNS)
 
 
 __all__ = [
     "ALPHA",
+    "DEGENERATE",
     "MAX_REPEATS",
+    "MISSING_VALUE",
     "PLAN_COLUMNS",
     "POWER",
     "paired_power",

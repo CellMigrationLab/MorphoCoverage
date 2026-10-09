@@ -17,6 +17,7 @@ VALUE_WORDS = {"raw": "Raw", "normalised": "Normalised", "centred": "Centred per
 # The Normalisation menu: the normalised view first, then the raw values, the centred last.
 # The methods behind the Normalised button, named by what they do.
 METHOD_WORDS = {
+    "raw": "Raw",
     "normalised": "Divided by the control mean",
     "centred": "Minus the repeat median",
 }
