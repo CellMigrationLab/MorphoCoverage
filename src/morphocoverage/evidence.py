@@ -16,6 +16,7 @@ from enum import Enum
 from typing import Any
 
 from ._checks import is_number
+from ._frozen import own
 
 # Effort is framework-owned (AGENTS.md section 20); an estimator reporting its
 # own count could disagree with the acquisition record, e.g. by dropping
@@ -136,6 +137,11 @@ class Evidence:
     diagnostics: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        # The result owns its mappings (issue 108): mutating the dictionaries it was built from,
+        # or the ones it exposes, cannot change what was validated and decided on. Containers
+        # inside ``diagnostics`` are frozen too; objects inside them (arrays, tables) are not.
+        object.__setattr__(self, "quantities", own(self.quantities))
+        object.__setattr__(self, "diagnostics", own(self.diagnostics))
         for name, quantity in self.quantities.items():
             if not isinstance(name, str) or not name:
                 raise ValueError("quantity names must be non-empty strings")
