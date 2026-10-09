@@ -87,6 +87,7 @@ from .data_check import validate_input_tables
 from .metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
     TECHNICAL_REPEAT_COLUMN,
+    column_names,
     empty_values,
     sorted_labels,
 )
@@ -395,7 +396,7 @@ def plots_of_data(
     colours as ``colours``.
     """
     (repeat_col,) = read_former(repeat_col=repeat_col)  # the former name ``repeat``
-    if not (features := list(features)):
+    if not (features := list(column_names(features, "features"))):
         raise ValueError("features must name at least one column")
     if len(features) > max_features:
         raise ValueError(

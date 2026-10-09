@@ -89,6 +89,7 @@ import pandas as pd
 from . import distances
 from ._checks import is_integer
 from .embedding import robust_components
+from .metadata import column_names
 from .outcomes import OutcomeMetric, _check_label
 from .schema import ValidatedInput
 from .transforms import Standardize, constant_columns
@@ -96,9 +97,9 @@ from .transforms import Standardize, constant_columns
 
 def _feature_tuple(features: Sequence[str]) -> tuple[str, ...]:
     """A non-empty tuple of distinct column names."""
-    if isinstance(features, str) or not features:
+    features = column_names(features, "features")
+    if not features:
         raise TypeError("features must be a non-empty sequence of column names")
-    features = tuple(features)
     if not all(isinstance(f, str) for f in features) or len(set(features)) != len(features):
         raise ValueError("features must be distinct column names")
     return features

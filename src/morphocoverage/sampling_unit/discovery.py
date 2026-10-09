@@ -60,7 +60,7 @@ from .._wording import (
     listing,
     p_value,
 )
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
+from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN, column_names
 from ..schema import observation_words
 from ._common import groups, validated
 from ._discovery_tests import near_identical, resting, resting_words, tested_rows
@@ -511,7 +511,7 @@ def feature_discovery(
     feature's declared scale (``Setup.scales``), else the automatic rule; ``families``, each
     condition's declared experiment (``Setup.experiment``), else the sub-experiments."""
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
-    features = list(dict.fromkeys(features))
+    features = list(dict.fromkeys(column_names(features, "features")))
     if not features:
         raise ValueError("features must name at least one column")
     if comparisons is not None:

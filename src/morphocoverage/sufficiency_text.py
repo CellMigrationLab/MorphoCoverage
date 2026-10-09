@@ -24,6 +24,7 @@ from ._style import rule_label
 from ._wording import count, listing, number, percent
 from .bounds import EXTRA_TRIALS_LIMIT
 from .evidence import Direction
+from .metadata import column_names
 from .results import StrategyResult
 from .strategies.support_novelty import SupportNoveltyEstimator
 from .transforms import RobustStandardize, Standardize
@@ -150,7 +151,7 @@ def novelty_definition(
     text = f"{cells} with {_other_fovs(novelty.min_other_fovs)} within distance "
     text += f"{novelty.epsilon:g} ({space})"
     if feature_cols:
-        names = list(feature_cols)
+        names = list(column_names(feature_cols, "feature_cols"))
         text += f", on {count(len(names), 'feature')} ({listing(names, limit=3)})"
         if m > 1 and isinstance(novelty.transform, (Standardize, RobustStandardize)):
             text += (

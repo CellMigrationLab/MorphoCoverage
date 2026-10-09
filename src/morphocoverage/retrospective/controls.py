@@ -317,9 +317,7 @@ def _lofo_columns(data: ValidatedInput, lofo_group_cols: Sequence[str] | None) -
     """
     if lofo_group_cols is None:
         return [c for c in MORPHOBRICKS_GROUP_COLUMNS if c in data.fov_key and c != data.fov_col]
-    if isinstance(lofo_group_cols, str):
-        raise TypeError("lofo_group_cols must be a sequence of column names")
-    columns = list(lofo_group_cols)
+    columns = list(column_names(lofo_group_cols, "lofo_group_cols"))
     missing = [c for c in columns if c not in data.fovs.columns]
     if missing:
         raise ValueError(f"lofo_group_cols missing from the FOV table: {missing}")
@@ -406,7 +404,9 @@ def representation_control(
     fovs_seen, draws, random_state = int(fovs_seen), int(draws), int(random_state)
     feature_cols = column_names(feature_cols, "feature_cols")  # read once: may be a generator
     pair_cols, identity_cols, lofo_group_cols = read_former(
-        pair_cols=list(pair_cols), identity_cols=identity_cols, lofo_group_cols=lofo_group_cols
+        pair_cols=list(column_names(pair_cols, "pair_cols")),
+        identity_cols=column_names(identity_cols, "identity_cols"),
+        lofo_group_cols=lofo_group_cols,
     )
     settings = {
         "control": control.parameters,

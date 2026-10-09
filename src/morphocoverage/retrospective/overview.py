@@ -35,6 +35,7 @@ from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
     TECHNICAL_REPEAT_COLUMN,
     WITHIN_FOV_METADATA_COLUMNS,
+    column_names,
     sorted_labels,
 )
 from ..sampling_unit._experiments import experiments
@@ -406,7 +407,7 @@ def dataset_overview(
     data = validate_input_tables(
         objects,
         fovs=fovs,
-        feature_cols=list(feature_cols),
+        feature_cols=list(column_names(feature_cols, "feature_cols")),
         fov_col=fov_col,
         group_cols=group_cols,
         observation_unit=observation_unit,

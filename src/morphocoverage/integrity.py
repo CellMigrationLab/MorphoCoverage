@@ -79,6 +79,7 @@ from ._integrity_text import PRECISION, integrity_status, integrity_summary
 from ._style import Status, group_label
 from ._wording import listing, percent, plural, where
 from .data_check import validate_input_tables
+from .metadata import column_names
 from .schema import ValidatedInput, fov_positions
 
 CHECKS = (
@@ -234,7 +235,7 @@ def integrity_checks(
     data = validate_input_tables(
         objects,
         fovs=fovs,
-        feature_cols=list(feature_cols),
+        feature_cols=list(column_names(feature_cols, "feature_cols")),
         fov_col=fov_col,
         group_cols=group_cols,
         observation_unit=observation_unit,

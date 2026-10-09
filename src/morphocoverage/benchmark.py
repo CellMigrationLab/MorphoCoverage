@@ -52,7 +52,7 @@ from ._parallel import worker_pool
 from ._seeds import group_rng
 from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups
-from .metadata import sorted_by_key
+from .metadata import column_names, sorted_by_key
 from .objectives import ObjectiveConfig
 from .outcomes import OutcomeMetric
 from .reservoir import ReservoirSplit
@@ -96,9 +96,7 @@ class BenchmarkDataset:
         if not isinstance(self.name, str) or not self.name:
             raise ValueError("a dataset needs a non-empty name")
         object.__setattr__(self, "role", DatasetRole(self.role))
-        if isinstance(self.feature_cols, str):
-            raise TypeError("feature_cols must be a sequence of column names, not a string")
-        object.__setattr__(self, "feature_cols", tuple(self.feature_cols))
+        object.__setattr__(self, "feature_cols", column_names(self.feature_cols, "feature_cols"))
         if self.group_cols is not None:
             if isinstance(self.group_cols, str):
                 raise TypeError("group_cols must be a sequence of column names, not a string")

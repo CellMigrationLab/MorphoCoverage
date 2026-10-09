@@ -61,7 +61,7 @@ from .._checks import as_count, check_seed
 from .._frozen import owned
 from .._identity import canonical_row_codes, row_keys
 from ..embedding import _sample, _standardised, combined
-from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, column_names
 from ..schema import fov_positions, validate_input_tables
 from ..statistics import cohen_d
 from ._population_rule import Rule, population_rule
@@ -282,7 +282,7 @@ def find_populations(
     them (``blocks``: the combined space of several feature tables); ``named_by`` are the
     features a group's description and rule may name (default all; none, an empty
     sequence, leaves every group undescribed)."""
-    features = list(dict.fromkeys(features))
+    features = list(dict.fromkeys(column_names(features, "features")))
     max_points = as_count(max_points, "max_points", 100)
     random_state = check_seed(random_state)
     data = validate_input_tables(

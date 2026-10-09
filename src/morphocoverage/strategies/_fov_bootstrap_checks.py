@@ -11,6 +11,7 @@ from collections.abc import Sequence
 import numpy as np
 
 from .._checks import check_seed, is_integer
+from ..metadata import column_names
 from ..schema import ValidatedInput
 from ..statistics import spread_is_zero
 from ..transforms import Chain, FeatureTransform
@@ -121,9 +122,7 @@ def _feature_selection(features: Sequence[str] | None) -> tuple[str, ...] | None
     """``features`` as a tuple of distinct column names, or ``None`` for every feature column."""
     if features is None:
         return None
-    if isinstance(features, str):
-        raise TypeError("features must be a sequence of column names, not a string")
-    selected = tuple(features)
+    selected = column_names(features, "features")
     if not selected or any(not isinstance(f, str) or not f for f in selected):
         raise ValueError("features must name at least one column")
     if len(set(selected)) != len(selected):

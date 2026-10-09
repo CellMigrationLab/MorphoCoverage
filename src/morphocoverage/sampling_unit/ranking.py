@@ -56,7 +56,12 @@ from .._frozen import owned
 from .._seeds import group_rng
 from .._style import check_detail, table, wrap
 from .._wording import column_word, count, features_counted
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
+from ..metadata import (
+    MORPHOBRICKS_GROUP_COLUMNS,
+    REPEAT_COLUMN,
+    TECHNICAL_REPEAT_COLUMN,
+    column_names,
+)
 from ..statistics import benjamini_hochberg
 from ._common import groups, validated
 from ._units import (
@@ -343,7 +348,7 @@ def feature_ranking(
     the control by ``(condition, reference)`` pairs. See the module.
     """
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
-    features = list(dict.fromkeys(features))
+    features = list(dict.fromkeys(column_names(features, "features")))
     if not features:
         raise ValueError("features must name at least one column")
     if comparisons is not None:

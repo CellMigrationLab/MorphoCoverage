@@ -431,7 +431,9 @@ def inspect_fovs(
     missing = [s.feature for s in summaries if s.feature not in feature_cols]
     if missing:
         raise ValueError(f"summary features must be among feature_cols: {missing}")
-    novelty_cols = feature_cols if novelty_cols is None else list(novelty_cols)
+    novelty_cols = (
+        feature_cols if novelty_cols is None else list(column_names(novelty_cols, "novelty_cols"))
+    )
     data = validate_input_tables(
         objects,
         fovs=fovs,
