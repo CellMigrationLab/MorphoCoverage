@@ -43,8 +43,13 @@ def with_share(objects: pd.DataFrame, setup: Setup) -> pd.DataFrame:
     """``objects`` with the share column (the label as 0.0/1.0) when a label is declared and
     present; unchanged otherwise."""
     share = share_column(setup)
-    if share is None or setup.rare_label not in objects.columns or share in objects.columns:
+    if share is None or setup.rare_label not in objects.columns:
         return objects
+    if share in objects.columns:  # never trust a user column as the derived share (issue 351)
+        raise ValueError(
+            f"the column {share!r} is the name of the share derived from rare_label "
+            f"{setup.rare_label!r}; rename your column"
+        )
     return objects.assign(**{share: objects[setup.rare_label].astype(float)})
 
 

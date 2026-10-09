@@ -249,7 +249,7 @@ def with_result_influence(
     skipped: list[dict[str, Any]] = []
     small: list[dict[str, Any]] = []
     for group, both in iter_analysis_groups(data):
-        group_data = replace(both, feature_cols=(setup.readout,))
+        group_data = both.with_tables(feature_cols=(setup.readout,))
         values = group_data.feature_values(setup.readout)
         if np.nanmin(values, initial=0.0) < 0:
             skipped.append(
