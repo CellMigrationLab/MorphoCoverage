@@ -36,11 +36,7 @@ def _visible_table(table: pd.DataFrame) -> pd.DataFrame:
 
 def _isolated_input(data: ValidatedInput) -> ValidatedInput:
     """A deep copy of the input tables for one strategy call."""
-    return replace(
-        data,
-        objects=data.objects.copy(deep=True),
-        fovs=data.fovs.copy(deep=True),
-    )
+    return data.with_tables(objects=data.objects.copy(deep=True), fovs=data.fovs.copy(deep=True))
 
 
 def restrict_input(
@@ -49,17 +45,7 @@ def restrict_input(
     fovs: pd.DataFrame,
 ) -> ValidatedInput:
     """Build a ValidatedInput over a subset of already validated rows."""
-    return ValidatedInput(
-        objects=_visible_table(objects),
-        fovs=_visible_table(fovs),
-        feature_cols=data.feature_cols,
-        fov_col=data.fov_col,
-        group_cols=data.group_cols,
-        fov_key=data.fov_key,
-        observation_unit=data.observation_unit,
-        observation_unit_declared=data.observation_unit_declared,
-        fovs_from_observations=data.fovs_from_observations,
-    )
+    return data.with_tables(objects=_visible_table(objects), fovs=_visible_table(fovs))
 
 
 class FovSubsets:

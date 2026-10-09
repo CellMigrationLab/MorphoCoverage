@@ -514,7 +514,7 @@ class ComponentsError(OutcomeMetric):
             values = _matrix(data, self.features)
         points = (values - np.array(self.centre)) / np.array(self.scale) @ np.array(self.loadings).T
         frame = pd.DataFrame(points, index=data.objects.index, columns=list(self.metric.features))
-        return replace(data, objects=frame, feature_cols=self.metric.features)
+        return data.with_tables(objects=frame, feature_cols=self.metric.features)
 
     def trained(self, training: ValidatedInput) -> ComponentsError:
         """The same number of components refitted on ``training`` alone, the fields of one
