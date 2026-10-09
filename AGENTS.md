@@ -360,6 +360,7 @@ src/morphocoverage/
         _fingerprint_space.py  # private: a wide table's fingerprint on its first k principal components (k at most a fifth of the median judged group), or not assessable
         _whole_table.py    # private: the whole-table test in the report: the comparisons, the words in question 9, the page's block and CSV
         _embedding_report.py  # private: the report of an embedding-only Setup (no readout): the tables alone, what needs explainable features said once
+        _source.py         # private: the identity (digest) of the tables a Report or Plan was computed on, checked by html_report and document
         _results.py        # private: Report and Plan, the results of report and optimise, with their summaries (re-exported by retrospective)
         _contrasts.py      # private: one control or several: the contrast table, own controls, the pooled and figure controls
         _acquisition_gap.py  # private: several controls apart in intensity, said where the data and the comparisons are

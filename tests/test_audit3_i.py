@@ -249,9 +249,11 @@ def test_i7_the_report_clusters_the_declared_rare_label():
 def test_i8_document_refuses_parts_of_different_setups():
     first, other = _setup(), _setup(tolerances=(0.1,))
     with pytest.raises(ValueError, match="different Setups"):
-        document(Report({}, None, first), Plan({}, None, other))
-    # n_jobs changes no result, so parts differing only there merge.
-    merged = document(Report({}, None, first), Plan({}, None, _setup(n_jobs=2)))
+        document(Report({}, None, first, source="s"), Plan({}, None, other, source="s"))
+    # n_jobs changes no result, so parts differing only there merge (of one acquisition).
+    merged = document(
+        Report({}, None, first, source="s"), Plan({}, None, _setup(n_jobs=2), source="s")
+    )
     assert merged.declaration == first.declaration()
 
 

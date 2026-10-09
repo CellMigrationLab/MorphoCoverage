@@ -122,6 +122,7 @@ from ._shared import (
     sufficiency_rules,
 )
 from ._shared import orders as _orders
+from ._source import same_source, source_identity
 from ._whole_table import whole_table_in_report
 from .benchmarks import Benchmark, Family, benchmark, default_families
 from .setup import Setup
@@ -170,17 +171,21 @@ def report(
     copy checks (on each table apart) and their own fingerprints, never novelty or unusual
     observations (owner, 2026-10-06); the report's ``setup`` names them.
     """
+    given_tables = (objects, fovs)
     given = feature_tables is not None
     # Explainable tables hold declared features: the data are checked once they are attached.
     explainable = any_explainable(feature_tables)
     objects, fovs, data_check = check_workflow_inputs(
         objects, fovs, setup, warn=False, tables_given=given, check=not explainable
     )
+    source = source_identity(*given_tables)
     objects, setup, tables = attached(objects, fovs, setup, feature_tables)
     if explainable:
         data_check = check_workflow_inputs(objects, fovs, setup, warn=False)[2]
     if setup.embedding_only:  # the other tables alone (owner, 2026-10-06)
-        return embedding_report(objects, fovs, setup, data_check, tables, integrity)
+        return replace(
+            embedding_report(objects, fovs, setup, data_check, tables, integrity), source=source
+        )
     common = setup.common
     readout = setup.readout
     # One observation per field (one cell per image): the field questions run on the rows as
@@ -335,7 +340,7 @@ def report(
     if unlabelled:
         # Said once, where the label is used: the notes every answer is read with.
         document = replace(document, notes=(*document.notes, unlabelled))
-    return Report(results, document, declared, reasons, settings)
+    return Report(results, document, declared, reasons, settings, source)
 
 
 def optimise(
@@ -374,7 +379,9 @@ def optimise(
     represented; the summary prints it. A count of fields is a recommendation
     only once it holds on samples it was not chosen on.
     """
+    given_tables = (objects, fovs)
     objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
+    source = source_identity(*given_tables)
     # One observation per field: the field version of new, as the report and the estimator
     # read it (plan v2); the Plan keeps the declared Setup.
     declared, setup = setup, field_setup(setup) if one_per_field(objects, fovs, setup) else setup
@@ -435,7 +442,7 @@ def optimise(
                 random_state=setup.random_state,
             )
     if not setup.stopping_rules():  # no readout, no rule (owner, 2026-10-06)
-        return embedding_plan(objects, fovs, setup, results, reasons, space)
+        return replace(embedding_plan(objects, fovs, setup, results, reasons, space), source=source)
     replay = replay_rules(
         objects,
         prepared,
@@ -496,7 +503,7 @@ def optimise(
     document = replace(
         with_reasons(document, reasons), title=title, notes=(*document.notes, *unread)
     )
-    return Plan(results, document, declared, reasons, settings)
+    return Plan(results, document, declared, reasons, settings, source)
 
 
 def _same_setup(first: Setup, other: Setup) -> bool:
@@ -508,6 +515,34 @@ def _same_setup(first: Setup, other: Setup) -> bool:
     )
 
 
+def _check_parts(parts: tuple[Report | Plan, ...]) -> None:
+    """The parts ``document`` merges: results of ``report``/``optimise``, at most one of each,
+    of one setup and of one acquisition (the digest of the tables each was computed on)."""
+    for part in parts:
+        if not isinstance(part, Report | Plan):
+            raise TypeError("document takes the results of report() and optimise()")
+    for kind in (Report, Plan):
+        if sum(isinstance(part, kind) for part in parts) > 1:
+            raise ValueError(
+                f"document takes one report and one plan; got several {kind.__name__} "
+                "results: merge only the parts of one acquisition"
+            )
+    for part in parts[1:]:
+        if not _same_setup(parts[0].setup, part.setup):
+            raise ValueError(
+                "document merges parts of one setup: these were computed under different "
+                "Setups, so one declaration cannot describe them; run report and optimise "
+                "with the same Setup"
+            )
+    for part in parts[1:]:
+        if not same_source(parts[0].source, part.source):
+            raise ValueError(
+                "document merges parts of one acquisition: these were computed on different "
+                "observation or FOV tables (or one records no source), so the answers would "
+                "describe different data; run report and optimise on the same tables"
+            )
+
+
 def document(*parts: Report | Plan) -> MicroscopistReport:
     """The full microscopist's report from a ``report`` and a ``plan`` of the same data.
 
@@ -517,18 +552,14 @@ def document(*parts: Report | Plan) -> MicroscopistReport:
     """
     if not parts:
         raise ValueError("document takes the results of report() and optimise()")
+    _check_parts(parts)
     merged: dict[str, Any] = {}
     reasons: dict[str, str] = {}
     sentences: list[str] = []
     for part in parts:
-        if not isinstance(part, Report | Plan):
-            raise TypeError("document takes the results of report() and optimise()")
-        if not _same_setup(parts[0].setup, part.setup):
-            raise ValueError(
-                "document merges parts of one setup: these were computed under different "
-                "Setups, so one declaration cannot describe them; run report and optimise "
-                "with the same Setup"
-            )
+        clash = sorted(set(merged) & set(part.results))
+        if clash:
+            raise ValueError(f"document found the same analysis in two parts: {clash}")
         merged.update(part.results)
         reasons.update(part.not_assessed)
         if part.settings:

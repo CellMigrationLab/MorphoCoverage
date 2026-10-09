@@ -42,7 +42,8 @@ class Report:
     """The REPORT answers: ``results`` by analysis, ``document`` the assembled report.
 
     ``not_assessed`` holds, by question, why an analysis was not run;
-    ``settings`` the replay settings of the run.
+    ``settings`` the replay settings of the run, ``source`` the identity of the tables it was
+    computed on (``_source.source_identity``), checked by ``html_report`` and ``document``.
     """
 
     results: dict[str, Any]
@@ -50,6 +51,7 @@ class Report:
     setup: Setup
     not_assessed: dict[str, str] = field(default_factory=dict)
     settings: dict[str, Any] = field(default_factory=dict)
+    source: str | None = None
 
     def summary(self, detail: str = "short") -> str:
         """The report questions (``detail``: ``"short"`` or ``"full"``, as
@@ -77,7 +79,8 @@ class Plan:
     """The OPTIMISE answers: ``results`` by analysis, ``document`` the assembled report.
 
     ``not_assessed`` holds, by question, why an analysis was not run;
-    ``settings`` the computational settings and presets of the run.
+    ``settings`` the computational settings and presets of the run, ``source`` the identity of
+    the tables it was computed on, checked by ``document``.
     """
 
     results: dict[str, Any]
@@ -85,6 +88,7 @@ class Plan:
     setup: Setup
     not_assessed: dict[str, str] = field(default_factory=dict)
     settings: dict[str, Any] = field(default_factory=dict)
+    source: str | None = None
 
     def summary(self, detail: str = "short") -> str:
         """The planning questions, with the calibration of each stopping rule (``detail``:
