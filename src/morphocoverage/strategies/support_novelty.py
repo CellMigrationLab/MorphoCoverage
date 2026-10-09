@@ -135,6 +135,7 @@ from typing import Any, TypeVar
 import numpy as np
 
 from .._checks import is_integer
+from .._identity import key_labels
 from .._wording import listing
 from ..bounds import check_confidence, upper_bound
 from ..evidence import Component, Direction, Evidence, Quantity
@@ -212,8 +213,8 @@ def _as_ints(settings: object, *names: str) -> None:
 
 
 def _fov_names(data: ValidatedInput) -> list[str]:
-    """Each FOV's identifier, by position in ``data.fovs``, for messages."""
-    return [str(value) for value in data.fovs[data.fov_key[-1]].tolist()]
+    """Each FOV's whole key written out, by position in ``data.fovs``, for messages."""
+    return key_labels(data.fovs, list(data.fov_key))
 
 
 def _fold_failure(

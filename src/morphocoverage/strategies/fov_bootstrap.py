@@ -127,6 +127,7 @@ from typing import Any
 
 import numpy as np
 
+from .._identity import canonical_codes
 from .._wording import listing, percent
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
@@ -280,7 +281,7 @@ class FOVBootstrapEstimator(Estimator):
             block_of_fov = np.empty(len(data.fovs), dtype=int)
             block_of_fov[_canonical_fovs(data)] = np.arange(len(data.fovs))
         else:
-            block_of_fov = np.unique(data.fovs[self.block_col].to_numpy(), return_inverse=True)[1]
+            block_of_fov = canonical_codes(data.fovs[self.block_col])[0]
         n_blocks = int(block_of_fov.max()) + 1
         rng = np.random.default_rng(self.random_state)
         draws = rng.integers(0, n_blocks, (self.n_resamples, n_blocks))

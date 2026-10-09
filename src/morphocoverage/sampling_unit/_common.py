@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from .._control import control_text, group_matches
+from .._identity import canonical_order
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..schema import ValidatedInput
@@ -86,12 +87,11 @@ def no_match_message(
 
 
 def canonical_fields(data: ValidatedInput) -> np.ndarray:
-    """The rows of ``data.fovs`` in a canonical order: sorted by the FOV key's values as text.
+    """The rows of ``data.fovs`` in a canonical order: sorted by the typed FOV key
+    (``_identity``: the value's text, then its type).
 
     Resampling that walks the fields in this order draws the same fields for
     the same data, whatever the row order of the FOV table (and whatever the
     order of a categorical column's categories: values, not codes, are sorted).
     """
-    key = list(data.fov_key)
-    rows = list(zip(*(data.fovs[c].astype(object).map(repr).tolist() for c in key)))
-    return np.array(sorted(range(len(rows)), key=rows.__getitem__), dtype=np.int64)
+    return canonical_order(data.fovs, list(data.fov_key))

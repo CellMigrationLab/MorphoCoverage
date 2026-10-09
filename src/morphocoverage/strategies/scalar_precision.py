@@ -97,6 +97,7 @@ import pandas as pd
 
 from .. import _deprecated
 from .._checks import is_integer
+from .._identity import key_labels
 from .._wording import plural
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
@@ -259,7 +260,7 @@ class ScalarPrecisionEstimator(Estimator):
             gaps = where[np.isnan(values)]
             first = int(gaps.min())
             within = np.isnan(values[where == first])
-            name = fovs[data.fov_key[-1]].tolist()[first]
+            name = key_labels(fovs, list(data.fov_key))[first]
             place = int(np.argmax(within)) + 1
             missing = _missing_reason(name, place, len(np.unique(gaps)), data.observation_unit)
         return self._precision_from(

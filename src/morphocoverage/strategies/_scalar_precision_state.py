@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
+from .._identity import key_labels
 from ..evidence import Evidence
 from ..schema import ValidatedInput, fov_positions
 from ._averaging_cv import (
@@ -81,7 +82,7 @@ class _ScalarPrecisionState(EstimatorState):
         estimator._check_order_col(new.fovs)
         values = new.feature_values(estimator.feature)
         positions = fov_positions(new, new.fovs)
-        names = new.fovs[new.fov_key[-1]].tolist()
+        names = key_labels(new.fovs, list(new.fov_key))
         for j in range(len(new.fovs)):
             members = values[positions == j]
             mean = float(members.mean()) if len(members) else 0.0

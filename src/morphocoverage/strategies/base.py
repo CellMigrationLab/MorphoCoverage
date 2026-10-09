@@ -20,6 +20,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._identity import canonical_order
 from .._wording import count
 from ..evidence import Evidence
 from ..objectives import ObjectiveConfig
@@ -237,17 +238,17 @@ def check_order_col(fovs: pd.DataFrame, order_col: str, purpose: str) -> None:
 
 
 def _canonical_fovs(data: ValidatedInput) -> np.ndarray:
-    """Positions of ``data.fovs`` in a canonical order: by their FOV key, compared as text.
+    """Positions of ``data.fovs`` in a canonical order: by their typed FOV key.
 
     Resampling draws index the FOVs in this order, so the draws depend on
     which FOVs were acquired, never on the FOV table's row order (row order
     carries no information: permuting it moved a finished acquisition's
     descriptor spread from 24.3 to 27.9 around a tolerance of 25, audit 4,
-    P4-11). Values are compared as text, not as categorical codes, so a
-    categorical column's category order cannot change the order either.
+    P4-11). The key is the value's text and its type (``_identity``), so a
+    categorical column's category order cannot change the order, and integer
+    ``1`` and text ``"1"`` are two FOVs, not a tie broken by the row order.
     """
-    key = data.fovs.loc[:, list(data.fov_key)].astype(str).reset_index(drop=True)
-    return key.sort_values(list(key.columns), kind="stable").index.to_numpy()
+    return canonical_order(data.fovs, list(data.fov_key))
 
 
 __all__ = [

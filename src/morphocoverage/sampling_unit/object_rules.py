@@ -69,6 +69,7 @@ import pandas as pd
 from .._checks import as_count, check_seed
 from .._control import control_name
 from .._former_repeat import one_warning, read_former
+from .._identity import IdentityKey, display, identity_key
 from .._seeds import group_key, group_rng
 from .._style import check_detail, group_label
 from .._wording import column_word, where
@@ -172,23 +173,25 @@ def _reference_means(
     def repeats_of(data: ValidatedInput) -> list[Any]:
         return data.fovs[repeat_col].drop_duplicates().tolist() if repeat_col else [None]
 
-    by_repeat: dict[str, list[np.ndarray]] = {}
+    by_repeat: dict[IdentityKey, list[np.ndarray]] = {}
     for group, data in all_groups:
         if group_key(group) in chosen:
             for repeat in repeats_of(data):
-                by_repeat.setdefault(repr(repeat), []).append(values_by_group[group_key(group)])
+                by_repeat.setdefault(identity_key(repeat), []).append(
+                    values_by_group[group_key(group)]
+                )
     pooled = {r: np.concatenate(v) for r, v in by_repeat.items()}
     if not any(len(v) for v in pooled.values()):
         raise ValueError("the control groups have no observations of the feature")
     means, negative = {}, {}
     for group, data in all_groups:
-        parts = [pooled[repr(r)] for r in repeats_of(data) if repr(r) in pooled]
+        parts = [pooled[identity_key(r)] for r in repeats_of(data) if identity_key(r) in pooled]
         values = np.concatenate(parts) if parts else np.array([])
         means[group_key(group)] = float(values.mean()) if len(values) else None
         negative[group_key(group)] = bool((values < 0).any())
     within = f" of the same {column_word(repeat_col)}" if repeat_col else ""
     label = f"mean of all objects of the control groups, {control_name(control)}{within}"
-    names = {repr(r): str(r) for _, d in all_groups for r in repeats_of(d)}
+    names = display(list(pooled))
     # Control means are compared within a sub-experiment only: two sets of a screen, each
     # with its own control and repeats, are not one control drifting (owner, 2026-10-02).
     block = (
@@ -196,7 +199,7 @@ def _reference_means(
         if repeat_col
         else {}
     )
-    of_name = {repr(r): block.get(r) for _, d in all_groups for r in repeats_of(d)}
+    of_name = {identity_key(r): block.get(r) for _, d in all_groups for r in repeats_of(d)}
     # A repeat holding only the control belongs to no sub-experiment: compared with all.
     blocks: dict[int | None, dict[str, np.ndarray]] = {b: {} for b in set(block.values())}
     blocks = blocks or {None: {}}
