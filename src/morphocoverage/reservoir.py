@@ -61,8 +61,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._checks import check_seed, is_integer
+from ._checks import check_seed, is_integer, is_number
 from ._seeds import group_rng, split_seed
+from ._stage_coordinates import stage_matrix
 from .evaluator import objects_in_fovs, restrict_input
 from .metadata import sorted_by_key
 from .outcomes import OutcomeMetric
@@ -76,17 +77,11 @@ def spatial_blocks(fovs: pd.DataFrame, x_col: str, y_col: str, block_size: float
     at least as large as the spatial correlation length, if known. Missing or
     infinite coordinates raise: they belong to no block.
     """
-    if not (block_size > 0 and math.isfinite(block_size)):
-        raise ValueError("block_size must be positive and finite")
-    for column in (x_col, y_col):
-        if column not in fovs.columns:
-            raise ValueError(f"{column!r} is not a column of the FOV table")
-        if fovs[column].isna().any():
-            raise ValueError(f"FOV coordinates in {column!r} contain missing values")
-        if not np.isfinite(fovs[column].to_numpy(dtype=float)).all():
-            raise ValueError(f"FOV coordinates in {column!r} contain infinite values")
-    x = np.floor(fovs[x_col].to_numpy(dtype=float) / block_size).astype(int)
-    y = np.floor(fovs[y_col].to_numpy(dtype=float) / block_size).astype(int)
+    if not is_number(block_size) or not (block_size > 0 and math.isfinite(block_size)):
+        raise ValueError("block_size must be a positive, finite number")
+    xy = stage_matrix(fovs, (x_col, y_col))
+    x = np.floor(xy[:, 0] / block_size).astype(int)
+    y = np.floor(xy[:, 1] / block_size).astype(int)
     return pd.Series([f"{i}_{j}" for i, j in zip(x, y, strict=True)], index=fovs.index)
 
 

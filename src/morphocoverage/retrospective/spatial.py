@@ -38,6 +38,7 @@ from scipy.spatial import distance as _distances
 from .._checks import as_count, check_seed
 from .._frozen import owned
 from .._seeds import group_rng
+from .._stage_coordinates import stage_matrix, stage_names
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..schema import ValidatedInput
@@ -322,11 +323,8 @@ def redundancy_distance(
         group_cols=group_cols,
         observation_unit=observation_unit,
     )
-    if len(stage_cols) != 2 or stage_cols[0] == stage_cols[1]:
-        raise ValueError("stage_cols must be two different columns (x, y), not one axis twice")
-    for column in stage_cols:
-        if column not in data.fovs.columns:
-            raise ValueError(f"{column!r} is not a column of the FOV table")
+    stage_cols = stage_names(stage_cols)
+    stage_matrix(data.fovs, stage_cols, missing="keep")  # real numbers, none infinite
     rows = []
     for group, group_data in iter_analysis_groups(data):
         row = {
@@ -377,7 +375,7 @@ def redundancy_distance(
             continue
         reached = gamma[gamma["gamma"] >= float(share) * variance]
         distance = float(reached["mean_lag"].iloc[0]) if len(reached) else None
-        coords = group_data.fovs[list(stage_cols)].to_numpy(dtype=float)[fov_rows]
+        coords = stage_matrix(group_data.fovs, stage_cols, missing="keep")[fov_rows]
         lags = _distances.pdist(coords)
         ordered_means, ordered_coords = _canonical(group_data, fov_rows, means, coords)
         null = _shuffled_distances(

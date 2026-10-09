@@ -91,7 +91,15 @@ from ..results import Decision, StrategyResult, _target_decisions
 from ..strategies.base import SamplingStrategy
 from ._live_order import _CheckedSession, _order_check, embedding_columns
 from ._live_text import live_summary
-from ._manifest import MANIFEST, OBJECTS_DIR, OBJECTS_FILE, ManifestReader, write_fov
+from ._manifest import (
+    MANIFEST,
+    OBJECTS_DIR,
+    OBJECTS_FILE,
+    ManifestReader,
+    read_coordinates,
+    value_kind,
+    write_fov,
+)
 from .setup import Setup
 
 
@@ -164,14 +172,6 @@ class LiveUpdate:
         return live_summary(self, detail)
 
 
-def _value_kind(values: pd.Series) -> str:
-    """``number``, ``text`` or ``other``: what the non-missing values of a key column are."""
-    kind = pd.api.types.infer_dtype(values, skipna=True)
-    if kind in ("integer", "floating", "mixed-integer-float", "decimal"):
-        return "number"
-    return "text" if kind == "string" else "other"
-
-
 def print_update(update: LiveUpdate, detail: str = "short") -> None:
     """Print one update's summary (the default ``on_update`` of ``watch``; ``detail`` as
     ``LiveUpdate.summary``)."""
@@ -183,8 +183,8 @@ class LiveFolder:
 
     ``metadata_dtypes`` types manifest columns (default: every metadata value
     is read as text, so identifiers such as ``001`` keep their zeros; the
-    session only compares them). ``reader`` reads one object file (default
-    ``pandas.read_csv``).
+    session only compares them; the session's stage columns are read as numbers). ``reader``
+    reads one object file (default ``pandas.read_csv``).
     """
 
     def __init__(
@@ -211,6 +211,7 @@ class LiveFolder:
                 continue
             kind = self.metadata_dtypes.get(key)
             typed[key] = value if kind is None else kind(value)
+        typed.update(read_coordinates(typed, getattr(self.session, "stage_cols", None) or ()))
         return typed
 
     def _read(self, path: Path, row: Mapping[str, str]) -> pd.DataFrame:
@@ -462,7 +463,7 @@ class LiveTables:
         # 1 and "1" never compare equal: the field would be counted as empty and its
         # objects would wait forever. Refuse numbers against text instead.
         for column in key:
-            kinds = {_value_kind(objects[column]), _value_kind(fovs[column])}
+            kinds = {value_kind(objects[column]), value_kind(fovs[column])}
             if kinds == {"number", "text"}:
                 raise TypeError(
                     f"key column {column!r} holds numbers in one table and text in the other; "
