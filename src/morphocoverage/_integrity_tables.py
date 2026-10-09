@@ -75,7 +75,7 @@ def integrity_by_table(
     }
     first = next(iter(results.values()))
     settings = dict(first.settings)
-    for key in ("field_labels", "group_labels"):
+    for key in ("field_labels", "group_labels", "field_keys"):
         settings[key] = {k: v for r in results.values() for k, v in r.settings[key].items()}
     settings["feature_cols"] = [c for columns in named.values() for c in columns]
     settings["continuous_features"] = [

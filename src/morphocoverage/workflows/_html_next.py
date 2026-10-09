@@ -24,6 +24,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._identity import IdentityKey, identity_key
 from .._wording import count, listing, percent_fine
 from ..data_check import validate_input_tables
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
@@ -149,11 +150,11 @@ def _repeats_line(discovery: Any) -> str:
     )
 
 
-def pilot_conditions(discovery: Any) -> set[str]:
+def pilot_conditions(discovery: Any) -> set[IdentityKey]:
     """The conditions with fewer than MIN_REPEATS biological repeats holding the control."""
     if discovery is None or discovery.tests is None or not len(discovery.tests):
         return set()
-    return {str(c) for c, n in _repeat_counts(discovery).items() if n < MIN_REPEATS}
+    return {identity_key(c) for c, n in _repeat_counts(discovery).items() if n < MIN_REPEATS}
 
 
 def _chosen_population(populations: Any) -> Any | None:
@@ -284,6 +285,16 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
     return _block([(validate, ""), (study, code.rstrip("\n"))])
 
 
+def fields_value(value: Any) -> Any:
+    """One identity value as the Python value its code line writes: text, a whole number, a real
+    number or a boolean (numpy scalars as the values they hold); anything else cannot be written
+    as a literal without changing its type, so it is refused."""
+    value = value.item() if hasattr(value, "item") else value
+    if isinstance(value, str | int | float | bool):
+        return value
+    raise TypeError(f"a field identity of type {type(value).__name__} cannot be written as code")
+
+
 def fields_next(fields: Sequence[Sequence[Any]], key: Sequence[str]) -> str:
     """What to do after "Fields to check": once the images confirm a field is an artefact,
     the report again without it (``fields``: the flagged fields' values of ``key``, the
@@ -293,16 +304,18 @@ def fields_next(fields: Sequence[Sequence[Any]], key: Sequence[str]) -> str:
     apart, are never among them."""
     if not fields or not key:
         return ""
-    shown = list(dict.fromkeys(tuple(str(v) for v in field) for field in fields))
+    shown = list(dict.fromkeys(tuple(fields_value(v) for v in field) for field in fields))
     listed = "".join(f"    # {f!r},\n" for f in shown)
     code = (
-        _GUARD + "from morphocoverage.workflows import report\n\n"
+        _GUARD + "import pandas as pd\n"
+        "from morphocoverage.workflows import report\n\n"
         f"key = {list(key)!r}\n"
         "# Every field flagged above (one copy of each pair), commented out: uncomment the\n"
         "# line of each field the images show to be an artefact.\n"
         f"artefacts = [\n{listed}]\n"
-        "keep = ~fovs[key].astype(str).apply(tuple, axis=1).isin(artefacts)\n"
-        "inside = objects[key].astype(str).apply(tuple, axis=1).isin(artefacts)\n"
+        "# Matched on the typed values: 1 and '1' are two fields.\n"
+        "keep = ~pd.MultiIndex.from_frame(fovs[key]).isin(artefacts)\n"
+        "inside = pd.MultiIndex.from_frame(objects[key]).isin(artefacts)\n"
         "result = report(objects[~inside], fovs[keep], result.setup, integrity=True)"
     )
     line = (

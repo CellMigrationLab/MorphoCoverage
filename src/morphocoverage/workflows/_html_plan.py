@@ -25,6 +25,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._identity import IdentityKey, identity_key
 from .._wording import change, count, listing, percent_fine, plural, rate
 from ..data_check import validate_input_tables
 from ..retrospective.report_status import group_word
@@ -211,14 +212,15 @@ def _plans(result: Any) -> list[tuple[str, Any]]:
     return [(f, contrasts[f]) for f in _features(result) if f in contrasts]
 
 
-def _confirmed_pairs(result: Any) -> set[tuple[str, str]]:
+def _confirmed_pairs(result: Any) -> set[tuple[IdentityKey, IdentityKey]]:
     """The (feature, condition) pairs significant across repeats."""
     discovery = result.discovery
     if discovery is None or discovery.tests is None or not len(discovery.tests):
         return set()
     tests = discovery.tests
     confirmed = tests[tests["confirmed"].fillna(False).astype(bool)]
-    return {(str(f), str(c)) for f, c in zip(confirmed["feature"], confirmed["condition"])}
+    pairs = zip(confirmed["feature"], confirmed["condition"], strict=True)
+    return {(identity_key(f), identity_key(c)) for f, c in pairs}
 
 
 def _plan_words(value: Any) -> str:
@@ -252,7 +254,7 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
         readings = condition_readings(contrast)
         if len(readings):
             confirmed = readings.loc[readings["verdict"] == CONFIRMED, "condition"]
-            done = {(result.setup.readout, str(c)) for c in confirmed}
+            done = {(identity_key(result.setup.readout), identity_key(c)) for c in confirmed}
     rows, shown = [], []
     for feature, contrast in plans:
         plan = getattr(contrast, "plan", None)
@@ -260,9 +262,9 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
             continue
         unit = field_words(contrast)[1]
         for _, row in plan.iterrows():
-            if str(row["condition"]) in pilots:
+            if identity_key(row["condition"]) in pilots:
                 continue
-            if (feature, str(row["condition"])) in done:
+            if (identity_key(feature), identity_key(row["condition"])) in done:
                 shown.append(feature)
                 continue
             if pd.isna(row["repeats_needed"]):
@@ -315,8 +317,9 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
     return option, _panel(sentence, extra=table + pilot)
 
 
-def _repeat_conditions(discovery: Any) -> set[str]:
-    return {str(c) for c in discovery.tests["condition"]} if discovery is not None else set()
+def _repeat_conditions(discovery: Any) -> set[IdentityKey]:
+    tests = discovery.tests["condition"] if discovery is not None else []
+    return {identity_key(c) for c in tests}
 
 
 def _group(result: Any) -> Any | None:
