@@ -19,9 +19,8 @@ from the data used to claim success:
   (with ``stop_on="rule"``, whose ``rule_decision`` is ``stop``: the rule's own
   verdict, whatever the objective's other components say). The record keeps
   ``stop_on``, and ``final_decision`` is the decision it read, so a stopped
-  run's final decision is ``stop``. A run that never stops is recorded with
-  ``stopped=False``, its final decision, and outcomes and effort at the full
-  acquisition.
+  run's final decision is ``stop``. A run that never stops is recorded with ``stopped=False``,
+  its final decision, and outcomes and effort at the full acquisition.
 - **Reference.** Outcomes compare the stop with the full group by default.
   That reference contains the prefix, so errors shrink to zero as the prefix
   grows. With ``reservoir=ReservoirSplit(...)`` each group is split first:
@@ -30,10 +29,9 @@ from the data used to claim success:
   its recorded order skips the held-out FOVs, so neighbouring stream FOVs are
   further apart than at the microscope, and a recorded-order replay is not an
   exact replay of the acquisition.
-- **Record.** One ``BenchmarkRecord`` per dataset, analysis group, order and
-  strategy, with effort at the stop (FOVs, objects, area), outcomes,
-  estimator compute times, and whole-decision latency (median and maximum
-  per step, and the total up to the stop; see ``results.Timing``).
+- **Record.** One ``BenchmarkRecord`` per dataset, analysis group, order and strategy: effort
+  at the stop (FOVs, objects, area), outcomes, estimator compute times and whole-decision
+  latency (median and maximum per step, total up to the stop; ``results.Timing``).
 """
 
 from __future__ import annotations
@@ -49,6 +47,7 @@ import pandas as pd
 from ._areas import area_problem
 from ._checks import check_seed, is_integer
 from ._former_repeat import one_warning
+from ._frozen import owned
 from ._parallel import worker_pool
 from ._seeds import group_rng
 from .data_check import validate_input_tables
@@ -262,6 +261,7 @@ def permuted_fovs(
     return canonical.iloc[rng.permutation(len(canonical))]
 
 
+@owned("group", "outcomes", "outcome_ids", "reservoir")
 @dataclass(frozen=True)
 class BenchmarkRecord:
     """One strategy run on one analysis group of one dataset under one acquisition order."""

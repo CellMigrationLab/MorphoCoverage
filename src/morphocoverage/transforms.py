@@ -40,6 +40,7 @@ from typing import Any
 import numpy as np
 
 from ._checks import is_integer
+from ._frozen import owned
 from ._wording import listing
 from .provenance import class_identity, config_hash
 from .schema import ValidatedInput
@@ -118,6 +119,7 @@ class FeatureTransform(ABC):
         return FittedTransform(**common, state=state, output_names=outputs)
 
 
+@owned("state")
 @dataclass(frozen=True)
 class FittedTransform:
     """A transform with its state fitted on one visible acquisition."""

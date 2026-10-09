@@ -77,6 +77,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count, check_seed, is_integer
+from .._frozen import owned
 from .._parallel import check_n_jobs, map_units
 from .._seeds import group_key, group_rng, split_seed
 from .._wording import count
@@ -106,6 +107,7 @@ CURVE_COLUMNS = (
 )
 
 
+@owned("curve", "draws", "settings", "ceiling", "skipped")
 @dataclass(frozen=True)
 class ReliabilityResult:
     """The reliability curve, every assessed draw, and the settings that produced them.

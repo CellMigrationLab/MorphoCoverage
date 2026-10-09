@@ -11,18 +11,16 @@ A declared control tests this on the dataset itself:
   added to remaining reference FOVs: the detection rate for a small group of
   such objects in an otherwise ordinary field. Planted objects come from other
   fields, so this approximates a rare state rather than measuring one.
-- **reference**: the declared negative population (for example MOCK). Its
-  remaining FOVs, judged the same way, give the **false-alarm rate**. Without
-  a reference, the undeclared rest of the stratum stands in for it, and the
-  false-alarm rate is "not assessed".
+- **reference**: the declared negative population (for example MOCK). Its remaining FOVs,
+  judged the same way, give the **false-alarm rate**. Without a reference, the undeclared
+  rest of the stratum stands in for it, and the false-alarm rate is "not assessed".
 - With neither, nothing can be said: "not assessed".
 
-**Leave one field out.** The rates above judge a field against ``fovs_seen``
-reference fields, as a stopping rule judges the next field. ``inspect_fovs``
-judges each field against every other field of its analysis group, and the
-false-alarm rate depends strongly on how many fields were seen (41% after 3
-fields, 0% after 29, on one plate). So the same definition is also measured
-that way, within the inspection's analysis groups (``lofo_group_cols``; by
+**Leave one field out.** The rates above judge a field against ``fovs_seen`` reference fields,
+as a stopping rule judges the next field. ``inspect_fovs`` judges each field against every
+other field of its analysis group, and the false-alarm rate depends strongly on how many
+fields were seen (41% after 3 fields, 0% after 29, on one plate). So the same definition is
+also measured that way, within the inspection's analysis groups (``lofo_group_cols``; by
 default the analysis groups of the data, as ``inspect_fovs`` resolves them)
 inside each stratum: each reference field against every other reference
 field of its group (``reference_lofo``, the false-alarm rate of the
@@ -74,6 +72,7 @@ import pandas as pd
 
 from .._checks import is_integer
 from .._former_repeat import one_warning, read_former
+from .._frozen import owned
 from .._parallel import check_n_jobs, map_units, worker_pool
 from .._seeds import group_rng
 from ..data_check import validate_input_tables
@@ -161,6 +160,7 @@ class RepresentationControl:
         }
 
 
+@owned("table", "pooled", "settings")
 @dataclass(frozen=True)
 class ControlResult:
     """Rates per stratum and candidate kind; ``status`` says what could be assessed.

@@ -91,6 +91,7 @@ import pandas as pd
 
 from .._checks import is_integer
 from .._former_repeat import one_warning, read_former
+from .._frozen import owned
 from .._seeds import group_rng
 from .._wording import rows_of
 from ..data_check import validate_input_tables
@@ -111,6 +112,7 @@ from .hierarchy import SamplingHierarchy
 MIN_BOOT_SUCCESS = 0.9
 
 
+@owned("components", "projections", "comparisons", "settings", "skipped")
 @dataclass(frozen=True)
 class EffortResult:
     """Variance components, projected standard errors and the comparison of allocations.

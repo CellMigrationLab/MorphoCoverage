@@ -53,6 +53,7 @@ import pandas as pd
 
 from .._checks import check_seed, is_number
 from .._control import check_comparisons
+from .._frozen import owned
 from .._seeds import group_rng
 from .._wording import count, listing, plural
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
@@ -152,6 +153,7 @@ def unassessed_words(rows: pd.DataFrame, unit: str = "cell") -> str:
     return f"{count(len(rows), 'repeat')} not assessed: {_reasons(rows, unit)}"
 
 
+@owned("tests", "settings", "shapes")
 @dataclass(frozen=True)
 class DistributionContrast:
     """One row per feature, condition and statistic (``tests``), with its per-repeat values."""

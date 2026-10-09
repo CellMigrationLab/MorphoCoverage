@@ -48,6 +48,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count, check_seed
+from .._frozen import owned
 from .._parallel import check_n_jobs, map_units
 from .._seeds import group_identity
 from .._style import rule_label
@@ -78,6 +79,7 @@ OUTCOME_COLUMNS = (*_RUN, "fovs", "criterion", "value", "status")
 STREAM_COLUMNS = (*_RUN, "stream_fovs", "reservoir_fovs")
 
 
+@owned("decisions", "outcomes", "streams", "settings", "paths", "skipped")
 @dataclass(frozen=True)
 class ReplayResult:
     """Decisions and outcomes after every prefix of every replayed acquisition.

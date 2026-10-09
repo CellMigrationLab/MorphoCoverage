@@ -81,6 +81,7 @@ from scipy import stats
 
 from .._checks import as_count
 from .._former_repeat import read_former
+from .._frozen import owned
 from ..policies import ThresholdPolicy, redecide
 from .adequacy import adequacy_points
 from .criteria import Preservation
@@ -305,6 +306,7 @@ def _adaptivity(runs: pd.DataFrame, realized: pd.DataFrame, keys: list[str]) -> 
     return float(stats.spearmanr(merged["effort"], merged["needed"]).statistic)
 
 
+@owned("curve", "scores", "runs", "settings")
 @dataclass(frozen=True)
 class FrontierResult:
     """The effort-risk curves, the score per family and risk level, and every run.

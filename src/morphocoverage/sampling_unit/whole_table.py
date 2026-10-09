@@ -71,6 +71,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .._frozen import owned
 from .._seeds import group_rng
 from ..embedding import robust_scale
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, empty_values
@@ -182,6 +183,7 @@ def _mean_by(values: np.ndarray, keys: np.ndarray) -> tuple[np.ndarray, np.ndarr
     return sums / np.bincount(codes)[:, None], codes
 
 
+@owned("tests", "settings")
 @dataclass(frozen=True)
 class WholeTable:
     """The whole-table tests: ``tests`` one row per table and comparison (``COLUMNS``), the

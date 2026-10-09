@@ -72,6 +72,7 @@ from scipy import stats
 from .._caveats import caveat_lines
 from .._checks import as_count, check_seed
 from .._former_repeat import one_warning, read_former
+from .._frozen import owned
 from .._seeds import group_key, group_rng
 from .._style import check_detail
 from ..bounds import interval
@@ -86,6 +87,7 @@ from .unusual import UnusualObjects, unusual_objects
 _LABEL_CODE = "_morphocoverage_state_code"
 
 
+@owned("table", "settings")
 @dataclass(frozen=True)
 class FOVClustering:
     """How each labelled state is spread over the fields, per analysis group.

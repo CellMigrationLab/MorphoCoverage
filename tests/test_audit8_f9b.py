@@ -1,7 +1,7 @@
 """Regression tests of the owner's audit-8 decisions on the tests and their words (F9b,
 2026-10-06)."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 import pandas as pd
@@ -181,7 +181,7 @@ def test_seed13_the_label_share_is_counted_apart_from_the_features():
         n_permutations=9,
         fov_col="image_file",
     )
-    found.settings["share"] = "mitotic share"
+    found = replace(found, settings={**found.settings, "share": "mitotic share"})
     text = " ".join(found.summary().split())
     assert "of 3 (2 features and the mitotic share)" in text  # never "of 2 features and" (C20)
 

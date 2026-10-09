@@ -26,6 +26,7 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any
 
+from ._frozen import own
 from ._wording import count, listing, rate
 from .evidence import Component, Evidence
 from .objectives import ObjectiveConfig
@@ -132,6 +133,12 @@ class StrategyResult:
     configuration: Mapping[str, Any] = field(default_factory=dict)
     feature_cols: tuple[str, ...] = ()
     fov_key: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        # Owned, read-only snapshots (issue 108): ``parameters`` and ``configuration`` are
+        # separate copies even when built from one dictionary (``redecide``, issue 112).
+        for name in ("component_decisions", "group", "parameters", "configuration"):
+            object.__setattr__(self, name, own(getattr(self, name)))
 
     def explain(self, order_check: OrderCheck | None = None) -> str:
         """One line: the decision, each policy's rule with its evidence, and the effort.

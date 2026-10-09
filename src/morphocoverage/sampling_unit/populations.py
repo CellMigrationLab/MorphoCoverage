@@ -58,6 +58,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count, check_seed
+from .._frozen import owned
 from .._identity import canonical_row_codes, row_keys
 from ..embedding import _sample, _standardised, combined
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
@@ -101,6 +102,7 @@ _COLUMNS = [
 ]
 
 
+@owned("labels", "table", "settings")
 @dataclass(frozen=True)
 class Populations:
     """``labels``: each observation's population or group (``P1`` the main one; ``G1``,

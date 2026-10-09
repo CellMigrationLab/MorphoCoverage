@@ -85,6 +85,7 @@ from .._control import (
     own_pairs,
 )
 from .._former_repeat import one_warning, read_former
+from .._frozen import owned
 from .._seeds import group_rng
 from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -121,6 +122,7 @@ from .repeat_plan import PLAN_COLUMNS, repeat_plan
 DEFAULT_OBJECT_COUNTS = (50, 100, 200, 500)
 
 
+@owned("table", "effects", "settings", "repeats", "plan", "targets", "cells", "across")
 @dataclass(frozen=True)
 class ConditionContrast:
     """Each condition against the control, per repeat, with objects and with fields as the unit.
