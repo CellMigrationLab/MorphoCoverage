@@ -132,7 +132,7 @@ def _balance_findings(scan: DesignScan) -> list[Finding]:
     rows = scan.design["balance"]
     if not rows:
         return []
-    _, words = unit_words(scan)
+    word, words = unit_words(scan)
     found = []
     unbalanced = [r for r in rows if r["unbalanced"]]
     if unbalanced:
@@ -159,7 +159,7 @@ def _balance_findings(scan: DesignScan) -> list[Finding]:
     by_repeat: dict[str, list[str]] = {}
     for row in rows:
         for repeat in row["sparse"]:
-            label = f"{row['condition']} ({row['sizes'][repeat]} {words})"
+            label = f"{row['condition']} ({count(row['sizes'][repeat], word, words)})"
             by_repeat.setdefault(str(repeat), []).append(label)
     for repeat, entries in by_repeat.items():
         found.append(
