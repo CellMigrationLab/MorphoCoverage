@@ -41,6 +41,7 @@ from typing import Any
 
 import pandas as pd
 
+from .._frozen import owned
 from .adequacy_text import (  # noqa: F401  (the point helpers, re-exported for their callers)
     ALL_CRITERIA,
     _median_point,
@@ -128,6 +129,7 @@ def last_judged_step(steps: Sequence[int], statuses: Sequence[str]) -> int | Non
     return judged[-1] if judged else None
 
 
+@owned("apparent", "realized", "settings", "skipped")
 @dataclass(frozen=True)
 class AdequacyResult:
     """Adequacy points per replayed acquisition.

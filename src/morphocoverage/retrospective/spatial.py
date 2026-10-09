@@ -36,6 +36,7 @@ import pandas as pd
 from scipy.spatial import distance as _distances
 
 from .._checks import as_count, check_seed
+from .._frozen import owned
 from .._seeds import group_rng
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
@@ -50,6 +51,7 @@ from .replay import ReplayResult
 from .stage import dispersed_order, stage_travel
 
 
+@owned("runs", "table", "settings", "skipped")
 @dataclass(frozen=True)
 class EfficiencyResult:
     """Per sample and order kind: adequacy points, stage travel, and acquisition time.

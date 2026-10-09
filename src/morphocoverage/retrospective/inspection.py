@@ -48,6 +48,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import is_integer, is_number
+from .._frozen import owned
 from .._style import group_label
 from .._wording import count, ordinal, percent
 from ..data_check import validate_input_tables
@@ -103,6 +104,7 @@ class Summary:
         return f"{rank} percentile of {self.feature}"
 
 
+@owned("fovs", "settings")
 @dataclass(frozen=True)
 class InspectionResult:
     """One row per FOV and reason (``fovs``), and the settings used.

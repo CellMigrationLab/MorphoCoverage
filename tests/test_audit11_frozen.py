@@ -102,3 +102,43 @@ def test_redecide_builds_an_independent_snapshot():
     assert again.configuration is not result.configuration
     assert again.parameters is not again.configuration
     assert own({}) == {}
+
+
+def _owned_results():
+    import pandas as pd
+
+    from morphocoverage.embedding import Embedding
+    from morphocoverage.retrospective.overview import DatasetOverview
+    from morphocoverage.sampling_unit.clustering import FOVClustering
+    from morphocoverage.transforms import FittedTransform, Standardize
+
+    table = pd.DataFrame({"a": [1, 2]})
+    points = pd.DataFrame({"x": [0.0, 1.0]})
+    settings = {"k": [1, 2]}
+    return [
+        (FOVClustering(table, (), settings), settings, "table", table),
+        (Embedding(points, points.copy(), (0.5, 0.2), settings), settings, "points", points),
+        (DatasetOverview({"n": 1}, table, ("a",), settings), settings, "layout", table),
+        (
+            FittedTransform(Standardize(), ("a",), 2, 1, {"s": [1.0]}),
+            {"s": [1.0]},
+            None,
+            None,
+        ),
+    ]
+
+
+def test_result_families_own_their_settings_and_tables():
+    for result, source, frame_name, frame in _owned_results():
+        container = result.state if hasattr(result, "state") else result.settings
+        key = "s" if hasattr(result, "state") else "k"
+        before = list(container[key])
+        source[key].append(99)  # the caller edits what it passed in
+        assert list(container[key]) == before, type(result).__name__
+        with pytest.raises(TypeError, match="read-only"):
+            container[key].append(1)
+        with pytest.raises(TypeError, match="read-only"):
+            container["new"] = 1
+        if frame is not None:
+            frame.iloc[0, 0] = -1  # the caller edits its table
+            assert getattr(result, frame_name).iloc[0, 0] != -1, type(result).__name__

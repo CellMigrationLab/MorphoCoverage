@@ -22,7 +22,7 @@ the runtime stays modest. Without other tables, the explainable features alone, 
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -227,10 +227,17 @@ def populations_in_spaces(
             {"reason": reason, "observations": len(left), "where": where, "spaces": reading}
         )
     for name, index in lost.items():  # counted apart from the missing values
-        results[name].settings["incomplete_observations"] -= len(index)
+        settings = results[name].settings
+        results[name] = replace(
+            results[name],
+            settings={
+                **settings,
+                "incomplete_observations": settings["incomplete_observations"] - len(index),
+            },
+        )
     found = results[EXPLAINABLE] if not setup.feature_tables else _merged(results, objects.index)
     if left_by:
-        found.settings["left_out_by"] = left_by
+        found = replace(found, settings={**found.settings, "left_out_by": left_by})
     owner = table_of(setup)
     if len(set(owner.values())) > 1:  # each rule feature's table named (owner, 2026-10-06)
         found.table["rule_tables"] = [

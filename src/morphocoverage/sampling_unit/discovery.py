@@ -47,6 +47,7 @@ from .._caveats import assumption, caveat_lines
 from .._checks import is_number
 from .._control import check_comparisons, compared_name, control_name
 from .._former_repeat import one_warning, read_former
+from .._frozen import owned
 from .._parallel import check_n_jobs
 from .._seeds import group_rng
 from .._style import check_detail, span, table, wrap
@@ -215,6 +216,7 @@ def _q(value: float) -> str:
     return p_value(value)
 
 
+@owned("tests", "ranking", "settings")
 @dataclass(frozen=True)
 class FeatureDiscovery:
     """The tests (``tests``: one row per feature and condition, ``TEST_COLUMNS``), the

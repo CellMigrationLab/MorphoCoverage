@@ -63,6 +63,7 @@ import pandas as pd
 from .._checks import as_count, check_seed, is_integer, is_number
 from .._control import check_comparisons
 from .._former_repeat import one_warning, read_former
+from .._frozen import owned
 from .._seeds import group_rng
 from .._style import DASH, table, wrap
 from .._wording import column_word, count, number, percent, rate
@@ -119,6 +120,7 @@ REFERENCE_COLUMNS = [
 ]
 
 
+@owned("table", "references", "settings")
 @dataclass(frozen=True)
 class EffectPreservation:
     """How often ``k`` fields a side preserve each repeat's difference from the control.

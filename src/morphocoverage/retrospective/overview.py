@@ -25,6 +25,7 @@ import pandas as pd
 from .._control import control_name
 from .._data_rules import _loose
 from .._former_repeat import one_warning, read_former
+from .._frozen import owned
 from .._style import Status, check_detail, group_columns, wrap
 from .._style import table as style_table
 from .._wording import column_word, count, listing
@@ -87,6 +88,7 @@ def _sub_experiments(family: dict[Any, int], compared: dict[Any, list[Any]], con
 NO_FEATURES = "No explainable features: the other feature tables alone are read."
 
 
+@owned("counts", "layout", "settings")
 @dataclass(frozen=True)
 class DatasetOverview:
     """Counts of the validated tables and the layout of fields by condition and repeat.

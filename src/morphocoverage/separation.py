@@ -64,6 +64,7 @@ import numpy as np
 import pandas as pd
 
 from ._checks import as_count, check_seed
+from ._frozen import owned
 from ._seeds import group_rng
 from ._style import table
 from ._wording import count, listing, percent
@@ -86,6 +87,7 @@ def lift(share: float, chance: float) -> float:
     return float((share - chance) / (1 - chance))
 
 
+@owned("table", "spaces", "settings")
 @dataclass(frozen=True)
 class Separation:
     """``table``: one row per space, score (``condition``: within a biological repeat, the

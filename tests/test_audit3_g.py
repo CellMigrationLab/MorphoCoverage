@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import inspect as source
 import re
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -413,7 +414,10 @@ def test_g15_the_closing_notes_do_not_point_below():
 
 def test_g16_the_profile_labels_each_rate_by_how_it_was_measured():
     controls = _pooled(positive=(18, 20), reference=(1, 20), reference_lofo=(2, 30))
-    controls.settings["lofo_group_cols"] = ["condition", "biological_repeat"]
+    controls = replace(
+        controls,
+        settings={**controls.settings, "lofo_group_cols": ["condition", "biological_repeat"]},
+    )
     profile = sampling_profile(controls, None, None, None)
     statements = list(profile["statement"])
     assert "90% of declared positive-control fields recognized as different after 10 " in (
@@ -484,7 +488,9 @@ def test_g19_the_influence_reason_names_the_field_weighted_summary():
 
 def test_g20_rates_of_another_definition_of_new_are_not_combined():
     controls = _pooled(reference_lofo=(1, 30), positive_lofo=(9, 10))
-    controls.settings["novelty_definition"] = "one definition"
+    controls = replace(
+        controls, settings={**controls.settings, "novelty_definition": "one definition"}
+    )
     inspection = InspectionResult(
         pd.DataFrame({"reason": ["new state"], "condition": ["a"], "f": ["w"]}),
         ("condition",),
@@ -500,7 +506,10 @@ def test_g20_rates_of_another_definition_of_new_are_not_combined():
     )
     text = _detection_adjusted_bounds(sufficiency, controls)
     assert text.startswith("The unseen-state bound is not adjusted for detection")
-    controls.settings["lofo_group_cols"] = ["condition", "biological_repeat"]
+    controls = replace(
+        controls,
+        settings={**controls.settings, "lofo_group_cols": ["condition", "biological_repeat"]},
+    )
     sufficiency.novelty_definition = "one definition"
     assert "measured within the groups condition, biological_repeat" in _detection_adjusted_bounds(
         sufficiency, controls

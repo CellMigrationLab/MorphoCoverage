@@ -48,6 +48,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .._frozen import owned
 from .._repeat_statistics import log_scale
 from .._style import check_detail, group_label, table, wrap
 from .._wording import count, listing, number, percent_fine
@@ -69,6 +70,7 @@ _NAMED = 4
 TITLE = "Acquisition anomalies"
 
 
+@owned("fields", "groups", "settings")
 @dataclass(frozen=True)
 class AcquisitionAnomalies:
     """Fields far from the other fields of their condition and repeat (see the module).

@@ -52,6 +52,7 @@ from .._caveats import assumption, caveat_lines
 from .._checks import is_number
 from .._control import check_comparisons, compared_name, control_name, versus
 from .._former_repeat import one_warning, read_former
+from .._frozen import owned
 from .._seeds import group_rng
 from .._style import check_detail, table, wrap
 from .._wording import column_word, count, features_counted
@@ -86,6 +87,7 @@ TOP_FEATURES = 5
 MAX_ROWS_LISTED = 24
 
 
+@owned("tests", "ranking", "settings")
 @dataclass(frozen=True)
 class FeatureRanking:
     """The gated tests and the ranking they give.

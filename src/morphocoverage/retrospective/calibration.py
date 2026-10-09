@@ -52,6 +52,7 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import assumption, caveat_lines
+from .._frozen import owned
 from .._style import check_detail, group_columns, group_label, span, table, wrap
 from .._wording import listing, number
 from ..calibration import calibrate_next_fov_novelty, pool_calibration
@@ -94,6 +95,7 @@ SUMMARY_COLUMNS = (
 )
 
 
+@owned("runs", "table", "settings", "skipped")
 @dataclass(frozen=True)
 class StoppingCalibration:
     """Per-run stops and their shares per group, order kind, strategy and criterion.

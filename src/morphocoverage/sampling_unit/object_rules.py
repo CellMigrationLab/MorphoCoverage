@@ -69,6 +69,7 @@ import pandas as pd
 from .._checks import as_count, check_seed
 from .._control import control_name
 from .._former_repeat import one_warning, read_former
+from .._frozen import owned
 from .._identity import IdentityKey, display, identity_key
 from .._seeds import group_key, group_rng
 from .._style import check_detail, group_label
@@ -115,6 +116,7 @@ _CONSTANT = (
 )
 
 
+@owned("table", "settings")
 @dataclass(frozen=True)
 class ObjectRuleCheck:
     """The mean-precision rule applied to whole FOVs, per analysis group and target.
@@ -391,6 +393,7 @@ def object_rule_check(
     return ObjectRuleCheck(pd.DataFrame(rows), tuple(data.group_cols), settings)
 
 
+@owned("curves", "at_threshold", "settings")
 @dataclass(frozen=True)
 class DescriptorSpreadCheck:
     """JCS Fig. 2A with random objects and with whole FOVs, per analysis group.

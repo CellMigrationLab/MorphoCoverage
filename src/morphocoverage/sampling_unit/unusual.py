@@ -75,6 +75,7 @@ import pandas as pd
 from .._caveats import caveat_lines
 from .._checks import as_count, check_seed
 from .._former_repeat import one_warning, read_former
+from .._frozen import owned
 from .._seeds import group_key, group_rng
 from .._style import check_detail
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
@@ -86,6 +87,7 @@ from ._outliers import reference_sample, score
 from ._state_text import SEED_AGREEMENT_WARNING, unusual_full, unusual_parts
 
 
+@owned("labels", "distances", "groups", "settings")
 @dataclass(frozen=True)
 class UnusualObjects:
     """Out-of-distribution labels for every observation, against a declared reference.

@@ -16,8 +16,13 @@ ones that still compare equal to, serialise as, pickle and deep-copy like the pl
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
-from typing import Any, NoReturn
+import functools
+from collections.abc import Callable, Iterable, Mapping
+from typing import Any, NoReturn, TypeVar
+
+import pandas as pd
+
+_T = TypeVar("_T")
 
 _READ_ONLY = "this snapshot is read-only: copy it (thaw(...)) to change a copy"
 
@@ -95,4 +100,34 @@ def own(mapping: Mapping[str, Any] | Iterable[tuple[str, Any]]) -> FrozenDict:
     return freeze(dict(mapping))
 
 
-__all__ = ["FrozenDict", "FrozenList", "freeze", "own", "thaw"]
+def own_value(value: Any) -> Any:
+    """What a snapshot keeps of one field: containers frozen (``freeze``), a pandas table or
+    column copied (an owned copy; a table cannot be made deeply read-only, so the limit is
+    that the exposed table itself stays editable by whoever holds the result)."""
+    if isinstance(value, pd.DataFrame | pd.Series):
+        return value.copy(deep=True)
+    return freeze(value)
+
+
+def owned(*names: str) -> Callable[[type[_T]], type[_T]]:
+    """Class decorator (above ``@dataclass(frozen=True)``): once the generated ``__init__`` has
+    run, the fields ``names`` are replaced by owned copies (``own_value``), so mutating what the
+    caller passed in cannot change the result (issue 108). It wraps ``__init__``, which also
+    serves ``dataclasses.replace`` and runs after the class's own ``__post_init__``."""
+
+    def wrap(cls: type[_T]) -> type[_T]:
+        original = cls.__init__
+
+        @functools.wraps(original)
+        def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
+            original(self, *args, **kwargs)
+            for name in names:
+                object.__setattr__(self, name, own_value(getattr(self, name)))
+
+        cls.__init__ = __init__
+        return cls
+
+    return wrap
+
+
+__all__ = ["FrozenDict", "FrozenList", "freeze", "own", "own_value", "owned", "thaw"]

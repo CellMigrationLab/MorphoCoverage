@@ -62,6 +62,7 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines, pool_assumptions
 from .._fitted import fitted
+from .._frozen import owned
 from .._style import DASH, PROBLEM, Status, check_detail, headline, wrap
 from .._wording import count, listing
 from ..sampling_unit import (
@@ -170,6 +171,7 @@ QUESTIONS = questions_for()
 SHORT_QUESTIONS = short_questions_for()
 
 
+@owned("sections", "profile", "inputs", "short", "statuses", "headlines")
 @dataclass(frozen=True)
 class MicroscopistReport:
     """The answers by question (``sections``) and the sampling profile (``profile``).

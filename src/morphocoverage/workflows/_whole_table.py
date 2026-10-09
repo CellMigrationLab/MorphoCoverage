@@ -107,8 +107,8 @@ def whole_table_in_report(
     )
     table = setup.contrast_table
     kinds = [] if table is None else list(table["kind"])
-    result.settings["across_not_tested"] = across_reason(kinds, bool(setup.columns))
-    return result
+    reason = across_reason(kinds, bool(setup.columns))
+    return replace(result, settings={**result.settings, "across_not_tested": reason})
 
 
 def _line(row: Any) -> str:

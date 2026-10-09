@@ -75,6 +75,7 @@ import pandas as pd
 
 from ._checks import is_integer
 from ._former_repeat import one_warning
+from ._frozen import owned
 from ._parallel import check_n_jobs
 from ._style import check_detail
 from ._wording import rows_of
@@ -122,6 +123,7 @@ class CalibrationSettings:
     random_state: int
 
 
+@owned("enough", "next_fov", "new_observations", "calibration", "final", "stops")
 @dataclass(frozen=True)
 class SufficiencyReport:
     """The answers, and the detailed tables behind them; see the module docstring.

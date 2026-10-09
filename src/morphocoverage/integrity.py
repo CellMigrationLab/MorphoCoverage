@@ -74,6 +74,7 @@ import pandas as pd
 
 from . import _integrity_match as match
 from ._checks import as_count, is_number
+from ._frozen import owned
 from ._integrity_text import PRECISION, integrity_status, integrity_summary
 from ._style import Status, group_label
 from ._wording import listing, percent, plural, where
@@ -107,6 +108,7 @@ _PRECISION = PRECISION
 DISTINCTIVE_FEATURES = 3
 
 
+@owned("findings", "checks", "settings")
 @dataclass(frozen=True)
 class IntegrityResult:
     """What the integrity checks found (``findings``) and what each one could check (``checks``).

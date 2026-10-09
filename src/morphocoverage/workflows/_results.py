@@ -9,6 +9,7 @@ from typing import Any
 
 from .._caveats import caveat_lines
 from .._fitted import fitted
+from .._frozen import owned
 from .._style import check_detail, headline, wrap
 from ..retrospective.calibration import calibration_short_parts
 from ..retrospective.report import LIMITS_TITLE
@@ -37,6 +38,7 @@ PLAN_QUESTIONS = ("next_time", "bought", "effort", "order")
 REPORT_ORDERS = 5
 
 
+@owned("results", "not_assessed", "settings")
 @dataclass(frozen=True)
 class Report:
     """The REPORT answers: ``results`` by analysis, ``document`` the assembled report.
@@ -74,6 +76,7 @@ class Report:
         return self.results.get("discovery")
 
 
+@owned("results", "not_assessed", "settings")
 @dataclass(frozen=True)
 class Plan:
     """The OPTIMISE answers: ``results`` by analysis, ``document`` the assembled report.

@@ -413,10 +413,10 @@ def control_checks(
             weights=weights,
             **common,
         )
-        unusual.settings.update({"space": f"{space}, {how}", "exploratory": True})
+        noted = {"space": f"{space}, {how}", "exploratory": True}
         if not per_field:  # unusual images: each field holds one observation
-            unusual.settings["words"] = plural(field_unit(setup) or setup.unit_word)
-        results["unusual"] = unusual
+            noted["words"] = plural(field_unit(setup) or setup.unit_word)
+        results["unusual"] = replace(unusual, settings={**unusual.settings, **noted})
         if not per_field:  # a field of one holds a state or not: no clustering in fields
             return results
         label = unusual_label(objects, setup)
@@ -513,7 +513,10 @@ def conditions(
             **setup.common,
         )
         # The headline counts the share apart from the features (report_status_conditions).
-        results["discovery"].settings["share"] = share_column(setup)
+        results["discovery"] = replace(
+            results["discovery"],
+            settings={**results["discovery"].settings, "share": share_column(setup)},
+        )
         found = results["discovery"]  # each feature's table named (owner, 2026-10-06)
         results["discovery"] = replace(
             found, tests=with_table(found.tests, setup), ranking=with_table(found.ranking, setup)
@@ -535,7 +538,11 @@ def conditions(
             **setup.contrast_arguments,
             **setup.common,
         )
-        results["ranking"].settings["share"] = share_column(setup)  # counted apart (C20)
+        # The share counted apart (C20).
+        ranking = results["ranking"]
+        results["ranking"] = replace(
+            ranking, settings={**ranking.settings, "share": share_column(setup)}
+        )
     return results
 
 

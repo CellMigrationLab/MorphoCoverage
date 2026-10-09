@@ -43,6 +43,7 @@ import numpy as np
 import pandas as pd
 
 from ._checks import as_count, check_seed
+from ._frozen import owned
 from .feature_tables import mfa_weights, table_shares
 from .metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from .schema import fov_positions, validate_input_tables
@@ -57,6 +58,7 @@ LABEL_COLUMN = "label_id"
 MAD_FLOOR = 0.25
 
 
+@owned("points", "loadings", "settings")
 @dataclass(frozen=True)
 class Embedding:
     """``points``: one row per observation kept (its condition and biological repeat when

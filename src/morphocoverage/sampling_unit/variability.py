@@ -48,6 +48,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .._frozen import owned
 from .._style import check_detail
 from ..schema import fov_values
 from ..statistics import cluster_size, design_effect, nested_variance_components, spread_is_zero
@@ -60,6 +61,7 @@ UNUSUAL_Z = 1.96
 ONE_PER_FIELD = "one observation per field"
 
 
+@owned("groups", "fovs", "settings")
 @dataclass(frozen=True)
 class FOVVariability:
     """Field-to-field variation of one feature, per analysis group.

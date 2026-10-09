@@ -55,6 +55,7 @@ from scipy import stats
 
 from .._checks import as_count, check_seed
 from .._former_repeat import read_former
+from .._frozen import owned
 from .._seeds import group_rng
 from ..statistics import bootstrap_fields
 from .hierarchy import SamplingHierarchy
@@ -67,6 +68,7 @@ _CONFIDENCE = 0.95
 _TOLERANCE = 1e-9
 
 
+@owned("table", "per_unit", "difficulty", "validation", "settings")
 @dataclass(frozen=True)
 class ProtocolResult:
     """Protocol curves, per-unit shares, sample difficulty and a leave-one-unit-out check.
