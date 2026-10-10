@@ -35,7 +35,9 @@ from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..sampling_unit._state_text import (
     CLUSTER_ALPHA,
     SEED_AGREEMENT_WARNING,
+    background_share,
     clustering_parts,
+    scored_label,
     scored_shares,
     single_feature,
     state_words,
@@ -320,7 +322,7 @@ def _unusual_share(unusual: Any, words: str) -> str:
     exploratory = "exploratory, " if settings.get("exploratory") else ""
     return (
         f" ({exploratory}{reference} than all but {percent(settings['quantile'])} of its "
-        f"{words}; {shares} of each scored group)"
+        f"{words}; {shares} of {scored_label(unusual)})"
     )
 
 
@@ -483,7 +485,10 @@ def unusual_alone(unusual: Any, clustering: Sequence[Any] = ()) -> str:
         return ""
     shares = span(scored_shares(unusual), "percent")
     words = unusual.settings.get("words") or observation_words(unusual.settings)[1]
-    return f"unusual {words} {shares} of each scored group (exploratory)"
+    # The controls' own share is the background every share reads against (audit A5).
+    background = background_share(unusual)
+    against = "" if background is None else f", against {percent(background)} of the controls' own"
+    return f"unusual {words} {shares} of {scored_label(unusual)}{against} (exploratory)"
 
 
 def profile_answer(

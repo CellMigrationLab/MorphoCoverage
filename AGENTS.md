@@ -261,6 +261,7 @@ src/morphocoverage/
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
     sufficiency_text.py    # the sentences of the sufficiency report (its answer columns)
+    sufficiency_null.py    # question 2's guard: no chance of a new state where the definition of new is not informative at the group's size (audit A2)
     sufficiency_short.py   # its short summary: the rules in one table across groups, each caveat once
     sufficiency_full.py    # its full summary: every number, group by group, each caveat once
     sufficiency_tables.py  # its criteria tables: each rule on the full acquisition and its stops

@@ -40,6 +40,7 @@ from ._style import (
 )
 from ._wording import count, listing, number, percent, rows_of
 from .bounds import EXTRA_TRIALS_LIMIT
+from .sufficiency_null import is_uninformative
 from .sufficiency_short import (
     _group,
     _novelty_lines,
@@ -179,6 +180,8 @@ def _next_field_lines(row: Mapping[str, Any], target: float | None) -> list[str]
     """One group's next-field answers, every number of its ``answer`` sentences kept."""
     if not _present(row["chance_new"]):
         return [f"One more field: not estimable ({row['reason']})."]
+    if is_uninformative(row):
+        return [f"One more field: {row['uninformative']}."]
     fields, confidence = int(row["fovs_imaged"]), percent(row["confidence"])
     empty = int(row.get("fovs_without_observations", 0) or 0)
     without = f" ({count(empty, 'field')} without observations)" if empty else ""

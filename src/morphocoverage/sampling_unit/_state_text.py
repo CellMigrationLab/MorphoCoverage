@@ -138,6 +138,26 @@ def scored_shares(result: Any) -> list[float]:
     return [float(v) for v in (tested if len(tested) else ok)["unusual_share"]]
 
 
+def scored_label(result: Any) -> str:
+    """``each group that is not a control``, or ``each scored group`` when every scored group
+    is a control (then the shares are theirs)."""
+    ok = result.groups[result.groups["status"] == "ok"]
+    if "reference_group" in ok and (~ok["reference_group"].astype(bool)).any():
+        return "each group that is not a control"
+    return "each scored group"
+
+
+def background_share(result: Any) -> float | None:
+    """The share of the controls' own observations flagged by the same rule, ``None`` when
+    the controls are not scored or the result declares none (audit A5)."""
+    groups = result.groups
+    if "reference_group" not in groups:
+        return None
+    ok = groups[groups["reference_group"].astype(bool) & (groups["status"] == "ok")]
+    scored = int(ok["scored"].sum())
+    return int(ok["unusual"].sum()) / scored if scored else None
+
+
 def background(result: Any, words: str) -> str:
     """The controls' own share flagged by the same rule, the background every share reads
     against, always said (owner, 2026-10-06, audit 10: the threshold flagged 16-21% of the
@@ -238,8 +258,9 @@ def unusual_parts(
     elif ok:
         lines.append(
             wrap(
-                f"{span(scored_shares(result), 'percent')} of the {words} of each scored group "
-                f"are unusual ({span(int(r['unusual']) for r in ok)} {words}, over "
+                f"{span(scored_shares(result), 'percent')} of the {words} of "
+                f"{scored_label(result)} are unusual "
+                f"({span(int(r['unusual']) for r in ok)} {words}, over "
                 f"{count(len(ok), 'group')}).",
                 indent,
                 hang=indent + 2,

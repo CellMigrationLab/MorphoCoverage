@@ -329,7 +329,9 @@ def test_the_glance_reads_each_scored_group_and_one_feature_says_nothing():
 
     objects, fovs = _tables(("ctrl", "a"), repeats=3, fields=6, cells=1, planted=None)
     found = unusual_objects(objects, fovs, feature_cols=list(FEATURES), reference=CTRL)
-    assert "of each scored group (exploratory)" in unusual_alone(found)
+    glance = unusual_alone(found)
+    assert "of each group that is not a control, against " in glance
+    assert "of the controls' own (exploratory)" in glance
     one = unusual_objects(objects, fovs, feature_cols=["area"], reference=CTRL)
     assert unusual_alone(one) == ""
     assert "not informative beyond the mean shift" in states_lines(None, one, "cells")[0]

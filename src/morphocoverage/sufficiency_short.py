@@ -49,6 +49,7 @@ from ._style import (
 from ._wording import count, listing, number, percent, plural, rows_of
 from .order_check import order_caveat
 from .schema import observation_words
+from .sufficiency_null import split_uninformative, uninformative_sentence
 
 _MET = ("yes", "target reached")
 
@@ -252,6 +253,10 @@ def _novelty_lines(report: Any, target: float | None) -> tuple[list[str], list[s
     if len(missing):
         reasons = listing(sorted({str(r) for r in missing["reason"]}))
         lines.append(f"Not estimable in {among(len(missing), groups)}: {reasons}.")
+    estimable, silent = split_uninformative(estimable)
+    said = uninformative_sentence(silent, groups)
+    if said:
+        lines.append(said)
     if estimable.empty:
         return lines, cautions
     confidence = percent(float(estimable["confidence"].iloc[0]))
