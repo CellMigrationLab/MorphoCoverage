@@ -86,6 +86,20 @@ def _scatter(ax: Axes, points: pd.DataFrame, x: str, y: str, colours: dict[Any, 
         )
 
 
+def _spread_labels(
+    positions: list[tuple[float, float]], x_span: float, y_span: float
+) -> list[tuple[float, float]]:
+    """Label positions with labels that fall on one another moved apart vertically: arrows of
+    duplicated or collinear features end at nearly one point (audit A7)."""
+    gap = 0.05 * y_span
+    placed: list[tuple[float, float]] = []
+    for x, y in sorted(positions, key=lambda p: p[1]):
+        while any(abs(y - py) < gap and abs(x - px) < 0.3 * x_span for px, py in placed):
+            y += gap
+        placed.append((x, y))
+    return placed
+
+
 def _arrows(ax: Axes, embedding: Embedding) -> None:
     loadings = embedding.loadings
     shown = loadings[loadings["top"]]
@@ -95,8 +109,15 @@ def _arrows(ax: Axes, embedding: Embedding) -> None:
     points = embedding.points
     reach = 0.8 * float(np.nanmax(np.hypot(points["pc1"], points["pc2"])) or 1.0)
     longest = float(np.hypot(shown["pc1"], shown["pc2"]).max()) or 1.0
-    for row in shown.itertuples():
-        dx, dy = row.pc1 / longest * reach, row.pc2 / longest * reach
+    tips = [
+        (float(r.pc1) / longest * reach, float(r.pc2) / longest * reach) for r in shown.itertuples()
+    ]
+    x_low, x_high = ax.get_xlim()
+    y_low, y_high = ax.get_ylim()
+    spots = _spread_labels(
+        [(dx * 1.06, dy * 1.06) for dx, dy in tips], x_high - x_low, y_high - y_low
+    )
+    for row, (dx, dy), (lx, ly) in zip(shown.itertuples(), tips, spots, strict=True):
         ax.annotate(
             "",
             xy=(dx, dy),
@@ -104,8 +125,8 @@ def _arrows(ax: Axes, embedding: Embedding) -> None:
             arrowprops={"arrowstyle": "-|>", "color": INK, "lw": 1.6},
         )
         label = ax.text(
-            dx * 1.06,
-            dy * 1.06,
+            lx,
+            ly,
             row.feature,
             fontsize=FONT - 1,
             weight="bold",
@@ -114,6 +135,32 @@ def _arrows(ax: Axes, embedding: Embedding) -> None:
             va="center",
         )
         label.set_path_effects([withStroke(linewidth=3, foreground="white")])
+    # Keep every arrow and label inside the axes: they must not run into the title.
+    x_pad, y_pad = 0.04 * (x_high - x_low), 0.06 * (y_high - y_low)
+    words = max((len(str(f)) for f in shown["feature"]), default=0)
+    x_room = 0.012 * words * (x_high - x_low)
+    lows = [
+        min(
+            x_low,
+            *(
+                x - (x_room if dx < 0 else 0) - x_pad
+                for (x, _), (dx, _) in zip(spots, tips, strict=True)
+            ),
+        )
+    ]
+    highs = [
+        max(
+            x_high,
+            *(
+                x + (x_room if dx >= 0 else 0) + x_pad
+                for (x, _), (dx, _) in zip(spots, tips, strict=True)
+            ),
+        )
+    ]
+    ax.set_xlim(lows[0], highs[0])
+    ax.set_ylim(
+        min(y_low, *(y - y_pad for _, y in spots)), max(y_high, *(y + y_pad for _, y in spots))
+    )
 
 
 def embedding_figures(

@@ -231,6 +231,8 @@ def _needed(row: dict[str, Any], fields: str) -> str:
         low, high = int(row["fields_low"]), int(row["fields_high"])
         about = f"{low}" if low == high else f"{low}-{high}"
         parts.append(f"about {about} {fields} a side")
+    elif row["needing"]:  # counted, not projected: the counts add up (audit A4)
+        parts.append(f"{row['needing']} not projected (no candidate difference)")
     if row["too_small"]:
         parts.append(f"{row['too_small']} too small to show")
     if row.get("between_wells", 0):

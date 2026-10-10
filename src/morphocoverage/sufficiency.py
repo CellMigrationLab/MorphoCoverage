@@ -100,6 +100,7 @@ from .strategies.support_novelty import (
     SupportNoveltyStrategy,
 )
 from .sufficiency_full import full_summary
+from .sufficiency_null import mark_uninformative
 from .sufficiency_short import short_summary
 from .sufficiency_tables import criteria_tables, enough_table, group_major
 from .sufficiency_text import (
@@ -538,6 +539,7 @@ def sufficiency_report(
         next_fov, new_observations = _next_fov_tables(
             novelty_data, novelty, novelty_target, few_fovs
         )
+        next_fov = mark_uninformative(next_fov, novelty_data, novelty)
         if calibration is not None:
             calibrated = calibrate_next_fov_novelty(
                 objects,

@@ -432,12 +432,18 @@ def add_pairwise(
     beside = label_w + 0.3 + 2 * side + 0.7 <= width - 0.2
     # The cells, the slanted labels and the panel title (two lines, more when it wraps).
     lines = max(_title(p, side).count("\n") + 1 for p in ("B", "C"))
-    row_h = side + label_w * 0.6 + 0.75 + 0.16 * max(0, lines - 2)
+    # Above the cells, the panel title (0.16 inch a wrapped line) and a gap that clears panel
+    # A's tick labels; below them, the slanted labels and "against". With two conditions the
+    # cells are narrow, the title wraps to many lines, and the old fixed gap let it overprint
+    # panel A's labels (audit A7).
+    above = 0.16 * lines + 0.45
+    below = label_w * 0.6 + 0.4
+    row_h = side + above + below
     extra = row_h if beside else 2 * row_h
     grow_bottom(figure, extra)
     total = figure.get_size_inches()[1]
     left = label_w + 0.3
-    bottom_b = (extra - side - 0.55) / total
+    bottom_b = (extra - above - side) / total
     ax_b = figure.add_axes([left / width, bottom_b, side / width, side / total])
     if beside:
         ax_c = figure.add_axes([(left + side + 0.7) / width, bottom_b, side / width, side / total])

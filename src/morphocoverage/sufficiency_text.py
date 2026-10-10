@@ -27,6 +27,7 @@ from .evidence import Direction
 from .metadata import column_names
 from .results import StrategyResult
 from .strategies.support_novelty import SupportNoveltyEstimator
+from .sufficiency_null import is_uninformative
 from .transforms import RobustStandardize, Standardize
 
 
@@ -201,6 +202,8 @@ def _next_fov_answer(
     """
     if pd.isna(row["chance_new"]):
         return f"Not estimable: {row['reason']}."
+    if is_uninformative(row):
+        return f"Not informative: {row['uninformative']}."
     confidence = percent(row["confidence"])
     shows = "shows" if min_other_fovs == 1 else "show"
     chance = (

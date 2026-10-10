@@ -199,6 +199,8 @@ def _needs(contrast: Any, fields: str, repeats: int = 0, project: bool = True) -
         their = "its" if len(needing) == 1 else "their"
         where = "" if repeats == 1 else f" in {their} repeat"
         parts.append(f"{listing(items, len(items))} {fields} a side{where}")
+    elif len(needing):  # counted, not projected: the counts add up (audit A4)
+        parts.append(f"{len(needing)} not projected (no candidate difference)")
     small = int(rows["too_small"].sum())
     if small:
         parts.append(f"{small} too small even with {PRACTICAL} times the {fields}")

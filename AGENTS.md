@@ -261,6 +261,7 @@ src/morphocoverage/
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
     sufficiency_text.py    # the sentences of the sufficiency report (its answer columns)
+    sufficiency_null.py    # question 2's guard: no chance of a new state where the definition of new is not informative at the group's size (audit A2)
     sufficiency_short.py   # its short summary: the rules in one table across groups, each caveat once
     sufficiency_full.py    # its full summary: every number, group by group, each caveat once
     sufficiency_tables.py  # its criteria tables: each rule on the full acquisition and its stops
@@ -465,6 +466,10 @@ tests/
     test_notebooks.py      # example notebooks compile, import existing names, carry no outputs
     conftest.py            # one BLAS thread per test process
 
+tools/
+    function_index.py      # the function index and the mechanical function checks, from the source tree alone (ast; imports nothing)
+    baselines/             # the ratchets: functions over the size, complexity and argument limits, public functions without a docstring, silent fallbacks (numbers only go down)
+
 data/
     crick_idr/             # Crick/IDR feature tables (idr0028 development, idr0139 held out), their analyses and results
     lab/                   # the lab's datasets as MorphoBricks tables: card.toml, DATASET.md, convert.py, NOTICE per
@@ -585,6 +590,7 @@ If acquisition becomes targeted, do not treat targeted FOVs as an unbiased popul
 - Statistics shared by several analyses live once, in `morphocoverage.statistics`, and are reused rather than re-derived.
 - The bug classes the audits kept finding are guarded package-wide by `tests/test_guards.py`, so write new code through the shared helpers: percentages and declared rates through `_wording` (`percent`, `rate`), count and number checks through `_checks`, FOV and group identity only through `metadata`'s resolvers, group lookups by `_seeds.group_key` (never the 32-bit `group_identity`, which only seeds), and every new interval with a coverage test. The live session must give the replay's result at every step of every contract scenario, and `check_tables` must accept exactly what the validator accepts.
 - Comments explain scientific assumptions or non-obvious reasoning.
+- `docs/common/function_index.jsonl` lists every function (module, name, signature, the first line of its docstring, size, complexity, callees, body hash): regenerate it with `python tools/function_index.py` after changing a function, since `tests/test_function_guards.py` fails when it is stale. The same test keeps a ratchet: no function over 60 lines, complexity 15 or 8 arguments beyond `tools/baselines/`, no public function without a docstring, no swallowed error, `errors="ignore"` or `suppress` that is not already recorded; new code meets the limits, and a fix is recorded by tightening the baseline (`--write-baselines`).
 - Prefer specific exception types and actionable error messages.
 - Do not perform unrelated refactors, dependency upgrades, API renames, or formatting sweeps.
 
