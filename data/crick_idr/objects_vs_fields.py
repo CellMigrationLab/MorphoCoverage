@@ -121,7 +121,11 @@ def _unit_lines(v: pd.DataFrame, j: pd.DataFrame) -> list[str]:
             f"{_range(ok.unusual_fov_share, '.0%')} (5% expected)."
         )
     ]
-    j = j[j.status == "ok"]
+    reasons = sorted(set(j.status[j.status != "ok"]))
+    j = j[j.status == "ok"].assign(meets_target=lambda t: t.meets_target.astype(bool))
+    if j.empty:  # every well not assessable (audit 10: fewer than 5 fields with nuclei)
+        lines.append(f"R0 JCB: not assessable in any of the {len(v)} wells ({'; '.join(reasons)}).")
+        return lines
     first = j[j.target == j.target.max()]
     lines.append(
         f"R0 JCB: object SD {_range(first.object_sd, '.1%')} of the control mean; for the "

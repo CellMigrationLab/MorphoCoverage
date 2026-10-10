@@ -1,7 +1,7 @@
-family,alpha,setting,effort,risk,baseline_setting,baseline_effort,met_setting,met_risk,exceeded_setting,exceeded_risk,fields_saved,saved_low,saved_high,saved_reached,baseline_risk_at_same_effort,adaptivity
-fixed fields,0.0500,16.0000,16.0000,0.0373,16.0000,16.0000,,,,,0.0000,,,,0.0373,
-novelty bound,0.0500,0.1000,18.0000,0.0263,16.0000,16.0000,,,,,-2.0000,,,0.7655,0.0263,
-rare incidence (labels),0.0500,0.0010,7.0521,0.0263,16.0000,16.0000,,,,,8.9479,,,0.7655,0.2871,0.7945
-fixed fields,0.1000,13.0000,13.0000,0.0943,13.0000,13.0000,,,,,0.0000,,,,0.0943,
-novelty bound,0.1000,0.2000,14.8958,0.0614,13.0000,13.0000,,,,,-1.8958,,,1.0000,0.0525,0.0908
-rare incidence (labels),0.1000,0.2000,6.6875,0.0504,13.0000,13.0000,,,,,6.3125,,,1.0000,0.3039,0.7924
+family,alpha,setting,effort,risk,judged,runs,baseline_setting,baseline_effort,met_setting,met_risk,exceeded_setting,exceeded_risk,fields_saved,saved_low,saved_high,saved_reached,baseline_risk_at_same_effort,adaptivity
+fixed fields,0.0500,16.0000,16.0000,0.0373,456,576,16.0000,16.0000,,,,,0.0000,,,,0.0373,
+novelty bound,0.0500,0.1000,18.0000,0.0263,456,576,16.0000,16.0000,,,,,-2.0000,,,0.7655,0.0263,
+rare incidence (labels),0.0500,0.0010,7.0521,0.0263,456,576,16.0000,16.0000,,,,,8.9479,,,0.7655,0.2871,0.7945
+fixed fields,0.1000,13.0000,13.0000,0.0943,456,576,13.0000,13.0000,,,,,0.0000,,,,0.0943,
+novelty bound,0.1000,0.2000,14.8958,0.0614,456,576,13.0000,13.0000,,,,,-1.8958,,,1.0000,0.0525,0.0908
+rare incidence (labels),0.1000,0.2000,6.6875,0.0504,456,576,13.0000,13.0000,,,,,6.3125,,,1.0000,0.3039,0.7924

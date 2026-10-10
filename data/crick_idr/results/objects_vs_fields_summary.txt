@@ -3,9 +3,7 @@ Objects or fields: the sampling-unit checks, one group per well
 == idr0139: the paper's 10 wells x 4 fields on one plate (idr0139, the JCS case study), 60 features (Fascin_Ratio) ==
 
 R0 field variability (10 wells): between-field share of variance median 1.6% (range 0.0%-6.5%); design effect median 6.4 (range 1.0-24.3); error ratio median 2.5 (range 1.0-4.9); fields differing more than random objects median 38% (range 0%-75%) (5% expected).
-R0 JCB: object SD median 25.8% (range 21.5%-29.6%) of the control mean; for the objects obtained, real / predicted error median 2.2 (range 0.7-3.9).
-  target 5.0%: rule objects median 28 (range 19-36), fields used median 1.0 (range 1.0-1.0); real error median 3.1% (range 1.2%-6.1%); 2 of 10 wells miss; with fields as the unit the rule asks 1 field (upper-95 8) of 4 acquired.
-  target 2.5%: rule objects median 108 (range 75-141), fields used median 1.0 (range 1.0-1.0); real error median 3.1% (range 1.2%-6.1%); 8 of 10 wells miss; with fields as the unit the rule asks 2 fields (upper-95 30) of 4 acquired.
+R0 JCB: not assessable in any of the 10 wells (fewer than 5 fields with nuclei).
 R0 JCS Fig. 2A at 250 objects, whole-field spread / random-object spread:
   mean: median 1.5 (range 0.7-2.5); fields matched the 250-object spread in 5 of 10 wells, from a median of 280 objects (up to 500 tried).
   median: median 1.9 (range 0.5-3.0); fields matched the 250-object spread in 4 of 10 wells, from a median of 305 objects (up to 500 tried).
@@ -33,9 +31,7 @@ R4 unusual objects (all intensity features, against the other MOCK wells, 1% ref
 == idr0139_plate: every well of the idr0139 plate, 4 fields each, readout only; descriptive use only (Fascin_Ratio) ==
 
 R0 field variability (308 wells): between-field share of variance median 2.8% (range 0.0%-15.9%); design effect median 10.8 (range 1.0-64.6); error ratio median 3.3 (range 1.0-8.0); fields differing more than random objects median 50% (range 0%-100%) (5% expected).
-R0 JCB: object SD median 26.4% (range 15.9%-35.3%) of the control mean; for the objects obtained, real / predicted error median 2.8 (range 0.3-6.6).
-  target 5.0%: rule objects median 28 (range 11-50), fields used median 1.0 (range 1.0-1.8); real error median 4.1% (range 0.5%-10.2%); 97 of 308 wells miss; with fields as the unit the rule asks 1 field (upper-95 13) of 4 acquired.
-  target 2.5%: rule objects median 112 (range 41-200), fields used median 1.0 (range 1.0-5.6); real error median 4.1% (range 0.5%-10.2%); 233 of 308 wells miss; with fields as the unit the rule asks 4 fields (upper-95 50) of 4 acquired.
+R0 JCB: not assessable in any of the 308 wells (fewer than 5 fields with nuclei).
 
 == idr0028_screenB_plates: every well of the 3 idr0028 screen B plates, 28 fields each, readout only (YAPTAZ_Ratio) ==
 
