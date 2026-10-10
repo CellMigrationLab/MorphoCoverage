@@ -66,6 +66,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import as_count, check_seed
 from .._control import control_name
 from .._former_repeat import one_warning, read_former
@@ -379,6 +380,7 @@ def object_rule_check(
                 }
             )
     settings = {
+        ACQUISITION: acquisition_identity(data),
         "feature": feature,
         "targets": targets,
         "control": None if control is None else dict(control),
@@ -495,6 +497,7 @@ def descriptor_spread_check(
                 }
             )
     settings = {
+        ACQUISITION: acquisition_identity(data),
         "feature": feature,
         "threshold": threshold,
         "sizes": sizes,

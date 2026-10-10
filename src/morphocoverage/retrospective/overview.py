@@ -22,6 +22,7 @@ from typing import Any
 
 import pandas as pd
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._control import control_name
 from .._data_rules import _loose
 from .._former_repeat import one_warning, read_former
@@ -458,6 +459,7 @@ def dataset_overview(
         else 1,
     }
     settings: dict[str, Any] = {
+        ACQUISITION: acquisition_identity(data),
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
         "fov_key": list(data.fov_key),

@@ -72,6 +72,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._caveats import caveat_lines
 from .._checks import as_count, check_seed
 from .._former_repeat import one_warning, read_former
@@ -289,6 +290,7 @@ def unusual_objects(
         lambda v: pd.NA if np.isnan(v) else bool(v)
     )
     settings = {
+        ACQUISITION: acquisition_identity(data),
         "feature_cols": list(data.feature_cols),
         "reference": dict(reference),
         # Several controls: each condition against its own (owner, 2026-10-05).

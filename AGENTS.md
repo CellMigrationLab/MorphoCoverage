@@ -256,6 +256,7 @@ src/morphocoverage/
     _frozen.py             # private: owned, read-only containers (FrozenDict/FrozenList, freeze, thaw) for frozen result snapshots
     _stage_coordinates.py  # private: the one contract for stage coordinates: two distinct real numeric columns, no booleans, complex, text or coercion, finite (stage_names, stage_matrix, check_xy)
     _rare_label.py         # private: the one contract of a rare-state label column: booleans or 0/1, missing means unknown (check_rare_labels, known_flags)
+    _acquisition.py        # private: the identity of the acquisition a result was computed on (digest of the typed FOV universe), checked when results are assembled into one report (issue 277)
     _checks.py             # private: integer and number checks that accept numpy types
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new

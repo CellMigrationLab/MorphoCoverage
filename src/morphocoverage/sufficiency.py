@@ -73,6 +73,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._acquisition import acquisition_identity
 from ._checks import is_integer
 from ._former_repeat import one_warning
 from ._frozen import owned
@@ -151,6 +152,7 @@ class SufficiencyReport:
     observation_unit: str | None = None
     novelty_target: float | None = None
     observation_unit_declared: bool = True
+    acquisition: str | None = None
 
     def summary(self, detail: str = "short") -> str:
         """Both answers: ``"short"``, one table of the rules across groups, the novelty answers
@@ -571,6 +573,7 @@ def sufficiency_report(
         observation_unit=data.observation_unit,
         novelty_target=novelty_target,
         observation_unit_declared=data.observation_unit_declared,
+        acquisition=acquisition_identity(data),
     )
 
 

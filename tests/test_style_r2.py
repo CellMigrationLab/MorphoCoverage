@@ -37,6 +37,7 @@ from morphocoverage.retrospective.report_status import (
     next_time_status,
 )
 from morphocoverage.retrospective.spatial import EfficiencyResult
+from tests.unrecorded import unrecorded
 
 MEAN_A = OutcomeCriterion(RelativeMeanError("feature_a"), 0.05, "lower_is_better", "the mean")
 MEAN_B = OutcomeCriterion(RelativeMeanError("feature_b"), 0.05, "lower_is_better", "mean b")
@@ -295,7 +296,10 @@ def test_the_report_gives_questions_4_5_and_7_short_with_their_markers():
     reliability = _reliability()
     protocol = _protocol(_wells(("P1", "P2"), 0.95, 0.99))
     report = microscopist_report(
-        reliability=reliability, protocol=protocol, adequacy=_adequacy(), effort=_effort()
+        reliability=unrecorded(reliability),
+        protocol=unrecorded(protocol),
+        adequacy=unrecorded(_adequacy()),
+        effort=unrecorded(_effort()),
     )
     for key in ("next_time", "bought", "effort"):
         assert key in report.short and report.short[key] != report.sections[key]

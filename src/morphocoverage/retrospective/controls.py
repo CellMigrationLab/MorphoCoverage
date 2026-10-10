@@ -8,14 +8,12 @@ A declared control tests this on the dataset itself:
   judged as candidate next FOVs against ``fovs_seen`` random FOVs of the
   reference. The share judged new is the **detection rate** for whole fields.
   With ``planted_objects``, that many objects of a random positive FOV are also
-  added to remaining reference FOVs: the detection rate for a small group of
-  such objects in an otherwise ordinary field. Planted objects come from other
-  fields, so this approximates a rare state rather than measuring one.
+  added to remaining reference FOVs: the detection rate for a small group of such
+  objects in an ordinary field. They come from other fields, so this approximates a rare state.
 - **reference**: the declared negative population (for example MOCK). Its remaining FOVs,
   judged the same way, give the **false-alarm rate**. Without a reference, the undeclared
   rest of the stratum stands in for it, and the false-alarm rate is "not assessed".
 - With neither, nothing can be said: "not assessed".
-
 **Leave one field out.** The rates above judge a field against ``fovs_seen`` reference fields,
 as a stopping rule judges the next field. ``inspect_fovs`` judges each field against every
 other field of its analysis group, and the false-alarm rate depends strongly on how many
@@ -70,6 +68,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import check_seed, is_integer
 from .._former_repeat import one_warning, read_former
 from .._frozen import owned
@@ -532,6 +531,7 @@ def representation_control(
         status = "not assessed"
     settings = {
         **settings,
+        ACQUISITION: acquisition_identity(data),
         "lofo_group_cols": lofo_cols,
         "skipped_strata": skipped,
         "planted_skipped": planted_skipped,

@@ -46,6 +46,7 @@ from typing import Any
 
 import pandas as pd
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import as_count, check_column, check_flag, check_seed, is_share
 from .._frozen import owned
 from .._parallel import check_n_jobs, map_units
@@ -488,6 +489,7 @@ def replay_acquisitions(
                 collected += rows
     keys = list(data.group_cols)
     settings = {
+        ACQUISITION: acquisition_identity(data),
         "criteria": [c.parameters for c in criteria],
         "labels": {c.name: c.label for c in criteria},
         "strategies": {s.config_id: s.configuration for s in strategies},

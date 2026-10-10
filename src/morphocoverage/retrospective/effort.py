@@ -89,6 +89,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import check_seed, is_integer
 from .._former_repeat import one_warning, read_former
 from .._frozen import owned
@@ -493,6 +494,7 @@ def effort_projection(
         for name, own in rows.items():
             tables[name] += own
     settings = {
+        ACQUISITION: acquisition_identity(data),
         "feature": feature,
         "hierarchy": hierarchy.parameters,
         "independent_unit": hierarchy.independent_unit,

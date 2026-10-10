@@ -48,6 +48,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._frozen import owned
 from .._style import check_detail
 from ..schema import fov_values
@@ -209,6 +210,7 @@ def fov_variability(
         identity = group_data.fovs[list(data.fov_key)].to_dict("records")
         fov_rows += [{**ident, **r} for ident, r in zip(identity, rows, strict=True)]
     settings = {
+        ACQUISITION: acquisition_identity(data),
         "feature": feature,
         "fov_key": list(data.fov_key),
         "observation_unit": data.observation_unit,
