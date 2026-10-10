@@ -27,6 +27,7 @@ from morphocoverage.retrospective.report_status import (
 )
 from morphocoverage.sampling_unit import condition_contrast, feature_ranking
 from morphocoverage.workflows._declaration import declaration_short
+from tests.unrecorded import unrecorded
 
 CONTROL = {"condition": "control"}
 
@@ -191,7 +192,7 @@ def test_the_report_prints_the_short_forms_and_its_caveats_once():
     objects, fovs = _wells()
     contrast = condition_contrast(objects, fovs, feature="x", control=CONTROL, n_draws=5)
     inspection = _inspect(*_acquisition())
-    report = microscopist_report(contrast=contrast, inspection=inspection)
+    report = microscopist_report(contrast=unrecorded(contrast), inspection=unrecorded(inspection))
     short = report.summary()
     # The answer across biological repeats first, then the contrasts within each repeat.
     # The reading per condition leads, then the table across repeats.

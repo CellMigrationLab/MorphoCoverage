@@ -33,6 +33,7 @@ from morphocoverage.sampling_unit import (
     unusual_objects,
 )
 from morphocoverage.strategies import SupportNoveltyEstimator
+from tests.unrecorded import unrecorded
 
 
 def _flat(text: str) -> str:
@@ -285,7 +286,10 @@ def test_question_3_is_a_caution_when_a_state_clusters(states):
 
 def test_the_report_sections_are_short_with_each_caveat_once(unit, controls, states):
     clustering, unusual = states
-    report = microscopist_report(**unit, controls=controls, clustering=clustering, unusual=unusual)
+    mixed = {k: unrecorded(v) for k, v in {**unit, "controls": controls}.items()}
+    report = microscopist_report(
+        **mixed, clustering=unrecorded(clustering), unusual=unrecorded(unusual)
+    )
     for key in ("unit", "controls", "profile"):
         short = report.short[key]
         assert short != report.sections[key]

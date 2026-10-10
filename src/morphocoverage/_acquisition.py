@@ -15,14 +15,21 @@ from collections.abc import Mapping
 from typing import Any
 
 from ._identity import row_keys
+from .metadata import MORPHOBRICKS_GROUP_COLUMNS
 from .schema import ValidatedInput
 
 ACQUISITION = "acquisition"
 
 
 def acquisition_identity(data: ValidatedInput) -> str:
-    """The SHA-256 of the sorted typed FOV keys of ``data``."""
-    keys = sorted([list(part) for part in key] for key in row_keys(data.fovs, list(data.fov_key)))
+    """The SHA-256 of the sorted typed FOV keys of ``data``.
+
+    The key is the FOV column with the MorphoBricks group columns the FOV table holds, never
+    the analysis's own ``group_cols``: the same acquisition read with other groups (or with
+    identity columns only) must give the same identity."""
+    columns = [c for c in data.fovs.columns if c in MORPHOBRICKS_GROUP_COLUMNS]
+    columns = [c for c in columns if c != data.fov_key[-1]] + [data.fov_key[-1]]
+    keys = sorted([list(part) for part in key] for key in row_keys(data.fovs, columns))
     text = json.dumps(keys, separators=(",", ":"))
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
