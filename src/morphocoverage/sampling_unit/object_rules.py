@@ -468,7 +468,12 @@ def descriptor_spread_check(
                 )
         if (RANDOM_OBJECTS, threshold) not in spreads:
             skipped.append(
-                {"group": where(group), "label": group_label(group), "observations": len(pooled)}
+                {
+                    "group": where(group),
+                    "label": group_label(group),
+                    "identity": [list(identity_key(v)) for v in group.values()],
+                    "observations": len(pooled),
+                }
             )
             continue
         tried = sorted(n for how, n in spreads if how == WHOLE_FOVS)

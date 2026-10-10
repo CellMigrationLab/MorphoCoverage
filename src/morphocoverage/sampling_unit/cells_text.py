@@ -22,6 +22,7 @@ import pandas as pd
 
 from .._caveats import assumption
 from .._control import versus
+from .._identity import IdentityKey, display, identity_key
 from .._style import span, table, wrap
 from .._wording import column_word, count, features_counted, listing, p_value, percent
 from ..schema import observation_words
@@ -149,19 +150,23 @@ def _sparse(contrast: Any, cells: pd.DataFrame) -> list[str]:
     word = column_word(contrast.settings["repeat_col"])
     words = observation_words(contrast.settings)[1]
     flagged = cells[cells["sparse_repeats"].map(len) > 0]
-    groups: dict[tuple[tuple[str, ...], int], list[str]] = {}
+    groups: dict[tuple, list[IdentityKey]] = {}
     for row in flagged.to_dict("records"):
         left = int(row["repeats"]) - len(row["sparse_repeats"])
         provided = not row["other_control_repeats"] > 0
         key = (
-            tuple(str(r) for r in row["sparse_repeats"]),
+            tuple(identity_key(r) for r in row["sparse_repeats"]),
             int(row["balanced_repeats"]),
             left,
             provided,
         )
-        groups.setdefault(key, []).append(str(row["condition"]))
+        groups.setdefault(key, []).append(identity_key(row["condition"]))
     lines = []
-    for (names, kept, left, provided), conditions in groups.items():
+    repeats = display(list(dict.fromkeys(k for key in groups for k in key[0])))
+    conditions_shown = display(list(dict.fromkeys(k for own in groups.values() for k in own)))
+    for (keys, kept, left, provided), identities in groups.items():
+        names = tuple(repeats[k] for k in keys)
+        conditions = [conditions_shown[k] for k in identities]
         # One repeat alone is not balanced over the repeats: no balanced test, the test as
         # provided is read (audit 10, owner, 2026-10-06).
         if not kept and not left:  # every repeat few: said once, in the balance sentence (C6)

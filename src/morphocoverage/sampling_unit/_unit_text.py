@@ -18,7 +18,7 @@ Shared-private: used by ``variability``, ``object_rules`` and
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import pandas as pd
@@ -27,6 +27,7 @@ from .._caveats import caveat_lines
 from .._style import among, group_columns, group_label, span, table, wrap
 from .._wording import column_word, count, listing, number, percent, percent_fine, rate
 from ..schema import observation_words
+from ._group_text import count_groups, group_key, namer, skipped_label
 
 
 def _present(value: Any) -> bool:
@@ -59,14 +60,23 @@ def _per_field(value: float) -> str:
     return f"{value:.1g}" if written == "0" and value > 0 else written
 
 
+def _named(
+    rows: Sequence[Mapping[str, Any]], keys: Sequence[str], name: Callable[[Mapping], str]
+) -> list[str]:
+    """The labels of the distinct groups of ``rows`` (identity, not label, decides)."""
+    distinct = {group_key(row, keys): row for row in rows}
+    return [name(row) for row in distinct.values()]
+
+
 def _by_reason(rows: Sequence[Mapping[str, Any]], keys: Sequence[str], what: str) -> list[str]:
     """``not estimated in MOCK · 1A · B6 and LATS1 · 1A · I23: <reason>``, one per reason."""
-    reasons: dict[str, list[str]] = {}
+    reasons: dict[str, list[Mapping[str, Any]]] = {}
     for row in rows:
-        reasons.setdefault(str(row["status"]), []).append(_group(row, keys))
+        reasons.setdefault(str(row["status"]), []).append(row)
+    name = namer(rows, keys)
     return [
-        f"{what} in {listing(list(dict.fromkeys(groups)), limit=3)}: {reason}"
-        for reason, groups in reasons.items()
+        f"{what} in {listing(_named(own, keys, name), limit=3)}: {reason}"
+        for reason, own in reasons.items()
     ]
 
 
@@ -311,7 +321,7 @@ def object_rule_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str
     keys = list(result.group_cols)
     rows = result.table.to_dict("records")
     ok = [r for r in rows if r["status"] == "ok"]
-    groups = len({_group(r, keys) for r in rows})
+    groups = count_groups(rows, keys)
     reference = rule_reference(result.settings, words)
     lines = [
         wrap(
@@ -446,8 +456,9 @@ def _spread_cautions(result: Any, words: str) -> list[str]:
     if len(rows) and rows["ratio"].isna().any():
         cautions.append("no ratio: the random-object samples never varied in that descriptor")
     threshold = result.settings["threshold"]
-    for skipped in result.settings.get("skipped_groups", []):
-        where = skipped.get("label") or skipped["group"]
+    skipped_groups = list(result.settings.get("skipped_groups", []))
+    for skipped in skipped_groups:
+        where = skipped_label(skipped, skipped_groups)
         cautions.append(
             f"JCS check in {where}: not checked: {skipped['observations']} {words}, fewer than "
             f"the threshold of {threshold}"

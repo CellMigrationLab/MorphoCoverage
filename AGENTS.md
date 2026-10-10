@@ -357,6 +357,7 @@ src/morphocoverage/
         clustering.py      # state clustering by FOV: are rare or unusual objects spread over the fields or clustered
         _outliers.py       # private: the distances and leave-one-group-out thresholds behind unusual_objects
         _common.py         # private: validation and group helpers shared by the sampling-unit checks
+        _group_text.py     # private: groups in the report's text counted and merged by typed identity, labels written after (issue 284)
         _unit_text.py      # private: the Foundation's checks in words, short and full (variability, mean-precision rule, JCS spread)
         _state_text.py     # private: unusual objects and state clustering in words, short and full
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
