@@ -68,10 +68,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-import pandas as pd
 from scipy import stats
 
 from .._caveats import assumption
+from .._rare_label import check_rare_labels
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
@@ -114,11 +114,7 @@ def _positive_fovs(data: ValidatedInput, label_col: str) -> int | None:
     labels = data.objects[label_col]
     if labels.isna().any():
         return None
-    if not (pd.api.types.is_bool_dtype(labels) or set(labels.unique()) <= {0, 1}):
-        raise ValueError(
-            f"label_col {label_col!r} must hold booleans or 0/1, got "
-            f"{sorted(map(str, labels.unique()))[:5]}"
-        )
+    check_rare_labels(labels, f"label_col {label_col!r}")
     positions = fov_positions(data, data.fovs)[labels.to_numpy(dtype=bool)]
     return int(np.unique(positions[positions >= 0]).size)
 

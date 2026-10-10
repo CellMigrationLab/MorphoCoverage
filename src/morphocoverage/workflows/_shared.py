@@ -30,6 +30,7 @@ import pandas as pd
 
 from .._control import NO_CONTROL, not_found
 from .._former_repeat import renamed_tables
+from .._rare_label import check_rare_labels
 from .._wording import count, plural
 from ..benchmark import AcquisitionOrder
 from ..data_check import DataCheck, Problem
@@ -141,12 +142,7 @@ def check_workflow_inputs(
     if setup.rare_label is not None:
         # The analyses read the label as True/False: any other value ("no", 2) would be
         # True for some of them and another state for others.
-        labels = objects[setup.rare_label].dropna()
-        if not (pd.api.types.is_bool_dtype(labels) or set(labels.unique()) <= {0, 1}):
-            raise ValueError(
-                f"rare_label {setup.rare_label!r} must hold booleans or 0/1, got "
-                f"{sorted(map(str, labels.unique()))[:5]}"
-            )
+        check_rare_labels(objects[setup.rare_label], f"rare_label {setup.rare_label!r}")
     for feature, scale in (setup.scales or {}).items():  # a ratio needs positive values
         if feature in objects.columns:
             log_scale(objects[feature].to_numpy(dtype=float), scale, repr(feature))

@@ -41,7 +41,7 @@ and the summary says so.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -49,6 +49,7 @@ import pandas as pd
 
 from .._checks import is_integer, is_number
 from .._frozen import owned
+from .._rare_label import check_rare_labels, known_flags
 from .._stage_coordinates import stage_names
 from .._style import group_label
 from .._wording import count, ordinal, percent
@@ -297,8 +298,8 @@ def _novel(
     positions = fov_positions(data, data.fovs)
     counts = np.bincount(positions[flags], minlength=len(data.fovs))
     labelled = None
-    if label_col is not None and label_col in data.objects.columns:
-        marked = flags & data.objects[label_col].fillna(False).to_numpy(dtype=bool)
+    if label_col is not None:  # present and valid: checked once, in inspect_fovs
+        marked = flags & known_flags(data.objects[label_col], f"label_col {label_col!r}")[1]
         labelled = np.bincount(positions[marked], minlength=len(data.fovs))
     unit, words = observation_words(data)
 
@@ -441,6 +442,10 @@ def inspect_fovs(
         group_cols=group_cols,
         observation_unit=observation_unit,
     )
+    if label_col is not None:  # one contract for every label column (issue 344)
+        if label_col not in data.objects.columns:
+            raise ValueError(f"label_col {label_col!r} is not a column of the observations")
+        check_rare_labels(data.objects[label_col], f"label_col {label_col!r}")
     if stage_cols is not None:
         absent = [c for c in stage_cols if c not in data.fovs.columns]
         if absent:
@@ -453,10 +458,10 @@ def inspect_fovs(
     n_fovs = n_judged = 0
     for group, both in iter_analysis_groups(data):
         n_fovs += len(both.fovs)
-        group_data = replace(both, feature_cols=tuple(feature_cols))
+        group_data = both.with_tables(feature_cols=tuple(feature_cols))
         found = []
         if novelty is not None:
-            judged = replace(both, feature_cols=tuple(novelty_cols))
+            judged = both.with_tables(feature_cols=tuple(novelty_cols))
             before = len(novelty_skipped) + len(uninformative)
             found += _novel(
                 judged, novelty, where(group), novelty_skipped, label_col, uninformative, null
