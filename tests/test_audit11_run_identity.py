@@ -62,9 +62,9 @@ def test_the_replays_own_family_is_accepted(mixed):
     assert "oracle" in set(result.scores["family"])
 
 
-def test_same_seeds_on_another_table_are_refused(mixed):
+def test_same_seeds_on_another_set_of_fields_are_refused(mixed):
     replay = _replay(*mixed, [_oracle(2, 12)], seed=0)
-    other = _replay(*_mixed(seed=1), [_oracle(2, 12)], seed=0)
+    other = _replay(*_mixed(n_fovs=30), [_oracle(2, 12)], seed=0)
     alien = family(other, "oracle", {_oracle(2, 12).config_id: 12})
     with pytest.raises(ValueError, match="another acquisition"):
         frontier(
