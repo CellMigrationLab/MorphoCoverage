@@ -179,7 +179,7 @@ def test_f8_f14_frontier_refuses_foreign_replays_and_says_when_there_is_no_inter
     one = _replay(*mixed, [_oracle(2, 12)], seed=0)
     other = _replay(*mixed, [_oracle(2, 12)], seed=1)
     alien = family(other, "oracle", {_oracle(2, 12).config_id: 12})
-    with pytest.raises(ValueError, match="other reservoirs or orders"):
+    with pytest.raises(ValueError, match="another acquisition"):
         frontier(one, [alien], criterion=MEAN.name, alphas=[0.1], unit_cols=["biological_repeat"])
     own = family(one, "oracle", {_oracle(2, 12).config_id: 12})
     result = frontier(one, [own], criterion=MEAN.name, alphas=[0.1], unit_cols=[])

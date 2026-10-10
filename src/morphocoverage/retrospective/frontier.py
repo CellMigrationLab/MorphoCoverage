@@ -70,7 +70,6 @@ held-out dataset (``BenchmarkRegistry``).
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -84,6 +83,7 @@ from .._former_repeat import read_former
 from .._frozen import owned
 from ..metadata import column_names
 from ..policies import ThresholdPolicy, redecide
+from ._run_identity import RUN_FINGERPRINT
 from .adequacy import adequacy_points
 from .criteria import Preservation
 from .effort import MIN_BOOT_SUCCESS
@@ -105,19 +105,32 @@ def _run_keys(replay: ReplayResult) -> list[str]:
     return [*replay.group_cols, *_RUN]
 
 
-def _held_back(replay: ReplayResult) -> str:
-    """The settings that fix a replay's reservoirs and orders, so replays can be matched."""
-    names = ("reservoir_fraction", "block_col", "n_splits", "random_state", "orders")
-    return json.dumps({n: replay.settings.get(n) for n in names}, sort_keys=True, default=str)
-
-
 def _with_streams(replay: ReplayResult, decisions: pd.DataFrame) -> pd.DataFrame:
-    """Attach each run's stream and reservoir sizes and how they were drawn, for matching."""
+    """Attach each run's stream and reservoir sizes and its fingerprint, for matching."""
     keys = _run_keys(replay)
-    streams = replay.streams[[*keys, "order", "stream_fovs", "reservoir_fovs"]]
+    streams = replay.streams[[*keys, "order", "stream_fovs", "reservoir_fovs", RUN_FINGERPRINT]]
     columns = [*keys, "fovs", "decision", *FAMILY_COLUMNS]
-    merged = decisions[columns].merge(streams, on=keys, how="left", validate="many_to_one")
-    return merged.assign(held_back=_held_back(replay))
+    return decisions[columns].merge(streams, on=keys, how="left", validate="many_to_one")
+
+
+def _check_runs(
+    decisions: pd.DataFrame, keys: list[str], fingerprints: Mapping[tuple, str]
+) -> None:
+    """Every run a family was decided on must be the replay's run: same typed fields, same order."""
+    if RUN_FINGERPRINT not in decisions.columns:
+        raise ValueError(
+            "this family carries no run fingerprint; build it with family() or sweep() "
+            "from the replay being scored"
+        )
+    runs = decisions[[*keys, RUN_FINGERPRINT]].drop_duplicates()
+    for _, row in runs.iterrows():
+        run = tuple(row[k] for k in keys)
+        if fingerprints.get(run) != row[RUN_FINGERPRINT]:
+            raise ValueError(
+                f"family {sorted(decisions['family'].unique())} was decided on another "
+                f"acquisition than the scored replay's at run {run} (its stream, held-back "
+                "fields or order differ, whatever the seeds and sizes)"
+            )
 
 
 def family(replay: ReplayResult, name: str, settings: Mapping[str, Any]) -> pd.DataFrame:
@@ -379,20 +392,14 @@ def frontier(
         tuple(row[k] for k in keys): (int(row["stream_fovs"]), row["order"])
         for _, row in replay.streams.iterrows()
     }
+    fingerprints = {
+        tuple(row[k] for k in keys): row[RUN_FINGERPRINT] for _, row in replay.streams.iterrows()
+    }
     rows = _baseline_runs(keys, statuses, streams)
     names = set()
     for decisions in families:
         own = decisions["family"].unique()
-        # Equal stream sizes do not make equal reservoirs: another seed, split or
-        # order draws other held-back fields, and its stops would be scored on these.
-        if (
-            "held_back" in decisions.columns
-            and (decisions["held_back"] != _held_back(replay)).any()
-        ):
-            raise ValueError(
-                f"family {sorted(own)} comes from a replay with other reservoirs or orders "
-                "(random_state, reservoir_fraction, block_col, n_splits or order seeds differ)"
-            )
+        _check_runs(decisions, keys, fingerprints)
         if BASELINE in own:
             raise ValueError(f"{BASELINE!r} is the baseline's name; name families otherwise")
         overlap = names & set(own)

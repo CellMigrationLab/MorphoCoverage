@@ -67,6 +67,7 @@ from ..sequential import (
     _strategy_units,
 )
 from ..strategies.base import SamplingStrategy
+from ._run_identity import RUN_FINGERPRINT, run_fingerprint
 from .criteria import OutcomeCriterion
 from .reliability import _reservoir_split, _skip_reason
 from .stage import dispersed_order, stage_travel
@@ -76,7 +77,7 @@ DEFAULT_PERMUTATIONS = 10
 _RUN = ("split", "order_id", "order", "order_seed")
 DECISION_COLUMNS = (*_RUN, "strategy", "config_id", "fovs", "decision")
 OUTCOME_COLUMNS = (*_RUN, "fovs", "criterion", "value", "status")
-STREAM_COLUMNS = (*_RUN, "stream_fovs", "reservoir_fovs")
+STREAM_COLUMNS = (*_RUN, "stream_fovs", "reservoir_fovs", RUN_FINGERPRINT)
 
 
 @owned("decisions", "outcomes", "streams", "settings", "paths", "skipped")
@@ -293,7 +294,15 @@ def _score(
     if not isinstance(acquisition, _Acquisition):
         acquisition = _Acquisition(*acquisition)
     ordered = acquisition.ordered
-    streams = [{**where, "stream_fovs": acquisition.n_fovs, "reservoir_fovs": len(reservoir.fovs)}]
+    fingerprint = run_fingerprint(where, ordered, reservoir.fovs, acquisition.data.fov_key)
+    streams = [
+        {
+            **where,
+            "stream_fovs": acquisition.n_fovs,
+            "reservoir_fovs": len(reservoir.fovs),
+            RUN_FINGERPRINT: fingerprint,
+        }
+    ]
     paths = []
     if stage_cols is not None:
         travel = stage_travel(ordered[list(stage_cols)].to_numpy(dtype=float))

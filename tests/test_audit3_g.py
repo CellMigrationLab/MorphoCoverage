@@ -253,7 +253,15 @@ def test_g8_a_frontier_interval_from_too_few_resamples_is_withheld():
     outcomes, streams, decisions = [], [], []
     for unit, row in statuses.items():
         run = {"unit": unit, "split": 0, "order_id": "recorded", "order": "recorded"}
-        streams.append({**run, "order_seed": None, "stream_fovs": 4, "reservoir_fovs": 5})
+        streams.append(
+            {
+                **run,
+                "order_seed": None,
+                "stream_fovs": 4,
+                "reservoir_fovs": 5,
+                "run_fingerprint": unit,
+            }
+        )
         for k, status in enumerate(row, start=1):
             outcomes.append(
                 {**run, "fovs": k, "criterion": "c", "value": 0.0, "status": names[status]}
