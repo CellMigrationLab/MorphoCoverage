@@ -228,9 +228,8 @@ def test_families_from_replays_with_other_streams_are_refused(mixed):
     one = _replay(*mixed, [_oracle(2, 12)], seed=0)
     other = _replay(*mixed, [_oracle(2, 16)], seed=1)
     alien = family(other, "oracle", {_oracle(2, 16).config_id: 16})
-    # Without the record of how its reservoirs were drawn, the stream sizes still differ.
-    alien = alien.assign(stream_fovs=alien["stream_fovs"] + 1).drop(columns="held_back")
-    with pytest.raises(ValueError, match="different streams"):
+    alien = alien.assign(stream_fovs=alien["stream_fovs"] + 1)
+    with pytest.raises(ValueError, match="another acquisition"):
         frontier(one, [alien], criterion=MEAN.name, alphas=[0.1], unit_cols=["biological_repeat"])
 
 
