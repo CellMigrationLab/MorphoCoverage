@@ -18,6 +18,15 @@ times to `data/crick_idr/results/logs/run_all.txt`, which is not tracked, so
 the run times quoted below are those of the earlier runs and were not
 remeasured.
 
+**Rerun of 2026-10-10 (issue 377).** `run_all.py` was run again after the
+changes of 2026-10-05 and 2026-10-06 (the JCB per-field bound as a bootstrap
+of whole fields, the 5-field minimum of `object_rule_check`, equal control-well
+weights in the unusual-object threshold, typed canonical field order), again
+under protocol version 5. Entries 1 to 6 and the treatment comparisons of entry 9
+did not change at the precision quoted. What moved is marked in place:
+the Monte Carlo standard errors of entry 7, the JCB per-field rows of entry 8,
+the idr0139 JCB columns of entry 9 and four p-values of entry 10.
+
 ## 1. Whole FOVs versus random cells in the JCS and JCB settings (2026-09-23)
 
 **Question.** Both cell-number rules we reproduce treat the cells of a sample
@@ -609,9 +618,9 @@ premature share is therefore a lower bound on the stops that came too early,
 and the share not preserved at the stop an upper bound. The fourth audit's
 rerun left every share of both tables unchanged. The reliability shares now
 carry their Monte Carlo standard error over the 6 hold-outs
-(`preserved_mc_se`): for the mean within 5% a median of 10 points at 1
-field and 8 at 2 fields (up to 18 and 22), so the shares of single wells
-are coarse.
+(`preserved_mc_se`): for the mean within 5% a median of 12 points at 1
+field and 9 at 2 fields (up to 27 and 30; 10 and 8, up to 18 and 22, before the
+2026-10-10 rerun), so the shares of single wells are coarse.
 
 **What this shows**
 
@@ -686,9 +695,12 @@ fields when the rule stopped; the unit is the well. Before locking, a
 reduced dry run (one split, one order, not scored) showed several grids
 ending before the cheap end; they were widened under a stated rule (every
 grid reaches from never stopping to stopping at the first allowed field), not
-on a result. Tables: `results/benchmark_*`. Since then the JCB per-field
-upper-95 bound is a bootstrap of whole fields (owner, 2026-10-05); the JCB
-per-field numbers below are from the former chi-square bound and were not rerun.
+on a result. Tables: `results/benchmark_*`. The JCB per-field upper-95 bound
+has been a bootstrap of whole fields since 2026-10-05 (owner); the benchmark was
+rerun with it on 2026-10-10, so the JCB per-field numbers below are those of the
+bootstrap bound (the former chi-square bound stopped at about 3 fields, 2.99 on
+average, and saved 1.0 field at 2.5% and 5% risk). Every other rule's numbers
+are unchanged by the rerun.
 
 Fields saved against a fixed count, idr0028 (negative: costs fields):
 
@@ -696,7 +708,7 @@ Fields saved against a fixed count, idr0028 (negative: costs fields):
 |---|---|---|---|
 | fixed count (fields needed) | 1 | 4 | 2 |
 | JCB per object | 0.0 | −4.3 | −0.9 |
-| JCB per field | −2.0 | +1.0 | −1.0 |
+| JCB per field | −3.3 | −0.3 | −2.3 |
 | JCS spread per object | −0.1 | 0.0 | −2.0 |
 | JCS spread per field | −4.0 | −1.0 | −3.0 |
 | FOV bootstrap of the mean | −1.3 | +0.7 | −0.3 |
@@ -704,13 +716,14 @@ Fields saved against a fixed count, idr0028 (negative: costs fields):
 The approximate 95% intervals resample the 12 wells and are widened for
 their number (with fewer than 20 units they still cover the truth less often
 than stated). For the mean within 5% they are narrow, and the summary marks
-no cost "(not resolved)": JCB per field 2.0 to 2.0 fields, JCS spread per
+no cost "(not resolved)": JCB per field 3.3 to 3.4 fields, JCS spread per
 field 4.0 to 4.0, the FOV bootstrap 1.2 to 1.4, JCS spread per object 0.0 to
 0.1. At the 2.5%
-criterion they are wide. JCB per field at risk ≤ 5% saves 1.0 field, with
-−0.2 to 1.0 fields saved, and the FOV bootstrap 0.7, with −2.6 to 0.8; every
+criterion they are wide. The FOV bootstrap at risk ≤ 5% saves 0.7 fields, with
+−2.6 to 0.8 fields saved, and JCB per field costs 0.3 (−0.8 to 1.5); every
 cost and saving at 2.5% is marked "(not resolved)" except JCS spread per
-field at risk ≤ 10%, whose cost of 3.0 fields (1.8 to 3.0) is resolved, and
+field at risk ≤ 10%, whose cost of 3.0 fields (1.8 to 3.0) is resolved, JCB per
+field at risk ≤ 10%, whose cost of 2.3 fields (1.1 to 2.4) is resolved, and
 JCS spread per object at risk ≤ 5%, which matches the fixed count (−9.2 to
 0.8 fields saved). Every adaptivity correlation is 0.32 or less. At 2.5% and
 5% risk the fixed count needs 4 fields, and every rule's cost there is counted
@@ -745,19 +758,18 @@ version 4 run gave at 10% risk are therefore not repeated.
 - **For the well mean on idr0028, nothing beats a fixed count by a resolved
   margin.** This is the null result the regime map needs: the readout is
   easy, one field meets the mean within 5%, and every rule either matches that
-  or costs fields; the two savings, JCB per field (1.0 field) and the FOV
-  bootstrap (0.7) at 2.5% and 5% risk, have intervals that include 0.
+  or costs fields; the one saving, the FOV bootstrap's 0.7 fields at 2.5% and
+  5% risk, has an interval that includes 0.
 - **Per cell against per field changes where each rule fails.** At 5% the
   per-object rules match a fixed single field (JCS spread per object costs
   0.1), and the per-field rules cost fields, with intervals that exclude
   0: JCB per
-  field 2.0, because it is not yet enough data below 2 effective fields and so
-  stops at about 3 fields (2.99 on average); JCS spread per field 4.0, because
-  it needs 5 fields with objects; the FOV bootstrap 1.3. In the protocol
-  version 4 run these costs were 1.3, 1.0 and 1.0 fields. At 2.5% it
-  reverses: the per-object JCB rule (upper-95 SD) costs 4.3 fields, while JCB
-  per field saves 1.0, because object counts overstate what the fields add.
-  Neither difference is resolved over 12 wells.
+  field 3.3, because its bootstrap bound stops at about 4 fields (4.3 on
+  average); JCS spread per field 4.0, because it needs 5 fields with objects;
+  the FOV bootstrap 1.3. In the protocol version 4 run these costs were 1.3,
+  1.0 and 1.0 fields. At 2.5% the per-object JCB rule (upper-95 SD) costs
+  4.3 fields, JCB per field 0.3, since the setting chosen at each criterion
+  (0.4) stops at the same 4.3 fields on average. Neither difference is resolved over 12 wells.
 - **The 1-field settings do not transfer to the held-out wells; the 2-field
   settings cannot be judged there.** At the setting chosen for 5% risk on
   idr0028, idr0139 gives 27–36% risk. Its 2-field reference cannot confirm
@@ -823,7 +835,11 @@ per well).
   audit 10, `object_rule_check` judges a group only from 5 fields with
   objects, so with its defaults every idr0139 well (4 fields) is "fewer than 5
   fields with cells", not assessable; the idr0139 columns below come from the
-  earlier minimum, reproduced with `min_fields=2` (owner, 2026-10-06).
+  earlier minimum, reproduced with `min_fields=2` (owner, 2026-10-06). The
+  tables in `results/objects_vs_fields_*` were regenerated on 2026-10-10 with
+  the defaults, so `objects_vs_fields_summary.txt` now says "not assessable in
+  any of the 10 wells" (and of the 308 plate wells) for idr0139; the idr0028
+  JCB lines are unchanged.
 - **JCS Fig. 2A** (`descriptor_spread_check`). For `n` from 10 to 500
   objects, 100 samples of `n` objects; max − min of the mean, median, SD and
   IQR. Field samples take distinct fields in random order until `n` objects,
@@ -981,7 +997,7 @@ the fields, or clustered in a few?
   out since the third audit; each tested object is scored against all
   control wells but one, drawn at random, so both see an equally dense
   reference; since 2026-10-05 every control well weighs the same in the
-  threshold, which the numbers below predate). Each well is scored against the control wells other than
+  threshold, which the 2026-10-10 rerun below includes). Each well is scored against the control wells other than
   itself. The design follows
   fiberfeatures' pixel-category fit (reference sampling, provenance, a seed
   check), without its scikit-learn Gaussian mixture: rare states are what a
@@ -1009,8 +1025,10 @@ Results (`results/objects_vs_fields_rare.csv`, `_unusual.csv`):
 | wells where unusual objects cluster by field (p ≤ 0.05) | 2 of 10 | 4 of 12 |
 | in those wells, fields needed / fields an object count asks for | 3.0 (3.0–3.0) | 1.9 (1.6–2.2) |
 
-On idr0028, the clustered wells are LATS1 1A I23 (p = 0.029), MOCK 2A K16
-(p = 0.007), YAP siRNA 2A N23 (p = 0.002) and ARAP2 2B C13 (p = 0.001). MOCK
+On idr0028, the clustered wells are LATS1 1A I23 (p = 0.017), MOCK 2A K16
+(p = 0.003), YAP siRNA 2A N23 (p = 0.001) and ARAP2 2B C13 (p = 0.001)
+(p = 0.029, 0.007, 0.002 and 0.001 before the 2026-10-10 rerun, which weighs
+every control well the same in the threshold). MOCK
 2A K16, which clustered before the leave-one-group-out calibration and not in
 the protocol version 4 run, clusters again: 12 unusual objects in 6 of 28
 fields, where random objects would fill 9.8. One of the four clustered wells
