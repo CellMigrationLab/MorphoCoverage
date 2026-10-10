@@ -22,9 +22,19 @@ def _tool() -> ModuleType:
     return module
 
 
+def _load(name: str) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(name, ROOT / f"tools/{name}.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 TOOL = _tool()
-REGENERATE = "run `python tools/function_index.py`"
-RATCHET = "run `python tools/function_index.py --write-baselines` only to record a REMOVAL"
+DUPLICATES = _load("duplicates")
+LAYERS = _load("layers")
+REGENERATE = "run `python tools/audit.py`"
+RATCHET = "run `python tools/audit.py --write-baselines` only to record a REMOVAL"
 
 
 @pytest.fixture(scope="module")
@@ -56,3 +66,35 @@ def test_a_baseline_never_holds_what_was_fixed(current, kind):
     assert not stale, (
         f"{kind}: fixed or shrunk, tighten the baseline ({RATCHET}): {list(stale)[:8]}"
     )
+
+
+def _baseline_file(name: str):
+    import json
+
+    return json.loads((TOOL.BASELINES / f"{name}.json").read_text(encoding="utf-8"))
+
+
+def test_no_new_exact_duplicate_functions():
+    new = sorted(set(DUPLICATES.exact_groups()) - set(_baseline_file("duplicates")))
+    assert not new, f"new exact duplicates (merge them, or explain): {new[:5]}"
+
+
+def test_a_duplicate_baseline_never_holds_what_was_merged():
+    stale = sorted(set(_baseline_file("duplicates")) - set(DUPLICATES.exact_groups()))
+    assert not stale, f"merged: tighten the baseline ({RATCHET}): {stale[:5]}"
+
+
+def test_no_import_crosses_a_layer_it_must_not():
+    allowed = set(_baseline_file("layers")["violations"])
+    new = sorted(set(LAYERS.violations()) - allowed)
+    assert not new, f"a layer imports one it must not (tools/layers.py RULES): {new[:5]}"
+    stale = sorted(allowed - set(LAYERS.violations()))
+    assert not stale, f"fixed, tighten the baseline ({RATCHET}): {stale[:5]}"
+
+
+def test_no_new_import_cycle():
+    allowed = set(_baseline_file("layers")["cycles"])
+    new = sorted(set(LAYERS.cycles()) - allowed)
+    assert not new, f"new import cycle between modules: {new[:3]}"
+    stale = sorted(allowed - set(LAYERS.cycles()))
+    assert not stale, f"cycle gone, tighten the baseline ({RATCHET}): {stale[:3]}"
