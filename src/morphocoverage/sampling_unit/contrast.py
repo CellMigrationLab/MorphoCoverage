@@ -76,6 +76,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import as_count
 from .._control import (
     check_comparisons,
@@ -369,6 +370,7 @@ def condition_contrast(
     described = describe_groups(all_groups, condition_col, repeat_col, control, comparisons)
     unit, unit_note = resolve_unit(data, described, condition_col, repeat_col, technical_col)
     settings = {
+        ACQUISITION: acquisition_identity(data),
         "feature": feature,
         "control": dict(control or {}),
         "comparisons": list(comparisons or []),

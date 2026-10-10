@@ -60,6 +60,7 @@ from typing import Any
 
 import pandas as pd
 
+from .._acquisition import check_one_acquisition, unchecked_note
 from .._caveats import assumption, caveat_lines, pool_assumptions
 from .._checks import is_share
 from .._fitted import fitted
@@ -331,7 +332,7 @@ def microscopist_report(
         raise ValueError("minimum_detection must be a share in (0, 1]")
     if isinstance(declaration, str) or any(not isinstance(d, str) for d in declaration):
         raise TypeError("declaration must be a sequence of sentences")
-    for value, kind, name in (
+    supplied = (
         (controls, ControlResult, "controls"),
         (sufficiency, SufficiencyReport, "sufficiency"),
         (calibration, StoppingCalibration, "calibration"),
@@ -351,8 +352,10 @@ def microscopist_report(
         (ranking, FeatureRanking, "ranking"),
         (discovery, FeatureDiscovery, "discovery"),
         (overview, DatasetOverview, "overview"),
-    ):
+    )
+    for value, kind, name in supplied:
         _check(value, kind, name)
+    unchecked = check_one_acquisition({name: value for value, _, name in supplied})
     parts: dict[str, list[str]] = {key: [] for key, _ in QUESTIONS}
     short = {}
     for check in (variability, object_rules, descriptor_spread):
@@ -413,6 +416,7 @@ def microscopist_report(
             "samples it was not chosen on."
         ),
     ]
+    notes += [assumption(unchecked_note(unchecked))] if unchecked else []
     weakened: list[str] = []
     weak = False
     if controls is None or controls.status == "not assessed":

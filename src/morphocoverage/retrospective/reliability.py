@@ -76,6 +76,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import as_count, check_seed, is_integer, is_share
 from .._frozen import owned
 from .._parallel import check_n_jobs, map_units
@@ -441,6 +442,7 @@ def sampling_reliability(
     if len(curve):
         curve = _add_gain(curve, criteria, keys)
     settings = {
+        ACQUISITION: acquisition_identity(data),
         "criteria": [c.parameters for c in criteria],
         "fov_counts": counts,
         "reservoir_fraction": float(reservoir_fraction),

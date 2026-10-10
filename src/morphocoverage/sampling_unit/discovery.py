@@ -43,6 +43,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._caveats import assumption, caveat_lines
 from .._checks import is_number
 from .._control import check_comparisons, compared_name, control_name
@@ -528,6 +529,7 @@ def feature_discovery(
     all_groups = groups(data)
     described = describe_groups(all_groups, condition_col, repeat_col, control, comparisons)
     settings: dict[str, Any] = {
+        ACQUISITION: acquisition_identity(data),
         "features": features,
         "n_features": len(features),
         "control": dict(control or {}),

@@ -70,6 +70,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import check_seed, is_integer
 from .._former_repeat import one_warning, read_former
 from .._frozen import owned
@@ -532,6 +533,7 @@ def representation_control(
         status = "not assessed"
     settings = {
         **settings,
+        ACQUISITION: acquisition_identity(data),
         "lofo_group_cols": lofo_cols,
         "skipped_strata": skipped,
         "planted_skipped": planted_skipped,

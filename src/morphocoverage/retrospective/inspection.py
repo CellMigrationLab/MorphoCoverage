@@ -47,6 +47,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import is_integer, is_number
 from .._frozen import owned
 from .._rare_label import check_rare_labels, known_flags
@@ -502,6 +503,7 @@ def inspect_fovs(
             entry.setdefault("label", group_label(group))  # the group as the summaries name it
         rows += field_rows(group, group_data, found, trace)
     settings = {
+        ACQUISITION: acquisition_identity(data),
         "summaries": [{"feature": s.feature, "statistic": s.statistic} for s in summaries],
         "novelty": None if novelty is None else dict(novelty.parameters),
         "novelty_cols": None if novelty is None else novelty_cols,

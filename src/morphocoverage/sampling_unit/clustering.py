@@ -69,6 +69,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._caveats import caveat_lines
 from .._checks import as_count, check_seed
 from .._former_repeat import one_warning, read_former
@@ -242,6 +243,7 @@ def fov_clustering(
     if reference is not None:
         _add_reference(table, list(data.group_cols), references)
     settings = {
+        ACQUISITION: acquisition_identity(data),
         "label_col": label_col,
         "states": chosen,
         "detection_probability": detection_probability,
