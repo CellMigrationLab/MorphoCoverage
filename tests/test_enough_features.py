@@ -251,8 +251,13 @@ def test_the_top_is_one_sentence_then_a_compact_table(card):
     assert "own mean" not in words and "still needed" not in words
     cells = [html.unescape(c) for c in re.findall(r"<td[^>]*>([^<]*)</td>", top)]
     assert cells[:3] == ["area", "3", "–"]
-    # aspect differs in no test: no projection of its fields (audit 10, C25).
-    assert cells[6:] == ["aspect", "0", "2 too small even with 4 times the fields"]
+    # aspect differs in no test: no projection of its fields (audit 10, C25), and the comparison
+    # not projected is counted so the row adds up (audit A4).
+    assert cells[6:] == [
+        "aspect",
+        "0",
+        "1 not projected (no candidate difference); 2 too small even with 4 times the fields",
+    ]
 
 
 def test_what_every_tab_would_repeat_is_said_once_in_the_help(card):
