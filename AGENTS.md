@@ -468,6 +468,9 @@ tests/
 
 tools/
     function_index.py      # the function index and the mechanical function checks, from the source tree alone (ast; imports nothing)
+    duplicates.py          # exact and near-duplicate functions (statement shingles, names and constants anonymised): docs/common/function_duplicates.json
+    layers.py              # the import layers (core, strategies, sampling_unit, retrospective, workflows) and import cycles, from ast alone
+    audit.py               # regenerates the index and the duplicate list, and records the baselines on request
     baselines/             # the ratchets: functions over the size, complexity and argument limits, public functions without a docstring, silent fallbacks (numbers only go down)
 
 data/
@@ -590,7 +593,7 @@ If acquisition becomes targeted, do not treat targeted FOVs as an unbiased popul
 - Statistics shared by several analyses live once, in `morphocoverage.statistics`, and are reused rather than re-derived.
 - The bug classes the audits kept finding are guarded package-wide by `tests/test_guards.py`, so write new code through the shared helpers: percentages and declared rates through `_wording` (`percent`, `rate`), count and number checks through `_checks`, FOV and group identity only through `metadata`'s resolvers, group lookups by `_seeds.group_key` (never the 32-bit `group_identity`, which only seeds), and every new interval with a coverage test. The live session must give the replay's result at every step of every contract scenario, and `check_tables` must accept exactly what the validator accepts.
 - Comments explain scientific assumptions or non-obvious reasoning.
-- `docs/common/function_index.jsonl` lists every function (module, name, signature, the first line of its docstring, size, complexity, callees, body hash): regenerate it with `python tools/function_index.py` after changing a function, since `tests/test_function_guards.py` fails when it is stale. The same test keeps a ratchet: no function over 60 lines, complexity 15 or 8 arguments beyond `tools/baselines/`, no public function without a docstring, no swallowed error, `errors="ignore"` or `suppress` that is not already recorded; new code meets the limits, and a fix is recorded by tightening the baseline (`--write-baselines`).
+- `docs/common/function_index.jsonl` lists every function (module, name, signature, the first line of its docstring, size, complexity, callees, body hash): regenerate it with `python tools/audit.py` after changing a function, since `tests/test_function_guards.py` fails when it is stale. The same test keeps a ratchet: no function over 60 lines, complexity 15 or 8 arguments beyond `tools/baselines/`, no public function without a docstring, no swallowed error, `errors="ignore"` or `suppress`, exact duplicate function, import across a layer or import cycle that is not already recorded; new code meets the limits, and a fix is recorded by tightening the baseline (`--write-baselines`).
 - Prefer specific exception types and actionable error messages.
 - Do not perform unrelated refactors, dependency upgrades, API renames, or formatting sweeps.
 

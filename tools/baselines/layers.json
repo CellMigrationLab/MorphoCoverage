@@ -1,0 +1,22 @@
+{
+ "violations": [
+  "plots_pairwise -> sampling_unit.contrast_cells",
+  "plots_pairwise -> sampling_unit.contrast_repeats"
+ ],
+ "cycles": [
+  "_data_rules -> _input_invariants -> data_check -> schema",
+  "_integrity_text -> integrity",
+  "retrospective.adequacy -> retrospective.adequacy_text",
+  "retrospective.controls -> retrospective.controls_text",
+  "retrospective.effort -> retrospective.effort_text",
+  "retrospective.frontier -> retrospective.frontier_bootstrap -> retrospective.frontier_text",
+  "retrospective.protocol -> retrospective.protocol_text",
+  "retrospective.reliability -> retrospective.reliability_text",
+  "strategies._scalar_precision_state -> strategies.scalar_precision",
+  "workflows -> workflows._guided_tables -> workflows.guided",
+  "workflows._contrasts -> workflows._declaration -> workflows._declaration_rare -> workflows._feature_space -> workflows._fingerprint_space -> workflows._one_per_field -> workflows._setup_parts -> workflows.setup",
+  "workflows._document -> workflows._enough_features -> workflows._label_control -> workflows._populations -> workflows._shared -> workflows._whole_table",
+  "workflows._live_text -> workflows.live",
+  "workflows._scan_rules -> workflows._scan_text -> workflows.scan"
+ ]
+}
