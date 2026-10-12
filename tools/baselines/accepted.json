@@ -63,10 +63,10 @@
   "date": "2026-10-12"
  },
  {
-  "kind": "fallbacks",
+  "kind": "lines",
   "key": "workflows.html_report:html_report",
-  "value": 1,
-  "reason": "audit 12: every UserWarning of the figures and maps ignored, no reason recorded; for the owner to confirm or narrow",
+  "value": 194,
+  "reason": "audit 12: the page's warning filter narrowed to the repeated data-check message (owner, 2026-10-12); 2 more lines, the module is at its 600-line limit so no helper fits",
   "date": "2026-10-12"
  }
 ]

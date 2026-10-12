@@ -79,7 +79,7 @@
  "workflows._shared:control_checks": 65,
  "workflows.benchmarks:benchmark": 76,
  "workflows.guided:guide": 61,
- "workflows.html_report:html_report": 192,
+ "workflows.html_report:html_report": 194,
  "workflows.live:LiveTables.update": 61,
  "workflows.retrospective:optimise": 129,
  "workflows.retrospective:report": 170,

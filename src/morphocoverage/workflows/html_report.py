@@ -389,7 +389,9 @@ def html_report(
     started = time.time() - 1
     doc = result.document
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)
+        warnings.filterwarnings(  # fallback: the data check is said once, in its own section
+            "ignore", message="check_tables found", category=UserWarning
+        )
         legends = figure_legends(result, objects, fovs)
         legends = {f: _TERMS.annotate(html.escape(t)) for f, t in legends.items()}
         feature_blocks, specs = feature_figures(result, objects, fovs, figures, legends)
