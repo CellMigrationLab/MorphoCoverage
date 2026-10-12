@@ -431,6 +431,7 @@ src/morphocoverage/
         _live_order.py     # private: the live session that runs the order check of each group's fields so far
         _live_text.py      # private: the text of one live update (LiveUpdate.summary)
         _shared.py         # private: input checks, orders, rule replays on raw values, outcomes on normalised ones
+        _shared_parts.py   # private: steps of the analyses in _shared: unusual observations and their clustering, the feature discovery and ranking
     strategies/
         __init__.py        # the exported strategies, estimators and policies
         base.py            # Estimator interface; SamplingStrategy = estimators + policies

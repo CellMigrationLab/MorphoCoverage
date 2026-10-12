@@ -31,7 +31,7 @@ import pandas as pd
 from .._control import NO_CONTROL, not_found
 from .._former_repeat import renamed_tables
 from .._rare_label import check_rare_labels
-from .._wording import count, plural
+from .._wording import count
 from ..benchmark import AcquisitionOrder
 from ..data_check import DataCheck, Problem
 from ..data_check import check_tables as _check_tables
@@ -48,11 +48,8 @@ from ..retrospective.replay import ReplayResult
 from ..sampling_unit import (
     FOVClustering,
     condition_contrast,
-    feature_discovery,
-    feature_ranking,
     fov_clustering,
     object_rule_check,
-    unusual_objects,
 )
 from ..schema import ValidatedInput
 from ..statistics import log_scale
@@ -61,11 +58,10 @@ from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
 from ._contrasts import declared_conditions
 from ._document import pooling_reason
-from ._feature_space import attached, table_columns, unusual_space, with_table
-from ._one_per_field import field_unit
-from ._rare_share import compared_columns, share_column, with_share
-from ._unusual_values import biological_values
-from .setup import Setup, default_novelty
+from ._feature_space import attached, table_columns, unusual_space
+from ._rare_share import compared_columns
+from ._shared_parts import feature_results, unusual_clustering, unusual_result
+from .setup import Setup
 
 
 def order_seeds(random_state: int, n: int) -> list[int]:
@@ -121,31 +117,11 @@ def check_workflow_inputs(
     the tables are not checked (``None``): explainable tables hold declared features, so
     ``report`` checks the tables once they are attached.
     """
-    if fovs is None:
-        raise TypeError(
-            "the workflows need the FOV table of every acquired field (fovs=None was given); "
-            "morphocoverage.schema.fov_table_from_observations rebuilds one, without the "
-            "fields that held no observation"
-        )
-    if not isinstance(objects, pd.DataFrame) or not isinstance(fovs, pd.DataFrame):
-        raise TypeError("objects and fovs must be pandas DataFrames (every acquired FOV in fovs)")
-    if not isinstance(setup, Setup):
-        raise TypeError("setup must be a morphocoverage.workflows.Setup")
+    _check_input_types(objects, fovs, setup)
     objects, fovs = renamed_tables(objects, fovs)
     if not tables_given:  # the other feature tables a Setup names must be attached already
         attached(objects, fovs, setup, None)
-    if setup.rare_label is not None and setup.rare_label not in objects.columns:
-        raise ValueError(
-            f"rare_label {setup.rare_label!r} is not a column of the object table: the rare "
-            "phenotype cannot be judged on held-back fields without its labels"
-        )
-    if setup.rare_label is not None:
-        # The analyses read the label as True/False: any other value ("no", 2) would be
-        # True for some of them and another state for others.
-        check_rare_labels(objects[setup.rare_label], f"rare_label {setup.rare_label!r}")
-    for feature, scale in (setup.scales or {}).items():  # a ratio needs positive values
-        if feature in objects.columns:
-            log_scale(objects[feature].to_numpy(dtype=float), scale, repr(feature))
+    _check_labels_and_scales(objects, setup)
     columns = setup.columns
     if not check:
         return objects, fovs, None
@@ -156,12 +132,7 @@ def check_workflow_inputs(
     check = _check_tables(
         objects, fovs, feature_cols=columns, control=setup.reference_control, **setup.common
     )
-    declared = declared_conditions(setup)  # several controls and their conditions
-    if declared:
-        present = list(fovs.get(CONDITION_COLUMN, pd.Series()).unique())
-        problem = not_found([tuple(declared)], present)
-        if problem:
-            raise ValueError(problem.replace("the comparisons name", "the controls name"))
+    _check_declared_conditions(fovs, setup)
     # The declared design the summaries state anyway (an assumed unit, empty fields) is not
     # repeated as a warning at every call.
     likely_mistakes = [p for p in check.warnings if not _states_the_design(p)]
@@ -175,6 +146,48 @@ def check_workflow_inputs(
             stacklevel=3,
         )
     return objects, fovs, check
+
+
+def _check_input_types(objects: Any, fovs: Any, setup: Any) -> None:
+    """Refuse a missing FOV table, tables that are not DataFrames and a setup that is not a
+    ``Setup``."""
+    if fovs is None:
+        raise TypeError(
+            "the workflows need the FOV table of every acquired field (fovs=None was given); "
+            "morphocoverage.schema.fov_table_from_observations rebuilds one, without the "
+            "fields that held no observation"
+        )
+    if not isinstance(objects, pd.DataFrame) or not isinstance(fovs, pd.DataFrame):
+        raise TypeError("objects and fovs must be pandas DataFrames (every acquired FOV in fovs)")
+    if not isinstance(setup, Setup):
+        raise TypeError("setup must be a morphocoverage.workflows.Setup")
+
+
+def _check_labels_and_scales(objects: pd.DataFrame, setup: Setup) -> None:
+    """Refuse a rare label the object table lacks or holds other than True/False, and a
+    declared ratio scale on values that are not positive."""
+    if setup.rare_label is not None and setup.rare_label not in objects.columns:
+        raise ValueError(
+            f"rare_label {setup.rare_label!r} is not a column of the object table: the rare "
+            "phenotype cannot be judged on held-back fields without its labels"
+        )
+    if setup.rare_label is not None:
+        # The analyses read the label as True/False: any other value ("no", 2) would be
+        # True for some of them and another state for others.
+        check_rare_labels(objects[setup.rare_label], f"rare_label {setup.rare_label!r}")
+    for feature, scale in (setup.scales or {}).items():  # a ratio needs positive values
+        if feature in objects.columns:
+            log_scale(objects[feature].to_numpy(dtype=float), scale, repr(feature))
+
+
+def _check_declared_conditions(fovs: pd.DataFrame, setup: Setup) -> None:
+    """Refuse several controls whose declared conditions the FOV table does not hold."""
+    declared = declared_conditions(setup)  # several controls and their conditions
+    if declared:
+        present = list(fovs.get(CONDITION_COLUMN, pd.Series()).unique())
+        problem = not_found([tuple(declared)], present)
+        if problem:
+            raise ValueError(problem.replace("the comparisons name", "the controls name"))
 
 
 def _states_the_design(problem: Problem) -> bool:
@@ -394,42 +407,14 @@ def control_checks(
     # them, on the tables' weighted combined space (owner, 2026-10-06), each relative to its
     # own control in its repeat (plan v2).
     raw_columns = unusual_space(objects, fovs, setup)[0]
-    if raw_columns:
-        relative, how = biological_values(
-            objects if values is None else values, fovs, setup, raw_columns
-        )
-        columns, weights, space = unusual_space(relative, fovs, setup)
-        unusual = unusual_objects(
-            relative,
-            fovs,
-            feature_cols=columns,
-            reference=reference,
-            own=setup.own_references,  # several controls: each against its own
-            random_state=setup.random_state,
-            weights=weights,
-            **common,
-        )
-        noted = {"space": f"{space}, {how}", "exploratory": True}
-        if not per_field:  # unusual images: each field holds one observation
-            noted["words"] = plural(field_unit(setup) or setup.unit_word)
-        results["unusual"] = replace(unusual, settings={**unusual.settings, **noted})
-        if not per_field:  # a field of one holds a state or not: no clustering in fields
-            return results
-        label = unusual_label(objects, setup)
-        # The label flags a share of ordinary objects by construction, so a field holds
-        # the state only with the novelty rule's m of them, and the control groups'
-        # own incidence is printed beside it (P6-1).
-        novelty = setup.novelty or default_novelty(columns)
-        results["clustering"] = fov_clustering(
-            objects.assign(**{label: unusual.labels}),
-            fovs,
-            label_col=label,
-            states=[True],
-            random_state=setup.random_state,
-            min_objects_per_fov=novelty.min_novel_observations,
-            reference=reference,
-            **common,
-        )
+    if not raw_columns:
+        return results
+    unusual, columns = unusual_result(objects, fovs, setup, values, per_field, raw_columns)
+    results["unusual"] = unusual
+    if not per_field:  # a field of one holds a state or not: no clustering in fields
+        return results
+    label = unusual_label(objects, setup)
+    results["clustering"] = unusual_clustering(objects, fovs, setup, unusual, columns, label)
     return results
 
 
@@ -496,49 +481,7 @@ def conditions(
     }
     compared = compared_columns(setup)
     if len(compared) > 1:
-        shared = with_share(objects, setup)
-        results["discovery"] = feature_discovery(
-            shared,
-            fovs,
-            features=compared,
-            random_state=setup.random_state,
-            n_jobs=setup.n_jobs,
-            scales=setup.scales,
-            families=setup.families(fovs),
-            **setup.contrast_arguments,
-            **setup.common,
-        )
-        # The headline counts the share apart from the features (report_status_conditions).
-        results["discovery"] = replace(
-            results["discovery"],
-            settings={**results["discovery"].settings, "share": share_column(setup)},
-        )
-        found = results["discovery"]  # each feature's table named (owner, 2026-10-06)
-        results["discovery"] = replace(
-            found, tests=with_table(found.tests, setup), ranking=with_table(found.ranking, setup)
-        )
-        # One correction family on the page: the readout's tests take the discovery's.
-        from ._families import shared_across, shared_family
-
-        results["contrast"] = shared_family(
-            results["contrast"], results["discovery"], setup.readout
-        )
-        # The secondary rows for every feature, each family over all of them.
-        results["contrast"] = shared_across(results["contrast"], shared, fovs, compared, setup)
-        results["ranking"] = feature_ranking(
-            shared,
-            fovs,
-            features=compared,
-            random_state=setup.random_state,
-            fields_independent=setup.fields_independent,
-            **setup.contrast_arguments,
-            **setup.common,
-        )
-        # The share counted apart (C20).
-        ranking = results["ranking"]
-        results["ranking"] = replace(
-            ranking, settings={**ranking.settings, "share": share_column(setup)}
-        )
+        results.update(feature_results(objects, fovs, setup, results["contrast"], compared))
     return results
 
 
