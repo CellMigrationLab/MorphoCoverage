@@ -287,25 +287,50 @@ def figure_legend(
     # The n of every condition at once ends in a clause the test follows; n by condition is
     # its own sentence.
     join = ". " if by_condition else "; "
-
-    def lead(text: str) -> str:
-        return text[0].upper() + text[1:] if by_condition else text
-
     if rows["p"].isna().all():
-        readings = [_condition(r) for r in rows.itertuples() if pd.notna(r.change)]
-        described = f" Described as one experiment: {'; '.join(readings)}." if readings else ""
-        # Why there is no p comes from the repeats held, not from the p being missing (issue 90).
-        reasons = untested_reason(int(rows["repeats"].min()), np.nan)
-        absent = (
-            f"no test across repeats (it needs {MIN_REPEATS})"
-            if reasons == FEW_REPEATS
-            else "no test across repeats (the repeat effects do not vary or a value is missing)"
-        )
-        return (
-            f"{n}{join}{lead(absent)}. {drawn}"
-            f"{described} Repeat the experiment before testing; the {one}-level screen is "
-            "exploratory."
-        )
+        return _untested_legend(rows, f"{n}{join}", by_condition, drawn, one)
+    within, family = _family_words(contrast)
+    conditions = "; ".join(_condition(r) for r in rows.itertuples())
+    test = (
+        f"paired t-test on the repeat means ({_values(rows)}), Benjamini-Hochberg{within}"
+        f"{family}; significant at adjusted p ≤ {ALPHA:g}"
+    )
+    return (
+        f"{n}{join}{_lead(test, by_condition)}. {drawn} d: Cohen's d, the mean of the "
+        f"per-repeat values. {conditions}. Report the change and the adjusted p; the "
+        f"{one}-level screen is exploratory."
+    )
+
+
+def _lead(text: str, by_condition: bool) -> str:
+    """``text`` opening its own sentence when the n is given by condition, else as it is."""
+    return text[0].upper() + text[1:] if by_condition else text
+
+
+def _untested_legend(
+    rows: pd.DataFrame, opening: str, by_condition: bool, drawn: str, one: str
+) -> str:
+    """The legend without a test across repeats: the n (``opening``), why there is no test,
+    the figure and the conditions described as one experiment."""
+    readings = [_condition(r) for r in rows.itertuples() if pd.notna(r.change)]
+    described = f" Described as one experiment: {'; '.join(readings)}." if readings else ""
+    # Why there is no p comes from the repeats held, not from the p being missing (issue 90).
+    reasons = untested_reason(int(rows["repeats"].min()), np.nan)
+    absent = (
+        f"no test across repeats (it needs {MIN_REPEATS})"
+        if reasons == FEW_REPEATS
+        else "no test across repeats (the repeat effects do not vary or a value is missing)"
+    )
+    return (
+        f"{opening}{_lead(absent, by_condition)}. {drawn}"
+        f"{described} Repeat the experiment before testing; the {one}-level screen is "
+        "exploratory."
+    )
+
+
+def _family_words(contrast: Any) -> tuple[str, str]:
+    """``(within, family)``: ``within each sub-experiment`` when there are several, and the
+    correction family counted, as the test's clause reads them."""
     across = getattr(contrast, "repeats", None)
     features = contrast.settings.get("family_features")
     share = contrast.settings.get("family_share")
@@ -319,16 +344,7 @@ def figure_legend(
         family = f"{',' if within else ''} {families}"
     else:
         family = f" ({families})" if families else ""
-    conditions = "; ".join(_condition(r) for r in rows.itertuples())
-    test = (
-        f"paired t-test on the repeat means ({_values(rows)}), Benjamini-Hochberg{within}"
-        f"{family}; significant at adjusted p ≤ {ALPHA:g}"
-    )
-    return (
-        f"{n}{join}{lead(test)}. {drawn} d: Cohen's d, the mean of the per-repeat values. "
-        f"{conditions}. Report the change and the adjusted p; the {one}-level screen is "
-        "exploratory."
-    )
+    return within, family
 
 
 __all__ = [
