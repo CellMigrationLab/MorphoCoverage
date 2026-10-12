@@ -342,6 +342,18 @@ must make its observation-unit assumptions explicit.
 A generic input contract must never silently change the meaning of a published
 cell-count method.
 
+## Import layers
+
+The package is layered so that a shared helper has one home and nothing low depends on anything high. Lowest first:
+
+- **core** (`morphocoverage/*.py`): validation, metadata, statistics, wording, the runner, the benchmark and the plots. It may import `strategies` (the runner, the benchmark and the evaluator work through the strategy interface), never `sampling_unit`, `retrospective` or `workflows`.
+- **`strategies`**: the estimators, policies and strategies. They import the core, never `sampling_unit`, `retrospective` or `workflows`.
+- **`sampling_unit`**: the sampling-unit checks. They import the core, never `strategies`, `retrospective` or `workflows`.
+- **`retrospective`**: the retrospective analyses. They import anything but `workflows`.
+- **`workflows`**: the report, the scan and the guided session. They may import anything.
+
+A helper two layers need goes in the lowest layer either may import. `tools/layers.py` (`RULES`) checks these rules and the import cycles between modules from the source; `tests/test_function_guards.py` fails on any import or cycle beyond the exceptions recorded in `tools/baselines/layers.json` (today `plots_pairwise` reading two `sampling_unit` modules).
+
 ## Retrospective analyses
 
 `morphocoverage.retrospective` holds the retrospective analyses of the microscopist's report (the REPORT and OPTIMISE questions of [the report](../report/questions.md) and [optimise](../optimise/optimise.md)). They judge sets of FOVs against FOVs no estimator saw, through `OutcomeMetric` values and declared `OutcomeCriterion` tolerances, and never feed a prospective estimator. `replay_acquisitions` is the shared engine of the stopping-rule calibration (P6), the adequacy points (R2, P4) and the order comparison (P8): it reuses `sequential`'s prefix machinery and the estimators and policies a live session runs, so decisions are identical to online acquisition, while outcomes against the held-back reservoir are recorded separately. `effect_preservation` is the one that compares groups: per biological repeat, each condition's Cohen's d against the control's from `k` fields a side, judged on held-back fields of both sides (`docs/optimise/benchmarking.md`); it reuses the sides and units of `sampling_unit.condition_contrast` and the interval of question 2, and feeds nothing else yet (owner, 2026-10-05). The names stay in the subpackage and are not part of the top-level `__all__`.
