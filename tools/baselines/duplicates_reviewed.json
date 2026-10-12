@@ -1,0 +1,93 @@
+[
+ {
+  "a": "retrospective.adequacy_text:adequacy_summary",
+  "b": "retrospective.effort_text:effort_summary",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
+ },
+ {
+  "a": "retrospective.calibration:StoppingCalibration.summary",
+  "b": "sufficiency:SufficiencyReport.summary",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
+ },
+ {
+  "a": "retrospective.controls_text:control_summary",
+  "b": "retrospective.inspection_text:inspection_summary",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
+ },
+ {
+  "a": "retrospective.controls_text:control_summary",
+  "b": "retrospective.order_text:efficiency_summary",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
+ },
+ {
+  "a": "retrospective.controls_text:control_summary",
+  "b": "sampling_unit.contrast_text:contrast_summary",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
+ },
+ {
+  "a": "retrospective.inspection_text:inspection_summary",
+  "b": "retrospective.order_text:efficiency_summary",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
+ },
+ {
+  "a": "retrospective.inspection_text:inspection_summary",
+  "b": "sampling_unit.contrast_text:contrast_summary",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
+ },
+ {
+  "a": "retrospective.order_text:efficiency_summary",
+  "b": "sampling_unit.contrast_text:contrast_summary",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
+ },
+ {
+  "a": "retrospective.reliability:ReliabilityResult.summary",
+  "b": "workflows.live:LiveUpdate.summary",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "unrelated: both delegate to their own formatter with the detail argument; the old guard matched them only because it anonymised every name"
+ },
+ {
+  "a": "sampling_unit.object_rules:DescriptorSpreadCheck.summary",
+  "b": "sampling_unit.object_rules:ObjectRuleCheck.summary",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
+ },
+ {
+  "a": "sampling_unit.object_rules:DescriptorSpreadCheck.summary",
+  "b": "sampling_unit.variability:FOVVariability.summary",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
+ },
+ {
+  "a": "sampling_unit.object_rules:ObjectRuleCheck.summary",
+  "b": "sampling_unit.variability:FOVVariability.summary",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
+ },
+ {
+  "a": "strategies.base:Estimator.start",
+  "b": "transforms:FeatureTransform.output_width",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "unrelated protocol defaults that return None; the old guard matched them only because it anonymised every name"
+ }
+]

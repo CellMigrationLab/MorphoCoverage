@@ -270,6 +270,10 @@ A new method should not require changes to MorphoBricks metadata handling or gro
 
 See [`morphobricks_fov_contract.md`](morphobricks_fov_contract.md) for what upstream MorphoBricks tools must emit for FOV identity to be correct.
 
+## Import layers
+
+The package has five layers: the core modules (`morphocoverage/*.py`, the plots included), `strategies`, `sampling_unit`, `retrospective` and `workflows`. The core and `strategies` are the bottom and may import each other (the core is the framework over the strategy interface); neither imports `sampling_unit`, `retrospective` or `workflows`. `sampling_unit` imports the core only, `retrospective` the core, `strategies` and `sampling_unit`, and `workflows` anything. The one recorded exception is `plots_pairwise`, which draws the contrasts of `sampling_unit`. No two modules may import each other at import time; an import inside a function or under `if TYPE_CHECKING:` that closes a cycle is recorded edge by edge with its reason. `tools/layers.py` holds the rule (`RULES`) and reads every import, relative, absolute and `importlib.import_module`; `tests/test_function_guards.py` enforces it against `tools/baselines/layers.json` (audit 12, owner 2026-10-12).
+
 ## Multidimensional FOV semantics
 
 The framework's FOV is a spatial acquisition position, not a plane or file. `position_id` is the preferred explicit identifier when file layout does not map one-to-one to positions. Rows produced slice-by-slice or frame-by-frame may vary in `z`, `c`, and `t`, but those columns are within-FOV metadata and all rows from one position are revealed together during sequential replay. They are never features: `validate_input_tables` refuses `z`, `z0`, `z1`, `c` and `t` in `feature_cols` (and their upper-case spellings as columns). A feature compared between planes is pivoted explicitly first: `planes_as_features` turns `area` measured at `z` 0, 1 and 2 into `area_z0`, `area_z1` and `area_z2`, one row per object per field, matching objects across planes by `label_id` within the field and refusing what it can see is unmatched (a missing identifier, a label twice in one plane of a field, an object missing from a plane). The field stays one FOV.
@@ -341,18 +345,6 @@ must make its observation-unit assumptions explicit.
 
 A generic input contract must never silently change the meaning of a published
 cell-count method.
-
-## Import layers
-
-The package is layered so that a shared helper has one home and nothing low depends on anything high. Lowest first:
-
-- **core** (`morphocoverage/*.py`): validation, metadata, statistics, wording, the runner, the benchmark and the plots. It may import `strategies` (the runner, the benchmark and the evaluator work through the strategy interface), never `sampling_unit`, `retrospective` or `workflows`.
-- **`strategies`**: the estimators, policies and strategies. They import the core, never `sampling_unit`, `retrospective` or `workflows`.
-- **`sampling_unit`**: the sampling-unit checks. They import the core, never `strategies`, `retrospective` or `workflows`.
-- **`retrospective`**: the retrospective analyses. They import anything but `workflows`.
-- **`workflows`**: the report, the scan and the guided session. They may import anything.
-
-A helper two layers need goes in the lowest layer either may import. `tools/layers.py` (`RULES`) checks these rules and the import cycles between modules from the source; `tests/test_function_guards.py` fails on any import or cycle beyond the exceptions recorded in `tools/baselines/layers.json` (today `plots_pairwise` reading two `sampling_unit` modules).
 
 ## Retrospective analyses
 

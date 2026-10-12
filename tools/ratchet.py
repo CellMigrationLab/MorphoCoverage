@@ -11,7 +11,8 @@ fails when a function is over its baseline, and when a baseline still holds what
 - ``accept`` adds or raises one entry and records why in ``accepted.json`` (kind, key,
   value, reason, date): the only way in.
 - ``check_against`` compares the baselines with those of a git ref (the merge base in CI):
-  a new or larger entry needs a recorded acceptance, and the limits never change.
+  a new or larger entry needs a recorded acceptance, a new entry of the duplicate and layer
+  baselines (which map each key to its reason) needs a reason, and the limits never change.
 """
 
 from __future__ import annotations
@@ -202,8 +203,38 @@ def compare(
     return problems
 
 
-def check_against(ref: str) -> list[str]:
-    """Problems of the baselines on disk against those at the merge base with ``ref``."""
+def _reasoned(text: str, name: str) -> dict[str, str]:
+    """``{key: reason}`` of a baseline that records reasons (``duplicates.json``: key to reason;
+    ``layers.json``: a section of edges to reasons), keys prefixed by file and section."""
+    value = json.loads(text) if text.strip() else {}
+    if not isinstance(value, dict):  # an older baseline, a list without reasons
+        return {f"{name}: {key}": "" for key in value}
+    out = {}
+    for key, reason in value.items():
+        if isinstance(reason, dict):
+            out.update({f"{name} {key}: {k}": str(r) for k, r in reason.items()})
+        else:
+            out[f"{name}: {key}"] = str(reason)
+    return out
+
+
+def reasoned_changes(base: dict[str, str], head: dict[str, str]) -> tuple[list[str], list[str]]:
+    """``(problems, admitted)``: an entry new on the branch needs a reason; with one it is
+    listed for the reviewer."""
+    problems, admitted = [], []
+    for key, reason in sorted(head.items()):
+        if key in base:
+            continue
+        if reason.strip():
+            admitted.append(f"{key} ({reason.strip()})")
+        else:
+            problems.append(f"{key}: new entry without a reason")
+    return problems, admitted
+
+
+def check_against(ref: str) -> tuple[list[str], list[str]]:
+    """``(problems, admitted)`` of the baselines on disk against those at the merge base with
+    ``ref``: unaccepted growth and changed limits; the entries admitted with their reasons."""
     commit = _git("merge-base", "HEAD", ref).strip()
     base = {kind: json.loads(_at(commit, fi.BASELINES / f"{kind}.json", "{}")) for kind in KINDS}
     head = {kind: read_baseline(kind) for kind in KINDS}
@@ -212,10 +243,19 @@ def check_against(ref: str) -> list[str]:
     # Only an acceptance recorded on this branch admits an entry: an older one was for the
     # value then, and the ratchet may have lowered it since.
     earlier = json.loads(_at(commit, fi.BASELINES / ACCEPTED, "[]"))
-    problems = compare(base, head, renamed, [e for e in read_accepted() if e not in earlier])
+    accepted = [e for e in read_accepted() if e not in earlier]
+    problems = compare(base, head, renamed, accepted)
+    admitted = [f"{e['kind']}: {e['key']} = {e['value']} ({e['reason']})" for e in accepted]
+    for name in ("duplicates", "layers"):
+        path = fi.BASELINES / f"{name}.json"
+        then = _reasoned(_at(commit, path, ""), name)
+        now = _reasoned(path.read_text(encoding="utf-8") if path.exists() else "", name)
+        found, listed = reasoned_changes(then, now)
+        problems += found
+        admitted += listed
     tool = Path(fi.__file__)
     before, after = _limits(_at(commit, tool, "")), _limits(tool.read_text(encoding="utf-8"))
     for name in sorted(set(before) | set(after)):
         if before and before.get(name) != after.get(name):
             problems.append(f"limit {name} changed: {before.get(name)} -> {after.get(name)}")
-    return problems
+    return problems, admitted

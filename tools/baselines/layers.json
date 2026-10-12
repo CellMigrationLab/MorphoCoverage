@@ -1,22 +1,34 @@
 {
- "violations": [
-  "plots_pairwise -> sampling_unit.contrast_cells",
-  "plots_pairwise -> sampling_unit.contrast_repeats"
- ],
- "cycles": [
-  "_data_rules -> _input_invariants -> data_check -> schema",
-  "_integrity_text -> integrity",
-  "retrospective.adequacy -> retrospective.adequacy_text",
-  "retrospective.controls -> retrospective.controls_text",
-  "retrospective.effort -> retrospective.effort_text",
-  "retrospective.frontier -> retrospective.frontier_bootstrap -> retrospective.frontier_text",
-  "retrospective.protocol -> retrospective.protocol_text",
-  "retrospective.reliability -> retrospective.reliability_text",
-  "strategies._scalar_precision_state -> strategies.scalar_precision",
-  "workflows -> workflows._guided_tables -> workflows.guided",
-  "workflows._contrasts -> workflows._declaration -> workflows._declaration_rare -> workflows._feature_space -> workflows._fingerprint_space -> workflows._one_per_field -> workflows._setup_parts -> workflows.setup",
-  "workflows._document -> workflows._enough_features -> workflows._label_control -> workflows._populations -> workflows._shared -> workflows._whole_table",
-  "workflows._live_text -> workflows.live",
-  "workflows._scan_rules -> workflows._scan_text -> workflows.scan"
- ]
+ "violations": {
+  "plots_pairwise -> sampling_unit.contrast_cells (runtime)": "the pairwise plots draw the per-cell and per-repeat contrasts of sampling_unit (the recorded exception to the core's rule)",
+  "plots_pairwise -> sampling_unit.contrast_repeats (runtime)": "the pairwise plots draw the per-cell and per-repeat contrasts of sampling_unit (the recorded exception to the core's rule)"
+ },
+ "back_edges": {
+  "_input_invariants -> schema (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
+  "_integrity_text -> integrity (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "retrospective.adequacy_text -> retrospective.adequacy (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "retrospective.controls_text -> retrospective.controls (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "retrospective.effort_text -> retrospective.effort (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "retrospective.frontier_text -> retrospective.frontier (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "retrospective.protocol_text -> retrospective.protocol (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "retrospective.reliability_text -> retrospective.reliability (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "schema -> data_check (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
+  "strategies._scalar_precision_state -> strategies.scalar_precision (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "workflows._contrasts -> workflows.setup (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "workflows._declaration -> workflows.setup (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "workflows._declaration_rare -> workflows.setup (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "workflows._enough_features -> workflows._shared (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
+  "workflows._feature_space -> workflows.setup (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "workflows._fingerprint_space -> workflows.setup (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "workflows._guided_tables -> workflows.guided (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
+  "workflows._label_control -> workflows._document (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
+  "workflows._live_text -> workflows.live (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "workflows._one_per_field -> workflows.setup (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "workflows._populations -> workflows._document (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
+  "workflows._populations -> workflows._shared (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
+  "workflows._setup_parts -> workflows.setup (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
+  "workflows._whole_table -> workflows._document (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
+  "workflows.scan -> workflows._scan_rules (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
+  "workflows.scan -> workflows._scan_text (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)"
+ }
 }

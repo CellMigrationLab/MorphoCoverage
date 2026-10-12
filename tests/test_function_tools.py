@@ -348,3 +348,13 @@ def test_the_search_knows_abbreviations_and_spellings():
     )
     found = search.find("robust standardisation", rows, embeddings=False)[0]
     assert fi.key(found[0]) == "transforms:RobustStandardize"
+
+
+def test_a_new_duplicate_or_layer_entry_needs_a_reason():
+    base = ratchet._reasoned('{"h1:2": "kept"}', "duplicates")
+    head = ratchet._reasoned('{"h1:2": "kept", "h2:2": "to merge", "h3:3": " "}', "duplicates")
+    problems, admitted = ratchet.reasoned_changes(base, head)
+    assert problems == ["duplicates: h3:3: new entry without a reason"]
+    assert admitted == ["duplicates: h2:2 (to merge)"]
+    layers = ratchet._reasoned('{"back_edges": {"a -> b (local)": "deferred"}}', "layers")
+    assert layers == {"layers back_edges: a -> b (local)": "deferred"}

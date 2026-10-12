@@ -83,31 +83,58 @@ def test_every_acceptance_has_a_reason_and_a_date():
         assert entry["kind"] in KINDS and str(entry["reason"]).strip(), entry
 
 
-def _baseline_file(name: str):
-    return json.loads((TOOL.BASELINES / f"{name}.json").read_text(encoding="utf-8"))
+@pytest.fixture(scope="module")
+def identical() -> dict[str, list[str]]:
+    return DUPLICATES.exact_groups()
 
 
-def test_no_new_exact_duplicate_functions():
-    new = sorted(set(DUPLICATES.exact_groups()) - set(_baseline_file("duplicates")))
-    assert not new, f"new exact duplicates (merge them, or explain): {new[:5]}"
+def test_no_new_identical_function_bodies(identical):
+    accepted = DUPLICATES.read_baseline()
+    new = {k: v for k, v in identical.items() if k not in accepted}
+    assert not new, (
+        "identical function bodies (merge them, or accept with a reason: "
+        f"`python tools/duplicates.py --accept HASH --reason ...`): {list(new.values())[:5]}"
+    )
 
 
-def test_a_duplicate_baseline_never_holds_what_was_merged():
-    stale = sorted(set(_baseline_file("duplicates")) - set(DUPLICATES.exact_groups()))
-    assert not stale, f"merged: tighten the baseline ({RATCHET}): {stale[:5]}"
+def test_no_accepted_duplicate_group_gains_a_member(identical):
+    count = {key.split(":")[0]: len(members) for key, members in identical.items()}
+    grown = {
+        key: count[key.split(":")[0]]
+        for key in DUPLICATES.read_baseline()
+        if count.get(key.split(":")[0], 0) > int(key.split(":")[1])
+    }
+    assert not grown, f"an accepted identical group gained a member (now): {grown}"
+
+
+def test_every_accepted_duplicate_group_has_a_reason_and_still_exists(identical):
+    accepted = DUPLICATES.read_baseline()
+    assert all(reason.strip() for reason in accepted.values())
+    stale = sorted(set(accepted) - set(identical))
+    assert not stale, f"merged or shrunk, run `python tools/duplicates.py --tighten`: {stale[:5]}"
 
 
 def test_no_import_crosses_a_layer_it_must_not():
-    allowed = set(_baseline_file("layers")["violations"])
-    new = sorted(set(LAYERS.violations()) - allowed)
+    allowed = LAYERS.read_baseline()["violations"]
+    found = LAYERS.violations()
+    new = sorted(set(found) - set(allowed))
     assert not new, f"a layer imports one it must not (tools/layers.py RULES): {new[:5]}"
-    stale = sorted(allowed - set(LAYERS.violations()))
-    assert not stale, f"fixed, tighten the baseline ({RATCHET}): {stale[:5]}"
+    stale = sorted(set(allowed) - set(found))
+    assert not stale, f"fixed, run `python tools/layers.py --tighten`: {stale[:5]}"
 
 
-def test_no_new_import_cycle():
-    allowed = set(_baseline_file("layers")["cycles"])
-    new = sorted(set(LAYERS.cycles()) - allowed)
-    assert not new, f"new import cycle between modules: {new[:3]}"
-    stale = sorted(allowed - set(LAYERS.cycles()))
-    assert not stale, f"cycle gone, tighten the baseline ({RATCHET}): {stale[:3]}"
+def test_no_runtime_import_cycle():
+    found = LAYERS.cycles()
+    assert not found, f"modules import each other at import time (no baseline): {found[:3]}"
+
+
+def test_no_new_deferred_import_inside_a_cycle():
+    allowed = LAYERS.read_baseline()["back_edges"]
+    found = LAYERS.back_edges()
+    new = sorted(set(found) - set(allowed))
+    assert not new, (
+        "a function-local or TYPE_CHECKING import closes an import cycle (break the cycle, "
+        f"or record the edge with a reason in tools/baselines/layers.json): {new[:5]}"
+    )
+    stale = sorted(set(allowed) - set(found))
+    assert not stale, f"gone, run `python tools/layers.py --tighten`: {stale[:5]}"
