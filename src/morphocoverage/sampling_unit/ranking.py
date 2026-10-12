@@ -63,6 +63,7 @@ from ..metadata import (
     TECHNICAL_REPEAT_COLUMN,
     column_names,
 )
+from ..schema import ValidatedInput
 from ..statistics import ALPHA, benjamini_hochberg
 from ._common import groups, validated
 from ._units import (
@@ -391,6 +392,21 @@ def feature_ranking(
             "to compare."
         )
         return FeatureRanking(pd.DataFrame(), pd.DataFrame(), settings)
+    rows = _feature_rows(all_groups, described, contrasts, settings)
+    tests = pd.DataFrame(rows)
+    tests["q_value"] = benjamini_hochberg(tests["p_value"].to_numpy(dtype=float))
+    tests["passes_gate"] = (tests["q_value"] <= alpha).fillna(False) & tests["d_fields"].notna()
+    ranking = _rank(tests, features)
+    return FeatureRanking(tests, ranking, settings)
+
+
+def _feature_rows(
+    all_groups: list[tuple[dict[str, Any], ValidatedInput]],
+    described: list[dict[str, Any]],
+    contrasts: list[tuple[Any, Any]],
+    settings: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """One row per contrast and feature, the features of ``settings`` in order."""
     rows = []
     for repeat, condition in contrasts:
         treated, controls = sides(described, repeat, condition)
@@ -399,32 +415,45 @@ def feature_ranking(
             "condition": condition,
             "control_condition": control_label(described, controls),
         }
-        for feature in features:
-            row: dict[str, Any] = {"feature": feature, **base}
-            if not controls:
-                rows.append(
-                    {**row, **_EMPTY, "status": f"no control group in {repeat_col}={repeat}"}
-                )
-                continue
-            t_units, t_acquired = side_units(all_groups, feature, treated, technical_col)
-            c_units, c_acquired = side_units(all_groups, feature, controls, technical_col)
-            rng = group_rng(random_state, {**base, "feature": feature})
-            # Acquired fields, as condition_contrast counts them.
-            row.update({"fields": t_acquired, "control_fields": c_acquired})
-            row.update(
-                randomization_test(
-                    t_units, c_units, unit, n_permutations, rng, bool(fields_independent)
-                )
-            )
-            if row["p_floor"] > alpha:
-                # As in condition_contrast: a test that cannot reach the gate is not run.
-                row.update(p_value=np.nan, p_exact=False, status=UNREACHABLE)
-            rows.append(row)
-    tests = pd.DataFrame(rows)
-    tests["q_value"] = benjamini_hochberg(tests["p_value"].to_numpy(dtype=float))
-    tests["passes_gate"] = (tests["q_value"] <= alpha).fillna(False) & tests["d_fields"].notna()
-    ranking = _rank(tests, features)
-    return FeatureRanking(tests, ranking, settings)
+        for feature in settings["features"]:
+            rows.append(_feature_row(all_groups, feature, base, treated, controls, settings))
+    return rows
+
+
+def _feature_row(
+    all_groups: list[tuple[dict[str, Any], ValidatedInput]],
+    feature: str,
+    base: dict[str, Any],
+    treated: list[dict[str, Any]],
+    controls: list[dict[str, Any]],
+    settings: dict[str, Any],
+) -> dict[str, Any]:
+    """One feature of one contrast: the randomization test over whole units, not run when
+    it cannot reach the gate, or why there is no test."""
+    row: dict[str, Any] = {"feature": feature, **base}
+    if not controls:
+        repeat = base[REPEAT_COLUMN]
+        return {**row, **_EMPTY, "status": f"no control group in {settings['repeat_col']}={repeat}"}
+    technical_col = settings["technical_col"]
+    t_units, t_acquired = side_units(all_groups, feature, treated, technical_col)
+    c_units, c_acquired = side_units(all_groups, feature, controls, technical_col)
+    rng = group_rng(settings["random_state"], {**base, "feature": feature})
+    # Acquired fields, as condition_contrast counts them.
+    row.update({"fields": t_acquired, "control_fields": c_acquired})
+    row.update(
+        randomization_test(
+            t_units,
+            c_units,
+            settings["unit"],
+            settings["n_permutations"],
+            rng,
+            settings["fields_independent"],
+        )
+    )
+    if row["p_floor"] > settings["alpha"]:
+        # As in condition_contrast: a test that cannot reach the gate is not run.
+        row.update(p_value=np.nan, p_exact=False, status=UNREACHABLE)
+    return row
 
 
 _EMPTY = {

@@ -110,6 +110,7 @@ def _one_per_field(row: dict[str, Any], filled: list[np.ndarray]) -> dict[str, A
 
 
 def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """One group's row and its fields' rows, from the feature's values per field."""
     sizes = np.array([len(v) for v in per_fov])
     filled = [v for v in per_fov if len(v)]
     observations = int(sizes.sum())
@@ -140,6 +141,20 @@ def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str
         return row, fov_rows
     if observations <= len(filled):
         return _one_per_field(row, filled), fov_rows
+    return _components(row, per_fov, fov_rows, sizes, filled), fov_rows
+
+
+def _components(
+    row: dict[str, Any],
+    per_fov: list[np.ndarray],
+    fov_rows: list[dict[str, Any]],
+    sizes: np.ndarray,
+    filled: list[np.ndarray],
+) -> dict[str, Any]:
+    """``row`` completed for a group of several observations in some field: the variance
+    components, the design effect and the fields far from the others (marked in
+    ``fov_rows``)."""
+    observations = int(sizes.sum())
     values = np.concatenate(filled)
     codes = np.repeat(np.arange(len(filled)), [len(f) for f in filled])
     v_fov, v_obs = nested_variance_components(values, [codes])
@@ -156,14 +171,7 @@ def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str
     constant = total <= 0 or spread_is_zero(float(values.std(ddof=1)), values)
     varies_within = not constant and not spread_is_zero(float(within), values)
     if varies_within:
-        for fov_row, v in zip(fov_rows, per_fov, strict=True):
-            if len(v):
-                spread = within * np.sqrt(1 / len(v) - 1 / observations)
-                if spread <= 0:
-                    continue  # the only field with observations
-                z = (float(v.mean()) - mean) / spread
-                fov_row["z"] = z
-                fov_row["unusual"] = bool(abs(z) > UNUSUAL_Z)
+        _field_z(fov_rows, per_fov, within, mean, observations)
     scored = [r["unusual"] for r in fov_rows if r["unusual"] is not None]
     deff = None if constant else design_effect(v_fov, v_obs, cluster)
     row.update(
@@ -182,7 +190,26 @@ def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str
             "status": "the feature is constant" if constant else "ok",
         }
     )
-    return row, fov_rows
+    return row
+
+
+def _field_z(
+    fov_rows: list[dict[str, Any]],
+    per_fov: list[np.ndarray],
+    within: float,
+    mean: float,
+    observations: int,
+) -> None:
+    """Each field's z-score against the group's mean and whether it differs more than
+    random objects would, into ``fov_rows``."""
+    for fov_row, v in zip(fov_rows, per_fov, strict=True):
+        if len(v):
+            spread = within * np.sqrt(1 / len(v) - 1 / observations)
+            if spread <= 0:
+                continue  # the only field with observations
+            z = (float(v.mean()) - mean) / spread
+            fov_row["z"] = z
+            fov_row["unusual"] = bool(abs(z) > UNUSUAL_Z)
 
 
 def fov_variability(

@@ -65,7 +65,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from math import comb, prod
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -223,84 +223,145 @@ def _table_rows(
     """One row per comparison for one table (``values``: the complete observations, raw,
     scaled here per comparison; ``meta`` their condition, repeat, field and, when the data
     name one, the unit shuffled, ``shuffled`` its name)."""
+    layout = _layout(values, meta)
+    return [
+        _pair_row(layout, treated, control, name, permutations, random_state, shuffled)
+        for treated, control in pairs
+    ]
+
+
+class _Layout(NamedTuple):
+    """One table's complete observations (``values``, raw) and their ``meta``, each one's
+    field code, the number of fields, and each field's condition, repeat and unit."""
+
+    values: np.ndarray
+    meta: pd.DataFrame
+    field_codes: np.ndarray
+    fields: int
+    condition: np.ndarray
+    repeat: np.ndarray
+    unit: np.ndarray
+
+
+def _layout(values: np.ndarray, meta: pd.DataFrame) -> _Layout:
+    """The fields of a table's observations; the field is the unit when ``meta`` names
+    none."""
     if "unit" not in meta:
         meta = meta.assign(unit=meta["field"])
     field_codes = np.unique(meta["field"].to_numpy(), return_inverse=True)[1].reshape(-1)
     columns = [CONDITION_COLUMN, REPEAT_COLUMN, "unit"]
     field_meta = meta.groupby(field_codes, sort=True)[columns].first()
-    condition = field_meta[CONDITION_COLUMN].to_numpy()
-    repeat = field_meta[REPEAT_COLUMN].to_numpy()
-    unit = field_meta["unit"].to_numpy()
-    rows = []
-    for treated, control in pairs:
-        both = sorted(
-            set(repeat[condition == treated]) & set(repeat[condition == control]), key=str
-        )
-        row: dict[str, Any] = {
-            "table": name,
-            "condition": treated,
-            "control": control,
-            "repeats": len(both),
-        }
-        if not both:
-            rows.append({**row, "status": "not tested: no repeat holds both"})
-            continue
-        observed = np.isin(meta[REPEAT_COLUMN].to_numpy(), both) & np.isin(
-            meta[CONDITION_COLUMN].to_numpy(), [treated, control]
-        )
-        codes = meta.loc[observed].groupby([CONDITION_COLUMN, REPEAT_COLUMN]).ngroup().to_numpy()
-        z = _scaled(values[observed], codes)
-        if z is None:
-            rows.append({**row, "status": ONE_EACH})
-            continue
-        # Every field mean of the table; the fields outside the comparison stay at 0.
-        means = np.zeros((len(field_meta), z.shape[1]))
-        means[np.unique(field_codes[observed])] = _mean_by(z, field_codes[observed])[0]
-        chosen = np.isin(repeat, both) & np.isin(condition, [treated, control])
-        side = (condition[chosen] == treated).astype(int)
-        deltas = np.array(
-            [
-                means[chosen][(repeat[chosen] == r) & (side == 1)].mean(axis=0)
-                - means[chosen][(repeat[chosen] == r) & (side == 0)].mean(axis=0)
-                for r in both
-            ]
-        )
-        same, projection, t, p = repeat_test(deltas)
-        rng = group_rng(random_state, {"table": name, "condition": treated, "control": control})
-        unit_means, unit_codes = _mean_by(means[chosen], unit[chosen])
-        first = np.unique(unit_codes, return_index=True)[1]
-        distance, p_shuffle = shuffle_test(
-            unit_means, side[first], repeat[chosen][first], permutations, rng
-        )
-        centres, _codes = _mean_by(z, codes)
-        spread = np.square(z - centres[codes]).sum() / max(1, len(z) - len(centres))
-        shift = float(np.linalg.norm(deltas.mean(axis=0)))
-        effect = shift / float(np.sqrt(spread)) if spread > 0 else float("nan")
-        tested = len(both) >= MIN_REPEATS and np.isfinite(p)
-        # The control's fields in each repeat: few of them carry the repeat's shift alone.
-        control_fields = {r: int(((repeat[chosen] == r) & (side == 0)).sum()) for r in both}
-        few = "; ".join(f"{r} ({n})" for r, n in control_fields.items() if n < FEW_CONTROL)
-        rows.append(
-            {
-                **row,
-                "same_way": same,
-                "mean_projection": projection,
-                "t": t,
-                "p_repeats": p,
-                "distance": distance,
-                "effect": effect,
-                "p_shuffle": p_shuffle,
-                "shuffled": shuffled,
-                "units": len(unit_means),
-                "permutations": permutations,
-                "fields": int(chosen.sum()),
-                "observations": int(observed.sum()),
-                "sign_floor": sign_floor(len(both)),
-                "few_control": few,
-                "status": "tested" if tested else f"not tested: {len(both)} repeats",
-            }
-        )
-    return rows
+    return _Layout(
+        values,
+        meta,
+        field_codes,
+        len(field_meta),
+        field_meta[CONDITION_COLUMN].to_numpy(),
+        field_meta[REPEAT_COLUMN].to_numpy(),
+        field_meta["unit"].to_numpy(),
+    )
+
+
+def _pair_row(
+    layout: _Layout,
+    treated: Any,
+    control: Any,
+    name: str,
+    permutations: int,
+    random_state: int,
+    shuffled: str,
+) -> dict[str, Any]:
+    """One comparison of one table: the repeat-level test, the shuffle test and the shift,
+    or why it is not tested."""
+    condition, repeat, meta = layout.condition, layout.repeat, layout.meta
+    both = sorted(set(repeat[condition == treated]) & set(repeat[condition == control]), key=str)
+    row: dict[str, Any] = {
+        "table": name,
+        "condition": treated,
+        "control": control,
+        "repeats": len(both),
+    }
+    if not both:
+        return {**row, "status": "not tested: no repeat holds both"}
+    observed = np.isin(meta[REPEAT_COLUMN].to_numpy(), both) & np.isin(
+        meta[CONDITION_COLUMN].to_numpy(), [treated, control]
+    )
+    codes = meta.loc[observed].groupby([CONDITION_COLUMN, REPEAT_COLUMN]).ngroup().to_numpy()
+    z = _scaled(layout.values[observed], codes)
+    if z is None:
+        return {**row, "status": ONE_EACH}
+    # Every field mean of the table; the fields outside the comparison stay at 0.
+    means = np.zeros((layout.fields, z.shape[1]))
+    means[np.unique(layout.field_codes[observed])] = _mean_by(z, layout.field_codes[observed])[0]
+    chosen = np.isin(repeat, both) & np.isin(condition, [treated, control])
+    side = (condition[chosen] == treated).astype(int)
+    deltas = _deltas(means[chosen], repeat[chosen], side, both)
+    same, projection, t, p = repeat_test(deltas)
+    rng = group_rng(random_state, {"table": name, "condition": treated, "control": control})
+    distance, p_shuffle, units = _shuffled_units(
+        means[chosen], layout.unit[chosen], repeat[chosen], side, permutations, rng
+    )
+    tested = len(both) >= MIN_REPEATS and np.isfinite(p)
+    return {
+        **row,
+        "same_way": same,
+        "mean_projection": projection,
+        "t": t,
+        "p_repeats": p,
+        "distance": distance,
+        "effect": _effect(z, codes, deltas),
+        "p_shuffle": p_shuffle,
+        "shuffled": shuffled,
+        "units": units,
+        "permutations": permutations,
+        "fields": int(chosen.sum()),
+        "observations": int(observed.sum()),
+        "sign_floor": sign_floor(len(both)),
+        "few_control": _few_control(repeat[chosen], side, both),
+        "status": "tested" if tested else f"not tested: {len(both)} repeats",
+    }
+
+
+def _deltas(means: np.ndarray, repeat: np.ndarray, side: np.ndarray, both: list[Any]) -> np.ndarray:
+    """Per repeat holding both sides, the condition's mean field mean minus the control's."""
+    return np.array(
+        [
+            means[(repeat == r) & (side == 1)].mean(axis=0)
+            - means[(repeat == r) & (side == 0)].mean(axis=0)
+            for r in both
+        ]
+    )
+
+
+def _shuffled_units(
+    means: np.ndarray,
+    unit: np.ndarray,
+    repeat: np.ndarray,
+    side: np.ndarray,
+    permutations: int,
+    rng: Any,
+) -> tuple[float, float, int]:
+    """The shuffle test on the unit means (``means``: the field means compared): the distance
+    between the sides' centres, its p and the units."""
+    unit_means, unit_codes = _mean_by(means, unit)
+    first = np.unique(unit_codes, return_index=True)[1]
+    distance, p_shuffle = shuffle_test(unit_means, side[first], repeat[first], permutations, rng)
+    return distance, p_shuffle, len(unit_means)
+
+
+def _effect(z: np.ndarray, codes: np.ndarray, deltas: np.ndarray) -> float:
+    """The mean shift over the repeats, in the pooled within-group SD of the scaled values."""
+    centres, _codes = _mean_by(z, codes)
+    spread = np.square(z - centres[codes]).sum() / max(1, len(z) - len(centres))
+    shift = float(np.linalg.norm(deltas.mean(axis=0)))
+    return shift / float(np.sqrt(spread)) if spread > 0 else float("nan")
+
+
+def _few_control(repeat: np.ndarray, side: np.ndarray, both: list[Any]) -> str:
+    """The repeats whose control holds fewer than ``FEW_CONTROL`` fields, with the count."""
+    # The control's fields in each repeat: few of them carry the repeat's shift alone.
+    control_fields = {r: int(((repeat == r) & (side == 0)).sum()) for r in both}
+    return "; ".join(f"{r} ({n})" for r, n in control_fields.items() if n < FEW_CONTROL)
 
 
 def _units(data: ValidatedInput) -> tuple[str, list[str]]:
