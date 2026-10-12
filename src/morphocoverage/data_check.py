@@ -27,7 +27,6 @@ from ._data_rules import (
     _attach,
     _check_control,
     _check_copies,
-    _check_features,
     _check_fov_table,
     _check_key_values,
     _check_label_variants,
@@ -37,6 +36,7 @@ from ._data_rules import (
     _resolve_fov_col,
     _resolve_groups,
 )
+from ._feature_rules import _check_features
 from ._former_repeat import FORMER_REPEAT_COLUMN, Reader, one_warning
 from ._input_traps import (
     InvalidRowsWarning,

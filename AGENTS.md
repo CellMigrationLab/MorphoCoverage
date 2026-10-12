@@ -222,6 +222,7 @@ src/morphocoverage/
     _integrity_tables.py   # private: the integrity checks on each feature table apart, their union naming the table
     data_check.py          # check_tables: every data problem at once, where and how to fix it
     _data_rules.py         # private: the rules behind check_tables, one function per kind of problem
+    _feature_rules.py      # private: its feature-column rule: named once, one role, present, numeric, finite
     _copy_rules.py         # private: its copy rule: repeated rows, observations repeated within a field, labels twice in a field
     _data_problems.py      # private: the problems a data check reports (Problem, Collector) and their wording
     _input_traps.py        # private: tables that validate but are probably not meant: invalid rows, undeclared groups, unimaged wells
