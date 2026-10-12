@@ -150,7 +150,7 @@ def number(ask: Ask, say: Say, prompt: str, default: float, low: float, high: fl
             return default
         try:
             value = float(answer.rstrip("%")) / (100 if answer.endswith("%") else 1)
-        except ValueError:
+        except ValueError:  # fallback: asked again, with what was wrong
             _again(say, f"{answer!r} is not a number.")
             continue
         if low < value <= high:

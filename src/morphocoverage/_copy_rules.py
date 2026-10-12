@@ -87,7 +87,7 @@ def check_copies(
     )
     try:
         copies = objects.duplicated(keep="first")
-    except TypeError:  # a column of lists: compared by their text
+    except TypeError:  # fallback: a column of lists: compared by their text
         objects = _comparable(objects)
         copies = objects.duplicated(keep="first")
     copies &= ~no_value

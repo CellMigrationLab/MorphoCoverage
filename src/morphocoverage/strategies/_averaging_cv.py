@@ -131,6 +131,7 @@ def _bootstrap_upper(
     draws = rng.integers(0, units, (BOUND_RESAMPLES, units))
     drawn_sums, drawn_counts = field_sums[draws], field_counts[draws]
     totals = drawn_counts.sum(axis=1)
+    # fallback: a resample without observations: NaN, left out
     with np.errstate(divide="ignore", invalid="ignore"):
         means = drawn_sums.sum(axis=1) / totals
         residuals = np.sum((drawn_sums - means[:, None] * drawn_counts) ** 2, axis=1)

@@ -93,8 +93,8 @@ def field_setup(setup: Setup) -> Setup:
         fields["rules"] = tuple(
             per_field(r) if isinstance(r, SupportNoveltyStrategy) else r for r in rules
         )
-    with warnings.catch_warnings():  # the Setup warned once, when it was made
-        warnings.simplefilter("ignore")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # fallback: the Setup warned once, when it was made
         return replace(setup, **fields)
 
 

@@ -47,6 +47,7 @@ def with_tables(
     else:
         try:
             attached = attach_feature_tables(objects, fovs, tables, fov_col=fov_col)
+        # fallback: the error is the reason the scan reports
         except (ValueError, TypeError) as error:
             reason = str(error)
         else:

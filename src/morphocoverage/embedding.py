@@ -295,7 +295,7 @@ def _umap(z: np.ndarray, n_neighbors: int, min_dist: float, random_state: int) -
         n_neighbors=neighbours, min_dist=min_dist, random_state=random_state, n_jobs=1
     )
     with warnings.catch_warnings():
-        # umap-learn warns that a seed disables its parallelism: that is the point here.
+        # fallback: umap-learn warns that a seed disables its parallelism: the point here
         warnings.simplefilter("ignore", UserWarning)
         return reducer.fit_transform(z)
 

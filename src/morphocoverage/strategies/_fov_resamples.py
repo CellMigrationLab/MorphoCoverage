@@ -29,6 +29,7 @@ def centroid_resamples(counts: np.ndarray, sums: np.ndarray, weights: np.ndarray
     Rows of resamples without observations are NaN.
     """
     n = weights @ counts
+    # fallback: a resample without observations: NaN (documented)
     with np.errstate(invalid="ignore", divide="ignore"):
         return (weights @ sums) / n[:, None]
 
@@ -40,6 +41,7 @@ def covariance_resamples(
     n = weights @ counts
     total, cross = weights @ sums, weights @ outer
     mean_outer = np.einsum("bi,bj->bij", total, total).reshape(len(weights), -1)
+    # fallback: below 2 observations: NaN (documented)
     with np.errstate(invalid="ignore", divide="ignore"):
         return (cross - mean_outer / n[:, None]) / (n - 1)[:, None]
 
@@ -68,6 +70,7 @@ def eigenspectrum_resamples(covariances: np.ndarray, d: int) -> np.ndarray:
     """Explained-variance fractions, largest first, of each flattened ``d x d`` covariance."""
     eigenvalues = np.clip(np.linalg.eigvalsh(covariances.reshape(-1, d, d))[:, ::-1], 0, None)
     # A resample with no spread at all has undefined fractions (NaN, left out later).
+    # fallback: a resample without spread: NaN, left out later
     with np.errstate(invalid="ignore", divide="ignore"):
         return eigenvalues / eigenvalues.sum(axis=1, keepdims=True)
 

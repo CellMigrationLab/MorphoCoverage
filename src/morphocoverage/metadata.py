@@ -117,7 +117,7 @@ def empty_values(values: pd.Series) -> pd.Series:
     if values.dtype == object or pd.api.types.is_string_dtype(values.dtype):
         try:
             blank = values.str.strip().eq("")  # NaN for entries that are not text
-        except AttributeError:
+        except AttributeError:  # fallback: an object column with no text: tested one by one below
             # An object column with no text at all (dates, Python ints, booleans):
             # pandas refuses the text accessor, so the entries are tested one by one.
             blank = values.map(lambda value: isinstance(value, str) and not value.strip())
@@ -211,7 +211,7 @@ def _attach_position_ids(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> pd
     try:
         mapping = fovs.loc[:, [*key, "position_id"]].drop_duplicates()
         listed = pd.MultiIndex.from_frame(objects[key]).isin(pd.MultiIndex.from_frame(fovs[key]))
-    except TypeError:  # identifiers that cannot be compared (lists) are refused later
+    except TypeError:  # fallback: identifiers that cannot be compared (lists) are refused later
         return objects
     if mapping.duplicated(key).any() or not listed.all():
         return objects
@@ -527,7 +527,7 @@ def sorted_labels(values: Iterable[Any], first: Any = None) -> list:
     distinct = list(dict.fromkeys(values))
     try:
         ordered = sorted(distinct)
-    except TypeError:
+    except TypeError:  # fallback: types that cannot be compared: sorted by type, then text
         ordered = sorted(distinct, key=lambda value: (type(value).__name__, str(value)))
     if first is None or first not in ordered:
         return ordered

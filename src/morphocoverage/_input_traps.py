@@ -94,7 +94,7 @@ def _field_values(table: pd.DataFrame, key: list[str], column: str) -> pd.DataFr
     """One row per field with its ``column`` value, or ``None`` when it varies in a field."""
     try:
         pairs = table.loc[:, [*key, column]].astype(object).drop_duplicates()
-    except TypeError:  # lists or arrays: not labels
+    except TypeError:  # fallback: lists or arrays: not labels (the identity check reports them)
         return None
     return None if pairs.duplicated(key).any() else pairs
 
@@ -190,7 +190,7 @@ def _check_unimaged_technical_repeats(
             [row not in seen for row in listed.itertuples(index=False, name=None)],
             index=fovs.index,
         )
-    except TypeError:  # lists: reported with the field identity
+    except TypeError:  # fallback: lists: reported with the field identity
         return
     if not unseen.any():
         return
@@ -227,7 +227,7 @@ def _check_well_names(
         return
     try:
         pairs = table.loc[:, columns].astype(object).drop_duplicates()
-    except TypeError:
+    except TypeError:  # fallback: lists or arrays: reported by the identity check
         return
     names = pairs[TECHNICAL_REPEAT_COLUMN]
     wells = names.map(lambda v: isinstance(v, str) and _WELL.fullmatch(v.strip()) is not None)
@@ -265,7 +265,7 @@ def _check_container_files(c: Collector, objects: pd.DataFrame, key: Sequence[st
         return
     try:
         twice = objects.duplicated([*key, "label_id"], keep="first")
-    except TypeError:
+    except TypeError:  # fallback: lists or arrays: reported by the identity check
         return
     twice &= container & objects["label_id"].notna()
     if twice.any():

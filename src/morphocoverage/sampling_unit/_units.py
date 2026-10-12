@@ -365,6 +365,7 @@ def _separations(items: list[np.ndarray], inside: np.ndarray) -> np.ndarray:
 
     n1, s1, q1 = side(inside)
     n2, s2, q2 = side(~inside)
+    # fallback: an empty side or no spread: NaN separation
     with np.errstate(divide="ignore", invalid="ignore"):
         m1, m2 = s1 / n1, s2 / n2
         pooled = ((q1 - s1 * m1) + (q2 - s2 * m2)) / (n1 + n2 - 2)

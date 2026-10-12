@@ -346,6 +346,7 @@ def _loose(value: Any) -> str:
     try:
         # Exact: through a binary float, distinct IDs past 2**53 (or 1e999 and 2e999) would match.
         return str(Decimal(text).normalize())
+    # fallback: not a number: compared as text without zero padding
     except (ArithmeticError, ValueError):
         return re.sub(r"^([a-z]+)0+(?=\d)", r"\1", text)
 

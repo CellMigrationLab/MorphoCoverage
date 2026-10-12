@@ -343,6 +343,7 @@ def _validated_fov_table(
     if missing:
         try:
             examples = sorted(missing)[:3]
+        # fallback: examples of mixed types: listed unsorted, the error is still raised
         except TypeError:
             examples = list(missing)[:3]
         raise ValueError(

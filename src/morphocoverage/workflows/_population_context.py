@@ -110,6 +110,7 @@ def against_controls(table: pd.DataFrame, marked: pd.DataFrame, setup: Setup) ->
             continue
         values = marked[features].to_numpy(dtype=float)
         with warnings.catch_warnings():
+            # fallback: a feature without spread: NaN d, ordered last
             warnings.simplefilter("ignore", RuntimeWarning)
             d = np.array(
                 [_d(values[member, j], values[reference, j]) for j in range(len(features))]

@@ -203,7 +203,7 @@ def _check_positions_within_fields(
     for column in candidates:
         try:
             per_field = objects.groupby(key, dropna=False, sort=False)[column].nunique()
-        except TypeError:  # lists or arrays: not a position index
+        except TypeError:  # fallback: lists or arrays: not a position index
             continue
         several = per_field[per_field > 1]
         if several.empty:

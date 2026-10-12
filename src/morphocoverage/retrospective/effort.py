@@ -290,6 +290,7 @@ def _bootstrap(
             continue
         try:
             boots.append(nested_variance_components(values, codes))
+        # fallback: counted in `failed`, which the result reports
         except (ValueError, np.linalg.LinAlgError):
             failed += 1
     if len(boots) < MIN_BOOT_SUCCESS * n_boot:
@@ -343,7 +344,7 @@ def _stratum(
         return reason
     try:
         estimate = nested_variance_components(cells["value"].to_numpy(), codes)
-    except np.linalg.LinAlgError:
+    except np.linalg.LinAlgError:  # fallback: the reason is returned and reported
         return "the components are not identifiable"
     design = _design(qualified, levels, has_repeat, len(stratum_fovs), hierarchy)
     unit = hierarchy.independent_unit if has_repeat else hierarchy.sample

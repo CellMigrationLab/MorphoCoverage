@@ -184,7 +184,7 @@ def check_tables(
         objects, fovs, group_cols, fov_col, control = _read_former_repeat(
             objects, fovs, group_cols, fov_col, control
         )
-    except ValueError as error:
+    except ValueError as error:  # fallback: reported as a problem of the check
         c.error(
             f"The former name {FORMER_REPEAT_COLUMN!r} and the biological repeat's column "
             "hold different values.",
@@ -214,7 +214,7 @@ def check_tables(
     if unit_given:
         try:
             normalize_observation_unit(observation_unit)
-        except ValueError:
+        except ValueError:  # fallback: reported as a problem of the check
             c.error(
                 "The observation unit is not a word.",
                 f"observation_unit={observation_unit!r}.",
@@ -346,7 +346,7 @@ def check_tables(
                     "'position_id'; if each row really is one stage position, pass fov_col "
                     "explicitly.",
                 )
-        except (ValueError, TypeError) as exc:
+        except (ValueError, TypeError) as exc:  # fallback: reported as a problem of the check
             message = str(exc).split("\n\n")[0].rstrip(".")
             planes = any(w in message for w in ("plane", "z/c/t", "channel"))
             within = "planes_as_features" in message  # planes of one field as observations
@@ -442,7 +442,7 @@ def _column_list(c: Collector, columns: object, name: str) -> list | None:
         return [columns]
     try:
         names = column_names(columns, name)
-    except TypeError as error:
+    except TypeError as error:  # fallback: reported as a problem of the check
         c.error(
             f"{name} is not a list of column names.",
             f"{name}={columns!r}: {error}.",

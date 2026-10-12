@@ -219,7 +219,7 @@ class Answers:
         values["experiment"] = self.experiment or None
         values.update(fields)
         with warnings.catch_warnings():
-            # A control the user chose to leave out is an answer, not a guess to warn about.
+            # fallback: a control the user chose to leave out is an answer, not a guess to warn
             warnings.simplefilter("ignore", UserWarning)
             return scan.setup(self.readout, goal=goal, **values)
 
@@ -369,6 +369,7 @@ def _earlier_version(path: Path) -> bool:
     """Whether ``path`` holds answers saved by an earlier ``ANSWERS_VERSION``."""
     try:
         data = json.loads(path.read_text())
+    # fallback: no saved answers, or unreadable: not an earlier version
     except (FileNotFoundError, json.JSONDecodeError):
         return False
     version = data.get("version") if isinstance(data, dict) else None
@@ -389,6 +390,7 @@ def _saved(
         return None, None
     try:
         saved = load_answers(folder)
+    # fallback: said to the user; the questions are asked again
     except (ValueError, TypeError) as error:
         say(f"{path} cannot be read ({error}).")
         saved, usable = None, False

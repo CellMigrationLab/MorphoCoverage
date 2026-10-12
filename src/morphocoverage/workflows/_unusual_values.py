@@ -96,13 +96,15 @@ def centred_on_own_control(
             here = repeats == value
             reference = values[here & control]
             if len(reference):
-                with warnings.catch_warnings():  # a feature with no control value: NaN
+                with warnings.catch_warnings():
+                    # fallback: a feature with no control value: NaN
                     warnings.simplefilter("ignore", RuntimeWarning)
                     centres[here & centred] = np.nanmean(reference, axis=0)
     logged = np.array(
         [ratio_scale(setup, c, values[:, j]) for j, c in enumerate(columns)], dtype=bool
     )
     relative = values - centres
+    # fallback: the log of a non-positive ratio: NaN, as for a missing value
     with np.errstate(divide="ignore", invalid="ignore"):
         relative[:, logged] = np.log(values[:, logged] / centres[:, logged])
     result = objects.copy()

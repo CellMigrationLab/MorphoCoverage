@@ -58,7 +58,7 @@ def _seed_label(value: Any) -> str:
     if isinstance(value, str):
         try:
             number = float(value)
-        except ValueError:
+        except ValueError:  # fallback: text that is not a number stays text
             return value
         value = number if np.isfinite(number) else value
     if is_integer(value):

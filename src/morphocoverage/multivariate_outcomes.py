@@ -527,7 +527,7 @@ class ComponentsError(OutcomeMetric):
         matrix = matrix[~np.isnan(matrix).any(axis=1)]
         try:
             centre, scale, loadings = robust_components(matrix, len(self.loadings))
-        except ValueError:  # fewer complete rows than components: not judged here
+        except ValueError:  # fallback: fewer complete rows than components: the group is excluded
             group = tuple((c, str(training.objects[c].iloc[0])) for c in training.group_cols)
             return replace(self, excluded=(*self.excluded, group))
         return replace(self, centre=tuple(centre), scale=tuple(scale), loadings=tuple(loadings))

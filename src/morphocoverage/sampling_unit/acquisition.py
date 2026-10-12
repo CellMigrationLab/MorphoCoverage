@@ -271,6 +271,7 @@ def acquisition_anomalies(
     key = list(dict.fromkeys([*data.group_cols, *data.fov_key]))
     raw = _field_medians(data)
     logged = _logged(data, scales)
+    # fallback: the log of a missing or non-positive median: NaN
     with np.errstate(divide="ignore", invalid="ignore"):
         medians = np.where(logged, np.log(raw), raw)
     blocks = data.fovs.groupby(own, sort=False, dropna=False).indices if own else {(): None}
@@ -283,6 +284,7 @@ def acquisition_anomalies(
         for j in range(medians.shape[1]):
             residuals[members, j] = _residuals(medians[members, j])
     pooled = np.array([_scale(residuals[:, j]) for j in range(medians.shape[1])])
+    # fallback: a feature without spread (pooled scale 0): NaN, not scored
     with np.errstate(divide="ignore", invalid="ignore"):
         z = np.where(pooled > 0, residuals / pooled, np.nan)
     identity = data.fovs[key].to_dict("records")

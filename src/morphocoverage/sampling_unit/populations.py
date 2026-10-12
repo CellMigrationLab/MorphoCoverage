@@ -173,7 +173,7 @@ def _embedding(z: np.ndarray, random_state: int) -> np.ndarray:
         n_jobs=1,
     )
     with warnings.catch_warnings():
-        # umap-learn warns that a seed disables its parallelism: that is the point here.
+        # fallback: umap-learn warns that a seed disables its parallelism: the point here
         warnings.simplefilter("ignore", UserWarning)
         return reducer.fit_transform(z)
 

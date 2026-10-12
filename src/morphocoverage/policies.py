@@ -212,7 +212,7 @@ def decide(
         if decision is not None:
             try:
                 decision = Decision(decision)
-            except ValueError:
+            except ValueError:  # fallback: rejected just below with the same message
                 decision = Decision.UNSUPPORTED  # rejected below with the same message
             if decision is Decision.UNSUPPORTED:
                 raise ValueError(

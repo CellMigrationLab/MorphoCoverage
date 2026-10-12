@@ -533,6 +533,7 @@ def _summaries(rows: match.Rows, whole: list[int], paired: set[tuple[int, int]],
     for i in whole:
         values = rows.values[rows.of(i)]
         present = ~np.isnan(values)
+        # fallback: an infinite value gives a NaN mean, which matches no other field
         with np.errstate(invalid="ignore"):
             means = np.where(present, values, 0.0).sum(axis=0) / np.maximum(present.sum(axis=0), 1)
         # Twelve significant digits: the same values summed in another order differ

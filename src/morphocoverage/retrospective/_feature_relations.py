@@ -68,6 +68,7 @@ def _pair_correlations(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     rows = mask.T @ mask
     sums = filled.T @ mask  # [i, j]: the sum of column i over the rows j is finite
     squares = (filled**2).T @ mask
+    # fallback: a pair without spread or shared values: NaN
     with np.errstate(divide="ignore", invalid="ignore"):
         products = filled.T @ filled - sums * sums.T / rows
         spread = squares - sums**2 / rows

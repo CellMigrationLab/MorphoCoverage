@@ -88,7 +88,7 @@ def ask_tables(
             return tables
         try:
             table, read = _read(path)
-        except (OSError, ValueError) as error:
+        except (OSError, ValueError) as error:  # fallback: asked again, with what was wrong
             say(f"It cannot be read: {error}.")
             continue
         name = q.text(
@@ -99,7 +99,7 @@ def ask_tables(
         trial = {**tagged(tables), name: (table, tag)}
         try:
             attached = attach_feature_tables(objects, fovs, trial)
-        except (ValueError, TypeError) as error:
+        except (ValueError, TypeError) as error:  # fallback: asked again, with what was wrong
             say(f"It cannot be used: {error}.")
             continue
         tables[name] = (table, read, tag)
