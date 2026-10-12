@@ -429,6 +429,7 @@ src/morphocoverage/
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
         _manifest.py       # private: the live folder's files (write_fov, the manifest reader), re-exported by live
         _live_order.py     # private: the live session that runs the order check of each group's fields so far
+        _live_watch.py     # private: when LiveFolder.watch stops: its arguments checked, a field's results ending its group
         _live_text.py      # private: the text of one live update (LiveUpdate.summary)
         _shared.py         # private: input checks, orders, rule replays on raw values, outcomes on normalised ones
         _shared_parts.py   # private: steps of the analyses in _shared: unusual observations and their clustering, the feature discovery and ranking
