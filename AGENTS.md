@@ -444,6 +444,7 @@ src/morphocoverage/
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
         _scalar_precision_state.py  # private: its incremental path, per-FOV sufficient statistics for live sessions
         _averaging_cv.py   # private: its averaging-CV arithmetic (object and FOV units)
+        _precision_steps.py  # private: its estimate's steps: why no estimate yet, the FOV unit's estimate, the cautions
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
         _descriptor_resamples.py  # private: the resample arithmetic of the descriptor spread
         jcb_planning.py    # JCB multi-sample planning from disjoint pilot samples

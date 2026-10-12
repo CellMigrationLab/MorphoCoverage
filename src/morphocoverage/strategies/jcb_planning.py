@@ -89,8 +89,9 @@ from ..results import Decision
 from ..schema import OBJECT_LIKE_UNITS, ValidatedInput
 from ..statistics import sd_upper_bound_factor, spread_is_zero
 from ._averaging_cv import _central_sums, _shape_warning
+from ._precision_steps import _MAX_TRUSTED_CV
 from .base import Estimator, SamplingStrategy, unsupported_observation_unit
-from .scalar_precision import _MAX_TRUSTED_CV, _SD_ESTIMATES, required_objects
+from .scalar_precision import _SD_ESTIMATES, required_objects
 
 _REQUIRED = "planned_required_objects"
 _MEASURED = "measured_objects"
