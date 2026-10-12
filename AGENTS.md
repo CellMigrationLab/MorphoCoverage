@@ -367,6 +367,7 @@ src/morphocoverage/
         __init__.py        # the subpackage's public names
         setup.py           # Setup: every scientific choice of the workflows, declared once
         _setup_parts.py    # private: the positive control, the default definition of new and the presets' checks, re-exported by setup
+        _setup_checks.py   # private: the checks Setup.__post_init__ runs, in its order, with the messages the user reads
         _feature_space.py  # private: the Setup's feature tables: explainable ones by table, the weighted combined space, the centred view, the tables attached, the space of unusual observations
         _fingerprint_space.py  # private: a wide table's fingerprint on its first k principal components (k at most a fifth of the median judged group), or not assessable
         _whole_table.py    # private: the whole-table test in the report: the comparisons, the words in question 9, the page's block and CSV

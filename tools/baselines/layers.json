@@ -26,6 +26,7 @@
   "workflows._one_per_field -> workflows.setup (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
   "workflows._populations -> workflows._document (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
   "workflows._populations -> workflows._shared (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
+  "workflows._setup_checks -> workflows.setup (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
   "workflows._setup_parts -> workflows.setup (typing)": "annotation only (TYPE_CHECKING): the module names a type of the module that imports it",
   "workflows._whole_table -> workflows._document (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
   "workflows.scan -> workflows._scan_rules (local)": "imported inside the function that needs it, after both modules are loaded (recorded at audit 12)",
