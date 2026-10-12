@@ -23,7 +23,8 @@ fields acquired, per analysis group (a well):
 
 from __future__ import annotations
 
-from dataclasses import replace
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -67,6 +68,22 @@ def _not_assessable(data: Any, criterion: str, reason: str) -> list[dict[str, An
     ]
 
 
+@dataclass(frozen=True)
+class _Judged:
+    """The fingerprint criteria judged in every group, with what each reads
+    (``fingerprint_precision``): by index, the groups' observations holding all of its
+    columns (``complete``, only for a criterion missing values) and those left out for
+    want of an own control (``uncontrolled``)."""
+
+    setup: Setup
+    criteria: list[Any]
+    names: list[str]
+    nouns: list[str]
+    readings: Mapping[str, Any]
+    complete: dict[int, dict[Any, Any]]
+    uncontrolled: dict[int, dict[Any, int]]
+
+
 def fingerprint_precision(
     objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
 ) -> pd.DataFrame | None:
@@ -87,8 +104,33 @@ def fingerprint_precision(
     criteria = [r for _, r in pairs if r is not None]
     names = [label(o) for o, r in pairs if r is not None]
     nouns = [noun(o) for o, r in pairs if r is not None]
+    complete, uncontrolled = _held(objects, values, fovs, setup, data, criteria)
+    judged = _Judged(setup, criteria, names, nouns, space.readings, complete, uncontrolled)
+    rows = []
+    for original, read in pairs:
+        reading = space.readings.get(label(original))
+        if read is None and reading is not None:
+            rows += [
+                {**row, "table": table_of(_columns(original), setup), "noun": noun(original)}
+                for row in _not_assessable(data, label(original), str(reading.reason))
+            ]
+    for group, group_data in iter_analysis_groups(data):
+        rows += _group_rows(group, group_data, judged)
+    return pd.DataFrame(rows) if rows else None
+
+
+def _held(
+    objects: pd.DataFrame,
+    values: pd.DataFrame,
+    fovs: pd.DataFrame,
+    setup: Setup,
+    data: Any,
+    criteria: list[Any],
+) -> tuple[dict[int, dict[Any, Any]], dict[int, dict[Any, int]]]:
+    """By criterion index, each group's observations holding all of its columns (only for a
+    criterion missing values), and each group's count left out for want of an own control."""
     # A criterion whose columns miss values reads the observations holding all of them.
-    complete: dict[int, dict[str, Any]] = {}
+    complete: dict[int, dict[Any, Any]] = {}
     # Normalised with several controls, a condition without its own control in a repeat has
     # no value there: left out for that, never as a missing value (audit 8, seed 4).
     uncontrolled: dict[int, dict[Any, int]] = {}
@@ -110,79 +152,104 @@ def fingerprint_precision(
                 **setup.common,
             )
             complete[i] = {group_key(g): d for g, d in iter_analysis_groups(kept)}
+    return complete, uncontrolled
+
+
+def _group_rows(group: dict[str, Any], group_data: Any, judged: _Judged) -> list[dict[str, Any]]:
+    """One group's row per criterion: its error from random halves of its fields (the
+    group's own seeded draws, criterion after criterion) against the tolerance."""
+    setup = judged.setup
+    n = len(group_data.fovs)
+    subsets = FovSubsets(group_data) if n >= MIN_FIELDS else None
+    rng = group_rng(setup.random_state, group)
     rows = []
-    for original, read in pairs:
-        reading = space.readings.get(label(original))
-        if read is None and reading is not None:
-            rows += [
-                {**row, "table": table_of(_columns(original), setup), "noun": noun(original)}
-                for row in _not_assessable(data, label(original), str(reading.reason))
-            ]
-    for group, group_data in iter_analysis_groups(data):
-        n = len(group_data.fovs)
-        half = n // 2
-        subsets = FovSubsets(group_data) if n >= MIN_FIELDS else None
-        rng = group_rng(setup.random_state, group)
-        for i, criterion in enumerate(criteria):
-            errors = []
-            here, left_out = subsets, 0
-            if i in complete:
-                own = complete[i].get(group_key(group))
-                left_out = len(group_data.objects) - (len(own.objects) if own is not None else 0)
-                here = FovSubsets(own) if own is not None and subsets is not None else None
-            no_control = uncontrolled[i].get(group_key(group), 0)
-            left_out -= no_control
-            reading = space.readings.get(names[i])
-            # Too few observations for the common k: not assessable here (audit 8).
-            small = reading is not None and group_key(group) in {k for k, *_ in reading.small}
-            here = None if small else here
-            splits = SPLITS if here is not None else 0
-            for _ in range(splits):
-                order = rng.permutation(n)
-                value = criterion.metric.evaluate(
-                    here.take(order[half : 2 * half]), here.take(order[:half])
-                )
-                if value is not None and np.isfinite(value):
-                    errors.append(value)
-            undefined = splits - len(errors)
-            estimate = (
-                float(np.sqrt(np.mean(np.square(errors))) * np.sqrt(half / (2 * n)))
-                if errors and undefined <= UNDEFINED_TOLERANCE * splits
-                else np.nan
-            )
-            tolerance = float(criterion.threshold)
-            rows.append(
-                {
-                    **group,
-                    "criterion": names[i],
-                    "noun": nouns[i],
-                    "table": table_of(_columns(criterion), setup),
-                    "left_out": left_out,
-                    "no_own_control": no_control,
-                    "tolerance": tolerance,
-                    "fields": n,
-                    "splits": splits,
-                    "undefined_splits": undefined,
-                    "error": estimate,
-                    "met": bool(estimate <= tolerance) if np.isfinite(estimate) else None,
-                    "fields_needed": (
-                        int(np.ceil(n * (estimate / tolerance) ** 2))
-                        if np.isfinite(estimate) and tolerance > 0
-                        else None
-                    ),
-                    "held_back_error": (
-                        estimate * np.sqrt(n / max(1, int(np.ceil(n * HELD_BACK))))
-                        if np.isfinite(estimate)
-                        else np.nan
-                    ),
-                    "components": reading.components if reading is not None else None,
-                    "small": small,
-                    "reading": (
-                        reading.words(setup.unit_word, setup.unit_words) if reading else ""
-                    ),
-                }
-            )
-    return pd.DataFrame(rows) if rows else None
+    for i, criterion in enumerate(judged.criteria):
+        here, left_out, no_control = _observations(i, group, group_data, subsets, judged)
+        reading = judged.readings.get(judged.names[i])
+        # Too few observations for the common k: not assessable here (audit 8).
+        small = reading is not None and group_key(group) in {k for k, *_ in reading.small}
+        here = None if small else here
+        errors, splits = _split_errors(criterion, here, n, rng)
+        rows.append(
+            {
+                **group,
+                "criterion": judged.names[i],
+                "noun": judged.nouns[i],
+                "table": table_of(_columns(criterion), setup),
+                "left_out": left_out,
+                "no_own_control": no_control,
+                **_estimate(errors, splits, n, float(criterion.threshold)),
+                "components": reading.components if reading is not None else None,
+                "small": small,
+                "reading": (reading.words(setup.unit_word, setup.unit_words) if reading else ""),
+            }
+        )
+    return rows
+
+
+def _observations(
+    i: int, group: dict[str, Any], group_data: Any, subsets: Any, judged: _Judged
+) -> tuple[Any, int, int]:
+    """The fields criterion ``i`` reads in the group (``None``: not judged), the observations
+    it leaves out for a missing value, and those left out without an own control."""
+    here, left_out = subsets, 0
+    if i in judged.complete:
+        own = judged.complete[i].get(group_key(group))
+        left_out = len(group_data.objects) - (len(own.objects) if own is not None else 0)
+        here = FovSubsets(own) if own is not None and subsets is not None else None
+    no_control = judged.uncontrolled[i].get(group_key(group), 0)
+    left_out -= no_control
+    return here, left_out, no_control
+
+
+def _split_errors(
+    criterion: Any, here: Any, n: int, rng: np.random.Generator
+) -> tuple[list[float], int]:
+    """The criterion's defined errors between random halves of the ``n`` fields, and the
+    number of halves drawn (none without fields to read)."""
+    if here is None:
+        return [], 0
+    half = n // 2
+    errors = []
+    for _ in range(SPLITS):
+        order = rng.permutation(n)
+        value = criterion.metric.evaluate(
+            here.take(order[half : 2 * half]), here.take(order[:half])
+        )
+        if value is not None and np.isfinite(value):
+            errors.append(value)
+    return errors, SPLITS
+
+
+def _estimate(errors: list[float], splits: int, n: int, tolerance: float) -> dict[str, Any]:
+    """The error of all ``n`` fields from the halves' errors, against the tolerance: whether
+    it is met, the fields it would be met with, and the error of optimise's held-back fields.
+    """
+    half = n // 2
+    undefined = splits - len(errors)
+    estimate = (
+        float(np.sqrt(np.mean(np.square(errors))) * np.sqrt(half / (2 * n)))
+        if errors and undefined <= UNDEFINED_TOLERANCE * splits
+        else np.nan
+    )
+    return {
+        "tolerance": tolerance,
+        "fields": n,
+        "splits": splits,
+        "undefined_splits": undefined,
+        "error": estimate,
+        "met": bool(estimate <= tolerance) if np.isfinite(estimate) else None,
+        "fields_needed": (
+            int(np.ceil(n * (estimate / tolerance) ** 2))
+            if np.isfinite(estimate) and tolerance > 0
+            else None
+        ),
+        "held_back_error": (
+            estimate * np.sqrt(n / max(1, int(np.ceil(n * HELD_BACK))))
+            if np.isfinite(estimate)
+            else np.nan
+        ),
+    }
 
 
 def _number(value: float) -> str:
@@ -402,22 +469,25 @@ def targets_status(
             named = table if by_table else (only[0] if len(only) == 1 else None)
             what = _noun(rows)
             name = f"the {what} of {named}" if isinstance(named, str) else f"the {what}"
-            judged = rows[rows["met"].notna()]
-            if assessable_reason(rows) is not None:
-                parts.append(f"{name} not assessable")
-                statuses.append(Status.NOT_ASSESSED)
-                continue
-            if not len(judged):
-                groups = len(rows) // rows["criterion"].nunique()
-                parts.append(f"{name} judged in none of {groups}")
-                statuses.append(Status.NOT_ASSESSED)
-                continue
-            met = int(judged["met"].sum())
-            # Groups it could not be judged in are not counted: say the tally is of the judged.
-            of = f"{len(judged)} judged" if len(judged) < len(rows) else f"{len(judged)}"
-            parts.append(f"{name} within its tolerance in {met} of {of}")
-            statuses.append(Status.OK if met == len(judged) else Status.CAUTION)
+            status, part = _precision_status(name, rows)
+            parts.append(part)
+            statuses.append(status)
     return statuses, parts
+
+
+def _precision_status(name: str, rows: pd.DataFrame) -> tuple[Status, str]:
+    """The status and headline part of one table's fingerprint precision (``name``)."""
+    judged = rows[rows["met"].notna()]
+    if assessable_reason(rows) is not None:
+        return Status.NOT_ASSESSED, f"{name} not assessable"
+    if not len(judged):
+        groups = len(rows) // rows["criterion"].nunique()
+        return Status.NOT_ASSESSED, f"{name} judged in none of {groups}"
+    met = int(judged["met"].sum())
+    # Groups it could not be judged in are not counted: say the tally is of the judged.
+    of = f"{len(judged)} judged" if len(judged) < len(rows) else f"{len(judged)}"
+    status = Status.OK if met == len(judged) else Status.CAUTION
+    return status, f"{name} within its tolerance in {met} of {of}"
 
 
 def with_targets(
