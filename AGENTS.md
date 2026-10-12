@@ -266,6 +266,7 @@ src/morphocoverage/
     _checks.py             # private: integer and number checks that accept numpy types
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
+    _next_fov.py           # private: its question 2 per group: the chance of something new, the observations counted as new, the answers
     sufficiency_text.py    # the sentences of the sufficiency report (its answer columns)
     sufficiency_null.py    # question 2's guard: no chance of a new state where the definition of new is not informative at the group's size (audit A2)
     sufficiency_short.py   # its short summary: the rules in one table across groups, each caveat once
