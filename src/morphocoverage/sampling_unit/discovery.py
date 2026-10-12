@@ -50,7 +50,6 @@ from .._control import check_comparisons, compared_name, control_name
 from .._former_repeat import one_warning, read_former
 from .._frozen import owned
 from .._parallel import check_n_jobs
-from .._seeds import group_rng
 from .._style import check_detail, span, table, wrap
 from .._wording import (
     change,
@@ -64,15 +63,16 @@ from .._wording import (
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN, column_names
 from ..schema import observation_words
 from ._common import groups, validated
-from ._discovery_tests import near_identical, resting, resting_words, tested_rows
-from ._experiments import corrected, declared, experiments, family_noun, not_compared, screen_wide
+from ._discovery_gate import _gated
+from ._discovery_tests import resting, resting_words, tested_rows
+from ._experiments import family_noun, not_compared
 from ._units import (
     check_arguments,
     contrasts_of,
     describe_groups,
     resolve_columns,
 )
-from .contrast_cells import BALANCED_PERMUTATIONS, refined
+from .contrast_cells import BALANCED_PERMUTATIONS
 from .contrast_repeats import MIN_REPEATS
 from .ranking import EFFECT_CAP, GATE_ALPHA, MAX_ROWS_LISTED, TOP_FEATURES
 
@@ -561,34 +561,7 @@ def feature_discovery(
         empty = pd.DataFrame(columns=RANKING_COLUMNS)  # its columns, for top and the page
         return FeatureDiscovery(pd.DataFrame(columns=TEST_COLUMNS), empty, settings)
     tests = pd.DataFrame(rows).reindex(columns=TEST_COLUMNS)
-    tests["experiment"] = tests["condition"].map(declared(experiments(held), families))
-    # The tests at p <= alpha rerun with the shuffles their family needs (contrast_cells).
-    tests["p_cells"], tests["permutations"] = refined(
-        tests["p_cells"],
-        tests["experiment"],
-        tests["permutations"],
-        retests,
-        lambda index: group_rng(
-            random_state,
-            {
-                "feature": tests.at[index, "feature"],
-                "condition": tests.at[index, "condition"],
-                "test": "refined",
-            },
-        ),
-        alpha,
-        n_jobs=workers,
-    )
-    # Corrected over every feature and condition of a sub-experiment (_experiments).
-    tests["q_cells"] = corrected(tests["p_cells"], tests["experiment"])
-    tests["q_paired"] = corrected(tests["p_paired"], tests["experiment"])
-    tests["q_paired_raw"] = corrected(tests["p_paired_raw"], tests["experiment"])
-    tests["passes"] = (tests["q_cells"] <= alpha).fillna(False) & tests["d"].notna()
-    tests["confirmed"] = tests["passes"] & (tests["q_paired"] <= alpha).fillna(False)
-    tests["near_identical"], tests["family_sd"] = near_identical(tests)
-    tests["q_screen"] = screen_wide(
-        tests["p_paired"], tests["control_condition"], tests["experiment"]
-    )
+    tests = _gated(tests, held, retests, families, random_state, alpha, workers)
     return FeatureDiscovery(tests, _rank(tests, features), settings)
 
 
