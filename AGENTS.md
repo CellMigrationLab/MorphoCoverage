@@ -411,6 +411,7 @@ src/morphocoverage/
         _declaration.py    # private: the Setup's declaration in sentences, every preset printed
         _declaration_rare.py  # private: the rare phenotype's sentences of the declaration (split out of _declaration)
         retrospective.py   # report, optimise, document: the analyses in question order
+        _report_steps.py   # private: steps of report and optimise: the overview, the positive control, the questions between conditions, the document, the replay's analyses
         benchmarks.py      # benchmark, Family, default_families: the rule families at matched risk
         _document.py       # private: the assembled report of the workflows, its parts and settings
         _enough_features.py  # private: "Did I image enough?" for every feature alike (light contrasts, precision)
