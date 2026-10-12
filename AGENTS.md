@@ -250,6 +250,7 @@ src/morphocoverage/
     _parallel.py           # private: worker pools behind n_jobs (map_units, worker_pool)
     _wording.py            # private: the one way to write percentages, rates, counts, fields, durations, groups
     _style.py              # private: the one text style: markers and Status, rule and group labels, tables, wrapping
+    _rule_names.py         # private: the readable names of the known stopping-rule families, for rule_label
     _fitted.py             # private: every summary fitted to 100 columns, a long line wrapped with its continuation lines
     _caveats.py            # private: the two kinds of caveat (cautions about these data, standing assumptions) and how a section states them
     _seeds.py              # private: per-group seeds (group_identity, group_seed, group_rng, split_seed) and group_key

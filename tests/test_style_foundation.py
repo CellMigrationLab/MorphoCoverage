@@ -180,10 +180,10 @@ def test_every_support_novelty_quantity_has_a_name(quantity, label):
 
 
 def test_the_style_names_every_quantity_of_the_strategies():
-    from morphocoverage import _style
+    from morphocoverage import _rule_names
 
-    assert set(_style._NOVELTY) == set(support_novelty.QUANTITIES)
-    assert set(_style._INCIDENCE) == set(incidence_coverage.QUANTITIES)
+    assert set(_rule_names._NOVELTY) == set(support_novelty.QUANTITIES)
+    assert set(_rule_names._INCIDENCE) == set(incidence_coverage.QUANTITIES)
     for quantity in incidence_coverage.QUANTITIES:
         target = 2.0 if quantity == "expected_new_states_next_fov" else 0.5
         rule = incidence_coverage.IncidenceCoverageStrategy("state", quantity, target, 3)
