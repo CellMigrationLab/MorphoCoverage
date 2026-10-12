@@ -380,6 +380,7 @@ src/morphocoverage/
         _one_per_field.py    # private: one observation per field: the field questions on the rows, new judged across fields
         scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
+        _scan_parts.py     # private: parts of the scan: the controls as declared, the feature tables by tag, planes, targets, observations per condition and repeat
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)
         html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
         _html_render.py    # private: the report's text as HTML, glossary term links, status chips
