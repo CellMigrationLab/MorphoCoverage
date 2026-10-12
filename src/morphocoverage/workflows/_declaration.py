@@ -50,21 +50,9 @@ def declaration(
             f"{tolerances} of its value on held-back fields."
             if setup.mean_target
             else _no_mean(setup)
-        )
+        ),
+        _fingerprint(setup, unassessed),
     ]
-    if setup.fingerprint:
-        lines.append(fingerprint_line(setup, unassessed, short=False))
-    elif setup.readout is None:
-        lines.append(
-            "Phenotypic fingerprint: not declared (no distribution criterion in fingerprint), "
-            "so no answer below says whether the distribution was sampled enough."
-        )
-    else:
-        lines.append(
-            "Phenotypic fingerprint: not declared (no distribution criterion in "
-            "fingerprint), so the answers below speak of the mean, not of the "
-            "distribution of phenotypes."
-        )
     if setup.rare is not None:
         lines.append(rare_line(setup))
     else:
@@ -86,34 +74,62 @@ def declaration(
     if setup.stopping_rules():  # an embedding-only Setup has none (NO_READOUT says why)
         lines.append(_rules(setup))
     lines.append(_order(setup))
+    values = _values(setup, per_field, controls)
+    lines += [values] if values else []
+    lines.append(_live_decision(setup))
+    return tuple(lines)
+
+
+def _fingerprint(setup: Setup, unassessed: Sequence[str]) -> str:
+    """The fingerprint line of the declaration, or why it is not declared."""
+    if setup.fingerprint:
+        return fingerprint_line(setup, unassessed, short=False)
+    if setup.readout is None:
+        return (
+            "Phenotypic fingerprint: not declared (no distribution criterion in fingerprint), "
+            "so no answer below says whether the distribution was sampled enough."
+        )
+    return (
+        "Phenotypic fingerprint: not declared (no distribution criterion in "
+        "fingerprint), so the answers below speak of the mean, not of the "
+        "distribution of phenotypes."
+    )
+
+
+def _values(setup: Setup, per_field: bool, controls: str) -> str | None:
+    """The values the analyses read when ``normalize`` is set (``None`` without it)."""
     if setup.normalize is not None and setup.readout is None:
-        lines.append(_tables_centred(per_field))
-    elif setup.normalize is not None and controls:
-        lines.append(
+        return _tables_centred(per_field)
+    if setup.normalize is not None and controls:
+        return (
             f"Values: every declared feature divided by the mean of each condition's own "
-            f"control {units} of the same repeat (a control by its parent's); "
+            f"control {setup.unit_words} of the same repeat (a control by its parent's); "
             f"{normalised_readers(several=True)}."
         )
-    elif setup.normalize is not None:
-        lines.append(
+    if setup.normalize is not None:
+        return (
             "Values: every declared feature divided by the mean of the control "
-            f"{control_name(setup.reference_control)} {units} of the same repeat (of the whole "
-            f"table without a repeat column); {normalised_readers()}; every stopping rule "
-            "runs on the raw values in the report, optimise and benchmark as in the live "
-            "decision."
+            f"{control_name(setup.reference_control)} {setup.unit_words} of the same repeat "
+            f"(of the whole table without a repeat column); {normalised_readers()}; every "
+            "stopping rule runs on the raw values in the report, optimise and benchmark as "
+            "in the live decision."
         )
+    return None
+
+
+def _live_decision(setup: Setup) -> str:
+    """The live decision: what a stop needs, or that no target is declared."""
     objective = setup.objective()
     targets = " and ".join(
         COMPONENT_WORDS[c].lower() for c in Component if c in objective.required_components
     )
-    lines.append(
+    return (
         f"Live decision: {NO_TARGET_WORDS}."
         if not targets
         else f"Live decision: a stop needs every declared target ({targets}); a rule decides "
         "only the targets it has evidence about, and a target no rule decides stays "
         "unsupported rather than assumed adequate."
     )
-    return tuple(lines)
 
 
 # An embedding-only Setup's normalisation (owner, 2026-10-06).
@@ -441,16 +457,7 @@ def declaration_short(
     if setup.fingerprint:
         lines.append(fingerprint_line(setup, unassessed, short=True))
     else:
-        cautions.append(
-            assumption(
-                "no phenotypic fingerprint declared (fingerprint), so the answers speak of the "
-                + (
-                    "mean, not of the distribution of phenotypes"
-                    if setup.readout is not None
-                    else "tests between conditions only, not of a distribution sampled enough"
-                )
-            )
-        )
+        cautions.append(_no_fingerprint_short(setup))
     rare, rare_cautions = rare_short(setup)
     lines += [rare] if rare else []
     cautions += rare_cautions
@@ -460,68 +467,112 @@ def declaration_short(
     if novelty_runs(setup, per_field):
         lines.append(_novelty_short(setup))
     if setup.positive is not None and novelty_runs(setup, per_field):
-        positive = setup.positive
-        pooled = positive.pair_cols is not None and not positive.pair_cols
-        lines.append(
-            f"Positive control: fields of {control_name(positive.selector)} against the "
-            f"control {control_name(setup.reference_control)}; below "
-            f"{percent(setup.minimum_detection)} recognized, a provisional threshold, every "
-            "adequacy answer is warned."
-        )
-        if pooled:
-            cautions.append(
-                "the positive control's fields are paired across the whole table "
-                "(pair_cols=()), so a shift between repeats can read as a detected phenotype"
-            )
-    unit = resolve_observation_unit(setup.observation_unit)[0]
-    rules = listing([rule_label(rule, unit) for rule in setup.stopping_rules()], limit=10)
-    default = " (the default)" if setup.rules is None else ""
-    if setup.stopping_rules():  # an embedding-only Setup has none (NO_READOUT says why)
-        lines.append(f"Stopping rules: {rules}{default}; run live, calibrated by optimise.")
-    targets = sorted(
-        {r.target_cv for r in setup.stopping_rules() if isinstance(r, ScalarPrecisionStrategy)}
-    )
-    if targets:
-        cvs = " and ".join(rate(t) for t in targets)
-        cautions.append(
-            assumption(
-                f"the mean-precision rules stop when the standard error of the mean is {cvs} of "
-                f"the mean (its averaging CV), not on a ±{rate(targets[0])} bound on its error"
-                + (
-                    f"; whether the mean is within {tolerances} is judged on held-back fields "
-                    "by optimise"
-                    if setup.tolerances
-                    else ""
-                )
-            )
-        )
+        positive, pooled = _positive_short(setup)
+        lines.append(positive)
+        cautions += pooled
+    rules, rule_cautions = _rules_short(setup, tolerances)
+    lines += [rules] if rules else []
+    cautions += rule_cautions
     order, order_cautions = _order_short(setup)
     lines += [order] if order else []
     cautions += order_cautions
+    values = _values_short(setup, per_field, controls)
+    lines += [values] if values else []
+    lines.append(_live_decision_short(setup))
+    text = [wrap(line, indent, hang=indent + 2) for line in lines]
+    return "\n".join([*text, *caveat_lines(cautions, indent=indent)])
+
+
+def _no_fingerprint_short(setup: Setup) -> str:
+    """The caveat of a Setup without a phenotypic fingerprint."""
+    return assumption(
+        "no phenotypic fingerprint declared (fingerprint), so the answers speak of the "
+        + (
+            "mean, not of the distribution of phenotypes"
+            if setup.readout is not None
+            else "tests between conditions only, not of a distribution sampled enough"
+        )
+    )
+
+
+def _positive_short(setup: Setup) -> tuple[str, list[str]]:
+    """The positive control in one line, and the caveat of fields paired across the table."""
+    positive = setup.positive
+    assert positive is not None
+    pooled = positive.pair_cols is not None and not positive.pair_cols
+    line = (
+        f"Positive control: fields of {control_name(positive.selector)} against the "
+        f"control {control_name(setup.reference_control)}; below "
+        f"{percent(setup.minimum_detection)} recognized, a provisional threshold, every "
+        "adequacy answer is warned."
+    )
+    if not pooled:
+        return line, []
+    paired = (
+        "the positive control's fields are paired across the whole table "
+        "(pair_cols=()), so a shift between repeats can read as a detected phenotype"
+    )
+    return line, [paired]
+
+
+def _rules_short(setup: Setup, tolerances: str) -> tuple[str | None, list[str]]:
+    """The stopping rules in one line (``None`` without any), and the caveat of the
+    mean-precision rules' averaging CV."""
+    unit = resolve_observation_unit(setup.observation_unit)[0]
+    rules = listing([rule_label(rule, unit) for rule in setup.stopping_rules()], limit=10)
+    default = " (the default)" if setup.rules is None else ""
+    line = None
+    if setup.stopping_rules():  # an embedding-only Setup has none (NO_READOUT says why)
+        line = f"Stopping rules: {rules}{default}; run live, calibrated by optimise."
+    targets = sorted(
+        {r.target_cv for r in setup.stopping_rules() if isinstance(r, ScalarPrecisionStrategy)}
+    )
+    if not targets:
+        return line, []
+    cvs = " and ".join(rate(t) for t in targets)
+    return line, [
+        assumption(
+            f"the mean-precision rules stop when the standard error of the mean is {cvs} of "
+            f"the mean (its averaging CV), not on a ±{rate(targets[0])} bound on its error"
+            + (
+                f"; whether the mean is within {tolerances} is judged on held-back fields "
+                "by optimise"
+                if setup.tolerances
+                else ""
+            )
+        )
+    ]
+
+
+def _values_short(setup: Setup, per_field: bool, controls: str) -> str | None:
+    """The values the analyses read when ``normalize`` is set, in one line."""
     if setup.normalize is not None and setup.readout is None:
-        lines.append(_tables_centred(per_field))
-    elif setup.normalize is not None and controls:
-        lines.append(
+        return _tables_centred(per_field)
+    if setup.normalize is not None and controls:
+        return (
             "Values: each condition divided by its own control's mean in the same repeat; "
             f"{normalised_readers(several=True)}."
         )
-    elif setup.normalize is not None:
-        lines.append(
+    if setup.normalize is not None:
+        return (
             f"Values: features divided by the control mean of the same repeat; "
             f"{normalised_readers()}."
         )
+    return None
+
+
+def _live_decision_short(setup: Setup) -> str:
+    """The live decision in one line."""
     objective = setup.objective()
     targets = listing(
         [COMPONENT_WORDS[c].lower() for c in Component if c in objective.required_components]
     )
-    lines.append(
+    return (
         f"Live decision: {NO_TARGET_WORDS}."
         if not targets
         else f"Live decision: a stop needs every declared target ({targets}); a target no "
         "rule decides stays unsupported, never assumed adequate."
     )
-    text = [wrap(line, indent, hang=indent + 2) for line in lines]
-    return "\n".join([*text, *caveat_lines(cautions, indent=indent)])
 
 
 __all__ = ["declaration", "declaration_short", "novelty_runs"]
