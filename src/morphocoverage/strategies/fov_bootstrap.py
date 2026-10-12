@@ -128,7 +128,7 @@ from typing import Any
 import numpy as np
 
 from .._identity import canonical_codes
-from .._wording import listing, percent
+from .._wording import percent
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
@@ -138,10 +138,9 @@ from ..transforms import FeatureTransform, missing_values_reason
 from ._fov_bootstrap_checks import (
     SUMMARIES,
     _check,
-    _constant_features,
     _feature_selection,
-    _never_fits,
-    _pca_reason,
+    _never_reason,
+    _too_few_reason,
     _visible_blocks,
 )
 from ._fov_resamples import (  # the public names are re-exported (__all__)
@@ -343,7 +342,6 @@ class FOVBootstrapEstimator(Estimator):
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """Bootstrap standard error of the summary under whole-FOV resampling."""
         data = self._selected(data)
-        name = self.quantity
         reason = missing_values_reason(data.feature_matrix(), data.feature_cols)
         if reason:
             quantity = Quantity.not_applicable(
@@ -359,48 +357,38 @@ class FOVBootstrapEstimator(Estimator):
             diagnostics["visible_blocks"] = blocks
             sizes = data.fovs[self.block_col].value_counts()
             diagnostics["block_sizes"] = {"min": int(sizes.min()), "max": int(sizes.max())}
-        # A PCA summary these features can never define is not_applicable from the
-        # first FOV on, not insufficient until min_fovs and then not_applicable. The
-        # transform's output width is known before it can be fitted.
-        width = (
-            values.shape[1]
-            if values is not None
-            else self.transform.output_width(len(data.feature_cols))
-        )
-        never = None
-        if values is None and _never_fits(self.transform, len(data.feature_cols)):
-            never = (
-                f"the {self.transform.name!r} transform can never be fitted on "
-                f"{len(data.feature_cols)} features: {diagnostics['transform']['reason']}"
-            )
-        elif self.summary in ("eigenspectrum", "subspace") and width is not None:
-            never = _pca_reason(self.summary, self.n_components, width)
+        never = _never_reason(self, len(data.feature_cols), values, diagnostics)
         if never:
             quantity = Quantity.not_applicable(never, **_meta(units, self.summary))
             return Evidence(self._every(quantity), {**diagnostics, "undefined_reason": never})
         # Blocks without observations add nothing to resample: min_fovs counts the
         # blocks that hold observations, as it counts FOVs with observations.
         resampled = self._resampled_units(data, positions)
-        if with_observations < self.min_fovs:
-            reason = f"fewer than {self.min_fovs} visible FOVs with observations"
-        elif blocks is not None and resampled < self.min_fovs:
-            reason = f"fewer than {self.min_fovs} spatial blocks with observations"
-        elif values is None:
-            reason = f"the transform could not be fitted: {diagnostics['transform']['reason']}"
-        elif constant := _constant_features(data, positions, self.summary):
-            where = "between the FOV means" if self.summary == "centroid" else "among the values"
-            reason = f"no spread {where} of {listing(constant, limit=5)} so far"
-        else:
-            reason = None
+        counts = (with_observations, blocks, resampled)
+        reason = _too_few_reason(self, data, positions, values, diagnostics, counts)
         if reason is not None:
-            diagnostics["undefined_reason"] = reason
-            return Evidence(
-                self._every(Quantity.insufficient(reason, **_meta(units, self.summary))),
-                diagnostics,
-            )
-
+            return self._insufficient(reason, units, diagnostics)
         components, degenerate = self._resampled(values, positions, self._weights(data))
         defined = ~np.isnan(components).any(axis=1)
+        reason = self._undefined_reason(defined, degenerate, diagnostics)
+        if reason is not None:
+            return self._insufficient(reason, units, diagnostics)
+        return self._standard_error(components, defined, resampled, units, diagnostics)
+
+    def _insufficient(self, reason: str, units: str, diagnostics: dict[str, Any]) -> Evidence:
+        """Every quantity insufficient for ``reason``, recorded in ``diagnostics``."""
+        diagnostics["undefined_reason"] = reason
+        return Evidence(
+            self._every(Quantity.insufficient(reason, **_meta(units, self.summary))),
+            diagnostics,
+        )
+
+    def _undefined_reason(
+        self, defined: np.ndarray, degenerate: int, diagnostics: dict[str, Any]
+    ) -> str | None:
+        """Why the resamples do not determine the summary: too many undefined or degenerate,
+        or fewer than two defined; ``None`` when they do. Their counts go to
+        ``diagnostics``."""
         # Degenerate PCA resamples are NaN too; they are counted once, on their own.
         undefined = int((~defined).sum()) - degenerate
         diagnostics["undefined_resamples"] = undefined
@@ -409,14 +397,9 @@ class FOVBootstrapEstimator(Estimator):
             # The defined resamples are those that happened to draw observations: their
             # spread is conditional on that, not the uncertainty of the design.
             share = percent(diagnostics["undefined_fraction"])
-            reason = (
+            return (
                 f"{undefined} of {self.n_resamples} resamples ({share}; more than "
                 f"{percent(UNDEFINED_TOLERANCE)}) draw too few observations to define the summary"
-            )
-            diagnostics["undefined_reason"] = reason
-            return Evidence(
-                self._every(Quantity.insufficient(reason, **_meta(units, self.summary))),
-                diagnostics,
             )
         if degenerate:
             diagnostics["degenerate_resamples"] = degenerate
@@ -428,23 +411,26 @@ class FOVBootstrapEstimator(Estimator):
             # determined. The share, not the count, decides, so that more
             # resamples estimate the same property instead of eventually drawing
             # one rare degenerate resample.
-            reason = (
+            return (
                 f"{degenerate} of {self.n_resamples} resamples (more than "
                 f"{percent(DEGENERATE_TOLERANCE)}) have too little spread to define the PCA "
                 "summary"
             )
-            diagnostics["undefined_reason"] = reason
-            return Evidence(
-                self._every(Quantity.insufficient(reason, **_meta(units, self.summary))),
-                diagnostics,
-            )
         if defined.sum() < 2:
-            reason = "fewer than 2 resamples with a defined summary"
-            diagnostics["undefined_reason"] = reason
-            return Evidence(
-                self._every(Quantity.insufficient(reason, **_meta(units, self.summary))),
-                diagnostics,
-            )
+            return "fewer than 2 resamples with a defined summary"
+        return None
+
+    def _standard_error(
+        self,
+        components: np.ndarray,
+        defined: np.ndarray,
+        resampled: int,
+        units: str,
+        diagnostics: dict[str, Any],
+    ) -> Evidence:
+        """The bootstrap standard error of the summary from its defined resamples, widened
+        for few resampled units (the RMS angle for the subspace)."""
+        name = self.quantity
         # The E-2 small-sample widening over the resampled units (audit 4, P4-4).
         widen = small_sample_widening(resampled)
         diagnostics["resampling_units"] = resampled
