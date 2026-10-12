@@ -37,6 +37,7 @@ from ..statistics import ALPHA
 from ._population_context import (
     AGAINST_WORDS,
     EXPERIMENTS_DIFFER,
+    NOT_NORMALISED,
     against_controls,
     by_evidence,
     compared_values,
@@ -84,6 +85,8 @@ class PopulationsResult:
     context: dict[str, dict[str, Any]] = field(default_factory=dict)
     against: bool = False
     normalised: bool = False
+    # Why the values could not be normalised to each own control, when they could not.
+    not_normalised: str | None = None
 
 
 def populations_in_report(
@@ -94,13 +97,13 @@ def populations_in_report(
     the values before, to name the observations left out for want of their own control
     (audit 8, seed 4)."""
     # Several experiments and no normalize: the values normalised to each own control.
-    objects, read, normalised = compared_values(objects, fovs, setup, raw)
+    objects, read, found = compared_values(objects, fovs, setup, raw)
     # With other feature tables, in each space apart and merged (owner, 2026-10-06).
     populations = populations_in_spaces(objects, fovs, read, raw)
     if populations is None:
         return None
     if not populations.names:
-        return PopulationsResult(populations, None, None, None, normalised=normalised)
+        return PopulationsResult(populations, None, None, None, **found)
     # The validated observations: group columns only in the FOV table are attached to them.
     data = validate_input_tables(objects, fovs=fovs, feature_cols=setup.columns, **setup.common)
     # Each group known where its space assessed the cell: 1 in it, 0 not, missing unknown.
@@ -147,7 +150,7 @@ def populations_in_report(
         for row in populations.table.to_dict("records")
         if row["kind"] == "group"
     }
-    return PopulationsResult(populations, enrichment, label, control, context, against, normalised)
+    return PopulationsResult(populations, enrichment, label, control, context, against, **found)
 
 
 def labelled_populations(label: pd.DataFrame | None) -> list[str]:
@@ -580,6 +583,8 @@ def with_populations(
     from ._document import with_text  # the assembly imports this module
 
     status, headline, text = populations_text(result, setup)
+    if result.not_normalised:  # said, never a silent fallback (audit 12)
+        text += "\n" + wrap(f"{NOT_NORMALISED}: {result.not_normalised}.", 2, hang=4)
     plain = "\n".join(line.removeprefix("  ") for line in text.splitlines())
     return with_text(
         document, "populations", plain, status=status, headline=headline, short_text=text

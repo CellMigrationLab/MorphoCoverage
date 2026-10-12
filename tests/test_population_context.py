@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sys
 import warnings
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -23,9 +24,16 @@ from morphocoverage.workflows._html_next import populations_next
 from morphocoverage.workflows._html_render import chip
 from morphocoverage.workflows._population_context import (
     EXPERIMENTS_DIFFER,
+    NOT_NORMALISED,
+    compared_values,
     few_valued,
 )
-from morphocoverage.workflows._populations import PopulationsResult, _enriched, _group_parts
+from morphocoverage.workflows._populations import (
+    PopulationsResult,
+    _enriched,
+    _group_parts,
+    with_populations,
+)
 
 SCENARIOS = Path(__file__).resolve().parents[1] / "data" / "scenarios"
 
@@ -97,6 +105,43 @@ def test_groups_are_found_on_normalised_values_and_described_against_their_contr
     assert all(d > 0 for _, d in group["defining"])
     assert "mostly a1" in result.document.headlines["populations"]
     assert "Defined by: each group's cells against those of the control they are compared" in text
+
+
+def _negative_control(objects: pd.DataFrame) -> pd.DataFrame:
+    """e16 with cB's intensity negated in its first repeat: a control mean below zero."""
+    changed = objects.copy()
+    first = changed["biological_repeat"].iloc[0]
+    rows = (changed["condition"] == "cB") & (changed["biological_repeat"] == first)
+    changed.loc[rows, "intensity_mean"] = -changed.loc[rows, "intensity_mean"]
+    return changed
+
+
+def test_values_that_cannot_be_normalised_are_said_not_swallowed(e16):
+    # Audit 12 (B10): a control mean that is not positive leaves the values as given, and
+    # the report says so; before, any ValueError was caught and nothing was said.
+    loaded, result = e16
+    setup = Setup(**loaded.setup)
+    objects = _negative_control(loaded.objects)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        values, read, found = compared_values(objects, loaded.fovs, setup, objects)
+    why = found["not_normalised"]
+    assert values is objects and read is setup and not found["normalised"]
+    assert why is not None and why.startswith("for the control cB, in biological_repeat=")
+    assert "'intensity_mean' is negative" in why
+    found = replace(result.results["populations"], not_normalised=why)
+    document = with_populations(result.document, found, setup)
+    assert f"{NOT_NORMALISED}: {_flat(why)}." in _section(replace(result, document=document))
+
+
+def test_another_problem_of_the_tables_is_not_swallowed(e16):
+    # Only the documented case falls back: a table without a declared feature still raises.
+    loaded, _ = e16
+    raw = loaded.objects.drop(columns="length")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(ValueError, match="length"):
+            compared_values(loaded.objects, loaded.fovs, Setup(**loaded.setup), raw)
 
 
 def _result(tests: list[dict]) -> PopulationsResult:
