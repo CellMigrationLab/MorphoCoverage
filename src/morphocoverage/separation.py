@@ -210,8 +210,8 @@ def _blocks(meta: pd.DataFrame, fields: np.ndarray) -> np.ndarray:
     return np.where(wells.to_numpy() > 1, "well\x1f" + keys, "field\x1f" + field_ids)
 
 
-def _where(meta: pd.DataFrame) -> list[tuple[str, list[str]]]:
-    """Each repeat of ``meta`` with its conditions, in order."""
+def repeat_conditions(meta: pd.DataFrame) -> list[tuple[str, list[str]]]:
+    """Each repeat of ``meta`` with its conditions, in order (``all`` without the column)."""
     alone = pd.Series("all", index=meta.index)
     repeat, condition = meta.get(REPEAT_COLUMN, alone), meta.get(CONDITION_COLUMN, alone)
     return [
@@ -380,7 +380,7 @@ def separation(
             given = pd.Series(complete, index=raw.objects.index).reindex(view.index)
             lost = (given.fillna(False).astype(bool) & ~view).to_numpy()
             dropped, left_out = int(lost.sum()), left_out - int(lost.sum())
-            where = _where(meta.loc[lost])
+            where = repeat_conditions(meta.loc[lost])
             meta = meta_raw
         if z.size and REPEAT_COLUMN in meta:
             here = meta.loc[complete].reset_index(drop=True)

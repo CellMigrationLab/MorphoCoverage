@@ -33,6 +33,7 @@ from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.populations import Populations, defined_by, traits
 from ..schema import observation_words, validate_input_tables
+from ..statistics import ALPHA
 from ._population_context import (
     AGAINST_WORDS,
     EXPERIMENTS_DIFFER,
@@ -60,7 +61,6 @@ if TYPE_CHECKING:
     from ..retrospective import MicroscopistReport
     from .setup import Setup
 
-ALPHA = 0.05
 # A group this labelled (the share of its cells carrying the declared rare label) is the
 # label's own: compared as the label's share, never tested as a group too.
 LABELLED = 0.9

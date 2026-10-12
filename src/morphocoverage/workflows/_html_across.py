@@ -20,6 +20,7 @@ import pandas as pd
 
 from .._wording import change, contrasts_words, p_value
 from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
+from ..sampling_unit.discovery import declared_scales
 from ..sampling_unit.reading_text import (
     CONFIRMED,
     CONSISTENT,
@@ -27,9 +28,9 @@ from ..sampling_unit.reading_text import (
     MIXED,
     NOT_SIGNIFICANT,
 )
+from ..statistics import ALPHA
 from ._html_data import data_buttons, write_csv
 
-ALPHA = 0.05
 # Above this many rows a table shows its first ones and a button for the rest.
 FIRST_ROWS = 20
 
@@ -180,9 +181,7 @@ def d_per_repeat(row: Any) -> str:
 def _declared(result: Any) -> str:
     """``; declared in the Setup: velocity, the difference``: the scales the Setup declares
     (plan v2, owner, 2026-10-06), which replace the rule; empty without."""
-    scales = getattr(result.setup, "scales", None) or {}
-    named = [f"{feature}, the {scale}" for feature, scale in scales.items()]
-    return f"; declared in the Setup: {'; '.join(named[:6])}" if named else ""
+    return declared_scales(getattr(result.setup, "scales", None))
 
 
 def _limited(row: Any) -> list[str]:

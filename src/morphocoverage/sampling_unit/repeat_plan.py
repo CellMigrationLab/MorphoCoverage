@@ -57,12 +57,11 @@ from scipy import stats
 
 from .._checks import is_integer, is_number
 from ..metadata import REPEAT_COLUMN as REPEAT
-from ..statistics import repeat_values
+from ..statistics import ALPHA, repeat_values
 from ._experiments import experiments
 from .contrast_repeats import MIN_REPEATS
 from .contrast_sampling import PRACTICAL, projected_fields
 
-ALPHA = 0.05
 POWER = 0.8
 MAX_REPEATS = 30
 _Z = float(stats.norm.ppf(0.975))

@@ -27,7 +27,7 @@ import pandas as pd
 
 from .._caveats import caveat_lines
 from .._style import NOT_ASSESSED, table
-from .._wording import count, listing, plural
+from .._wording import count, joined_clauses, listing, plural
 from ..metadata import REPEAT_COLUMN
 from ..retrospective.report_resolved import (
     SHORT_ROWS,
@@ -101,12 +101,6 @@ def _named(names: list[str], others: bool) -> str:
     return listing(names, len(names) if len(names) <= _NAMED else 5)
 
 
-def _joined(clauses: list[str]) -> str:
-    if len(clauses) == 1:
-        return clauses[0]
-    return f"{', '.join(clauses[:-1])}, and {clauses[-1]}"
-
-
 def _rest(rows: pd.DataFrame, fields: str) -> str:
     """What the comparisons not shown are: ``most of the others are too small ...``."""
     unshown = int((rows["comparisons"] - rows["shown"]).sum())
@@ -157,7 +151,7 @@ def answer_lines(features: FeatureEnough, fields: str, repeats: int) -> list[str
         ]
         groups = [(words, names) for words, names in groups if names]
         last = len(groups) - 1
-        body = " " + _joined(
+        body = " " + joined_clauses(
             [f"{words} {_named(names, i == last)}" for i, (words, names) in enumerate(groups)]
         )
     else:
@@ -278,7 +272,7 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
             f"in every {word}"
             if seen.all()
             else f"in {int(seen.sum())} of {count(len(rows), word)}"
-            + (f": {_joined(said)}" if said else "")
+            + (f": {joined_clauses(said)}" if said else "")
         )
         lines.append(f"The rare phenotype, {name}, was seen in at least {count(k, field)} {where}.")
         text = "\n".join(rare_lines(clustering, setup, word, field))

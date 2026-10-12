@@ -43,13 +43,14 @@ TAG_QUESTION = (
 Tables = dict[str, tuple[pd.DataFrame, str | None, str]]
 
 
-def _read(source: Any) -> tuple[pd.DataFrame, str | None]:
-    """A table given as a DataFrame or a CSV path, and its path."""
+def read_table(source: Any, name: str = "feature table") -> tuple[pd.DataFrame, str | None]:
+    """A table given as a DataFrame or a CSV path, and its path; ``name`` says which table
+    a missing file was meant to be."""
     if isinstance(source, pd.DataFrame):
         return source, None
     path = Path(str(source)).expanduser()
     if not path.exists():
-        raise FileNotFoundError(f"the feature table {str(path)!r} does not exist")
+        raise FileNotFoundError(f"the {name} {str(path)!r} does not exist")
     return pd.read_csv(path), str(path)
 
 
@@ -63,7 +64,7 @@ def read_tables(given: Mapping[str, Any] | None) -> Tables:
             source, tag = source[0], read_tag(source[1])
         if tag is None:
             raise ValueError(f"tag the table {name!r} 'explainable' or 'non-explainable'")
-        tables[name] = (*_read(source), tag)
+        tables[name] = (*read_table(source), tag)
     return tables
 
 
@@ -87,7 +88,7 @@ def ask_tables(
         if not path:
             return tables
         try:
-            table, read = _read(path)
+            table, read = read_table(path)
         except (OSError, ValueError) as error:
             say(f"It cannot be read: {error}.")
             continue
@@ -174,6 +175,7 @@ __all__ = [
     "changed",
     "entries",
     "identity",
+    "read_table",
     "read_tables",
     "tag_of",
     "tagged",

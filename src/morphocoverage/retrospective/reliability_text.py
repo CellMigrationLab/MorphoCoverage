@@ -41,6 +41,7 @@ from .._style import (
     wrap,
 )
 from .._wording import count, listing
+from ..sampling_unit._group_text import present
 from ._text import percent, skipped_labels
 
 if TYPE_CHECKING:
@@ -75,15 +76,11 @@ def _ceiling_value(match: pd.DataFrame, column: str) -> int | None:
     return int(match[column].iloc[0])
 
 
-def _present(value: Any) -> bool:
-    return value is not None and not pd.isna(value)
-
-
 def _row_cells(row: Any, stream: int, n_splits: int, over_word: str, per: str) -> list[str]:
     """``fields | enough in | Monte Carlo SE | ± across | note`` of one listed field count."""
     if row.splits == 0:
         return [str(row.fovs), "–", "–", "–", f"more than the {stream} fields available"]
-    if not _present(row.preserved):
+    if not present(row.preserved):
         undefined = f"could not be judged ({count(row.undefined_draws, 'draw')} undefined)"
         return [str(row.fovs), "–", "–", "–", undefined]
     se = getattr(row, "preserved_mc_se", None)
@@ -101,8 +98,8 @@ def _row_cells(row: Any, stream: int, n_splits: int, over_word: str, per: str) -
     return [
         str(row.fovs),
         percent(row.preserved),
-        percent(se) if _present(se) else "–",
-        percent(spread) if _present(spread) else "–",
+        percent(se) if present(se) else "–",
+        percent(spread) if present(spread) else "–",
         "; ".join(notes),
     ]
 
@@ -275,7 +272,7 @@ def _share_table(
             values = [
                 float(r["preserved"].iloc[0])
                 for _, r in own
-                if int(r["splits"].iloc[0]) > 0 and _present(r["preserved"].iloc[0])
+                if int(r["splits"].iloc[0]) > 0 and present(r["preserved"].iloc[0])
             ]
             cells.append(_cell(values, len(values), total))
         rows.append(cells)

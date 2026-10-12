@@ -38,6 +38,7 @@ from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.distribution import shift_words, spread_words
 from ..sampling_unit.legend_text import described_rows, feature_counts, figure_legend
 from ..sampling_unit.repeat_plan_text import plan_parts
+from ..statistics import ALPHA
 from ._exploratory import exploratory_html
 from ._families import _CELL_VERSIONS
 from ._feature_space import with_table
@@ -45,7 +46,6 @@ from ._html_across import _across, _direction, _order, _table, across_frame, d_p
 from ._html_data import data_buttons, write_csv
 from ._html_tabs import OFF_PAGE, tabs_html, test_blocks
 
-ALPHA = 0.05
 # The readout's cell-level versions: (label, column suffix, chance columns), the suffixes
 # those of the shared family (``_families``).
 _VERSIONS = tuple(

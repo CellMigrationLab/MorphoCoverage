@@ -14,7 +14,7 @@ from morphocoverage._identity import (
 )
 from morphocoverage.sampling_unit._groups import contrasts_of
 from morphocoverage.sampling_unit._units import resolve_unit
-from morphocoverage.strategies.base import _canonical_fovs
+from morphocoverage.schema import canonical_fields
 from morphocoverage.strategies.fov_bootstrap import FOVBootstrapEstimator
 
 
@@ -55,8 +55,8 @@ def test_display_labels_add_the_type_only_where_text_collides():
 
 def test_the_canonical_fov_order_does_not_depend_on_row_order_when_ids_print_alike():
     forward, backward = _data([0, 1, 2, 3]), _data([3, 2, 1, 0])
-    first = [forward.fovs["position_id"].iloc[i] for i in _canonical_fovs(forward)]
-    second = [backward.fovs["position_id"].iloc[i] for i in _canonical_fovs(backward)]
+    first = [forward.fovs["position_id"].iloc[i] for i in canonical_fields(forward)]
+    second = [backward.fovs["position_id"].iloc[i] for i in canonical_fields(backward)]
     assert first == second
 
 

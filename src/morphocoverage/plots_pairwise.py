@@ -50,13 +50,12 @@ from .metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from .sampling_unit.contrast_cells import cell_randomization
 from .sampling_unit.contrast_repeats import MIN_REPEATS
 from .schema import fov_positions
-from .statistics import benjamini_hochberg, cohen_d, log_scale, paired_t, repeat_values
+from .statistics import ALPHA, benjamini_hochberg, cohen_d, log_scale, paired_t, repeat_values
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.patches import FancyBboxPatch
 
-ALPHA = 0.05
 D_CAP = 2.0
 N_PERMUTATIONS = 1999
 # The longest condition name a matrix writes in full: longer ones are cut with an ellipsis

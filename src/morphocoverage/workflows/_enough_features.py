@@ -34,7 +34,7 @@ import pandas as pd
 
 from .._caveats import pool_assumptions
 from .._parallel import check_n_jobs, map_units
-from .._style import Status, table, wrap
+from .._style import Status, indented, table, wrap
 from .._wording import count, listing
 from ..retrospective.report_resolved import (
     _needing,
@@ -363,10 +363,6 @@ def features_status(
     return status, text
 
 
-def _indent(text: str) -> str:
-    return "\n".join(f"  {line}" if line else line for line in text.splitlines())
-
-
 def with_features(
     document: MicroscopistReport,
     features: FeatureEnough | None,
@@ -402,9 +398,9 @@ def with_features(
     short["enough"] = "\n\n".join(p for p in (summary, rest) if p.strip())
     full = sections.get("enough", "")
     if has_resolution(contrast):
-        full = full.replace(_indent(resolved_full(contrast)), "").lstrip("\n")
+        full = full.replace(indented(resolved_full(contrast)), "").lstrip("\n")
     # The notes once, after every feature's table, not once per feature (audit 10, A22).
-    blocks = [_indent(resolved_full(c, notes=False)) for c in features.contrasts.values()]
+    blocks = [indented(resolved_full(c, notes=False)) for c in features.contrasts.values()]
     notes = "\n".join(resolved_notes(next(iter(features.contrasts.values()))))
     every = "\n\n".join([*blocks, notes])
     sections["enough"] = pool_assumptions(

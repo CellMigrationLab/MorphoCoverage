@@ -69,7 +69,7 @@ from ..sequential import (
 )
 from ..strategies.base import SamplingStrategy
 from ._run_identity import RUN_FINGERPRINT, run_fingerprint
-from .criteria import OutcomeCriterion
+from .criteria import OutcomeCriterion, checked_criteria
 from .reliability import _reservoir_split, _skip_reason
 from .stage import dispersed_order, stage_travel
 
@@ -185,11 +185,7 @@ def _check(
         raise TypeError("strategies must be a non-empty sequence of SamplingStrategy")
     if len({s.config_id for s in strategies}) != len(strategies):
         raise ValueError("strategies must be distinct configurations")
-    criteria = list(criteria)
-    if not criteria or not all(isinstance(c, OutcomeCriterion) for c in criteria):
-        raise TypeError("criteria must be a non-empty sequence of OutcomeCriterion")
-    if len({c.name for c in criteria}) != len(criteria):
-        raise ValueError("criteria must have distinct names")
+    criteria = checked_criteria(criteria)
     orders = default_orders(acquisition_order_col) if orders is None else list(orders)
     if not orders or not all(isinstance(o, AcquisitionOrder) for o in orders):
         raise TypeError("orders must be a non-empty sequence of AcquisitionOrder")

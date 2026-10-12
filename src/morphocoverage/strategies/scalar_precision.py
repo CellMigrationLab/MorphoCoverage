@@ -163,6 +163,16 @@ def _check_configuration(
         raise ValueError("pilot_fovs must be an integer number of FOVs, at least 2")
 
 
+def _variant_name(prefix: str, variant: Any) -> str:
+    """``<prefix>_<unit>[_upper95][_pilot]``: the name of an estimator or strategy variant."""
+    parts = [prefix, variant.resampling_unit]
+    if variant.sd_estimate == "upper_95":
+        parts.append("upper95")
+    if variant.pilot_fovs is not None:
+        parts.append("pilot")
+    return "_".join(parts)
+
+
 @dataclass(frozen=True)
 class ScalarPrecisionEstimator(Estimator):
     """Averaging CV of one scalar feature's mean, as evidence for population precision.
@@ -222,12 +232,7 @@ class ScalarPrecisionEstimator(Estimator):
     @property
     def name(self) -> str:
         """Variant-specific name, e.g. ``averaging_cv_object_upper95_pilot``."""
-        parts = ["averaging_cv", self.resampling_unit]
-        if self.sd_estimate == "upper_95":
-            parts.append("upper95")
-        if self.pilot_fovs is not None:
-            parts.append("pilot")
-        return "_".join(parts)
+        return _variant_name("averaging_cv", self)
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -546,12 +551,7 @@ class ScalarPrecisionStrategy(SamplingStrategy):
     @property
     def name(self) -> str:
         """Variant-specific name, e.g. ``scalar_precision_object_upper95_pilot``."""
-        parts = ["scalar_precision", self.resampling_unit]
-        if self.sd_estimate == "upper_95":
-            parts.append("upper95")
-        if self.pilot_fovs is not None:
-            parts.append("pilot")
-        return "_".join(parts)
+        return _variant_name("scalar_precision", self)
 
     @property
     def parameters(self) -> dict[str, Any]:

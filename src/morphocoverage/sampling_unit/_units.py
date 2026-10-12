@@ -48,9 +48,8 @@ from .._identity import IdentityKey, identity_key
 from .._seeds import group_key
 from .._wording import column_word, listing
 from ..metadata import REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, empty_values
-from ..schema import ValidatedInput, fov_values
+from ..schema import ValidatedInput, canonical_fields, fov_values
 from ..statistics import RELATIVE_TOLERANCE, cohen_d, mean_is_zero
-from ._common import canonical_fields
 from ._groups import (  # noqa: F401  (re-exported: the contrast and ranking import them here)
     Described,
     contrasts_of,

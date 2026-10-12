@@ -46,8 +46,6 @@ import pandas as pd
 
 from .._checks import is_share
 from .._integrity_tables import integrity_by_table
-from .._style import DASH
-from .._wording import count
 from ..feature_tables import any_explainable
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..retrospective import (
@@ -83,7 +81,7 @@ from ._document import (
     with_reasons,
     with_settings,
 )
-from ._embedding_report import embedding_plan, embedding_report
+from ._embedding_report import embedding_plan, embedding_report, plan_document
 from ._enough_features import enough_by_feature
 from ._enough_targets import NO_TARGET, fingerprint_precision
 from ._feature_space import (
@@ -106,7 +104,6 @@ from ._results import (
     CALIBRATION_SHORT,
     CALIBRATION_TITLE,
     PLAN_QUESTIONS,
-    PLAN_TITLE,
     REPORT_ORDERS,
     REPORT_QUESTIONS,
     Plan,
@@ -499,15 +496,7 @@ def optimise(
         "dispersed_orders": dispersed_orders if setup.stage_cols is not None else 0,
     }
     unit = resolve_observation_unit(setup.observation_unit)[0]
-    title = (
-        f"{PLAN_TITLE} {DASH} {count(len(objects), unit, setup.unit_words)} in "
-        f"{count(len(fovs), 'field')}"
-    )
-    unread = space.unread()
-    unread += space.small_groups(setup.unit_word, setup.unit_words)  # audit 8
-    document = replace(
-        with_reasons(document, reasons), title=title, notes=(*document.notes, *unread)
-    )
+    document = plan_document(document, reasons, setup, space, (objects, fovs), unit)
     return Plan(results, document, declared, reasons, settings, source)
 
 

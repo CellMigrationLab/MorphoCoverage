@@ -6,9 +6,9 @@ continue/stop. Strategy families implement ``Estimator``; the framework runs
 the estimators, applies the policies and builds the result.
 
 Shared-private: ``_as_ints`` is used by ``stabilization`` and ``fov_bootstrap``
-to store integer settings given as numpy integers as Python ints, and
-``_canonical_fovs`` by both to resample FOVs in an order that the table's row
-order cannot change; they are private to the package and may change with it.
+to store integer settings given as numpy integers as Python ints; it is private
+to the package and may change with it. Both resample FOVs in an order that the
+table's row order cannot change (``schema.canonical_fields``).
 """
 
 from __future__ import annotations
@@ -17,10 +17,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
-from .._identity import canonical_order
 from .._wording import count
 from ..evidence import Evidence
 from ..objectives import ObjectiveConfig
@@ -235,20 +233,6 @@ def check_order_col(fovs: pd.DataFrame, order_col: str, purpose: str) -> None:
             f"would sort '10' before '2'. Convert it first, for example "
             f"fovs[{order_col!r}] = pd.to_numeric(fovs[{order_col!r}]) or pd.to_datetime(...)."
         )
-
-
-def _canonical_fovs(data: ValidatedInput) -> np.ndarray:
-    """Positions of ``data.fovs`` in a canonical order: by their typed FOV key.
-
-    Resampling draws index the FOVs in this order, so the draws depend on
-    which FOVs were acquired, never on the FOV table's row order (row order
-    carries no information: permuting it moved a finished acquisition's
-    descriptor spread from 24.3 to 27.9 around a tolerance of 25, audit 4,
-    P4-11). The key is the value's text and its type (``_identity``), so a
-    categorical column's category order cannot change the order, and integer
-    ``1`` and text ``"1"`` are two FOVs, not a tie broken by the row order.
-    """
-    return canonical_order(data.fovs, list(data.fov_key))
 
 
 __all__ = [

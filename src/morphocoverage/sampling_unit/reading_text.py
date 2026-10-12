@@ -168,7 +168,7 @@ def _cell_version(row: pd.Series) -> tuple[str, float, float, float, float, floa
     return "", np.nan, np.nan, np.nan, np.nan, np.nan
 
 
-def _chance_words(low: float, high: float) -> str:
+def chance_words(low: float, high: float) -> str:
     """How often the cell-level test gives p <= 0.05 without an effect, in words."""
     if pd.isna(low):
         return ""
@@ -226,7 +226,7 @@ def _cells(row: pd.Series | None, words: tuple[str, str], single: bool = False) 
     label, _, q, low, high, _p_value = _cell_version(row)
     if pd.isna(q):
         return ""
-    chance = _chance_words(low, high)
+    chance = chance_words(low, high)
     text = f"{words[0]}-level screen (exploratory) q {p_value(q)} ({label}" + (
         f"; {_chance_sentence(chance, single)})" if chance else ")"
     )
@@ -571,7 +571,7 @@ def _cells_headline(contrast: Any) -> str:
         return ""
     lows = [v[3] for v in tested if pd.notna(v[3])]
     highs = [v[4] for v in tested if pd.notna(v[4])]
-    chance = _chance_words(min(lows), max(highs)) if lows and highs else ""
+    chance = chance_words(min(lows), max(highs)) if lows and highs else ""
     passing = sum(v[2] <= ALPHA for v in tested)
     single = int(_direction_rows(contrast)["repeats"].max()) == 1
     unit = observation_words(contrast.settings)[0]

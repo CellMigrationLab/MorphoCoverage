@@ -36,6 +36,7 @@ from .._style import SINGLE_LEVEL, among, check_detail, span, table, wrap
 from .._wording import column_word, count, listing, number, percent
 from ..metadata import REPEAT_COLUMN
 from ..schema import observation_words
+from ..statistics import ALPHA
 from ._units import FIELD, NOT_INDEPENDENT, UNKNOWN_WELLS_ADVICE, opposite_signs
 from .across_text import across_parts
 from .cells_text import cells_parts
@@ -48,7 +49,7 @@ from .repeats_text import _range, _repeat_head, _repeat_rows, _repeats, repeat_c
 # Units a side at or below which a d on unit means is not computed: from so few means a d
 # can be very large by chance, so it could not help.
 FEW_UNITS_D = 3
-P_ALPHA = 0.05  # the p-value at which contrasts of opposite signs are flagged
+P_ALPHA = ALPHA  # the p-value at which contrasts of opposite signs are flagged
 # Per-repeat contrasts printed in the short form when the across-repeat table is there.
 SHORT_CONTRASTS = 12
 _MEANS_ONLY = (

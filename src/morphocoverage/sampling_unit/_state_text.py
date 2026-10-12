@@ -31,33 +31,18 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import assumption
-from .._style import among, group_columns, group_label, span, table, wrap
+from .._style import among, group_columns, span, table, wrap
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
-from ._group_text import distinct_labels
+from ..statistics import ALPHA
+from ._group_text import distinct_labels, present, row_label, selector_values
 from ._outliers import LEAVE_ONE_FIELD_OUT
 
 # Seed-check agreement below which the labels are called unstable (as in fiberfeatures).
 SEED_AGREEMENT_WARNING = 0.9
 # The q at or below which a state is clustered in a group's fields (Benjamini-Hochberg).
-CLUSTER_ALPHA = 0.05
-
-
-def _present(value: Any) -> bool:
-    return value is not None and not pd.isna(value)
-
-
-def _group(row: Mapping[str, Any], keys: Sequence[str]) -> str:
-    return group_label({key: row[key] for key in keys})
-
-
-def _selector(selector: Mapping[str, Any]) -> str:
-    parts = []
-    for value in selector.values():
-        values = value if isinstance(value, list | tuple | set) else [value]
-        parts.append("/".join(str(v) for v in values))
-    return " · ".join(parts)
+CLUSTER_ALPHA = ALPHA
 
 
 # --- Unusual objects -------------------------------------------------------------
@@ -68,7 +53,7 @@ def reference_words(settings: Mapping[str, Any]) -> str:
     controls ``each condition's own control`` (owner, 2026-10-05)."""
     if settings.get("own"):
         return "each condition's own control"
-    return f"the reference {_selector(settings['reference'])}"
+    return f"the reference {selector_values(settings['reference'])}"
 
 
 def unusual_words(result: Any) -> str:
@@ -122,10 +107,10 @@ def _restated(result: Any, words: str) -> str:
 
 def _agreement(row: Mapping[str, Any]) -> str | None:
     """``93%``, or with no unusual observation ``– (none unusual; refits flag 2)``."""
-    if _present(row.get("seed_agreement")):
+    if present(row.get("seed_agreement")):
         return percent(row["seed_agreement"])
     refits = row.get("refit_unusual")
-    if row.get("unusual") == 0 and _present(refits):
+    if row.get("unusual") == 0 and present(refits):
         return f"– (none unusual; refits flag {int(refits)})" if refits else "– (none unusual)"
     return None
 
@@ -197,24 +182,24 @@ def _unusual_cautions(result: Any, words: str) -> list[str]:
     reasons: dict[str, list[str]] = {}
     for row in rows:
         if row["status"] != "ok":
-            reasons.setdefault(str(row["status"]), []).append(_group(row, keys))
+            reasons.setdefault(str(row["status"]), []).append(row_label(row, keys))
     for reason, groups in reasons.items():
         cautions.append(f"unusual {words} not scored in {listing(groups, limit=3)}: {reason}")
     # One feature: the labels restate the mean shift, so their stability is not at issue.
-    agreements = [] if single_feature(result) else [r for r in ok if _present(r["seed_agreement"])]
+    agreements = [] if single_feature(result) else [r for r in ok if present(r["seed_agreement"])]
     unstable = [r for r in agreements if r["seed_agreement"] < SEED_AGREEMENT_WARNING]
     if unstable:
         shares = [float(r["seed_agreement"]) for r in unstable]
-        named = listing([_group(r, keys) for r in unstable], limit=3)
+        named = listing([row_label(r, keys) for r in unstable], limit=3)
         cautions.append(
             f"refits with other reference samples agree on only {span(shares, 'percent')} of the "
             f"unusual {words} in {among(len(unstable), len(agreements))} ({named}; below "
             f"{percent(SEED_AGREEMENT_WARNING)}): treat those labels as unstable"
         )
-    failing = [r for r in ok if _present(r.get("seed_failures")) and r["seed_failures"]]
+    failing = [r for r in ok if present(r.get("seed_failures")) and r["seed_failures"]]
     if failing:
         failed = sum(int(r["seed_failures"]) for r in failing)
-        named = listing([_group(r, keys) for r in failing], limit=3)
+        named = listing([row_label(r, keys) for r in failing], limit=3)
         cautions.append(
             f"{count(failed, 'refit')} with other reference samples failed in {named}, so "
             f"those labels may depend on the sample: {failing[0]['seed_failure']}"
@@ -227,7 +212,7 @@ def _unusual_cautions(result: Any, words: str) -> list[str]:
         cautions.append(
             f"against a single reference group, {named}, the threshold comes from its fields "
             "scored against its other fields, so a shift between it and "
-            f"{listing([_group(r, keys) for r in single])} raises the share"
+            f"{listing([row_label(r, keys) for r in single])} raises the share"
         )
     return cautions
 
@@ -245,7 +230,7 @@ def unusual_parts(
     elif ok and with_table:
         cells = [
             [
-                _group(r, keys),
+                row_label(r, keys),
                 int(r["scored"]),
                 int(r["unusual"]),
                 percent(r["unusual_share"]),
@@ -292,12 +277,12 @@ def unusual_full(result: Any, indent: int = 0) -> str:
             continue
         cells.append(
             [
-                _group(r, keys),
+                row_label(r, keys),
                 int(r["scored"]),
                 int(r["unusual"]),
                 percent(r["unusual_share"]),
                 _agreement(r),
-                f"{float(r['threshold']):.3g}" if _present(r.get("threshold")) else None,
+                f"{float(r['threshold']):.3g}" if present(r.get("threshold")) else None,
                 "single reference"
                 if r.get("calibration") == LEAVE_ONE_FIELD_OUT
                 else r.get("calibration"),
@@ -317,10 +302,10 @@ def unusual_full(result: Any, indent: int = 0) -> str:
 
 def _needed(row: Mapping[str, Any]) -> str | None:
     """``7 (up to 13)``: the fields to see the state, from its field incidence."""
-    if not _present(row["fovs_needed"]):
+    if not present(row["fovs_needed"]):
         return None
     upper = row["fovs_needed_upper"]
-    bound = f" (up to {int(upper)})" if _present(upper) else ""
+    bound = f" (up to {int(upper)})" if present(upper) else ""
     return f"{int(row['fovs_needed'])}{bound}"
 
 
@@ -348,12 +333,12 @@ def _clustering_cautions(result: Any, words: str) -> list[str]:
         numbers = [int(r["fovs_unlabelled"]) for r in unlabelled]
         cautions.append(
             f"fields whose {words} carry no label were left out of the fields assessed: "
-            f"{span(numbers)} per group in {listing([_group(r, keys) for r in unlabelled], 3)}"
+            f"{span(numbers)} per group in {listing([row_label(r, keys) for r in unlabelled], 3)}"
         )
     m = int(result.settings.get("min_objects_per_fov", 1))
-    none = [r for r in rows if r["state_objects"] and not _present(r["fovs_needed"])]
+    none = [r for r in rows if r["state_objects"] and not present(r["fovs_needed"])]
     for state in dict.fromkeys(r["state"] for r in none):
-        where = listing([_group(r, keys) for r in none if r["state"] == state], 3)
+        where = listing([row_label(r, keys) for r in none if r["state"] == state], 3)
         cautions.append(
             f"no field holds at least {m} {state_words(result, state, words)} in {where}, so no "
             "field count is given there"
@@ -379,7 +364,7 @@ def tested(rows: pd.DataFrame) -> pd.Series:
 def _state_answer(result: Any, state: Any, block: pd.DataFrame, words: str) -> str:
     keys = list(result.group_cols)
     seen = _seen(result, block)
-    run = [r for r in seen if _present(r["p_clustered"])]
+    run = [r for r in seen if present(r["p_clustered"])]
     hits = [r for r in run if float(r["q_clustered"]) <= CLUSTER_ALPHA]
     name = state_words(result, state, words)
     text = f"Are the {name} spread over the fields? "
@@ -391,10 +376,10 @@ def _state_answer(result: Any, state: Any, block: pd.DataFrame, words: str) -> s
             f"Clustered in a few fields (q ≤ {CLUSTER_ALPHA:g} after Benjamini-Hochberg over the "
             f"{tests} of every group and state) in {among(len(hits), len(run))} where tested"
         )
-        text += f" ({listing([_group(r, keys) for r in hits], 3)})." if hits else "."
+        text += f" ({listing([row_label(r, keys) for r in hits], 3)})." if hits else "."
         text += "" if hits else " No clustering shown."
     if len(run) < len(seen):
-        left = [_group(r, keys) for r in seen if not _present(r["p_clustered"])]
+        left = [row_label(r, keys) for r in seen if not present(r["p_clustered"])]
         text += (
             f" Not tested in {listing(left, 3)}: too few {name} for a p that can reach "
             f"{CLUSTER_ALPHA:g}, the tests that can be corrected over."
@@ -402,7 +387,7 @@ def _state_answer(result: Any, state: Any, block: pd.DataFrame, words: str) -> s
     unseen = [r for r in block.to_dict("records") if r["labelled"] and not r["state_objects"]]
     if unseen:
         where = [
-            f"{_group(r, keys)} ({int(r['labelled'])} {words} scored in "
+            f"{row_label(r, keys)} ({int(r['labelled'])} {words} scored in "
             f"{count(int(r['fovs']), 'field')}, none {result.state_name(state)})"
             for r in unseen
         ]
@@ -410,7 +395,7 @@ def _state_answer(result: Any, state: Any, block: pd.DataFrame, words: str) -> s
     unlooked = [r for r in block.to_dict("records") if not r["labelled"]]
     if unlooked:
         where = [
-            f"{_group(r, keys)} (none of the {words} of its "
+            f"{row_label(r, keys)} (none of the {words} of its "
             f"{count(int(r['fovs_acquired']), 'field')} scored)"
             for r in unlooked
         ]
@@ -440,26 +425,26 @@ def _state_columns(result: Any, words: str, full: bool) -> list[str]:
 
 def _state_cells(result: Any, row: Mapping[str, Any], keys: Sequence[str], full: bool) -> list:
     m = int(result.settings.get("min_objects_per_fov", 1))
-    cell = [_group(row, keys)]
+    cell = [row_label(row, keys)]
     cell += [f"{int(row['state_objects'])} ({percent(row['prevalence'])})"]
     cell += [f"{int(row['fovs_with_state'])} of {int(row['fovs'])}"]
     cell += [f"{float(row['expected_fovs_if_random']):.1f}"]
     cell += [f"{float(row['clustering_ratio']):.1f}"] if full else []
-    run = _present(row["p_clustered"])
+    run = present(row["p_clustered"])
     cell += [f"{float(row[k]):.2g}" if run else "–" for k in ("p_clustered", "q_clustered")]
     if m > 1:
         holding = int(row.get("fovs_holding_state", row["fovs_with_state"]))
         cell += [f"{holding} of {int(row['fovs'])}"]
     if "reference_fovs" in result.table.columns:
         total = row.get("reference_fovs")
-        if _present(total) and int(total):
+        if present(total) and int(total):
             held = int(row["reference_fovs_holding"])
             cell += [f"{held} of {int(total)} ({percent(held / int(total))})"]
         else:
             cell += [None]
     cell += [_needed(row)]
     random = row["fovs_needed_if_random"]
-    cell += [int(random) if _present(random) and _present(row["fovs_needed"]) else None]
+    cell += [int(random) if present(random) and present(row["fovs_needed"]) else None]
     return cell
 
 
@@ -476,7 +461,7 @@ def _technical(result: Any) -> list[dict]:
         first = block.iloc[0]
         found.append(
             {
-                "where": _group(first, keys) if keys else "all groups",
+                "where": row_label(first, keys) if keys else "all groups",
                 "state": result.state_name(first["state"]),
                 "held": int(block["technical_repeats_holding"].sum()),
                 "total": int(block["technical_repeats"].sum()),

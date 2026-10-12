@@ -103,11 +103,10 @@ import pandas as pd
 from scipy import stats
 
 from .._parallel import map_units
-from ..statistics import cohen_d
+from ..statistics import ALPHA, cohen_d
 from ._balanced import BalancedDesign, BalancedRerun
 from ._experiments import corrected, declared, experiments, family_sizes
 
-ALPHA = 0.05
 # Balanced resamples per condition, and the shuffles of the randomization test in each.
 BALANCED_DRAWS = 100
 BALANCED_PERMUTATIONS = 999

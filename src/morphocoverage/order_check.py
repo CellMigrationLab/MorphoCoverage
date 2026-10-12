@@ -51,6 +51,7 @@ from ._caveats import assumption
 from ._stage_coordinates import stage_matrix
 from ._wording import count, percent
 from .schema import ValidatedInput, fov_values
+from .statistics import ALPHA
 
 RANDOM_SAMPLE_ASSUMPTION = (
     "treats the fields as a random sample of the well's positions; a raster over a "
@@ -62,7 +63,6 @@ RARE_ASSUMPTION = (
 )
 # A stop's caveat when no order check ran: a missing check is a caution about these data.
 NOT_CHECKED = "the acquisition order was not checked"
-ALPHA = 0.05
 PERMUTATIONS = 999
 MIN_FIELDS = 4
 NEIGHBOUR_FACTOR = 1.5

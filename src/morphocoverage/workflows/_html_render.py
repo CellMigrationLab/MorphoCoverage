@@ -12,7 +12,7 @@ from __future__ import annotations
 import html
 import re
 
-from .._style import Status, without_provenance
+from .._style import Status, indent_width, without_provenance
 from ..glossary import GLOSSARY, PHRASES, Term, slug
 
 STATUS_WORDS = {
@@ -203,10 +203,6 @@ def chip(status: Status | None, key: str = "", answer: str = "", word: str | Non
     return f'<span class="chip {kind}">{icon} {word}</span>'
 
 
-def _indent(line: str) -> int:
-    return len(line) - len(line.lstrip(" "))
-
-
 def _table(rows: list[str]) -> str:
     cells = [_SPLIT.split(row.strip()) for row in rows]
     width = len(cells[0])
@@ -249,10 +245,10 @@ def _paragraph(text: str, level: int) -> str:
 def _starts_own(lines: list[str], index: int, hang: int | None) -> bool:
     """Whether the line at ``index``, at the paragraph's continuation indent ``hang``, is
     rather an item of its own: the line after it hangs deeper, as its own continuation."""
-    if hang is None or _indent(lines[index]) != hang or index + 1 >= len(lines):
+    if hang is None or indent_width(lines[index]) != hang or index + 1 >= len(lines):
         return False
     after = lines[index + 1]
-    return bool(after.strip()) and _indent(after) > hang and not _COLUMNS.search(after.strip())
+    return bool(after.strip()) and indent_width(after) > hang and not _COLUMNS.search(after.strip())
 
 
 def text_html(text: str) -> str:
@@ -261,7 +257,7 @@ def text_html(text: str) -> str:
     lines = without_provenance(text).splitlines()
     out: list[str] = []
     i = 0
-    base = min((_indent(line) for line in lines if line.strip()), default=0)
+    base = min((indent_width(line) for line in lines if line.strip()), default=0)
     while i < len(lines):
         line = lines[i]
         if not line.strip():
@@ -280,20 +276,20 @@ def text_html(text: str) -> str:
                 out.append(_table(block))
                 i += 1
                 continue
-        first = _indent(line)
+        first = indent_width(line)
         parts = [line.strip()]
         hang = None
         while (
             i + 1 < len(lines)
             and lines[i + 1].strip()
-            and _indent(lines[i + 1]) > first
+            and indent_width(lines[i + 1]) > first
             and not _MARKER_LINE.match(lines[i + 1].strip())
             and not lines[i + 1].strip().startswith("- ")
             and not _COLUMNS.search(lines[i + 1].strip())
             and not _starts_own(lines, i + 1, hang)
         ):
             i += 1
-            hang = _indent(lines[i]) if hang is None else hang
+            hang = indent_width(lines[i]) if hang is None else hang
             parts.append(lines[i].strip())
         out.append(_paragraph(" ".join(parts), (first - base) // 2))
         i += 1

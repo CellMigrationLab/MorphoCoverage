@@ -165,7 +165,7 @@ class Reader:
             f"column to {REPEAT_COLUMN!r} in {places}. It is read as {REPEAT_COLUMN!r} for "
             f"now{notes}; it will be removed in a later version.",
             DeprecationWarning,
-            stacklevel=_caller_stacklevel(),
+            stacklevel=caller_stacklevel(_in_package),
         )
 
 
@@ -220,21 +220,32 @@ def renamed_tables(
     return objects, fovs
 
 
+def in_package_file(frame: Any) -> bool:
+    """Whether ``frame`` runs code of a package file."""
+    return os.path.abspath(frame.f_code.co_filename).startswith(_PACKAGE_DIR)
+
+
 def _in_package(frame: Any) -> bool:
     """Whether ``frame`` runs package code: a package file, or the ``__init__`` that
     ``dataclasses`` generates for a package class (``Setup``), which has no file."""
-    if os.path.abspath(frame.f_code.co_filename).startswith(_PACKAGE_DIR):
+    if in_package_file(frame):
         return True
     instance = frame.f_locals.get("self") if frame.f_code.co_name == "__init__" else None
     generated = frame.f_code.co_filename.startswith("<")
     return generated and type(instance).__module__.startswith("morphocoverage.")
 
 
-def _caller_stacklevel() -> int:
-    """The ``stacklevel`` that makes the warning name the first caller outside the package."""
+def caller_stacklevel(inside: Callable[[Any], bool] = in_package_file) -> int:
+    """The ``stacklevel`` that makes a warning name the first caller outside the package,
+    ``inside`` telling the package's frames (by default, those of its files).
+
+    Called by the function that warns. A warning raised through several
+    package functions (``run_strategies`` validating, an analysis validating
+    twice) then points at the user's line, so it is shown once per line.
+    """
     frame = sys._getframe(1)
     level = 1
-    while frame is not None and _in_package(frame):
+    while frame is not None and inside(frame):
         frame = frame.f_back
         level += 1
     return level
