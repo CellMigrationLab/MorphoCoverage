@@ -260,50 +260,14 @@ def _novelty_lines(report: Any, target: float | None) -> tuple[list[str], list[s
     if estimable.empty:
         return lines, cautions
     confidence = percent(float(estimable["confidence"].iloc[0]))
-    bound = _span(estimable["chance_new_at_most"], percent)
-    new = estimable[estimable["fovs_with_new"].astype(int) > 0]
-    if new.empty:
-        where = "" if groups == 1 else f", in {among(len(estimable), groups)}"
-        lines.append(
-            f"One more field: no field showed a state counted as new{where}; nominal "
-            f"{confidence} bound for the next field {bound}."
-        )
-    elif groups == 1:
-        shown = count(int(new["fovs_with_new"].iloc[0]), "field")
-        lines.append(
-            f"One more field: {shown} showed a state counted as new; chance "
-            f"{percent(new['chance_new'].max())}, nominal {confidence} bound {bound}."
-        )
-    else:
-        named = listing(
-            [
-                f"{group_label(_group(row, keys))} ({count(int(row['fovs_with_new']), 'field')})"
-                for _, row in new.iterrows()
-            ],
-            limit=3,
-        )
-        lines.append(
-            f"One more field: fields with a state counted as new in "
-            f"{among(len(new), len(estimable))}: {named}; chance up to "
-            f"{percent(new['chance_new'].max())}, nominal {confidence} bound {bound}."
-        )
+    lines.append(_one_more_field(estimable, groups, keys, confidence))
     unseen = _span(estimable["unseen_state_max_frequency"], percent)
     lines.append(
         f"Not yet seen: a state no field has shown is in at most {unseen} of fields "
         f"({confidence} confidence); rarer states can remain."
     )
-    shares = estimable.get("unseen_state_max_technical_share")
-    technical = estimable[shares.map(_present)] if shares is not None else estimable.iloc[:0]
-    if len(technical):
-        share = _span(technical["unseen_state_max_technical_share"], percent)
-        lines.append(
-            f"Pooled technical repeats ({among(len(technical), groups)}): a state none of them "
-            f"showed is in at most {share} of technical repeats ({confidence} confidence)."
-        )
-        cautions.append(
-            "fields of one technical repeat are not independent draws: where a group pools "
-            "technical repeats, the field bound is optimistic"
-        )
+    technical = _technical_lines(estimable, groups, confidence)
+    lines += technical
     lines += _few_lines(estimable, keys, confidence)
     if target is not None:
         # The fields still needed are projections: the full form gives them, the short form
@@ -312,14 +276,63 @@ def _novelty_lines(report: Any, target: float | None) -> tuple[list[str], list[s
             "How many more fields would rule out unseen states, or bring the next-field bound "
             f"below {percent(target)}, is in the full report (report_full.txt)."
         )
-        cautions.append(
-            assumption(
-                "every novelty bound holds at a number of fields fixed in advance, not at the "
-                "first field where it passes: stopping there is premature more often than "
-                f"{percent(1 - float(estimable['confidence'].iloc[0]))} of the time"
-            )
+    return lines, _novelty_cautions(report, estimable, groups, target, bool(technical))
+
+
+def _one_more_field(
+    estimable: pd.DataFrame, groups: int, keys: Sequence[str], confidence: str
+) -> str:
+    """The fields that showed a state counted as new, the chance and the next-field bound."""
+    bound = _span(estimable["chance_new_at_most"], percent)
+    new = estimable[estimable["fovs_with_new"].astype(int) > 0]
+    if new.empty:
+        where = "" if groups == 1 else f", in {among(len(estimable), groups)}"
+        return (
+            f"One more field: no field showed a state counted as new{where}; nominal "
+            f"{confidence} bound for the next field {bound}."
         )
-    cautions[:0] = [
+    if groups == 1:
+        shown = count(int(new["fovs_with_new"].iloc[0]), "field")
+        return (
+            f"One more field: {shown} showed a state counted as new; chance "
+            f"{percent(new['chance_new'].max())}, nominal {confidence} bound {bound}."
+        )
+    named = listing(
+        [
+            f"{group_label(_group(row, keys))} ({count(int(row['fovs_with_new']), 'field')})"
+            for _, row in new.iterrows()
+        ],
+        limit=3,
+    )
+    return (
+        f"One more field: fields with a state counted as new in "
+        f"{among(len(new), len(estimable))}: {named}; chance up to "
+        f"{percent(new['chance_new'].max())}, nominal {confidence} bound {bound}."
+    )
+
+
+def _technical_lines(estimable: pd.DataFrame, groups: int, confidence: str) -> list[str]:
+    """Where groups pool technical repeats, the bound on a state none of them showed."""
+    shares = estimable.get("unseen_state_max_technical_share")
+    technical = estimable[shares.map(_present)] if shares is not None else estimable.iloc[:0]
+    if not len(technical):
+        return []
+    share = _span(technical["unseen_state_max_technical_share"], percent)
+    return [
+        (
+            f"Pooled technical repeats ({among(len(technical), groups)}): a state none of them "
+            f"showed is in at most {share} of technical repeats ({confidence} confidence)."
+        )
+    ]
+
+
+def _novelty_cautions(
+    report: Any, estimable: pd.DataFrame, groups: int, target: float | None, pooled: bool
+) -> list[str]:
+    """The caveats of the next-field answers: what the bounds assume, technical repeats
+    pooled, a target claimed at a fixed number of fields, states never counted, fields
+    without observations."""
+    cautions = [
         assumption(
             "the next-field bound is approximate: the leave-one-field-out outcomes share their "
             "reference fields"
@@ -329,6 +342,19 @@ def _novelty_lines(report: Any, target: float | None) -> tuple[list[str], list[s
             "fields acquired in a raster over patchy states make them too low"
         ),
     ]
+    if pooled:
+        cautions.append(
+            "fields of one technical repeat are not independent draws: where a group pools "
+            "technical repeats, the field bound is optimistic"
+        )
+    if target is not None:
+        cautions.append(
+            assumption(
+                "every novelty bound holds at a number of fields fixed in advance, not at the "
+                "first field where it passes: stopping there is premature more often than "
+                f"{percent(1 - float(estimable['confidence'].iloc[0]))} of the time"
+            )
+        )
     m = estimable["min_novel_observations"].dropna()
     words = observation_words(report)[1]
     if len(m) and int(m.max()) > 1:
@@ -344,7 +370,7 @@ def _novelty_lines(report: Any, target: float | None) -> tuple[list[str], list[s
             f"in {among(len(empty), groups)} the field counts include fields without "
             "observations, which cannot show a state"
         )
-    return lines, cautions
+    return cautions
 
 
 def _few_lines(frame: pd.DataFrame, keys: Sequence[str], confidence: str) -> list[str]:
@@ -429,18 +455,7 @@ def _rule_cautions(
             cautions.append(uniformity_assumption(label, unit))
         if bound := field_bound_assumption(label, own):
             cautions.append(bound)
-        found: dict[str, list[tuple[str, str]]] = {}
-        for _, row in own.iterrows():
-            for text in _warning_list(row):
-                where = group_label(_group(row, keys))
-                found.setdefault(number_pattern(text), []).append((where, text))
-        for pairs in found.values():
-            where = among(len(pairs), groups)
-            if name_groups and len(pairs) < groups:
-                where += f" ({listing([w for w, _ in pairs], limit=5)})"
-            merged = f"{label}, in {where}: {merge_numbers([t for _, t in pairs])}"
-            standing = all(is_assumption(t) for _, t in pairs)
-            cautions.append(assumption(merged) if standing else merged)
+        cautions += _warning_cautions(label, own, keys, name_groups)
         undefined = own[own["verdict"].isna()]["undefined_reason"].dropna().astype(str)
         waiting = own[own["verdict"].eq("continue")]["insufficient_reason"].dropna().astype(str)
         for reasons, what in ((waiting, "cannot be judged yet"), (undefined, "is undefined")):
@@ -455,15 +470,44 @@ def _rule_cautions(
                 f"{label} was met and then lost as more fields arrived, in "
                 f"{among(tally['lost'], groups)}"
             )
-        for _, row in own.iterrows():
-            text = row.get("order_caution")
-            if (
-                isinstance(text, str)
-                and text
-                and (row["verdict"] == "stop" or _ever_met(report.stops, row, keys))
-            ):
-                stops.append((group_label(_group(row, keys)), text))
+        stops += _order_cautions(report, own, keys)
     return cautions + _stop_cautions(stops)
+
+
+def _warning_cautions(
+    label: str, own: pd.DataFrame, keys: Sequence[str], name_groups: bool
+) -> list[str]:
+    """A rule's warnings, each kind once with the groups it holds in (named when asked and
+    not all of them), its numbers merged."""
+    found: dict[str, list[tuple[str, str]]] = {}
+    for _, row in own.iterrows():
+        for text in _warning_list(row):
+            where = group_label(_group(row, keys))
+            found.setdefault(number_pattern(text), []).append((where, text))
+    cautions = []
+    groups = len(own)
+    for pairs in found.values():
+        where = among(len(pairs), groups)
+        if name_groups and len(pairs) < groups:
+            where += f" ({listing([w for w, _ in pairs], limit=5)})"
+        merged = f"{label}, in {where}: {merge_numbers([t for _, t in pairs])}"
+        standing = all(is_assumption(t) for _, t in pairs)
+        cautions.append(assumption(merged) if standing else merged)
+    return cautions
+
+
+def _order_cautions(report: Any, own: pd.DataFrame, keys: Sequence[str]) -> list[tuple[str, str]]:
+    """The order check's caution of each group where the rule stopped or was ever met."""
+    stops = []
+    for _, row in own.iterrows():
+        text = row.get("order_caution")
+        if (
+            isinstance(text, str)
+            and text
+            and (row["verdict"] == "stop" or _ever_met(report.stops, row, keys))
+        ):
+            stops.append((group_label(_group(row, keys)), text))
+    return stops
 
 
 def _stop_cautions(stops: list[tuple[str, str]]) -> list[str]:
