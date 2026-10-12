@@ -1,76 +1,89 @@
-"""The function index and its ratchets (tools/function_index.py): the index is current, and no
-function is longer, more complex, wider, undocumented or more silent than the baselines allow."""
+"""The function index and its ratchets (tools/function_index.py, tools/ratchet.py): the index is
+current, and no function is longer, more complex, wider, undocumented or more silent than the
+baselines allow."""
 
 from __future__ import annotations
 
-import importlib.util
+import json
+import sys
+from collections import Counter
 from pathlib import Path
-from types import ModuleType
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
 
+import duplicates as DUPLICATES
+import function_index as TOOL
+import layers as LAYERS
+import ratchet as RATCHETS
 
-def _tool() -> ModuleType:
-    spec = importlib.util.spec_from_file_location(
-        "function_index", ROOT / "tools/function_index.py"
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def _load(name: str) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(name, ROOT / f"tools/{name}.py")
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-TOOL = _tool()
-DUPLICATES = _load("duplicates")
-LAYERS = _load("layers")
 REGENERATE = "run `python tools/audit.py`"
-RATCHET = "run `python tools/audit.py --write-baselines` only to record a REMOVAL"
+RATCHET = "run `python tools/audit.py --tighten` to record a removal"
+KINDS = ["lines", "complexity", "arguments", "no_docstring", "fallbacks"]
 
 
 @pytest.fixture(scope="module")
-def current() -> dict[str, dict[str, int]]:
-    return TOOL.findings()
+def rows() -> list[dict[str, object]]:
+    return TOOL.build_index()
 
 
-def test_the_function_index_is_current():
-    rows = TOOL.build_index()
-    committed = TOOL.read_index()
-    now, then = set(map(tuple, TOOL.index_key(rows))), set(map(tuple, TOOL.index_key(committed)))
-    added, removed = sorted(now - then), sorted(then - now)
+@pytest.fixture(scope="module")
+def current(rows) -> dict[str, dict[str, int]]:
+    return RATCHETS.findings(rows)
+
+
+def test_the_limits_are_pinned():
+    # Raising a limit would admit every function under it: a change of rule, not of code.
+    assert (TOOL.MAX_LINES, TOOL.MAX_COMPLEXITY, TOOL.MAX_ARGUMENTS) == (60, 15, 8)
+
+
+def test_every_index_key_is_unique(rows):
+    repeated = [k for k, n in Counter(map(TOOL.key, rows)).items() if n > 1]
+    assert not repeated, f"index keys must be unique (name@setter, name#2): {repeated[:5]}"
+
+
+def test_the_function_index_is_current(rows):
+    now = Counter(map(TOOL.row_text, rows))
+    then = Counter(map(TOOL.row_text, TOOL.read_index()))
+    added, removed = sorted((now - then).elements()), sorted((then - now).elements())
+    first = json.loads((added or removed or ["{}"])[0])
     assert not added and not removed, (
         f"docs/common/function_index.jsonl is out of date ({len(added)} new or changed, "
-        f"{len(removed)} gone or changed; first: {(added or removed)[0][:2]}): {REGENERATE}"
+        f"{len(removed)} gone or changed; first: {first.get('module')}:{first.get('name')}): "
+        f"{REGENERATE}"
     )
 
 
-@pytest.mark.parametrize("kind", ["lines", "complexity", "arguments", "no_docstring", "fallbacks"])
+@pytest.mark.parametrize("kind", KINDS)
 def test_nothing_grows_beyond_its_baseline(current, kind):
-    baseline = TOOL.read_baseline(kind)
+    baseline = RATCHETS.read_baseline(kind)
     grown = {k: (baseline.get(k, 0), v) for k, v in current[kind].items() if v > baseline.get(k, 0)}
-    assert not grown, f"{kind}: new or larger (was, now): {dict(list(grown.items())[:8])}"
+    hint = (
+        "mark a deliberate fallback `# fallback: <reason>` on its line"
+        if kind == "fallbacks"
+        else 'meet the limit, or `python tools/audit.py --accept KIND:key --reason "..."`'
+    )
+    assert not grown, f"{kind}: new or larger (was, now): {dict(list(grown.items())[:8])}; {hint}"
 
 
-@pytest.mark.parametrize("kind", ["lines", "complexity", "arguments", "no_docstring", "fallbacks"])
+@pytest.mark.parametrize("kind", KINDS)
 def test_a_baseline_never_holds_what_was_fixed(current, kind):
-    stale = {k: v for k, v in TOOL.read_baseline(kind).items() if current[kind].get(k, 0) < v}
+    baseline = RATCHETS.read_baseline(kind)
+    stale = {k: v for k, v in baseline.items() if current[kind].get(k, 0) < v}
     assert not stale, (
         f"{kind}: fixed or shrunk, tighten the baseline ({RATCHET}): {list(stale)[:8]}"
     )
 
 
-def _baseline_file(name: str):
-    import json
+def test_every_acceptance_has_a_reason_and_a_date():
+    for entry in RATCHETS.read_accepted():
+        assert set(entry) >= {"kind", "key", "value", "reason", "date"}, entry
+        assert entry["kind"] in KINDS and str(entry["reason"]).strip(), entry
 
+
+def _baseline_file(name: str):
     return json.loads((TOOL.BASELINES / f"{name}.json").read_text(encoding="utf-8"))
 
 
