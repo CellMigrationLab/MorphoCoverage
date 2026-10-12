@@ -15,6 +15,7 @@ search is lexical and says so, and nothing in CI uses it.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import math
 import os
@@ -159,6 +160,14 @@ def _model_name() -> str | None:
     return "nomic-ai/CodeRankEmbed" if cache.exists() else None
 
 
+@functools.cache
+def _model(name: str) -> object:
+    """The embedding model, loaded once per process."""
+    from sentence_transformers import SentenceTransformer
+
+    return SentenceTransformer(name, trust_remote_code=True, local_files_only=True)
+
+
 def embedding_ranks(query: str, rows: list[dict[str, object]]) -> list[int] | str:
     """The rank of every row by embedding similarity to ``query``, or why it is unavailable."""
     name = _model_name()
@@ -166,13 +175,13 @@ def embedding_ranks(query: str, rows: list[dict[str, object]]) -> list[int] | st
         return "no local embedding model (set MORPHOCOVERAGE_EMBEDDING_MODEL)"
     try:
         import numpy as np
-        from sentence_transformers import SentenceTransformer
+        import sentence_transformers  # noqa: F401
     except ImportError:
         return "sentence-transformers is not installed"
     texts = [f"{fi.key(r)} {r.get('signature', '')}\n{r['summary']}" for r in rows]
     digest = hashlib.sha256("\n".join([name, *texts]).encode()).hexdigest()[:16]
     cache = Path.home() / ".cache" / "morphocoverage" / f"index-{digest}.npy"
-    model = SentenceTransformer(name, trust_remote_code=True, local_files_only=True)
+    model = _model(name)
     if cache.exists():
         vectors = np.load(cache)
     else:
@@ -197,12 +206,13 @@ def find(
     if isinstance(ranks, str):
         return lexical_order, f"lexical ranking ({ranks})"
     position = {id(r): i for i, r in enumerate(lexical_order, start=1)}
-    # Reciprocal-rank fusion: a row both rankings place high wins over one only one does.
+    # Reciprocal-rank fusion, the embedding at half the weight of the words: a row both
+    # rankings place high wins (equal weights pushed exact word matches down too far).
     fused = sorted(
         range(len(rows)),
         key=lambda i: (
             -(
-                1 / (60 + ranks[i])
+                0.5 / (60 + ranks[i])
                 + (1 / (60 + position[id(rows[i])]) if id(rows[i]) in position else 0)
             )
         ),
