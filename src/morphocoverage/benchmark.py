@@ -44,14 +44,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._areas import area_problem
+from ._benchmark_data import _area, _check_metrics, _group_key, _loaded_groups, _Streams, _streams
 from ._checks import check_seed, is_integer
 from ._former_repeat import one_warning
 from ._frozen import owned
 from ._parallel import worker_pool
 from ._seeds import group_rng
-from .data_check import validate_input_tables
-from .evaluator import iter_analysis_groups
 from .metadata import column_names, sorted_by_key
 from .objectives import ObjectiveConfig
 from .outcomes import OutcomeMetric
@@ -358,27 +356,6 @@ def records_to_frame(records: Iterable[BenchmarkRecord]) -> pd.DataFrame:
     return pd.DataFrame([record.as_row() for record in records])
 
 
-def _group_key(group: Mapping[str, Any]) -> tuple:
-    """Hashable identity of an analysis group, for matching replay results."""
-    return tuple(group.items())
-
-
-def _area(data: ValidatedInput, area_col: str | None) -> float | None:
-    """Total imaged area of the FOVs, or ``None`` when the dataset declares no area column.
-
-    Areas are checked by ``_areas.area_problem``, the check
-    ``ImagedAreaEstimator`` uses too: a field with no recorded area, or an
-    infinite, zero or negative one, raises here (summing it would misstate the
-    effort at the stop), and so do areas that are not numbers.
-    """
-    if area_col is None:
-        return None
-    problem = area_problem(data.fovs, area_col, data.fov_key)
-    if problem is not None:
-        raise ValueError(problem)
-    return float(data.fovs[area_col].to_numpy(dtype=float).sum())
-
-
 def _record_run(
     history: Sequence[SequentialResult],
     full: ValidatedInput,
@@ -494,95 +471,90 @@ def run_benchmark(
     dataset = registry[dataset_name]
     strategy_list = list(strategies)
     metric_list = list(metrics)
-    names = [metric.name for metric in metric_list]
-    if len(set(names)) != len(names):
-        raise ValueError(
-            f"outcome metric names must be distinct: {names}; give two settings of one "
-            "metric different names with label=, e.g. MMDError(..., label='mmd_wide')"
-        )
-    if dataset.area_col is not None and dataset.area_col in dataset.feature_cols:
-        raise ValueError("the area column is acquisition metadata, not a phenotype feature")
-
-    objects, fovs = dataset.load()
-    columns = {
-        "feature_cols": list(dataset.feature_cols),
-        "fov_col": dataset.fov_col,
-        "group_cols": None if dataset.group_cols is None else list(dataset.group_cols),
-        "observation_unit": dataset.observation_unit,
-    }
-    data = validate_input_tables(objects, fovs=fovs, **columns)
-    if dataset.area_col is not None and dataset.area_col not in data.fovs.columns:
-        raise ValueError(f"area_col {dataset.area_col!r} is not a column of the FOV table")
-    _area(data, dataset.area_col)  # refuses unusable areas before any replay
-    full_groups = {
-        _group_key(group): group_data for group, group_data in iter_analysis_groups(data)
-    }
-    references = full_groups
-    replay_tables = (objects, fovs)
-    reference_fields: dict[tuple, dict[str, Any]] = {key: {} for key in full_groups}
-    if reservoir is not None:
-        if not isinstance(reservoir, ReservoirSplit):
-            raise TypeError("reservoir must be a ReservoirSplit")
-        splits = {key: reservoir.split(dict(key), group) for key, group in full_groups.items()}
-        full_groups = {key: stream for key, (stream, _) in splits.items()}
-        references = {key: held for key, (_, held) in splits.items()}
-        replay_tables = (
-            pd.concat([stream.objects for stream in full_groups.values()]),
-            pd.concat([stream.fovs for stream in full_groups.values()]),
-        )
-        reference_fields = {
-            key: {
-                "reference": "reservoir",
-                "reservoir_fovs": len(held.fovs),
-                "reservoir": reservoir.parameters,
-            }
-            for key, held in references.items()
-        }
-
+    _check_metrics(metric_list, dataset)
+    objects, fovs, columns, full_groups = _loaded_groups(dataset)
+    streams = _streams(reservoir, full_groups, (objects, fovs))
+    run = _Run(
+        dataset=dataset,
+        strategies=strategy_list,
+        metrics=metric_list,
+        objective=objective,
+        tuned=tuned,
+        min_fovs=min_fovs,
+        incremental=incremental,
+        n_jobs=n_jobs,
+        stop_on=stop_on,
+        columns=columns,
+    )
     records: list[BenchmarkRecord] = []
     # One pool for every order and strategy, so workers start once.
     with worker_pool(n_jobs) as pool:
         for order in orders:
-            if order.kind == "recorded":
-                # The loaded tables (or the streams) are replayed as they are.
-                ordered_fovs, order_col = replay_tables[1], dataset.acquisition_order_col
-            else:
-                ordered_fovs, order_col = order.apply(
-                    [(dict(key), group) for key, group in full_groups.items()],
-                    dataset.acquisition_order_col,
+            records.extend(_replay_order(run, streams, order, pool))
+    return records
+
+
+@dataclass(frozen=True)
+class _Run:
+    """The settings of one ``run_benchmark`` call that every order and strategy shares."""
+
+    dataset: BenchmarkDataset
+    strategies: list[SamplingStrategy]
+    metrics: list[OutcomeMetric]
+    objective: ObjectiveConfig
+    tuned: tuple[str, ...]
+    min_fovs: int
+    incremental: bool
+    n_jobs: int
+    stop_on: str
+    columns: dict[str, Any]
+
+
+def _replay_order(
+    run: _Run, streams: _Streams, order: AcquisitionOrder, pool: Any
+) -> list[BenchmarkRecord]:
+    """Replay every strategy in one acquisition order; one record per strategy and group."""
+    if order.kind == "recorded":
+        # The loaded tables (or the streams) are replayed as they are.
+        ordered_fovs, order_col = streams.tables[1], run.dataset.acquisition_order_col
+    else:
+        ordered_fovs, order_col = order.apply(
+            [(dict(key), group) for key, group in streams.groups.items()],
+            run.dataset.acquisition_order_col,
+        )
+    records = []
+    for strategy in run.strategies:
+        replay = _evaluate_prefixes(
+            streams.tables[0],
+            ordered_fovs,
+            strategies=[strategy],
+            acquisition_order_col=order_col,
+            objective=run.objective,
+            min_fovs=run.min_fovs,
+            incremental=run.incremental,
+            n_jobs=run.n_jobs,
+            pool=pool,
+            **run.columns,
+        )
+        histories: dict[tuple, list[SequentialResult]] = {}
+        for item in replay:
+            histories.setdefault(_group_key(item.result.group), []).append(item)
+        for key, history in histories.items():
+            records.append(
+                _record_run(
+                    history,
+                    streams.groups[key],
+                    streams.references[key],
+                    run.metrics,
+                    run.dataset,
+                    run.stop_on,
+                    in_sample=run.dataset.name in run.tuned,
+                    tuned_on=run.tuned,
+                    order=order,
+                    incremental=run.incremental,
+                    **streams.reference_fields[key],
                 )
-            for strategy in strategy_list:
-                replay = _evaluate_prefixes(
-                    replay_tables[0],
-                    ordered_fovs,
-                    strategies=[strategy],
-                    acquisition_order_col=order_col,
-                    objective=objective,
-                    min_fovs=min_fovs,
-                    incremental=incremental,
-                    n_jobs=n_jobs,
-                    pool=pool,
-                    **columns,
-                )
-                histories: dict[tuple, list[SequentialResult]] = {}
-                for item in replay:
-                    histories.setdefault(_group_key(item.result.group), []).append(item)
-                for key, history in histories.items():
-                    records.append(
-                        _record_run(
-                            history,
-                            full_groups[key],
-                            references[key],
-                            metric_list,
-                            dataset,
-                            stop_on,
-                            in_sample=dataset.name in tuned,
-                            tuned_on=tuned,
-                            order=order,
-                            incremental=incremental,
-                            **reference_fields[key],
-                        )
-                    )
+            )
     return records
 
 

@@ -240,6 +240,7 @@ src/morphocoverage/
     distances.py           # pure two-sample distance primitives (energy, MMD, Fréchet, SW)
     transforms.py          # feature transforms fitted on the visible prefix only
     benchmark.py           # dataset roles, acquisition orders, one record per run
+    _benchmark_data.py     # private: a benchmark run's data: the dataset loaded and validated, its groups, streams and reservoirs, imaged area
     reservoir.py           # held-out evaluation reservoirs split by spatial block
     spatial.py             # spatial diagnostics: FOV semivariogram against stage distance
     bounds.py              # Clopper-Pearson bounds and intervals for probabilities from few FOVs
