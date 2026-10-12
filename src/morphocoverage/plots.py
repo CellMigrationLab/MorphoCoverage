@@ -60,7 +60,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -73,13 +73,12 @@ from ._former_repeat import one_warning, read_former
 from ._palette import (
     FONT,
     GREY,
-    INK,
     MARKERS,
     MUTED,
-    OTHER_MARKER,
     condition_palette,
     style_axes,
 )
+from ._plots_clusters import _cluster_units, _draw_cluster, _mask
 from ._plots_text import legend, title
 from ._seeds import group_rng
 from ._wording import shortened
@@ -92,7 +91,6 @@ from .metadata import (
     sorted_labels,
 )
 from .schema import ValidatedInput, fov_positions, fov_values, observation_words
-from .statistics import bootstrap_nested
 
 MAX_CONDITIONS = 12
 MAX_REPEATS = 8
@@ -235,122 +233,6 @@ def _layout(
     )
 
 
-def _mask(table: pd.DataFrame, column: str | None, value: Any) -> np.ndarray:
-    """The rows holding ``value`` in ``column``; every row when either is absent."""
-    if column is None or value is None:
-        return np.ones(len(table), dtype=bool)
-    return table[column].to_numpy() == value
-
-
-def _unit_keys(frame: pd.DataFrame, mask: np.ndarray, layout: _Layout) -> list[tuple[Any, Any]]:
-    """``(top-level unit, technical repeat)`` of each row of ``frame`` in ``mask``.
-
-    The top-level unit is the tuple of the layout's pooled columns (empty
-    when nothing is pooled), so a technical repeat is identified within it:
-    well ``B02`` of two pooled repeats is two technical repeats.
-    """
-    rows = frame.loc[mask]
-    tops = list(zip(*(rows[c] for c in layout.pooled_cols), strict=True))
-    tops = tops if layout.pooled_cols else [()] * len(rows)
-    technical = rows[layout.technical_col] if layout.technical_col else [None] * len(rows)
-    return list(zip(tops, technical, strict=True))
-
-
-def _unit_mask(frame: pd.DataFrame, layout: _Layout, top: tuple, replicate: Any) -> np.ndarray:
-    """The rows of ``frame`` in one ``(top-level unit, technical repeat)``."""
-    mask = _mask(frame, layout.technical_col, replicate)
-    for column, value in zip(layout.pooled_cols, top, strict=True):
-        mask &= frame[column].to_numpy() == value
-    return mask
-
-
-def _draw_cluster(
-    ax: Axes,
-    x: float,
-    width: float,
-    rows: np.ndarray,
-    values: np.ndarray,
-    fields: tuple[pd.DataFrame, pd.DataFrame, list[np.ndarray], np.ndarray],
-    layout: _Layout,
-    colour: str,
-    statistic: Callable[[np.ndarray], float],
-    n_boot: int,
-    confidence: float,
-    rng: np.random.Generator,
-) -> tuple[float, float, float]:
-    """One cluster (a condition and biological repeat): its points in the condition's
-    ``colour``, each technical repeat by shape, then the summary and interval. Returns the
-    summary and its interval.
-
-    ``rows`` is the boolean mask of the cluster's observations; ``fields``
-    holds every acquired field's metadata, every observation's (its field's),
-    every field's values, and the boolean mask of the cluster's fields, empty
-    ones included.
-    """
-    meta, observed, per_field, in_cluster = fields
-    # Units in the order their observations come, then units whose fields are all empty.
-    units = dict.fromkeys(
-        [*_unit_keys(observed, rows, layout), *_unit_keys(meta, in_cluster, layout)]
-    )
-    half = 0.4 * width
-    by_top: dict[tuple, list[list[np.ndarray]]] = {}
-    for top, replicate in units:
-        # Shapes by rank within the top-level unit (the biological repeat), as the legend says.
-        rank = len(by_top.setdefault(top, []))
-        unit_fields = in_cluster & _unit_mask(meta, layout, top, replicate)
-        by_top[top].append([per_field[i] for i in np.flatnonzero(unit_fields)])
-        y = values[rows & _unit_mask(observed, layout, top, replicate)]
-        y = y[~np.isnan(y)]
-        if not len(y):
-            continue
-        marker = MARKERS[rank] if rank < len(MARKERS) else OTHER_MARKER
-        jitter = rng.uniform(-half, half, size=len(y))
-        ax.scatter(
-            x + jitter,
-            y,
-            s=16,
-            alpha=0.5,
-            color=colour,
-            marker=marker,
-            linewidths=0,
-            rasterized=True,
-            zorder=1,
-        )
-    tops = [t for t in by_top.values() if any(len(f) for unit in t for f in unit)]
-    if len(tops) > 1:
-        # Pooled repeats: the repeats alone resampled, all their fields as acquired (Ren 2010).
-        units_resampled = [[f for unit in top for f in unit] for top in tops]
-    else:
-        units_resampled = tops[0] if tops else [[]]
-    point, low, high = bootstrap_nested(
-        units_resampled, statistic, n_boot=n_boot, rng=rng, confidence=confidence
-    )
-    if np.isfinite(low) and np.isfinite(high):
-        # The interval as an error bar with caps, so a narrow one stays visible.
-        ax.vlines(x, low, high, color=INK, lw=1.8, zorder=3)
-        ax.hlines([low, high], x - 0.13 * width, x + 0.13 * width, color=INK, lw=1.8, zorder=3)
-    if np.isfinite(point):
-        ax.hlines(point, x - 0.34 * width, x + 0.34 * width, color=INK, lw=3, zorder=4)
-    return float(point), float(low), float(high)
-
-
-def _cluster_units(observed: pd.DataFrame, layout: _Layout) -> list[tuple[int, list[int]]]:
-    """Per cluster: its top-level units with observations, and each one's technical repeats."""
-    shown = [layout.condition_col] + ([] if layout.pooled_repeats else [layout.repeat_col])
-    cluster_cols = [c for c in shown if c is not None]
-    top_cols = [*cluster_cols, *layout.pooled_cols]
-    clusters = observed.groupby(cluster_cols, sort=False) if cluster_cols else [((), observed)]
-    result = []
-    for _, cluster in clusters:
-        tops = cluster.groupby(top_cols, sort=False) if top_cols else [((), cluster)]
-        technical = [
-            int(top[layout.technical_col].nunique()) if layout.technical_col else 0
-            for _, top in tops
-        ]
-        result.append((len(technical), technical))
-    return result
-
-
 @one_warning
 def plots_of_data(
     objects: pd.DataFrame,
@@ -405,20 +287,9 @@ def plots_of_data(
         )
     if summary not in SUMMARIES:
         raise ValueError(f"summary must be one of {sorted(SUMMARIES)}")
-    for name, value in (
-        ("n_boot", n_boot),
-        ("max_conditions", max_conditions),
-        ("max_repeats", max_repeats),
-        ("max_technical", max_technical),
-    ):
-        if not is_integer(value) or value < 1:
-            raise ValueError(f"{name} must be a positive integer")
-    n_boot, max_conditions = int(n_boot), int(max_conditions)
-    max_repeats, max_technical = int(max_repeats), int(max_technical)
-    if max_technical > len(MARKERS):
-        raise ValueError(
-            f"max_technical can be at most {len(MARKERS)}, the shapes that can be told apart"
-        )
+    n_boot, max_conditions, max_repeats, max_technical = _counts(
+        n_boot, max_conditions, max_repeats, max_technical
+    )
     data = validate_input_tables(
         objects,
         fovs=fovs,
@@ -435,140 +306,254 @@ def plots_of_data(
         [layout.condition_col, layout.repeat_col, layout.technical_col, *layout.pooled_cols],
     )
     observed = meta.iloc[fov_positions(data, data.fovs)].reset_index(drop=True)
-    statistic = SUMMARIES[summary]
-    figures: dict[str, list[Figure]] = {}
-    for feature in features:
-        values = data.feature_values(feature)
-        per_field = fov_values(data, values)  # every acquired field, empty ones included
-        figures[feature] = []
-        # Every part of a split figure starts with the control, so each condition is drawn
-        # beside the one it is compared with.
-        conditions = list(layout.conditions)
-        lead = conditions[:1] if len(conditions) > 1 and conditions[0] == first else []
-        rest = conditions[len(lead) :]
-        room = max(max_conditions - len(lead), 1)
-        size = -(-len(rest) // -(-len(rest) // room))
-        for start in range(0, len(rest), size):
-            chunk = lead + rest[start : start + size]
-            # The legend describes the clusters of this figure only, not those of its other parts.
-            in_chunk = np.logical_or.reduce(
-                [_mask(observed, layout.condition_col, c) for c in chunk]
-            )
-            clusters = _cluster_units(observed[in_chunk], layout)
-            n_technical = max((n for _, technical in clusters for n in technical), default=0)
-            # Each part its own colours, the control's first (owner, 2026-10-05).
-            colours = condition_palette(chunk, first, highlight)
-            # Each condition is as wide as the repeats it holds: a slot of 1 per repeat, a gap
-            # of GAP between conditions, so repeats imaged for other conditions take no room.
-            present = [
-                [
-                    r
-                    for r in layout.repeats
-                    if (
-                        _mask(observed, layout.condition_col, c)
-                        & _mask(observed, layout.repeat_col, r)
-                    ).any()
-                ]
-                for c in chunk
-            ]
-            starts = np.cumsum([0.0] + [max(len(p), 1) + GAP for p in present[:-1]])
-            span = starts[-1] + max(len(present[-1]), 1)
-            figure = Figure(figsize=(max(6.5, INCHES_PER_SLOT * span + 2.0), 4.8))
-            ax = figure.add_subplot(111)
-            repeat_labels: list[tuple[float, str]] = []
-            summaries = []
-            width = 1.0
-            for index, condition in enumerate(chunk):
-                in_condition = _mask(observed, layout.condition_col, condition)
-                fields_in_condition = _mask(meta, layout.condition_col, condition)
-                for j, repeat in enumerate(present[index]):
-                    rows = in_condition & _mask(observed, layout.repeat_col, repeat)
-                    in_cluster = fields_in_condition & _mask(meta, layout.repeat_col, repeat)
-                    x = starts[index] + j + 0.5
-                    # A generator per cluster: no figure depends on the others of the call.
-                    rng = group_rng(
-                        random_state,
-                        {"feature": feature, "condition": condition, "repeat": repeat},
-                    )
-                    point, low, high = _draw_cluster(
-                        ax,
-                        x,
-                        width,
-                        rows,
-                        values,
-                        (meta, observed, per_field, in_cluster),
-                        layout,
-                        colours[condition],
-                        statistic,
-                        n_boot,
-                        confidence,
-                        rng,
-                    )
-                    summaries.append(
-                        {"condition": condition, "repeat": repeat, "x": x, "width": width}
-                        | {"summary": point, "low": low, "high": high}
-                    )
-                    # CellPatcher's "single" names a folder level the data did not have.
-                    if repeat is not None and str(repeat) != "single":
-                        repeat_labels.append((x, str(repeat)))
-            many = len(chunk) > 4
-            ax.set_xticks([b + max(len(p), 1) / 2 for b, p in zip(starts, present, strict=True)])
-            ax.set_xlim(-0.4, span + 0.4)
-            # A long name is cut (the figure's data holds it whole), so the plot keeps its room.
-            ax.set_xticklabels(
-                ["all fields" if c is None else shortened(c, NAME_CHARACTERS) for c in chunk],
-                rotation=30 if many else 0,
-                ha="right" if many else "center",
-            )
-            # Slanted when a repeat's name is wider than its slot, so neighbours never run
-            # into each other ("2026_03_022026_03_09"); about 0.075 in a character at 9.5 pt.
-            longest = max((len(label) for _, label in repeat_labels), default=0)
-            slot = (figure.get_size_inches()[0] - 1.3) / (span + 0.8)
-            slant = 0.075 * longest > 0.9 * slot
-            for x, label in repeat_labels:
-                ax.annotate(
-                    label,
-                    (x, 1.0),
-                    xycoords=("data", "axes fraction"),
-                    xytext=(-3, 3) if slant else (0, 0),
-                    textcoords="offset points",
-                    ha="left" if slant else "center",
-                    va="bottom",
-                    rotation=40 if slant else 0,
-                    rotation_mode="anchor",
-                    fontsize=9.5,
-                    color=MUTED,
-                )
-            ax.set_ylabel(feature if value_note is None else f"{feature} ({value_note})")
-            shown = len(chunk) - len(lead)
-            part = (
-                f" (conditions {start + 1} to {start + shown} of {len(rest)}"
-                + (", with the control)" if lead else ")")
-                if len(rest) > size
-                else ""
-            )
-            words = title(
-                feature, part, layout, observation_words(data)[0], summary, confidence, clusters
-            )
-            # The feature on top; what the figure shows is its legend, at the bottom.
-            pad = 22 + (3.5 * longest if slant else 0)  # above the slanted names
-            ax.set_title(f"{feature}{part}", fontsize=13, weight="bold", loc="left", pad=pad)
-            legend(ax, layout, shapes, n_technical)
-            style_axes(ax)
-            ax.tick_params(axis="x", labelsize=FONT + 1)
-            figure.tight_layout()
-            greyed = sum(colour == GREY for colour in colours.values())
-            if greyed:
-                words += (
-                    f"\nin colour the control and the highlighted conditions; the other "
-                    f"{greyed} in grey"
-                )
-            figure.cluster_summaries = pd.DataFrame(summaries)
-            figure.caption = words
-            figure.colours = colours
-            set_legend(figure, [sentences(words)])
-            figures[feature].append(figure)
+    plot = _Plot(
+        data=data,
+        layout=layout,
+        meta=meta,
+        observed=observed,
+        summary=summary,
+        n_boot=n_boot,
+        confidence=confidence,
+        random_state=random_state,
+        shapes=shapes,
+        first=first,
+        highlight=highlight,
+        value_note=value_note,
+    )
+    return {feature: _feature_figures(plot, feature, max_conditions) for feature in features}
+
+
+def _counts(
+    n_boot: Any, max_conditions: Any, max_repeats: Any, max_technical: Any
+) -> tuple[int, int, int, int]:
+    """The resamples and the most conditions, repeats and technical repeats, checked
+    positive integers (technical repeats no more than the shapes told apart)."""
+    for name, value in (
+        ("n_boot", n_boot),
+        ("max_conditions", max_conditions),
+        ("max_repeats", max_repeats),
+        ("max_technical", max_technical),
+    ):
+        if not is_integer(value) or value < 1:
+            raise ValueError(f"{name} must be a positive integer")
+    n_boot, max_conditions = int(n_boot), int(max_conditions)
+    max_repeats, max_technical = int(max_repeats), int(max_technical)
+    if max_technical > len(MARKERS):
+        raise ValueError(
+            f"max_technical can be at most {len(MARKERS)}, the shapes that can be told apart"
+        )
+    return n_boot, max_conditions, max_repeats, max_technical
+
+
+@dataclass(frozen=True)
+class _Plot:
+    """What every figure of one ``plots_of_data`` call shares: the data, the layout, every
+    field's metadata and every observation's, and the settings."""
+
+    data: ValidatedInput
+    layout: _Layout
+    meta: pd.DataFrame
+    observed: pd.DataFrame
+    summary: str
+    n_boot: int
+    confidence: float
+    random_state: int
+    shapes: Sequence[str]
+    first: Any
+    highlight: Sequence[Any]
+    value_note: str | None
+
+
+class _Slots(NamedTuple):
+    """A figure's conditions on the x axis: the repeats each holds, where each starts, and
+    the axis' whole span."""
+
+    chunk: list[Any]
+    present: list[list[Any]]
+    starts: np.ndarray
+    span: float
+
+
+def _feature_figures(plot: _Plot, feature: str, max_conditions: int) -> list[Figure]:
+    """One feature's figures: its conditions split into parts of at most ``max_conditions``,
+    each part led by the control."""
+    values = plot.data.feature_values(feature)
+    per_field = fov_values(plot.data, values)  # every acquired field, empty ones included
+    figures = []
+    # Every part of a split figure starts with the control, so each condition is drawn
+    # beside the one it is compared with.
+    conditions = list(plot.layout.conditions)
+    lead = conditions[:1] if len(conditions) > 1 and conditions[0] == plot.first else []
+    rest = conditions[len(lead) :]
+    room = max(max_conditions - len(lead), 1)
+    size = -(-len(rest) // -(-len(rest) // room))
+    for start in range(0, len(rest), size):
+        chunk = lead + rest[start : start + size]
+        shown = len(chunk) - len(lead)
+        part = (
+            f" (conditions {start + 1} to {start + shown} of {len(rest)}"
+            + (", with the control)" if lead else ")")
+            if len(rest) > size
+            else ""
+        )
+        figures.append(_figure(plot, feature, values, per_field, chunk, part))
     return figures
+
+
+def _figure(
+    plot: _Plot,
+    feature: str,
+    values: np.ndarray,
+    per_field: list[np.ndarray],
+    chunk: list[Any],
+    part: str,
+) -> Figure:
+    """The figure of one part (``chunk``) of a feature's conditions, with its caption."""
+    layout, observed = plot.layout, plot.observed
+    # The legend describes the clusters of this figure only, not those of its other parts.
+    in_chunk = np.logical_or.reduce([_mask(observed, layout.condition_col, c) for c in chunk])
+    clusters = _cluster_units(observed[in_chunk], layout)
+    n_technical = max((n for _, technical in clusters for n in technical), default=0)
+    # Each part its own colours, the control's first (owner, 2026-10-05).
+    colours = condition_palette(chunk, plot.first, plot.highlight)
+    slots = _slots(observed, layout, chunk)
+    figure = Figure(figsize=(max(6.5, INCHES_PER_SLOT * slots.span + 2.0), 4.8))
+    ax = figure.add_subplot(111)
+    summaries, repeat_labels = _draw_clusters(plot, ax, feature, values, per_field, slots, colours)
+    longest, slant = _label_axes(figure, ax, slots, repeat_labels)
+    ax.set_ylabel(feature if plot.value_note is None else f"{feature} ({plot.value_note})")
+    words = title(
+        feature,
+        part,
+        layout,
+        observation_words(plot.data)[0],
+        plot.summary,
+        plot.confidence,
+        clusters,
+    )
+    # The feature on top; what the figure shows is its legend, at the bottom.
+    pad = 22 + (3.5 * longest if slant else 0)  # above the slanted names
+    ax.set_title(f"{feature}{part}", fontsize=13, weight="bold", loc="left", pad=pad)
+    legend(ax, layout, plot.shapes, n_technical)
+    style_axes(ax)
+    ax.tick_params(axis="x", labelsize=FONT + 1)
+    figure.tight_layout()
+    greyed = sum(colour == GREY for colour in colours.values())
+    if greyed:
+        words += (
+            f"\nin colour the control and the highlighted conditions; the other {greyed} in grey"
+        )
+    figure.cluster_summaries = pd.DataFrame(summaries)
+    figure.caption = words
+    figure.colours = colours
+    set_legend(figure, [sentences(words)])
+    return figure
+
+
+def _slots(observed: pd.DataFrame, layout: _Layout, chunk: list[Any]) -> _Slots:
+    """Each condition as wide as the repeats it holds: a slot of 1 per repeat, a gap of
+    ``GAP`` between conditions, so repeats imaged for other conditions take no room."""
+    present = [
+        [
+            r
+            for r in layout.repeats
+            if (
+                _mask(observed, layout.condition_col, c) & _mask(observed, layout.repeat_col, r)
+            ).any()
+        ]
+        for c in chunk
+    ]
+    starts = np.cumsum([0.0] + [max(len(p), 1) + GAP for p in present[:-1]])
+    span = starts[-1] + max(len(present[-1]), 1)
+    return _Slots(chunk, present, starts, span)
+
+
+def _draw_clusters(
+    plot: _Plot,
+    ax: Axes,
+    feature: str,
+    values: np.ndarray,
+    per_field: list[np.ndarray],
+    slots: _Slots,
+    colours: Mapping[Any, str],
+) -> tuple[list[dict[str, Any]], list[tuple[float, str]]]:
+    """Every cluster of the figure drawn, condition by condition and repeat by repeat; each
+    cluster's summary and interval, and the repeat names to write above the clusters."""
+    layout, meta, observed = plot.layout, plot.meta, plot.observed
+    repeat_labels: list[tuple[float, str]] = []
+    summaries = []
+    width = 1.0
+    for index, condition in enumerate(slots.chunk):
+        in_condition = _mask(observed, layout.condition_col, condition)
+        fields_in_condition = _mask(meta, layout.condition_col, condition)
+        for j, repeat in enumerate(slots.present[index]):
+            rows = in_condition & _mask(observed, layout.repeat_col, repeat)
+            in_cluster = fields_in_condition & _mask(meta, layout.repeat_col, repeat)
+            x = slots.starts[index] + j + 0.5
+            # A generator per cluster: no figure depends on the others of the call.
+            rng = group_rng(
+                plot.random_state,
+                {"feature": feature, "condition": condition, "repeat": repeat},
+            )
+            point, low, high = _draw_cluster(
+                ax,
+                x,
+                width,
+                rows,
+                values,
+                (meta, observed, per_field, in_cluster),
+                layout,
+                colours[condition],
+                SUMMARIES[plot.summary],
+                plot.n_boot,
+                plot.confidence,
+                rng,
+            )
+            summaries.append(
+                {"condition": condition, "repeat": repeat, "x": x, "width": width}
+                | {"summary": point, "low": low, "high": high}
+            )
+            # CellPatcher's "single" names a folder level the data did not have.
+            if repeat is not None and str(repeat) != "single":
+                repeat_labels.append((x, str(repeat)))
+    return summaries, repeat_labels
+
+
+def _label_axes(
+    figure: Figure, ax: Axes, slots: _Slots, repeat_labels: list[tuple[float, str]]
+) -> tuple[int, bool]:
+    """The condition names under the axis and the repeat names above it; the longest repeat
+    name, and whether the names are slanted."""
+    chunk, present, starts, span = slots
+    many = len(chunk) > 4
+    ax.set_xticks([b + max(len(p), 1) / 2 for b, p in zip(starts, present, strict=True)])
+    ax.set_xlim(-0.4, span + 0.4)
+    # A long name is cut (the figure's data holds it whole), so the plot keeps its room.
+    ax.set_xticklabels(
+        ["all fields" if c is None else shortened(c, NAME_CHARACTERS) for c in chunk],
+        rotation=30 if many else 0,
+        ha="right" if many else "center",
+    )
+    # Slanted when a repeat's name is wider than its slot, so neighbours never run
+    # into each other ("2026_03_022026_03_09"); about 0.075 in a character at 9.5 pt.
+    longest = max((len(label) for _, label in repeat_labels), default=0)
+    slot = (figure.get_size_inches()[0] - 1.3) / (span + 0.8)
+    slant = 0.075 * longest > 0.9 * slot
+    for x, label in repeat_labels:
+        ax.annotate(
+            label,
+            (x, 1.0),
+            xycoords=("data", "axes fraction"),
+            xytext=(-3, 3) if slant else (0, 0),
+            textcoords="offset points",
+            ha="left" if slant else "center",
+            va="bottom",
+            rotation=40 if slant else 0,
+            rotation_mode="anchor",
+            fontsize=9.5,
+            color=MUTED,
+        )
+    return longest, slant
 
 
 __all__ = [
