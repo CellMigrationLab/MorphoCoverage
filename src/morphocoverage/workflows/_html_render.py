@@ -12,7 +12,7 @@ from __future__ import annotations
 import html
 import re
 
-from .._style import Status, indent_width, without_provenance
+from .._style import MARKERS, Status, indent_width, without_provenance
 from ..glossary import GLOSSARY, PHRASES, Term, slug
 
 STATUS_WORDS = {
@@ -21,7 +21,6 @@ STATUS_WORDS = {
     Status.PROBLEM: ("problem", "Check the data first"),
     Status.NOT_ASSESSED: ("na", "Not assessed"),
 }
-_MARKERS = {status.marker: status for status in Status}
 _MARKER_LINE = re.compile(r"^(✅|⚠️|❌|➖)\s+(.*)$")
 _COLUMNS = re.compile(r"\S {2,}\S")
 _SPLIT = re.compile(r" {2,}")
@@ -228,7 +227,7 @@ def _paragraph(text: str, level: int) -> str:
     style = f' style="margin-left:{min(level, 4) * 1.1:.1f}em"' if level else ""
     marker = _MARKER_LINE.match(text)
     if marker:
-        status = _MARKERS[marker.group(1)]
+        status = MARKERS[marker.group(1)]
         kind, word = STATUS_WORDS[status]
         # Inline, the sentence says what the marker found; the icon keeps its word for readers
         # that cannot see it.

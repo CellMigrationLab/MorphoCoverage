@@ -75,6 +75,8 @@ class Status(Enum):
 
 
 _RANKS = {Status.NOT_ASSESSED: 0, Status.OK: 1, Status.CAUTION: 2, Status.PROBLEM: 3}
+# Each marker's status, to read an answer's line back.
+MARKERS = {status.marker: status for status in Status}
 
 
 def worst(statuses: Iterable[Status]) -> Status:
@@ -549,6 +551,7 @@ __all__ = [
     "CAUTION",
     "DASH",
     "DETAILS",
+    "MARKERS",
     "NOT_ASSESSED",
     "OK",
     "PROBLEM",

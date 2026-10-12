@@ -29,7 +29,15 @@ import pandas as pd
 from .._caveats import caveat_lines
 from .._style import check_detail, group_columns, group_label, span, table, wrap
 from .._wording import listing
-from ._text import median_beyond, number, order_phrase, rows_of, rule_names, skipped_labels
+from ._text import (
+    median_beyond,
+    number,
+    order_name,
+    order_phrase,
+    rows_of,
+    rule_names,
+    skipped_labels,
+)
 
 if TYPE_CHECKING:
     from .adequacy import AdequacyResult
@@ -40,7 +48,8 @@ RELIABLY = (
     "it; each hold-out is a different set of held-back fields."
 )
 # The order kinds as the short tables name them, in the order the summaries give them.
-_ORDER_COLUMNS = {"dispersed": "spread out", "permuted": "random", "recorded": "recorded"}
+# The order kinds in the order of the tables' columns (``_text.order_name`` names them).
+_ORDER_KINDS = ("dispersed", "permuted", "recorded")
 _ORDER_ROWS = {
     "dispersed": "the same positions spread out",
     "permuted": "random orders",
@@ -153,8 +162,8 @@ def _groups(result: AdequacyResult) -> list[dict[str, Any]]:
 def _orders(frame: pd.DataFrame) -> list[str]:
     """The order kinds of a table, spread out, random, recorded first, then any other."""
     kinds = list(dict.fromkeys(frame["order"])) if "order" in frame else []
-    known = [k for k in _ORDER_COLUMNS if k in kinds]
-    return known + sorted(k for k in kinds if k not in _ORDER_COLUMNS)
+    known = [k for k in _ORDER_KINDS if k in kinds]
+    return known + sorted(k for k in kinds if k not in _ORDER_KINDS)
 
 
 def _cell(medians: Sequence[float | None]) -> str:
@@ -288,7 +297,7 @@ def _criteria_table(
     if not rows:
         return []
     head = wrap("Each target on its own, reliably preserved from:", indent, hang=indent + 2)
-    columns = ["to preserve", *(_ORDER_COLUMNS.get(o, o) for o in orders)]
+    columns = ["to preserve", *(order_name(o) for o in orders)]
     return [head, table(rows, columns, indent=indent + 2)]
 
 
@@ -317,7 +326,7 @@ def _rules_table(
         indent,
         hang=indent + 2,
     )
-    columns = ["rule", *(_ORDER_COLUMNS.get(o, o) for o in orders)]
+    columns = ["rule", *(order_name(o) for o in orders)]
     return [head, table(rows, columns, indent=indent + 2)]
 
 
@@ -377,7 +386,7 @@ def _full_rules(apparent: pd.DataFrame, names: Mapping[str, str], indent: int) -
         "When each rule would have first said stop (medians; 'kept from': from which field it "
         "kept saying stop; never: not within the fields available in half or more of runs):"
     )
-    columns = ["rule", *(_ORDER_COLUMNS.get(o, o) for o in orders)]
+    columns = ["rule", *(order_name(o) for o in orders)]
     return [wrap(head, indent, hang=indent + 2), table(rows, columns, indent=indent + 2)]
 
 

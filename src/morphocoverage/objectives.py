@@ -62,6 +62,15 @@ def _probability(value: float | None, name: str) -> float | None:
     return float(value)
 
 
+def fov_occurrences(value: object) -> int:
+    """``min_fov_occurrences`` as an int, refused unless an integer count of at least 1."""
+    if not is_integer(value):
+        raise TypeError("min_fov_occurrences must be an integer count of FOVs")
+    if value < 1:
+        raise ValueError("min_fov_occurrences must be at least 1")
+    return int(value)
+
+
 @dataclass(frozen=True, kw_only=True)
 class RareTarget:
     """The rare state an acquisition should detect, stated so that it is testable.
@@ -105,11 +114,8 @@ class RareTarget:
             "detection_probability",
             _probability(self.detection_probability, "detection_probability"),
         )
-        if not is_integer(self.min_fov_occurrences):
-            raise TypeError("min_fov_occurrences must be an integer count of FOVs")
-        if self.min_fov_occurrences < 1:
-            raise ValueError("min_fov_occurrences must be at least 1")
-        object.__setattr__(self, "min_fov_occurrences", int(self.min_fov_occurrences))
+        occurrences = fov_occurrences(self.min_fov_occurrences)
+        object.__setattr__(self, "min_fov_occurrences", occurrences)
         if not isinstance(self.phenotype, str) or not self.phenotype.strip():
             raise ValueError(
                 "phenotype must declare how the rare state is defined: a labelled "
