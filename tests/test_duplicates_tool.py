@@ -1,5 +1,5 @@
-"""The duplicate finder and the jscpd review wrapper (tools/), on planted code in a temporary
-tree: what each tier catches, what it leaves to the on-demand review, and that the
+"""The duplicate finder, the jscpd review wrapper and the layer check (tools/), on planted code in
+a temporary tree: what each tier catches, what it leaves to the on-demand review, and that the
 tools never change the trees they read."""
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ def _load(name: str) -> ModuleType:
 
 DUPLICATES = _load("duplicates")
 REVIEW = _load("jscpd_review")
+LAYERS = _load("layers")
 
 HEAD = "import numpy as np\nfrom morphocoverage._checks import is_integer\n\n"
 ORIGINAL = '''
@@ -313,3 +314,65 @@ def test_the_reviewed_list_is_well_formed():
         assert set(row) == {"a", "b", "source", "verdict", "reason"}
         assert row["source"] in REVIEW.SOURCES and row["verdict"] in REVIEW.VERDICTS
         assert row["reason"].strip()
+
+
+# The layer check.
+
+
+def _package(tmp_path: Path, files: dict[str, str]) -> Path:
+    source = tmp_path / "morphocoverage"
+    for name, text in {"__init__.py": "", **files}.items():
+        path = source / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(textwrap.dedent(text), encoding="utf-8")
+    return source
+
+
+def test_absolute_imports_and_import_module_are_read(tmp_path):
+    source = _package(
+        tmp_path,
+        {
+            "core.py": "from morphocoverage.workflows import w\n",
+            "strategies/__init__.py": "",
+            "strategies/s.py": "def f():\n    import morphocoverage.sampling_unit.u\n",
+            "sampling_unit/__init__.py": "",
+            "sampling_unit/u.py": (
+                "import importlib\nM = importlib.import_module('morphocoverage.workflows.w')\n"
+            ),
+            "workflows/__init__.py": "",
+            "workflows/w.py": "",
+        },
+    )
+    assert LAYERS.violations(source) == [
+        "core -> workflows.w (runtime)",
+        "sampling_unit.u -> workflows.w (runtime)",
+        "strategies.s -> sampling_unit.u (local)",
+    ]
+
+
+def test_runtime_cycles_fail_and_deferred_back_edges_are_listed(tmp_path):
+    files = {
+        "a.py": "from . import b\n",
+        "b.py": "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from .a import X\n",
+        "c.py": "from .d import Y\n",
+        "d.py": "def f():\n    from .c import Z\n",
+    }
+    source = _package(tmp_path / "deferred", files)
+    assert LAYERS.cycles(source) == []
+    assert LAYERS.back_edges(source) == ["b -> a (typing)", "d -> c (local)"]
+    files["b.py"] = "from .a import X\n"
+    assert LAYERS.cycles(_package(tmp_path / "runtime", files)) == ["a -> b"]
+
+
+def test_from_package_import_adds_the_package_only_for_a_name_that_is_not_a_module(tmp_path):
+    source = _package(
+        tmp_path,
+        {
+            "workflows/__init__.py": "def setup():\n    return 1\n",
+            "workflows/guided.py": "from . import setup\n",
+            "workflows/_tables.py": "from . import guided\n",
+        },
+    )
+    graph = LAYERS.import_graph(source)
+    assert graph["workflows._tables"] == {"workflows.guided"}
+    assert graph["workflows.guided"] == {"workflows"}

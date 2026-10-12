@@ -68,12 +68,6 @@ def test_a_baseline_never_holds_what_was_fixed(current, kind):
     )
 
 
-def _baseline_file(name: str):
-    import json
-
-    return json.loads((TOOL.BASELINES / f"{name}.json").read_text(encoding="utf-8"))
-
-
 @pytest.fixture(scope="module")
 def identical() -> dict[str, list[str]]:
     return DUPLICATES.exact_groups()
@@ -106,16 +100,26 @@ def test_every_accepted_duplicate_group_has_a_reason_and_still_exists(identical)
 
 
 def test_no_import_crosses_a_layer_it_must_not():
-    allowed = set(_baseline_file("layers")["violations"])
-    new = sorted(set(LAYERS.violations()) - allowed)
+    allowed = LAYERS.read_baseline()["violations"]
+    found = LAYERS.violations()
+    new = sorted(set(found) - set(allowed))
     assert not new, f"a layer imports one it must not (tools/layers.py RULES): {new[:5]}"
-    stale = sorted(allowed - set(LAYERS.violations()))
-    assert not stale, f"fixed, tighten the baseline ({RATCHET}): {stale[:5]}"
+    stale = sorted(set(allowed) - set(found))
+    assert not stale, f"fixed, run `python tools/layers.py --tighten`: {stale[:5]}"
 
 
-def test_no_new_import_cycle():
-    allowed = set(_baseline_file("layers")["cycles"])
-    new = sorted(set(LAYERS.cycles()) - allowed)
-    assert not new, f"new import cycle between modules: {new[:3]}"
-    stale = sorted(allowed - set(LAYERS.cycles()))
-    assert not stale, f"cycle gone, tighten the baseline ({RATCHET}): {stale[:3]}"
+def test_no_runtime_import_cycle():
+    found = LAYERS.cycles()
+    assert not found, f"modules import each other at import time (no baseline): {found[:3]}"
+
+
+def test_no_new_deferred_import_inside_a_cycle():
+    allowed = LAYERS.read_baseline()["back_edges"]
+    found = LAYERS.back_edges()
+    new = sorted(set(found) - set(allowed))
+    assert not new, (
+        "a function-local or TYPE_CHECKING import closes an import cycle (break the cycle, "
+        f"or record the edge with a reason in tools/baselines/layers.json): {new[:5]}"
+    )
+    stale = sorted(set(allowed) - set(found))
+    assert not stale, f"gone, run `python tools/layers.py --tighten`: {stale[:5]}"

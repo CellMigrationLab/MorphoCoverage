@@ -4,7 +4,7 @@
 ``docs/common/function_duplicates.json`` and prints the counts; ``--write-baselines`` also
 records the current function findings as the ratchets ``tests/test_function_guards.py``
 enforces (use it to record a removal, never to accept something new without a reason) and
-tightens the duplicate baseline, which it never adds to: a new identical group is
+tightens the duplicate and layer baselines, which it never adds to: a new identical group is
 accepted with ``python tools/duplicates.py --accept HASH --reason ...``.
 """
 
@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
-import json
 import sys
 from pathlib import Path
 
@@ -41,17 +40,16 @@ def main(argv: list[str] | None = None) -> int:
         f"{len(rows)} functions; {len(payload['identical'])} identical duplicate groups, "
         f"{len(payload['structural'])} structural (package and data/)"
     )
-    print(f"{len(layers.violations())} layer violations, {len(layers.cycles())} import cycles")
+    print(
+        f"{len(layers.violations())} layer violations, {len(layers.cycles())} runtime import "
+        f"cycles, {len(layers.back_edges())} deferred imports inside a cycle"
+    )
     for kind, values in current.items():
         print(f"  {kind}: {len(values)}")
     if args.write_baselines:
         index.write_baselines(current)
-        for line in duplicates.tighten():
+        for line in [*duplicates.tighten(), *layers.tighten()]:
             print(f"  tightened: {line}")
-        layers_baseline = {"violations": layers.violations(), "cycles": layers.cycles()}
-        (index.BASELINES / "layers.json").write_text(
-            json.dumps(layers_baseline, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
-        )
     return 0
 
 
