@@ -252,6 +252,7 @@ src/morphocoverage/
     _fitted.py             # private: every summary fitted to 100 columns, a long line wrapped with its continuation lines
     _caveats.py            # private: the two kinds of caveat (cautions about these data, standing assumptions) and how a section states them
     _seeds.py              # private: per-group seeds (group_identity, group_seed, group_rng, split_seed) and group_key
+    _connected.py          # private: connected groups of items joined by pairs (union-find), for features and conditions
     _identity.py           # private: typed identity of FOVs, blocks, conditions and repeats: (text, type) keys, canonical order and codes, display labels (1 and "1" are two values)
     _frozen.py             # private: owned, read-only containers (FrozenDict/FrozenList, freeze, thaw) for frozen result snapshots
     _stage_coordinates.py  # private: the one contract for stage coordinates: two distinct real numeric columns, no booleans, complex, text or coercion, finite (stage_names, stage_matrix, check_xy)
