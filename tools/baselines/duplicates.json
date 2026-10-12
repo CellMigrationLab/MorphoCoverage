@@ -1,15 +1,4 @@
 {
- "01f745e13dcc6a78:2": "a plain copy of an indent helper, to merge (audit 12, H3)",
- "12ca125940bab3c4:2": "a plain copy (with controls_text._selected), to merge (audit 12, H3)",
- "21a6f5aa29eedf38:2": "a plain copy, to merge (audit 12, H3)",
- "44e61d74bf7adeed:2": "a plain copy, to merge (audit 12, H3)",
- "683b9de74e6aea06:2": "a plain copy, to merge (audit 12, H3)",
  "78b14bb34d45ecad:2": "two calls of the shared validators (_feature, _check_label) in two dataclasses; a common base would couple two metrics for two lines",
- "796b91073980735d:2": "a plain copy of an indent helper, to merge (audit 12, H3)",
- "97cd8afadf953859:2": "a plain copy, to merge into support_novelty.one_per_field (audit 12, H3)",
- "afe9b76b20cd4143:3": "a plain copy, to merge (audit 12, H3)",
- "ccfcd7e3ab54d8bd:2": "a plain copy, to merge (audit 12, H3)",
- "e7059910bdfc3065:4": "the one-line config_id of four separate protocols (outcome metric, policy, estimator, transform), each hashing its own class and parameters; a shared mixin would tie the four hierarchies together for one line",
- "eee2d3d4d0e245df:2": "union-find copied, to merge into one connected_groups (audit 12, H3)",
- "f4da8a6e849b4b11:2": "a plain copy, to merge (audit 12, H3)"
+ "e7059910bdfc3065:4": "the one-line config_id of four separate protocols (outcome metric, policy, estimator, transform), each hashing its own class and parameters; a shared mixin would tie the four hierarchies together for one line"
 }

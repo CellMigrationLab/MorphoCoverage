@@ -47,6 +47,7 @@ from ._frozen import owned
 from .feature_tables import mfa_weights, table_shares
 from .metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from .schema import fov_positions, validate_input_tables
+from .statistics import MAD_TO_SD_ROUNDED
 
 MIN_FEATURES = 3
 MAX_POINTS = 5000
@@ -80,7 +81,7 @@ def robust_scale(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     robust standardisation of the maps, the fingerprint of a wide table and the
     whole-table test (owner, 2026-10-06)."""
     centre = np.median(matrix, axis=0)
-    scale = 1.4826 * np.median(np.abs(matrix - centre), axis=0)
+    scale = MAD_TO_SD_ROUNDED * np.median(np.abs(matrix - centre), axis=0)
     sd = matrix.std(axis=0, ddof=1) if len(matrix) > 1 else np.zeros(matrix.shape[1])
     return centre, np.where(scale >= MAD_FLOOR * sd, scale, sd)
 
@@ -284,15 +285,22 @@ def embed(
     return Embedding(points, table, explained, settings)
 
 
-def _umap(z: np.ndarray, n_neighbors: int, min_dist: float, random_state: int) -> np.ndarray:
-    """UMAP coordinates of ``z`` (imported here: loading umap-learn takes seconds)."""
+def _umap(
+    z: np.ndarray, n_neighbors: int, min_dist: float, random_state: int, n_components: int = 2
+) -> np.ndarray:
+    """UMAP coordinates of ``z`` in ``n_components`` dimensions, on one thread for the seed
+    to hold (imported here: loading umap-learn takes seconds)."""
     import warnings
 
     import umap
 
     neighbours = min(n_neighbors, max(2, len(z) - 1))
     reducer = umap.UMAP(
-        n_neighbors=neighbours, min_dist=min_dist, random_state=random_state, n_jobs=1
+        n_neighbors=neighbours,
+        min_dist=min_dist,
+        n_components=n_components,
+        random_state=random_state,
+        n_jobs=1,
     )
     with warnings.catch_warnings():
         # fallback: umap-learn warns that a seed disables its parallelism: the point here

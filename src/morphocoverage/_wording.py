@@ -166,6 +166,13 @@ def listing(items: Sequence[object], limit: int = 5) -> str:
     return f"{', '.join(names[:-1])} and {names[-1]}"
 
 
+def joined_clauses(clauses: Sequence[str]) -> str:
+    """``a``, ``a, and b``, ``a, b, and c``: the clauses hold "and" of their own."""
+    if len(clauses) == 1:
+        return clauses[0]
+    return f"{', '.join(clauses[:-1])}, and {clauses[-1]}"
+
+
 def fields(n: float) -> str:
     """``1 field``, ``12 fields``, ``2.5 fields``."""
     return count(n, "field")
@@ -228,6 +235,7 @@ __all__ = [
     "duration",
     "features_counted",
     "fields",
+    "joined_clauses",
     "listing",
     "number",
     "ordinal",

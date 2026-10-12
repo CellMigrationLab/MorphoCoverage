@@ -59,10 +59,10 @@ from ..evaluator import iter_analysis_groups
 from ..metadata import column_names
 from ..objectives import ObjectiveConfig, SamplingObjective
 from ..schema import ValidatedInput, fov_positions, observation_words
+from ..statistics import MAD_TO_SD
 from ..strategies.novelty_null import not_informative
 from ..strategies.support_novelty import FOV_QUANTITY, SupportNoveltyEstimator
 from ..sufficiency_text import novelty_definition
-from ..transforms import MAD_TO_SD
 from ._stage_neighbours import neighbour_rows, stage_skipped
 from ._text import where
 from .inspection_text import inspection_summary

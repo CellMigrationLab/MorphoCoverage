@@ -69,4 +69,15 @@ def config_hash(identity: str, parameters: Mapping[str, Any]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 
-__all__ = ["class_identity", "config_hash"]
+def describe(component: Any) -> dict[str, Any]:
+    """Provenance entry for an estimator, policy or transform: its name, type, config_id
+    and parameters."""
+    return {
+        "name": component.name,
+        "type": class_identity(type(component)),
+        "config_id": component.config_id,
+        "parameters": dict(component.parameters),
+    }
+
+
+__all__ = ["class_identity", "config_hash", "describe"]

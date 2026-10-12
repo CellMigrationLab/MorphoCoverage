@@ -86,7 +86,7 @@ from ..data_check import validate_input_tables
 from ..evaluator import FovSubsets, iter_analysis_groups
 from ..reservoir import ReservoirSplit
 from ..schema import ValidatedInput
-from .criteria import OutcomeCriterion, Preservation
+from .criteria import OutcomeCriterion, Preservation, checked_criteria
 from .reliability_text import reliability_summary
 
 CURVE_COLUMNS = (
@@ -153,11 +153,7 @@ def _check_settings(
     random_state: int,
 ) -> tuple[list[OutcomeCriterion], list[int]]:
     """Validate the settings; return the criteria list and sorted distinct counts."""
-    criteria = list(criteria)
-    if not criteria or not all(isinstance(c, OutcomeCriterion) for c in criteria):
-        raise TypeError("criteria must be a non-empty sequence of OutcomeCriterion")
-    if len({c.name for c in criteria}) != len(criteria):
-        raise ValueError("criteria must have distinct names")
+    criteria = checked_criteria(criteria)
     counts = list(fov_counts) if not isinstance(fov_counts, str) else [fov_counts]
     if not counts or not all(is_integer(k) and k >= 1 for k in counts):
         raise ValueError("fov_counts must be positive integers")

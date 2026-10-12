@@ -19,8 +19,9 @@ import pandas as pd
 
 from .._style import Status
 from .._wording import percent
+from ..sampling_unit._group_text import selector_values
 from ..schema import observation_words
-from .controls_text import _selected, pooled_over
+from .controls_text import pooled_over
 from .report_sampling import skipped_strata
 
 # Above this false-alarm rate of the declared reference, the control answer asks the reader
@@ -66,7 +67,7 @@ def controls_status(controls: Any, minimum_detection: float = 0.9) -> tuple[Stat
         )
     # The headline leads with the positive control itself; the planted rate gates the status.
     positive = _rate(controls, "positive")
-    name = _selected(control.get("positive")) or "positive-control"
+    name = selector_values(control.get("positive")) or "positive-control"
     headline = (
         f"{name} fields recognized in {percent(positive)} of checks"
         if positive is not None

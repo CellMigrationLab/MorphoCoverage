@@ -1,5 +1,481 @@
 [
  {
+  "a": "_control:reference_population",
+  "b": "workflows._contrasts:reference_control",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the analyses' reference from control/comparisons vs the Setup's own controls"
+ },
+ {
+  "a": "_data_rules:_attach",
+  "b": "schema:_attach_fov_metadata",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "collecting check vs raising validation, different messages"
+ },
+ {
+  "a": "_data_rules:_check_fov_table",
+  "b": "schema:_validated_fov_table",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "collecting check vs raising validation, different messages"
+ },
+ {
+  "a": "_data_rules:_check_fov_table",
+  "b": "workflows.live:LiveTables._check_fov_keys",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the live session checks arriving rows one at a time"
+ },
+ {
+  "a": "_data_rules:_check_spellings",
+  "b": "metadata:check_canonical_spellings",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "check_tables collects every problem with advice, the validator raises the first; the messages differ ('the MorphoBricks column' vs 'MorphoBricks column'); a shared generator of (table, column, meant) is possible without changing a sentence"
+ },
+ {
+  "a": "_data_rules:_resolve_fov_col",
+  "b": "metadata:resolve_fov_col",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the collecting check and the raising resolver: different messages and checks (the collector also checks presence in both tables)"
+ },
+ {
+  "a": "_data_rules:_resolve_fov_col",
+  "b": "workflows.scan:_fov_column",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the scan picks the field column without refusing"
+ },
+ {
+  "a": "_data_rules:_resolve_groups",
+  "b": "metadata:resolve_group_cols",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "collecting check vs raising resolver, different messages"
+ },
+ {
+  "a": "_data_rules:_resolve_groups",
+  "b": "online:OnlineSession._resolve_columns",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different checks"
+ },
+ {
+  "a": "_fitted:_indent_of",
+  "b": "workflows._html_render:_indent",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "_style.indent_width (audit 12, H3)"
+ },
+ {
+  "a": "_former_repeat:_PACKAGE_DIR",
+  "b": "schema:_PACKAGE_DIR",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "one constant in _former_repeat (audit 12, H3)"
+ },
+ {
+  "a": "_former_repeat:_caller_stacklevel",
+  "b": "schema:_caller_stacklevel",
+  "source": "audit12",
+  "verdict": "helper",
+  "reason": "_former_repeat.caller_stacklevel with the frame test as argument: schema keeps the file test, _former_repeat its test that also counts dataclass-generated __init__ (merging the tests would move warnings' reported lines); one _PACKAGE_DIR (audit 12, H3)"
+ },
+ {
+  "a": "_input_invariants:_check_roles",
+  "b": "schema:_check_column_roles",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the trusted-input invariant vs the validation message"
+ },
+ {
+  "a": "_integrity_text:integrity_status",
+  "b": "retrospective.report_status:integrity_status",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the integrity result's own status vs the report's reading of it"
+ },
+ {
+  "a": "_integrity_text:integrity_summary",
+  "b": "retrospective.inspection_text:inspection_summary",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "summary template; integrity adds its own lines"
+ },
+ {
+  "a": "_observation_units:observation_words",
+  "b": "sampling_unit.repeat_plan_text:field_words",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different words"
+ },
+ {
+  "a": "_plane_rules:_check_planes_as_fields",
+  "b": "planes:planes_as_features",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the check vs the transformation it recommends"
+ },
+ {
+  "a": "_plots_text:_span",
+  "b": "_style:span",
+  "source": "audit12",
+  "verdict": "overlap-kept",
+  "reason": "'2 to 5' vs '2-5' (audit 12, H3)"
+ },
+ {
+  "a": "_seeds:_plain",
+  "b": "strategies.jcb_planning:_plain",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "_seeds.plain (audit 12, H3)"
+ },
+ {
+  "a": "_style:span",
+  "b": "sampling_unit.repeats_text:_range",
+  "source": "audit12",
+  "verdict": "overlap-kept",
+  "reason": "range wording differs: '3-5' (_style.span, sufficiency_short._span, report_enough._span) vs '2 to 5' (_plots_text._span, repeats_text._range at two decimals); merging changes sentences (audit 12, H3)"
+ },
+ {
+  "a": "_wording:listing",
+  "b": "retrospective.overview:_listed",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different joins ('a, b and c' vs 'a, b, c') and quoting"
+ },
+ {
+  "a": "_wording:p_value",
+  "b": "plots_pairwise:format_p",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "differ in text: '< 0.001' in sentences, '<0.001' in figure cells (and NaN handling); merging changes a figure label (owner decision)"
+ },
+ {
+  "a": "_wording:percent",
+  "b": "retrospective._text:percent",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "re-export, not a copy (audit 12, H3)"
+ },
+ {
+  "a": "calibration:_check_settings",
+  "b": "retrospective.effect_preservation:_check_settings",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different settings and messages"
+ },
+ {
+  "a": "calibration:calibrate_next_fov_novelty",
+  "b": "sufficiency:_next_fov_tables",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "sufficiency calls the calibration; similar loops over groups"
+ },
+ {
+  "a": "data_check:_identity_hashable",
+  "b": "schema:_check_hashable_identity",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "collecting check vs raising validation; messages differ"
+ },
+ {
+  "a": "data_check:validate_input_tables",
+  "b": "schema:_validate_input_tables",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "the public validator wraps the private one with the same signature (it adds the check_tables report to the error)"
+ },
+ {
+  "a": "embedding:_umap",
+  "b": "sampling_unit.populations:_embedding",
+  "source": "audit12",
+  "verdict": "helper",
+  "reason": "embedding._umap with n_components (2 by default, umap-learn's default) (audit 12, H3)"
+ },
+ {
+  "a": "embedding:robust_scale",
+  "b": "sampling_unit.acquisition:_MAD_SD",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "the literal 1.4826 in robust_scale and acquisition._MAD_SD are statistics.MAD_TO_SD_ROUNDED (audit 12, H3)"
+ },
+ {
+  "a": "embedding:robust_scale",
+  "b": "transforms:RobustStandardize.fit_matrix",
+  "source": "audit12",
+  "verdict": "overlap-kept",
+  "reason": "MAD scalings with different fallbacks (also sampling_unit.acquisition:_scale, retrospective.inspection): H4 assesses; unifying changes results (audit 12, H3)"
+ },
+ {
+  "a": "embedding:weighted",
+  "b": "feature_tables:mfa_weights",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "computes vs applies the weights"
+ },
+ {
+  "a": "metadata:resolve_fov_col",
+  "b": "workflows.scan:_fov_column",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the scan picks the field column without refusing"
+ },
+ {
+  "a": "multivariate_outcomes:CentroidError.evaluate",
+  "b": "outcomes:RandomObjectRelativeError.evaluate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the OutcomeMetric protocol; different metrics"
+ },
+ {
+  "a": "multivariate_outcomes:CentroidError.evaluate",
+  "b": "outcomes:RelativeMeanError.evaluate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the OutcomeMetric protocol; different metrics"
+ },
+ {
+  "a": "multivariate_outcomes:CovarianceError.evaluate",
+  "b": "outcomes:RelativeMeanError.evaluate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the OutcomeMetric protocol; different metrics"
+ },
+ {
+  "a": "multivariate_outcomes:_feature_tuple",
+  "b": "strategies._fov_bootstrap_checks:_feature_selection",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different contracts (None allowed in one) and messages"
+ },
+ {
+  "a": "normalize:control_mean_problem",
+  "b": "normalize:control_means",
+  "source": "jscpd-token",
+  "verdict": "intentional",
+  "reason": "public signatures of two public functions; same keyword arguments by design (also found by jscpd-ast)"
+ },
+ {
+  "a": "normalize:control_means",
+  "b": "normalize:normalize_to_control",
+  "source": "jscpd-token",
+  "verdict": "intentional",
+  "reason": "public signatures of two public functions; same keyword arguments by design (also found by jscpd-ast)"
+ },
+ {
+  "a": "normalize:normalize_to_control",
+  "b": "normalize:normalize_to_own",
+  "source": "jscpd-ast",
+  "verdict": "helper",
+  "reason": "the validation and row-alignment block is normalize._aligned (audit 12, H3)"
+ },
+ {
+  "a": "objectives:RareTarget.__post_init__",
+  "b": "outcomes:RareStateDetected.__post_init__",
+  "source": "audit12",
+  "verdict": "helper",
+  "reason": "objectives.fov_occurrences (the min_fov_occurrences check) (audit 12, H3)"
+ },
+ {
+  "a": "order_check:_spearman",
+  "b": "strategies._averaging_cv:_spearman",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different tests: an exact permutation p for few FOVs in one, a field-mean guard in the other; merging changes p-values"
+ },
+ {
+  "a": "outcomes:OutcomeMetric.config_id",
+  "b": "policies:DecisionPolicy.config_id",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "one line, config_hash(class_identity(type(self)), self.parameters), in each protocol base class (also strategies.base:Estimator.config_id, transforms:FeatureTransform.config_id); a mixin would change four class hierarchies for one line (audit 12, H3)"
+ },
+ {
+  "a": "outcomes:RandomObjectRelativeError.__post_init__",
+  "b": "outcomes:RelativeMeanError.__post_init__",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "two helper calls (_feature, _check_label) validating the same declared fields (audit 12, H3)"
+ },
+ {
+  "a": "outcomes:RandomObjectRelativeError.evaluate",
+  "b": "outcomes:RelativeMeanError.evaluate",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "the parameters property is one shared helper call (_labelled); the evaluations differ"
+ },
+ {
+  "a": "outcomes:RandomObjectRelativeError.name",
+  "b": "outcomes:RelativeMeanError.name",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "two outcome metrics declaring the same fields and validation calls (_feature, _check_label): already one helper call each"
+ },
+ {
+  "a": "plots_embedding:_colours",
+  "b": "workflows._html_figures:condition_colours",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "both already call _palette.condition_palette; they collect the conditions from different tables"
+ },
+ {
+  "a": "plots_pairwise:_paired",
+  "b": "sampling_unit._discovery_tests:_paired",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "both call statistics.repeat_values and paired_t; different returns and repeat matching"
+ },
+ {
+  "a": "plots_pairwise:pairwise_contrasts",
+  "b": "sampling_unit.contrast:condition_contrast",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different analyses"
+ },
+ {
+  "a": "policies:ThresholdPolicy.decide",
+  "b": "strategies.jcb_planning:_PlannedCountPolicy.decide",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the DecisionPolicy protocol; different decisions"
+ },
+ {
+  "a": "policies:ThresholdPolicy.decide",
+  "b": "strategies.rare_planning:_PlannedFOVPolicy.decide",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the DecisionPolicy protocol; different decisions"
+ },
+ {
+  "a": "policies:describe",
+  "b": "transforms:FeatureTransform.describe",
+  "source": "jscpd-ast",
+  "verdict": "merged",
+  "reason": "provenance.describe (audit 12, H3)"
+ },
+ {
+  "a": "retrospective._feature_relations:_groups",
+  "b": "sampling_unit._experiments:experiments",
+  "source": "audit12",
+  "verdict": "helper",
+  "reason": "the union-find is _connected.connected_groups (each group named by its first item, so both numberings are kept) (audit 12, H3)"
+ },
+ {
+  "a": "retrospective._feature_relations:_joined",
+  "b": "workflows._html_enough:_joined",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "_wording.joined_clauses (audit 12, H3)"
+ },
+ {
+  "a": "retrospective._text:_ORDER_NAMES",
+  "b": "retrospective.adequacy_text:_ORDER_COLUMNS",
+  "source": "audit12",
+  "verdict": "helper",
+  "reason": "adequacy_text names the kinds with order_name and keeps only its column order (_ORDER_KINDS) (audit 12, H3)"
+ },
+ {
+  "a": "retrospective._text:_ORDER_NAMES",
+  "b": "retrospective.calibration:_ORDER_COLUMNS",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "retrospective._text.order_name (audit 12, H3)"
+ },
+ {
+  "a": "retrospective._text:skipped_labels",
+  "b": "retrospective._text:skipped_lines",
+  "source": "jscpd-ast",
+  "verdict": "helper",
+  "reason": "both are retrospective._text._skipped with their label function (where / group_label) (audit 12, H3)"
+ },
+ {
+  "a": "retrospective._text:skipped_labels",
+  "b": "retrospective.order_text:_skipped",
+  "source": "jscpd-semantic",
+  "verdict": "merged",
+  "reason": "order_text._skipped was skipped_labels(result.skipped, result.group_cols) (audit 12, H3)"
+ },
+ {
+  "a": "retrospective._text:skipped_lines",
+  "b": "retrospective.order_text:_skipped",
+  "source": "jscpd-semantic",
+  "verdict": "helper",
+  "reason": "same body with where instead of group_label; now _text._skipped (audit 12, H3)"
+ },
+ {
+  "a": "retrospective.adequacy:AdequacyResult.summary",
+  "b": "retrospective.calibration:StoppingCalibration.summary",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "dataclass field declarations of two result types: the shared result shape"
+ },
+ {
+  "a": "retrospective.adequacy:AdequacyResult.summary",
+  "b": "retrospective.effort:EffortResult.summary",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "dataclass field declarations of two result types: the shared result shape"
+ },
+ {
+  "a": "retrospective.adequacy_text:_full_rules",
+  "b": "retrospective.adequacy_text:_rules_table",
+  "source": "jscpd-ast",
+  "verdict": "overlap-kept",
+  "reason": "same loop head over rules and orders; the cells differ (across groups vs per group)"
+ },
+ {
+  "a": "retrospective.adequacy_text:_groups",
+  "b": "retrospective.order_text:_groups",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different returns"
+ },
+ {
+  "a": "retrospective.adequacy_text:_realized_cautions",
+  "b": "retrospective.reliability_text:_short_cautions",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different cautions"
+ },
+ {
+  "a": "retrospective.adequacy_text:_rules_table",
+  "b": "sufficiency_short:_rules_table",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different tables"
+ },
+ {
+  "a": "retrospective.adequacy_text:adequacy_short_parts",
+  "b": "retrospective.calibration:calibration_short_parts",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the short-parts template of a result; different tables and cautions"
+ },
+ {
+  "a": "retrospective.adequacy_text:adequacy_short_parts",
+  "b": "retrospective.protocol_text:protocol_short_parts",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the short-parts template of a result; different tables and cautions"
+ },
+ {
+  "a": "retrospective.adequacy_text:adequacy_short_parts",
+  "b": "retrospective.reliability_text:reliability_short_parts",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the short-parts template of a result; different tables and cautions"
+ },
+ {
+  "a": "retrospective.adequacy_text:adequacy_short_parts",
+  "b": "sufficiency_short:short_parts",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the short-parts template of a result; different tables and cautions"
+ },
+ {
   "a": "retrospective.adequacy_text:adequacy_summary",
   "b": "retrospective.effort_text:effort_summary",
   "source": "audit12",
@@ -8,10 +484,59 @@
  },
  {
   "a": "retrospective.calibration:StoppingCalibration.summary",
+  "b": "retrospective.spatial:EfficiencyResult.summary",
+  "source": "jscpd-token",
+  "verdict": "intentional",
+  "reason": "dataclass field declarations of two result types (runs, table, group_cols, settings, skipped): the shared result shape (also found by jscpd-ast)"
+ },
+ {
+  "a": "retrospective.calibration:StoppingCalibration.summary",
   "b": "sufficiency:SufficiencyReport.summary",
   "source": "audit12",
   "verdict": "intentional",
   "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
+ },
+ {
+  "a": "retrospective.calibration:StoppingCalibration.summary",
+  "b": "workflows._results:Plan.summary",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different summaries"
+ },
+ {
+  "a": "retrospective.calibration:_statuses",
+  "b": "retrospective.frontier:_statuses",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different groupings and returns"
+ },
+ {
+  "a": "retrospective.controls:<module>",
+  "b": "retrospective.effort:<module>",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "import blocks"
+ },
+ {
+  "a": "retrospective.controls_text:_selected",
+  "b": "sampling_unit._state_text:_selector",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "sampling_unit._group_text.selector_values (empty for no selector, as _selected was) (audit 12, H3)"
+ },
+ {
+  "a": "retrospective.controls_text:_selected",
+  "b": "sampling_unit._unit_text:_selector",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "sampling_unit._group_text.selector_values (audit 12, H3)"
+ },
+ {
+  "a": "retrospective.controls_text:_stratum",
+  "b": "sampling_unit._unit_text:rule_reference",
+  "source": "jscpd-ast",
+  "verdict": "overlap-kept",
+  "reason": "token overlap only (selector formatting, now selector_values); the functions say different things"
  },
  {
   "a": "retrospective.controls_text:control_summary",
@@ -35,6 +560,76 @@
   "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
  },
  {
+  "a": "retrospective.effect_preservation:_check_settings",
+  "b": "retrospective.reliability:_check_settings",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different settings; the shared criteria check is checked_criteria"
+ },
+ {
+  "a": "retrospective.effect_preservation:effect_preservation",
+  "b": "sampling_unit.contrast:condition_contrast",
+  "source": "jscpd-ast",
+  "verdict": "overlap-kept",
+  "reason": "the same argument checks of two public analyses with different settings; a helper would need most of both signatures"
+ },
+ {
+  "a": "retrospective.effort:design_effect",
+  "b": "statistics:design_effect",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the result-level function calls statistics.design_effect"
+ },
+ {
+  "a": "retrospective.effort_design:_interval",
+  "b": "statistics:_interval",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "calls statistics._widened; adds the floor and None handling"
+ },
+ {
+  "a": "retrospective.effort_text:_words",
+  "b": "retrospective.protocol_text:_words",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different words dictionaries"
+ },
+ {
+  "a": "retrospective.effort_text:effort_summary",
+  "b": "retrospective.order_text:efficiency_summary",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the 4-line summary template with different callees"
+ },
+ {
+  "a": "retrospective.frontier_text:frontier_summary",
+  "b": "workflows.benchmarks:Benchmark.summary",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different summaries"
+ },
+ {
+  "a": "retrospective.hierarchy:SamplingHierarchy.parameters",
+  "b": "strategies.stabilization:DescriptorPlateauEstimator.parameters",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "each estimator/strategy lists its own settings for provenance (config_id hashes them); the dict shape is the protocol"
+ },
+ {
+  "a": "retrospective.inspection:stands_out",
+  "b": "sampling_unit.acquisition:_scale",
+  "source": "audit12",
+  "verdict": "overlap-kept",
+  "reason": "MAD scalings with different fallbacks: H4 assesses (audit 12, H3)"
+ },
+ {
+  "a": "retrospective.inspection_text:_full",
+  "b": "retrospective.order_text:_full",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different full forms"
+ },
+ {
   "a": "retrospective.inspection_text:inspection_summary",
   "b": "retrospective.order_text:efficiency_summary",
   "source": "audit12",
@@ -49,6 +644,13 @@
   "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
  },
  {
+  "a": "retrospective.order_text:_cells",
+  "b": "retrospective.reliability_text:_row_cells",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different table cells"
+ },
+ {
   "a": "retrospective.order_text:efficiency_summary",
   "b": "sampling_unit.contrast_text:contrast_summary",
   "source": "audit12",
@@ -56,11 +658,424 @@
   "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
  },
  {
+  "a": "retrospective.overview:DatasetOverview._design_line",
+  "b": "sampling_unit.reading_text:_design",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different sentences"
+ },
+ {
+  "a": "retrospective.overview:DatasetOverview.summary",
+  "b": "workflows.scan:DesignScan.summary",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "summary template"
+ },
+ {
+  "a": "retrospective.protocol_text:_cells",
+  "b": "retrospective.reliability_text:_row_cells",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different table cells"
+ },
+ {
   "a": "retrospective.reliability:ReliabilityResult.summary",
   "b": "workflows.live:LiveUpdate.summary",
   "source": "audit12",
   "verdict": "intentional",
   "reason": "unrelated: both delegate to their own formatter with the detail argument; the old guard matched them only because it anonymised every name"
+ },
+ {
+  "a": "retrospective.reliability:_check_settings",
+  "b": "retrospective.replay:_check",
+  "source": "jscpd-ast",
+  "verdict": "helper",
+  "reason": "the criteria check is retrospective.criteria.checked_criteria (audit 12, H3)"
+ },
+ {
+  "a": "retrospective.reliability_text:_present",
+  "b": "sampling_unit._state_text:_present",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "sampling_unit._group_text.present (audit 12, H3)"
+ },
+ {
+  "a": "retrospective.reliability_text:_present",
+  "b": "sampling_unit._unit_text:_present",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "sampling_unit._group_text.present (audit 12, H3)"
+ },
+ {
+  "a": "retrospective.reliability_text:reliability_short_parts",
+  "b": "sufficiency_short:short_parts",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the short-parts template of a result; different tables and cautions"
+ },
+ {
+  "a": "retrospective.replay:_replay_group",
+  "b": "retrospective.replay:_runs",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "same signature: _replay_group runs one group, _runs is its worker entry point"
+ },
+ {
+  "a": "retrospective.replay:_replay_group",
+  "b": "sequential:_replay_unit",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the retrospective replay vs the sequential evaluation of one unit"
+ },
+ {
+  "a": "retrospective.report:MicroscopistReport.summary",
+  "b": "workflows._results:Report.summary",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the workflow result delegates to the document's summary"
+ },
+ {
+  "a": "retrospective.report:_indent",
+  "b": "workflows._enough_features:_indent",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "_style.indented (audit 12, H3)"
+ },
+ {
+  "a": "retrospective.report_profile:_clustering_rows",
+  "b": "retrospective.report_sampling:states_lines",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different text"
+ },
+ {
+  "a": "retrospective.report_resolved:_name",
+  "b": "sampling_unit.contrast_text:_name",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "differ: one reads the repeat from the row (NaN/None tolerated), the other only when repeat_col is set"
+ },
+ {
+  "a": "retrospective.report_resolved:_notes",
+  "b": "sampling_unit.cells_text:_notes",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different notes"
+ },
+ {
+  "a": "retrospective.report_resolved:between_wells",
+  "b": "sampling_unit.repeat_plan_text:_between_wells",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "per row vs any row of one condition"
+ },
+ {
+  "a": "retrospective.report_resolved:resolved_full",
+  "b": "sampling_unit.contrast_text:_full",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different sections"
+ },
+ {
+  "a": "retrospective.report_resolved:resolved_parts",
+  "b": "sampling_unit.contrast_text:contrast_parts",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different sections"
+ },
+ {
+  "a": "retrospective.report_sampling:_fields_line",
+  "b": "workflows._scan_rules:fields_line",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different text"
+ },
+ {
+  "a": "sampling_unit._common:canonical_fields",
+  "b": "strategies.base:_canonical_fovs",
+  "source": "jscpd-ast",
+  "verdict": "merged",
+  "reason": "schema.canonical_fields (audit 12, H3) (also found by jscpd-semantic)"
+ },
+ {
+  "a": "sampling_unit._common:validated",
+  "b": "schema:_validate_input_tables",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "validated is the sampling-unit analyses' one-line call of the validator, not a copy of it"
+ },
+ {
+  "a": "sampling_unit._discovery_tests:_pooled",
+  "b": "sampling_unit.distribution:_fields",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "same walk over contrasts and sides; _pooled adds the scale and pools differently"
+ },
+ {
+  "a": "sampling_unit._discovery_tests:_row",
+  "b": "sampling_unit.contrast_across:_row",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different rows"
+ },
+ {
+  "a": "sampling_unit._experiments:corrected",
+  "b": "sampling_unit._experiments:screen_wide",
+  "source": "audit12",
+  "verdict": "helper",
+  "reason": "the BH-within-label loop is _experiments._within; screen_wide passes its several-families condition (audit 12, H3)"
+ },
+ {
+  "a": "sampling_unit._group_text:distinct_labels",
+  "b": "sampling_unit._unit_text:_named",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "_named keeps the last row per group and takes any namer; distinct_labels keeps the first and uses namer(); merging could change which row names a group"
+ },
+ {
+  "a": "sampling_unit._group_text:present",
+  "b": "sufficiency_short:_present",
+  "source": "audit12",
+  "verdict": "overlap-kept",
+  "reason": "differs: sufficiency_short also treats pd.NA as missing and only floats as NaN (a NaT reads as present there); merging could change a table cell (audit 12, H3)"
+ },
+ {
+  "a": "sampling_unit._population_rule:Rule.apply",
+  "b": "workflows._html_next:rule_labels",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the same rule on an array vs on a table with missing values coerced (not picked); a functional overlap worth a later look"
+ },
+ {
+  "a": "sampling_unit._state_text:_group",
+  "b": "sampling_unit._unit_text:_group",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "sampling_unit._group_text.row_label (audit 12, H3)"
+ },
+ {
+  "a": "sampling_unit._state_text:_needed",
+  "b": "workflows._enough_features:_needed",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different cells"
+ },
+ {
+  "a": "sampling_unit._state_text:_present",
+  "b": "sampling_unit._unit_text:_present",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "sampling_unit._group_text.present (audit 12, H3)"
+ },
+ {
+  "a": "sampling_unit._state_text:_selector",
+  "b": "sampling_unit._unit_text:_one",
+  "source": "jscpd-ast",
+  "verdict": "merged",
+  "reason": "_selector is sampling_unit._group_text.selector_values (audit 12, H3); _one is unrelated (jscpd span crossed functions)"
+ },
+ {
+  "a": "sampling_unit._state_text:_selector",
+  "b": "sampling_unit._unit_text:_selector",
+  "source": "jscpd-ast",
+  "verdict": "merged",
+  "reason": "sampling_unit._group_text.selector_values (audit 12, H3) (also found by jscpd-semantic)"
+ },
+ {
+  "a": "sampling_unit._units:resolve_unit",
+  "b": "sampling_unit.whole_table:_units",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different unit rules (the whole-table test falls back to analysis groups and fields)"
+ },
+ {
+  "a": "sampling_unit.acquisition:_one_per_field",
+  "b": "strategies.support_novelty:one_per_field",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "schema.one_per_field (the lowest layer both may import) (audit 12, H3)"
+ },
+ {
+  "a": "sampling_unit.across_text:across_parts",
+  "b": "sampling_unit.reading_text:readings_parts",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different sections"
+ },
+ {
+  "a": "sampling_unit.across_text:contrast_lines",
+  "b": "sampling_unit.contrast_text:contrast_parts",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different text"
+ },
+ {
+  "a": "sampling_unit.across_text:contrast_lines",
+  "b": "workflows._guided_controls:contrast_lines",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different text (a result's contrast table vs the guided answers)"
+ },
+ {
+  "a": "sampling_unit.cells_text:_chance",
+  "b": "sampling_unit.reading_text:_chance_words",
+  "source": "audit12",
+  "verdict": "helper",
+  "reason": "reading_text.chance_words; the table cell keeps its '–' for a missing range (audit 12, H3)"
+ },
+ {
+  "a": "sampling_unit.cells_text:cells_headline",
+  "b": "sampling_unit.reading_text:_cells_headline",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different headlines"
+ },
+ {
+  "a": "sampling_unit.clustering:<module>",
+  "b": "sampling_unit.unusual:<module>",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "import blocks"
+ },
+ {
+  "a": "sampling_unit.clustering:_technical_repeat_of",
+  "b": "sufficiency:_technical_repeats",
+  "source": "jscpd-semantic",
+  "verdict": "helper",
+  "reason": "the columns naming a technical repeat are schema.technical_repeat_columns (audit 12, H3); one codes fields, the other counts"
+ },
+ {
+  "a": "sampling_unit.contrast:condition_contrast",
+  "b": "sampling_unit.distribution:distribution_contrast",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "two public analyses"
+ },
+ {
+  "a": "sampling_unit.contrast:condition_contrast",
+  "b": "sampling_unit.ranking:feature_ranking",
+  "source": "jscpd-ast",
+  "verdict": "overlap-kept",
+  "reason": "argument checks of two public analyses; differing checks and settings"
+ },
+ {
+  "a": "sampling_unit.contrast_cells:ALPHA",
+  "b": "statistics:ALPHA",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "one statistics.ALPHA = 0.05, imported by contrast_cells, _experiments, repeat_plan, distribution, whole_table, order_check, plots_pairwise, _html_tests, _populations, _html_across; GATE_ALPHA, CLUSTER_ALPHA and P_ALPHA alias it (audit 12, H3)"
+ },
+ {
+  "a": "sampling_unit.contrast_repeats:across_repeats",
+  "b": "sampling_unit.repeat_plan:repeat_plan",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different computations"
+ },
+ {
+  "a": "sampling_unit.contrast_text:_contrast_rows",
+  "b": "sampling_unit.repeats_text:_repeat_rows",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different tables"
+ },
+ {
+  "a": "sampling_unit.contrast_text:_one_per_field",
+  "b": "workflows._one_per_field:one_per_field",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "from a contrast's counts vs from the tables (schema.one_per_field is the third, on validated input)"
+ },
+ {
+  "a": "sampling_unit.discovery:<module>",
+  "b": "sampling_unit.ranking:<module>",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "import blocks; the shared constants EFFECT_CAP, GATE_ALPHA, TOP_FEATURES and MAX_ROWS_LISTED are now ranking's only (audit 12, H3)"
+ },
+ {
+  "a": "sampling_unit.discovery:EFFECT_CAP",
+  "b": "sampling_unit.ranking:EFFECT_CAP",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "ranking's EFFECT_CAP, GATE_ALPHA, TOP_FEATURES and MAX_ROWS_LISTED, imported by discovery (audit 12, H3)"
+ },
+ {
+  "a": "sampling_unit.discovery:FeatureDiscovery._cautions",
+  "b": "sampling_unit.ranking:FeatureRanking._cautions",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "feature_discovery and feature_ranking are two analyses with different tests, columns and wording; the parallel methods differ in text"
+ },
+ {
+  "a": "sampling_unit.discovery:FeatureDiscovery._declared",
+  "b": "workflows._html_across:_declared",
+  "source": "jscpd-semantic",
+  "verdict": "helper",
+  "reason": "discovery.declared_scales (audit 12, H3)"
+ },
+ {
+  "a": "sampling_unit.discovery:FeatureDiscovery._head",
+  "b": "sampling_unit.ranking:FeatureRanking._head",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "feature_discovery and feature_ranking are two analyses with different tests, columns and wording; the parallel methods differ in text"
+ },
+ {
+  "a": "sampling_unit.discovery:FeatureDiscovery._table",
+  "b": "sampling_unit.ranking:FeatureRanking._table",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "feature_discovery and feature_ranking are two analyses with different tests, columns and wording; the parallel methods differ in text"
+ },
+ {
+  "a": "sampling_unit.discovery:FeatureDiscovery._unranked",
+  "b": "sampling_unit.ranking:FeatureRanking._unranked",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "feature_discovery and feature_ranking are two analyses with different tests, columns and wording; the parallel methods differ in text"
+ },
+ {
+  "a": "sampling_unit.discovery:FeatureDiscovery.short_parts",
+  "b": "sampling_unit.ranking:FeatureRanking.short_parts",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "feature_discovery and feature_ranking are two analyses with different tests, columns and wording; the parallel methods differ in text"
+ },
+ {
+  "a": "sampling_unit.discovery:FeatureDiscovery.summary",
+  "b": "sampling_unit.ranking:FeatureRanking.summary",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "feature_discovery and feature_ranking are two analyses with different tests, columns and wording; the parallel methods differ in text"
+ },
+ {
+  "a": "sampling_unit.discovery:_limited",
+  "b": "workflows._html_across:_limited",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "differ: isfinite vs notna on the interval (an infinite bound reads '–' in one, a number in the other) and dict rows vs named tuples"
+ },
+ {
+  "a": "sampling_unit.discovery:_rank",
+  "b": "sampling_unit.ranking:_rank",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "feature_discovery and feature_ranking are two analyses with different tests, columns and wording; the parallel methods differ in text"
+ },
+ {
+  "a": "sampling_unit.discovery:feature_discovery",
+  "b": "sampling_unit.distribution:distribution_contrast",
+  "source": "jscpd-token",
+  "verdict": "overlap-kept",
+  "reason": "same preamble shape, but distribution_contrast checks the seed first and does not normalise feature names with column_names; merging would change the error order (also found by jscpd-ast)"
+ },
+ {
+  "a": "sampling_unit.discovery:feature_discovery",
+  "b": "sampling_unit.ranking:feature_ranking",
+  "source": "jscpd-token",
+  "verdict": "overlap-kept",
+  "reason": "the argument checks and grouping preamble of two public entry points (fields_independent differs); a shared helper would take about 15 arguments (also found by jscpd-ast, jscpd-semantic)"
  },
  {
   "a": "sampling_unit.object_rules:DescriptorSpreadCheck.summary",
@@ -84,10 +1099,486 @@
   "reason": "the same short/full dispatch over each result's own text functions: one line each, a shared helper would only hide which formatter a result uses"
  },
  {
+  "a": "sampling_unit.repeats_text:_direction",
+  "b": "workflows._distribution:_direction",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different wording ('lower in 3 of 3' vs 'lower in both repeats')"
+ },
+ {
+  "a": "separation:_where",
+  "b": "workflows._population_spaces:_left_without_control",
+  "source": "audit12",
+  "verdict": "helper",
+  "reason": "separation.repeat_conditions (audit 12, H3)"
+ },
+ {
+  "a": "sequential:_check_order_column",
+  "b": "strategies.base:check_order_col",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the column-presence part of the same diverged pair (see _check_order_values)"
+ },
+ {
+  "a": "sequential:_check_order_values",
+  "b": "strategies.base:check_order_col",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "DIVERGED, for the owner: check_order_col refuses a categorical column (TypeError) and names the purpose, _check_order_values accepts a numeric categorical and words its messages 'acquisition order'; merging changes behaviour and messages"
+ },
+ {
+  "a": "statistics:MAD_TO_SD_ROUNDED",
+  "b": "transforms:MAD_TO_SD",
+  "source": "audit12",
+  "verdict": "overlap-kept",
+  "reason": "two roundings of 1/Phi^-1(0.75): 1.4826 and 1.482602218505602, both now in statistics; unifying moves numbers (H4) (audit 12, H3)"
+ },
+ {
+  "a": "statistics:describe",
+  "b": "strategies._descriptor_resamples:_describe_many",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "one sample vs a vectorised matrix of resamples (speed); same descriptors"
+ },
+ {
+  "a": "strategies._scalar_precision_state:_ScalarPrecisionState._precision.moments",
+  "b": "strategies.scalar_precision:ScalarPrecisionEstimator._precision",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the incremental state recomputes the full path's estimate from per-FOV moments (tested equal)"
+ },
+ {
+  "a": "strategies.base:Estimator.config_id",
+  "b": "transforms:FeatureTransform.config_id",
+  "source": "audit12",
+  "verdict": "intentional",
+  "reason": "see OutcomeMetric.config_id (audit 12, H3)"
+ },
+ {
   "a": "strategies.base:Estimator.start",
   "b": "transforms:FeatureTransform.output_width",
   "source": "audit12",
   "verdict": "intentional",
   "reason": "unrelated protocol defaults that return None; the old guard matched them only because it anonymised every name"
+ },
+ {
+  "a": "strategies.baselines:ImagedAreaEstimator.estimate",
+  "b": "strategies.fov_bootstrap:FOVBootstrapEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.baselines:ImagedAreaEstimator.estimate",
+  "b": "strategies.incidence_coverage:IncidenceCoverageEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.baselines:ImagedAreaEstimator.estimate",
+  "b": "strategies.rare_incidence:RareIncidenceEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.baselines:ImagedAreaEstimator.estimate",
+  "b": "strategies.scalar_precision:ScalarPrecisionEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.baselines:ImagedAreaEstimator.estimate",
+  "b": "strategies.support_novelty:SupportNoveltyEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.fov_bootstrap:FOVBootstrapEstimator.estimate",
+  "b": "strategies.incidence_coverage:IncidenceCoverageEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.fov_bootstrap:FOVBootstrapEstimator.estimate",
+  "b": "strategies.scalar_precision:ScalarPrecisionEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.fov_bootstrap:FOVBootstrapEstimator.estimate",
+  "b": "strategies.stabilization:DescriptorPlateauEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.fov_bootstrap:FOVBootstrapEstimator.estimate",
+  "b": "strategies.support_novelty:SupportNoveltyEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.fov_bootstrap:FOVBootstrapEstimator.parameters",
+  "b": "strategies.scalar_precision:ScalarPrecisionEstimator.parameters",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "each estimator/strategy lists its own settings for provenance (config_id hashes them); the dict shape is the protocol"
+ },
+ {
+  "a": "strategies.fov_bootstrap:FOVBootstrapEstimator.parameters",
+  "b": "strategies.stabilization:DescriptorSpreadEstimator.parameters",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "each estimator/strategy lists its own settings for provenance (config_id hashes them); the dict shape is the protocol"
+ },
+ {
+  "a": "strategies.fov_bootstrap:FOVBootstrapEstimator.quantity",
+  "b": "strategies.fov_bootstrap:FOVBootstrapStrategy.parameters",
+  "source": "jscpd-ast",
+  "verdict": "overlap-kept",
+  "reason": "Estimator and Strategy validate the same settings through one _check call each; the estimator/strategy pair is the strategy protocol"
+ },
+ {
+  "a": "strategies.fov_bootstrap:FOVBootstrapStrategy.parameters",
+  "b": "strategies.support_novelty:SupportNoveltyStrategy.parameters",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "each estimator/strategy lists its own settings for provenance (config_id hashes them); the dict shape is the protocol"
+ },
+ {
+  "a": "strategies.incidence_coverage:IncidenceCoverageEstimator.estimate",
+  "b": "strategies.rare_incidence:RareIncidenceEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.incidence_coverage:IncidenceCoverageEstimator.estimate",
+  "b": "strategies.scalar_precision:ScalarPrecisionEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.incidence_coverage:IncidenceCoverageEstimator.estimate",
+  "b": "strategies.support_novelty:SupportNoveltyEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.incidence_coverage:IncidenceCoverageStrategy.__post_init__",
+  "b": "strategies.support_novelty:SupportNoveltyStrategy.__post_init__",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the same settings validated in an estimator and its strategy through shared helpers"
+ },
+ {
+  "a": "strategies.incidence_coverage:IncidenceCoverageStrategy.parameters",
+  "b": "strategies.scalar_precision:ScalarPrecisionEstimator.parameters",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "each estimator/strategy lists its own settings for provenance (config_id hashes them); the dict shape is the protocol"
+ },
+ {
+  "a": "strategies.incidence_coverage:IncidenceCoverageStrategy.parameters",
+  "b": "strategies.support_novelty:SupportNoveltyEstimator.parameters",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "each estimator/strategy lists its own settings for provenance (config_id hashes them); the dict shape is the protocol"
+ },
+ {
+  "a": "strategies.incidence_coverage:_check",
+  "b": "strategies.rare_incidence:_check",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "share one label_col check line; the rest differs"
+ },
+ {
+  "a": "strategies.incidence_coverage:_check",
+  "b": "strategies.stabilization:_check_plateau",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "different settings checked"
+ },
+ {
+  "a": "strategies.incidence_coverage:expected_new_states",
+  "b": "strategies.incidence_coverage:prob_new_state",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "two Chao et al. (2014) formulas sharing their first lines (q1, unseen); the results differ"
+ },
+ {
+  "a": "strategies.jcb_planning:PlannedObjectCountEstimator.estimate",
+  "b": "strategies.scalar_precision:ScalarPrecisionEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.jcb_planning:_PlannedCountPolicy.decide",
+  "b": "strategies.rare_planning:_PlannedFOVPolicy.decide",
+  "source": "jscpd-ast",
+  "verdict": "overlap-kept",
+  "reason": "the same decide shape for two policies, different component (population/rare) and quantity compared (also found by jscpd-semantic)"
+ },
+ {
+  "a": "strategies.rare_incidence:RareIncidenceEstimator.estimate",
+  "b": "strategies.scalar_precision:ScalarPrecisionEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.rare_incidence:RareIncidenceEstimator.estimate",
+  "b": "strategies.support_novelty:SupportNoveltyEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.scalar_precision:ScalarPrecisionEstimator.estimate",
+  "b": "strategies.stabilization:DescriptorPlateauEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.scalar_precision:ScalarPrecisionEstimator.estimate",
+  "b": "strategies.support_novelty:SupportNoveltyEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.scalar_precision:ScalarPrecisionEstimator.name",
+  "b": "strategies.scalar_precision:ScalarPrecisionStrategy.name",
+  "source": "jscpd-ast",
+  "verdict": "helper",
+  "reason": "both names are scalar_precision._variant_name with their own prefix (audit 12, H3)"
+ },
+ {
+  "a": "strategies.scalar_precision:ScalarPrecisionEstimator.parameters",
+  "b": "strategies.scalar_precision:ScalarPrecisionStrategy.parameters",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "each estimator/strategy lists its own settings for provenance (config_id hashes them); the dict shape is the protocol"
+ },
+ {
+  "a": "strategies.scalar_precision:ScalarPrecisionEstimator.parameters",
+  "b": "strategies.stabilization:DescriptorSpreadEstimator.parameters",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "each estimator/strategy lists its own settings for provenance (config_id hashes them); the dict shape is the protocol"
+ },
+ {
+  "a": "strategies.scalar_precision:ScalarPrecisionStrategy.parameters",
+  "b": "strategies.stabilization:DescriptorPlateauStrategy.parameters",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "each estimator/strategy lists its own settings for provenance (config_id hashes them); the dict shape is the protocol"
+ },
+ {
+  "a": "strategies.scalar_precision:ScalarPrecisionStrategy.parameters",
+  "b": "strategies.stabilization:DescriptorSpreadStrategy.parameters",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "each estimator/strategy lists its own settings for provenance (config_id hashes them); the dict shape is the protocol"
+ },
+ {
+  "a": "strategies.stabilization:DescriptorPlateauEstimator.estimate",
+  "b": "strategies.support_novelty:SupportNoveltyEstimator.estimate",
+  "source": "jscpd-semantic",
+  "verdict": "intentional",
+  "reason": "the Estimator protocol: each estimate computes its own evidence; the shared shape (availability checks, Evidence) is the interface"
+ },
+ {
+  "a": "strategies.stabilization:DescriptorPlateauStrategy.parameters",
+  "b": "strategies.stabilization:DescriptorSpreadEstimator.parameters",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "each estimator/strategy lists its own settings for provenance (config_id hashes them); the dict shape is the protocol"
+ },
+ {
+  "a": "strategies.stabilization:DescriptorSpreadEstimator.parameters",
+  "b": "strategies.stabilization:DescriptorSpreadStrategy.parameters",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "each estimator/strategy lists its own settings for provenance (config_id hashes them); the dict shape is the protocol"
+ },
+ {
+  "a": "strategies.support_novelty:SupportNoveltyEstimator.__post_init__",
+  "b": "strategies.support_novelty:SupportNoveltyStrategy.__post_init__",
+  "source": "jscpd-ast",
+  "verdict": "overlap-kept",
+  "reason": "three helper calls validating the same settings in the estimator and its strategy (the protocol pair); already shared helpers"
+ },
+ {
+  "a": "sufficiency_full:_few_line",
+  "b": "sufficiency_short:_few_lines",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "per group vs across groups"
+ },
+ {
+  "a": "sufficiency_full:_group_table",
+  "b": "sufficiency_short:_rules_table",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "per group vs across groups"
+ },
+ {
+  "a": "sufficiency_full:_stop_cell",
+  "b": "sufficiency_short:_stops_cell",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "per group vs across groups; different text"
+ },
+ {
+  "a": "transforms:BlockWeights.fit_matrix",
+  "b": "transforms:Standardize.fit_matrix",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "the FeatureTransform interface: same signature, different fits"
+ },
+ {
+  "a": "transforms:RobustStandardize.fit_matrix",
+  "b": "transforms:Standardize.fit_matrix",
+  "source": "jscpd-ast",
+  "verdict": "intentional",
+  "reason": "the FeatureTransform interface: same signature, different fits (MAD scaling is H4's question)"
+ },
+ {
+  "a": "workflows._distribution:with_distribution",
+  "b": "workflows._populations:with_populations",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "with_text template"
+ },
+ {
+  "a": "workflows._document:plan_settings",
+  "b": "workflows.benchmarks:_benchmark_settings",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different settings"
+ },
+ {
+  "a": "workflows._document:with_reasons",
+  "b": "workflows._exploratory:with_exploratory",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different document edits"
+ },
+ {
+  "a": "workflows._embedding_report:embedding_plan",
+  "b": "workflows.retrospective:optimise",
+  "source": "jscpd-ast",
+  "verdict": "helper",
+  "reason": "the plan's title and notes are _embedding_report.plan_document (audit 12, H3); the unit word each passes is kept"
+ },
+ {
+  "a": "workflows._enough_features:features_table",
+  "b": "workflows._html_enough:compact_table",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "text table vs page table"
+ },
+ {
+  "a": "workflows._feature_space:attached",
+  "b": "workflows._scan_rules:with_tables",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "the scan attaches the tables with findings, the report with the Setup"
+ },
+ {
+  "a": "workflows._feature_space:copy_tables",
+  "b": "workflows._scan_rules:copy_tables",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "differ: the scan also splits the observation table's own features out (OBSERVATION_TABLE)"
+ },
+ {
+  "a": "workflows._feature_space:space_names",
+  "b": "workflows._population_spaces:_spaces",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different spaces (the maps vs the population search)"
+ },
+ {
+  "a": "workflows._guided_tables:_read",
+  "b": "workflows.guided:_read",
+  "source": "jscpd-semantic",
+  "verdict": "merged",
+  "reason": "_guided_tables.read_table, the table's name in the message (audit 12, H3)"
+ },
+ {
+  "a": "workflows._html_across:across_frame",
+  "b": "workflows._html_tests:_cells",
+  "source": "jscpd-ast",
+  "verdict": "overlap-kept",
+  "reason": "two different tables built from the same discovery tests (columns differ)"
+ },
+ {
+  "a": "workflows._html_cards:_MARKERS",
+  "b": "workflows._html_render:_MARKERS",
+  "source": "audit12",
+  "verdict": "merged",
+  "reason": "_style.MARKERS (audit 12, H3)"
+ },
+ {
+  "a": "workflows._html_cards:_MARKER_LINE",
+  "b": "workflows._html_render:_MARKER_LINE",
+  "source": "audit12",
+  "verdict": "overlap-kept",
+  "reason": "the regexes differ: _html_cards allows leading spaces (r'^\\s*(...)\\s+(.*)$'), _html_render does not; merging changes what the page parses (audit 12, H3)"
+ },
+ {
+  "a": "workflows._html_figures:file_stem",
+  "b": "workflows.figures:_file_name",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "different file-name rules (page ids vs files, case folding)"
+ },
+ {
+  "a": "workflows._html_plan:PLAN_TITLE",
+  "b": "workflows._results:PLAN_TITLE",
+  "source": "audit12",
+  "verdict": "overlap-kept",
+  "reason": "differ in text: 'Plan the next experiment' (page section) vs 'Plan for the next experiment' (text report title); one wording is an owner decision (audit 12, H3)"
+ },
+ {
+  "a": "workflows._html_plan:_confirmed_pairs",
+  "b": "workflows._html_plan:_significant",
+  "source": "audit12",
+  "verdict": "helper",
+  "reason": "_html_plan._confirmed (also the inline copy in _features) (audit 12, H3)"
+ },
+ {
+  "a": "workflows._html_plotly:_paired_panel",
+  "b": "workflows._html_plotly:_pairwise",
+  "source": "jscpd-token",
+  "verdict": "overlap-kept",
+  "reason": "the same matrix walk over feature pairs, but the cells differ (p/q of the paired test vs the pairwise d and statuses); a helper would take the cell function and the three matrices (also found by jscpd-ast)"
+ },
+ {
+  "a": "workflows._results:Plan.summary",
+  "b": "workflows._results:Report.summary",
+  "source": "jscpd-token",
+  "verdict": "intentional",
+  "reason": "Report and Plan declare the same fields (results, document, setup, ...); their summaries differ (also found by jscpd-ast)"
+ },
+ {
+  "a": "workflows.guided:Answers.setup",
+  "b": "workflows.scan:DesignScan.setup",
+  "source": "jscpd-semantic",
+  "verdict": "overlap-kept",
+  "reason": "two public ways to make a Setup"
  }
 ]

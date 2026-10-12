@@ -42,15 +42,14 @@ import numpy as np
 from ._checks import is_integer
 from ._frozen import owned
 from ._wording import listing
-from .provenance import class_identity, config_hash
+from .provenance import class_identity, config_hash, describe
 from .schema import ValidatedInput
+from .statistics import MAD_TO_SD
 
 # The spread, relative to a feature's magnitude, below which it is rounding noise:
 # about the precision of single-precision floats (2**-23 = 1.2e-7), in which feature
 # tables are often stored, so noise of 1e-9 is never standardised to full weight.
 CONSTANT_RELATIVE_SPREAD = 1e-7
-# The MAD of a normal distribution times this factor estimates its SD.
-MAD_TO_SD = 1.482602218505602
 
 
 class FeatureTransform(ABC):
@@ -75,12 +74,7 @@ class FeatureTransform(ABC):
 
     def describe(self) -> dict[str, Any]:
         """Name, type, config_id and parameters, for an estimator's ``parameters``."""
-        return {
-            "name": self.name,
-            "type": class_identity(type(self)),
-            "config_id": self.config_id,
-            "parameters": dict(self.parameters),
-        }
+        return describe(self)
 
     def output_width(self, n_inputs: int) -> int | None:
         """How many columns the transform gives for ``n_inputs``, known without fitting.

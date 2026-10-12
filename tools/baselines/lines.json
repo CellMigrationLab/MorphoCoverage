@@ -81,7 +81,7 @@
  "workflows.guided:guide": 61,
  "workflows.html_report:html_report": 194,
  "workflows.live:LiveTables.update": 61,
- "workflows.retrospective:optimise": 129,
+ "workflows.retrospective:optimise": 121,
  "workflows.retrospective:report": 170,
  "workflows.scan:scan_design": 110,
  "workflows.setup:Setup.__post_init__": 77

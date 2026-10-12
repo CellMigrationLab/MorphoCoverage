@@ -107,22 +107,24 @@ def _features(result: Any) -> list[str]:
     their rank, then the rest as declared."""
     columns = list(result.setup.columns)
     readout = result.setup.readout
-    ranked: list[str] = []
-    discovery = result.discovery
-    if discovery is not None and discovery.tests is not None and len(discovery.tests):
-        tests = discovery.tests
-        confirmed = set(tests.loc[tests["confirmed"].fillna(False).astype(bool), "feature"])
-        ranked = [f for f in discovery.ranking["feature"] if f in confirmed]
+    confirmed = _significant(result)
+    ranked = [f for f in result.discovery.ranking["feature"] if f in confirmed] if confirmed else []
     order = [readout, *ranked, *columns]
     return [f for f in dict.fromkeys(order) if f in columns]
 
 
-def _significant(result: Any) -> set[str]:
+def _confirmed(result: Any) -> pd.DataFrame | None:
+    """The tests of the discovery significant across repeats; None without any test."""
     discovery = result.discovery
     if discovery is None or discovery.tests is None or not len(discovery.tests):
-        return set()
+        return None
     tests = discovery.tests
-    return set(tests.loc[tests["confirmed"].fillna(False).astype(bool), "feature"])
+    return tests[tests["confirmed"].fillna(False).astype(bool)]
+
+
+def _significant(result: Any) -> set[str]:
+    confirmed = _confirmed(result)
+    return set() if confirmed is None else set(confirmed["feature"])
 
 
 def _incidence(
@@ -214,11 +216,9 @@ def _plans(result: Any) -> list[tuple[str, Any]]:
 
 def _confirmed_pairs(result: Any) -> set[tuple[IdentityKey, IdentityKey]]:
     """The (feature, condition) pairs significant across repeats."""
-    discovery = result.discovery
-    if discovery is None or discovery.tests is None or not len(discovery.tests):
+    confirmed = _confirmed(result)
+    if confirmed is None:
         return set()
-    tests = discovery.tests
-    confirmed = tests[tests["confirmed"].fillna(False).astype(bool)]
     pairs = zip(confirmed["feature"], confirmed["condition"], strict=True)
     return {(identity_key(f), identity_key(c)) for f, c in pairs}
 

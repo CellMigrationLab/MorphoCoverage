@@ -71,7 +71,7 @@ wells, 20-24% of its stops more than 9.8% off the well mean at a tolerance of
 ``resampling_units`` are in the diagnostics, and ``monte_carlo_se`` gives the
 resampling error of the stopping quantity (its value over ``sqrt(2 (B -
 1))`` for ``B`` defined resamples). Resamples draw the FOVs in a canonical
-order (``base._canonical_fovs``; blocks by value), so the FOV table's row
+order (``schema.canonical_fields``; blocks by value), so the FOV table's row
 order never changes them.
 
 A selected feature without spread so far makes the quantity
@@ -132,7 +132,7 @@ from .._wording import listing, percent
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
-from ..schema import ValidatedInput, fov_positions
+from ..schema import ValidatedInput, canonical_fields, fov_positions
 from ..statistics import small_sample_widening
 from ..transforms import FeatureTransform, missing_values_reason
 from ._fov_bootstrap_checks import (
@@ -152,7 +152,7 @@ from ._fov_resamples import (  # the public names are re-exported (__all__)
     quantile_resamples,
     subspace_angles_to,
 )
-from .base import Estimator, SamplingStrategy, _as_ints, _canonical_fovs
+from .base import Estimator, SamplingStrategy, _as_ints
 
 AGGREGATES = ("max", "rms")
 # Largest share of PCA resamples without enough spread that is left out.
@@ -279,7 +279,7 @@ class FOVBootstrapEstimator(Estimator):
         if self.block_col is None:
             # Drawn in the canonical FOV order, so the table's row order cannot move them.
             block_of_fov = np.empty(len(data.fovs), dtype=int)
-            block_of_fov[_canonical_fovs(data)] = np.arange(len(data.fovs))
+            block_of_fov[canonical_fields(data)] = np.arange(len(data.fovs))
         else:
             block_of_fov = canonical_codes(data.fovs[self.block_col])[0]
         n_blocks = int(block_of_fov.max()) + 1

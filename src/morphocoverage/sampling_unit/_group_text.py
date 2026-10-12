@@ -11,6 +11,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
+import pandas as pd
+
 from .._identity import IdentityKey, identity_key
 from .._style import group_label
 
@@ -71,3 +73,25 @@ def skipped_label(skipped: Mapping[str, Any], every: Sequence[Mapping[str, Any]]
     if len(distinct) < 2:
         return str(label)
     return f"{label} ({_typed(tuple(map(tuple, skipped['identity'])))})"
+
+
+def present(value: Any) -> bool:
+    """Whether a table cell holds a value (not None or missing)."""
+    return value is not None and not pd.isna(value)
+
+
+def row_label(row: Mapping[str, Any], keys: Sequence[str]) -> str:
+    """A row's group over ``keys``, by its values (``_style.group_label``)."""
+    return group_label({key: row[key] for key in keys})
+
+
+def selector_values(selector: Mapping[str, Any] | None) -> str:
+    """``MOCK`` for ``{"condition": ["MOCK"]}``: the values a selector accepts; empty when
+    nothing was declared."""
+    if not selector:
+        return ""
+    parts = []
+    for value in selector.values():
+        values = value if isinstance(value, list | tuple | set) else [value]
+        parts.append("/".join(str(v) for v in values))
+    return " · ".join(parts)

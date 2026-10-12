@@ -76,7 +76,7 @@ from .._seeds import group_key, group_rng
 from .._style import check_detail, group_label
 from .._wording import column_word, where
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
-from ..schema import ValidatedInput, fov_values, observation_words
+from ..schema import ValidatedInput, canonical_fields, fov_values, observation_words
 from ..statistics import (
     describe,
     field_sample,
@@ -85,7 +85,7 @@ from ..statistics import (
     sd_upper_bound_factor,
     spread_is_zero,
 )
-from ._common import canonical_fields, groups, matching_groups, validated
+from ._common import groups, matching_groups, validated
 from ._experiments import repeat_experiments
 from ._unit_text import (
     descriptor_spread_full,

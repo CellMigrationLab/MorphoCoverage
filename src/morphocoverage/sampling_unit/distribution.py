@@ -58,7 +58,14 @@ from .._seeds import group_rng
 from .._wording import count, listing, plural
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
-from ..statistics import BIMODAL, bimodality_coefficient, excess_kurtosis, log_scale, paired_t
+from ..statistics import (
+    ALPHA,
+    BIMODAL,
+    bimodality_coefficient,
+    excess_kurtosis,
+    log_scale,
+    paired_t,
+)
 from ._common import groups, validated
 from ._experiments import corrected, declared, experiments, family_noun
 from ._units import (
@@ -77,7 +84,6 @@ DRAWS = 50
 CELLS_CAP = 100
 # The statistics compared, in the order the report gives them.
 STATISTICS = ("spread", "q10", "q50", "q90")
-ALPHA = 0.05
 SHAPE_COLUMNS = [
     "feature",
     "condition",

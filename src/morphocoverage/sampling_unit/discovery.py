@@ -74,11 +74,8 @@ from ._units import (
 )
 from .contrast_cells import BALANCED_PERMUTATIONS, refined
 from .contrast_repeats import MIN_REPEATS
+from .ranking import EFFECT_CAP, GATE_ALPHA, MAX_ROWS_LISTED, TOP_FEATURES
 
-EFFECT_CAP = 20.0
-GATE_ALPHA = 0.05
-TOP_FEATURES = 5
-MAX_ROWS_LISTED = 24
 N_PERMUTATIONS = 9999
 # Why no condition of a feature was tested when their reasons differ (each condition's
 # reason is its status, _discovery_tests).
@@ -192,6 +189,13 @@ def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
     ranking = pd.DataFrame(rows, columns=[*RANKING_COLUMNS, "order"])
     ranking = ranking.sort_values(["score", "order"], ascending=[False, True], na_position="last")
     return ranking.drop(columns="order").reset_index(drop=True)
+
+
+def declared_scales(scales: Mapping[str, str] | None) -> str:
+    """``; declared in the Setup: velocity, the difference``: the scales the Setup declares
+    (plan v2, owner, 2026-10-06), which replace the rule; empty without."""
+    named = [f"{feature}, the {scale}" for feature, scale in (scales or {}).items()]
+    return f"; declared in the Setup: {'; '.join(named[:6])}" if named else ""
 
 
 def _limited(row: Mapping[str, Any]) -> list[str]:
@@ -312,11 +316,7 @@ class FeatureDiscovery:
     def _declared(self) -> str:
         """``; declared in the Setup: velocity, the difference``: the scales the Setup
         declares (plan v2, owner, 2026-10-06), which replace the rule; empty without."""
-        scales = self.settings.get("scales") or {}
-        if not scales:
-            return ""
-        named = [f"{feature}, the {scale}" for feature, scale in scales.items()]
-        return f"; declared in the Setup: {'; '.join(named[:6])}"
+        return declared_scales(self.settings.get("scales"))
 
     def _of(self, n: int) -> str:
         """``4 features``, or ``4 (3 features and the rare share)``: never "4 of 3 features

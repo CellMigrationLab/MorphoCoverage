@@ -35,6 +35,7 @@ from .contrast_cells import (
     SPARSE,
     TYPICAL_BETWEEN,
 )
+from .reading_text import chance_words
 
 
 def _cells(contrast: Any) -> pd.DataFrame:
@@ -54,12 +55,7 @@ def _test(d: float, p: float, corrected: float) -> str:
 
 
 def _chance(row: dict[str, Any], prefix: str = "chance") -> str:
-    low, high = row[f"{prefix}_low"], row[f"{prefix}_high"]
-    if pd.isna(low):
-        return "–"
-    if np.isclose(low, high):
-        return f"about {percent(low)}"
-    return f"{percent(low)}–{percent(high)}"
+    return chance_words(row[f"{prefix}_low"], row[f"{prefix}_high"]) or "–"
 
 
 def _balance(contrast: Any, cells: pd.DataFrame) -> str:

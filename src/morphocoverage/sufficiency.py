@@ -88,9 +88,9 @@ from .calibration import calibrate_next_fov_novelty
 from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups
 from .evidence import Availability
-from .metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, column_names
+from .metadata import column_names
 from .objectives import ObjectiveConfig, SamplingObjective
-from .schema import ValidatedInput, fov_positions
+from .schema import ValidatedInput, fov_positions, technical_repeat_columns
 from .statistics import fovs_to_detect
 from .strategies.base import SamplingStrategy
 from .strategies.support_novelty import (
@@ -227,11 +227,8 @@ def _seen_in_few(
 
 def _technical_repeats(group_data: ValidatedInput) -> int | None:
     """The technical repeats (each with its condition and repeat) of the group's fields."""
-    fovs = group_data.fovs
-    if TECHNICAL_REPEAT_COLUMN not in fovs.columns:
-        return None
-    columns = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN) if c in fovs]
-    return len(fovs[columns].drop_duplicates())
+    columns = technical_repeat_columns(group_data.fovs)
+    return None if columns is None else len(group_data.fovs[columns].drop_duplicates())
 
 
 def _next_fov_tables(

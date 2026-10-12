@@ -28,9 +28,8 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 from .._identity import row_keys
-from ..schema import ValidatedInput, fov_positions
+from ..schema import ValidatedInput, canonical_fields, fov_positions
 from ..transforms import Standardize
-from ._common import canonical_fields
 
 LEAVE_ONE_GROUP_OUT = "leave-one-group-out"
 LEAVE_ONE_FIELD_OUT = "leave-one-field-out (a single reference group)"

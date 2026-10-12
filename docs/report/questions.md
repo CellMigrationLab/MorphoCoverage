@@ -266,7 +266,9 @@ against the cells of the control they are compared with (a group mostly of a con
 against every other cell), and with several controls and no `normalize` the groups are
 found on the values normalised to each own control, as the experiments have their own
 controls, so raw values pooled across experiments do not make a group "low area" while
-question 9 reads the condition higher. The most different condition is the one of the
+question 9 reads the condition higher; when a control mean is zero or negative there, the
+groups are found on the values as given and the report says so ("Clustered on the values
+as given, not normalised to each condition's own control: ...", audit 12). The most different condition is the one of the
 smallest q, then of the largest effect; a condition on one side in every repeat reads as a
 trend only from 6 repeats, as for the features, and with fewer than 3 repeats "not tested"
 ("higher in both repeats, not tested"). A rule that thresholds a feature with few distinct

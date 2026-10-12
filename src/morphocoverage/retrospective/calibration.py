@@ -57,7 +57,7 @@ from .._style import check_detail, group_columns, group_label, span, table, wrap
 from .._wording import listing, number
 from ..calibration import calibrate_next_fov_novelty, pool_calibration
 from ..statistics import median_standard_error
-from ._text import fields, percent, rule_names, skipped_lines
+from ._text import fields, order_name, percent, rule_names, skipped_lines
 from .adequacy import ALL_CRITERIA, combined_status, first_apparent_adequacy, run_decisions
 from .criteria import Preservation
 from .replay import ReplayResult
@@ -272,7 +272,7 @@ def _calibration_row(row: Any, label: str | None, min_fovs: int) -> list[Any]:
         preserved = percent(row.correct)
         if row.undefined_at_stop > 0:
             preserved += f"; {percent(row.undefined_at_stop)} not judged"
-    cells = [_ORDER_COLUMNS.get(row.order, row.order)]
+    cells = [order_name(row.order)]
     cells += [label] if label is not None else []
     cells += [
         f"{percent(row.stopped)} of {row.runs}",
@@ -363,7 +363,6 @@ def calibration_summary(result: StoppingCalibration) -> str:
     return "\n\n".join(blocks)
 
 
-_ORDER_COLUMNS = {"recorded": "recorded", "permuted": "random", "dispersed": "spread out"}
 # Above this share of stops where the criterion was not preserved, the report's status for
 # "Did I image enough?" asks the reader to look (report_status; a provisional preset).
 PREMATURE_CAUTION = 0.1
@@ -419,7 +418,7 @@ def calibration_short_parts(
                 hang=indent + 2,
             )
         )
-        header = ["rule", *(_ORDER_COLUMNS.get(kind, kind) for kind in kinds)]
+        header = ["rule", *(order_name(kind) for kind in kinds)]
         lines.append(table(rows, header, indent=indent + 2))
     cautions = [
         assumption(

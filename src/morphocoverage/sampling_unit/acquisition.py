@@ -53,7 +53,8 @@ from .._repeat_statistics import log_scale
 from .._style import check_detail, group_label, table, wrap
 from .._wording import count, listing, number, percent_fine
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
-from ..schema import fov_positions, fov_values, observation_words
+from ..schema import fov_values, observation_words, one_per_field
+from ..statistics import MAD_TO_SD_ROUNDED
 from ._common import validated
 
 # SDs from the other fields of the group: the quality-control threshold (see module).
@@ -63,8 +64,6 @@ MIN_OTHER_FIELDS = 7
 # The share of fields and features at ANOMALY_Z or more by chance, were the differences
 # Gaussian: the expected-by-chance count is this times the values judged.
 EXPECTED_RATE = float(2 * stats.norm.sf(ANOMALY_Z))
-# 1.4826 times the median absolute deviation estimates the SD of Gaussian data.
-_MAD_SD = 1.4826
 # Fields named in the short form; the rest are counted.
 _NAMED = 4
 TITLE = "Acquisition anomalies"
@@ -208,7 +207,7 @@ def _scale(residuals: np.ndarray) -> float:
     residuals = residuals[~np.isnan(residuals)]
     if len(residuals) < 2:
         return 0.0
-    mad = _MAD_SD * float(np.median(np.abs(residuals - np.median(residuals))))
+    mad = MAD_TO_SD_ROUNDED * float(np.median(np.abs(residuals - np.median(residuals))))
     return mad if mad > 0 else float(np.std(residuals, ddof=1))
 
 
@@ -242,13 +241,6 @@ def _logged(data: Any, scales: Mapping[str, str | None] | None) -> np.ndarray:
         [log_scale(data.feature_values(f), declared.get(f), repr(f)) for f in data.feature_cols],
         dtype=bool,
     )
-
-
-def _one_per_field(data: Any) -> bool:
-    """Whether every field with observations holds exactly one."""
-    positions = fov_positions(data, data.fovs)
-    counts = np.bincount(positions[positions >= 0])
-    return bool(len(counts)) and int(counts.max()) == 1
 
 
 def acquisition_anomalies(
@@ -322,7 +314,7 @@ def acquisition_anomalies(
         "pooled_scale": dict(zip(data.feature_cols, map(float, pooled), strict=True)),
         "values_judged": judged_values,
         "expected_by_chance": EXPECTED_RATE * judged_values,
-        "one_per_field": _one_per_field(data),
+        "one_per_field": one_per_field(data),
         "unit": unit,
     }
     return AcquisitionAnomalies(fields, pd.DataFrame(rows), tuple(own), settings)

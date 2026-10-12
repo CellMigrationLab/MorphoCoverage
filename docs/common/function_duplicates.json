@@ -1,14 +1,6 @@
 {
  "identical": [
   [
-   "_fitted:_indent_of",
-   "workflows._html_render:_indent"
-  ],
-  [
-   "_seeds:_plain",
-   "strategies.jcb_planning:_plain"
-  ],
-  [
    "data.lab.cct8_cdm_morphology.convert:main",
    "data.lab.cct8_filopodia_screen.convert:main"
   ],
@@ -29,43 +21,6 @@
   [
    "outcomes:RandomObjectRelativeError.__post_init__",
    "outcomes:RelativeMeanError.__post_init__"
-  ],
-  [
-   "policies:describe",
-   "transforms:FeatureTransform.describe"
-  ],
-  [
-   "retrospective._feature_relations:_groups.root",
-   "sampling_unit._experiments:experiments.root"
-  ],
-  [
-   "retrospective._feature_relations:_joined",
-   "workflows._html_enough:_joined"
-  ],
-  [
-   "retrospective.reliability_text:_present",
-   "sampling_unit._state_text:_present",
-   "sampling_unit._unit_text:_present"
-  ],
-  [
-   "retrospective.report:_indent",
-   "workflows._enough_features:_indent"
-  ],
-  [
-   "sampling_unit._common:canonical_fields",
-   "strategies.base:_canonical_fovs"
-  ],
-  [
-   "sampling_unit._state_text:_group",
-   "sampling_unit._unit_text:_group"
-  ],
-  [
-   "sampling_unit._state_text:_selector",
-   "sampling_unit._unit_text:_selector"
-  ],
-  [
-   "sampling_unit.acquisition:_one_per_field",
-   "strategies.support_novelty:one_per_field"
   ]
  ],
  "structural": [
@@ -103,10 +58,6 @@
    "retrospective.reliability:_reservoir_split"
   ],
   [
-   "retrospective._text:skipped_labels",
-   "retrospective._text:skipped_lines"
-  ],
-  [
    "retrospective.adequacy_text:adequacy_summary",
    "retrospective.effort_text:effort_summary"
   ],
@@ -125,11 +76,6 @@
    "retrospective.report_plan:effort_short"
   ],
   [
-   "sampling_unit._common:canonical_fields",
-   "strategies.base:_canonical_fovs",
-   "strategies.support_novelty:_fov_names"
-  ],
-  [
    "sampling_unit.object_rules:DescriptorSpreadCheck.summary",
    "sampling_unit.object_rules:ObjectRuleCheck.summary",
    "sampling_unit.variability:FOVVariability.summary"
@@ -139,8 +85,8 @@
    "workflows._whole_table:_significant"
   ],
   [
-   "strategies.scalar_precision:ScalarPrecisionEstimator.name",
-   "strategies.scalar_precision:ScalarPrecisionStrategy.name"
+   "schema:canonical_fields",
+   "strategies.support_novelty:_fov_names"
   ],
   [
    "transforms:RobustStandardize.apply_matrix",
@@ -155,16 +101,7 @@
   "names": {
    "ALPHA": [
     "data.simulations.test_choice = 0.05",
-    "order_check = 0.05",
-    "plots_pairwise = 0.05",
-    "sampling_unit._experiments = 0.05",
-    "sampling_unit.contrast_cells = 0.05",
-    "sampling_unit.distribution = 0.05",
-    "sampling_unit.repeat_plan = 0.05",
-    "sampling_unit.whole_table = 0.05",
-    "workflows._html_across = 0.05",
-    "workflows._html_tests = 0.05",
-    "workflows._populations = 0.05"
+    "statistics = 0.05"
    ],
    "ARCHIVE_MD5": [
     "data.lab.cct8_cdm_morphology.convert = 'b27b7c7ce0118f79e6b74b62955e0fe6'",
@@ -212,10 +149,6 @@
     "data.simulations.decisions.p2_contrasts = {'complete': {'A': 1.0}, 'incomplete': {'A': 1.0}, 'missing_control': {'A': 1.0}",
     "data.simulations.whole_table = (0.0, 0.3, 0.6)"
    ],
-   "EFFECT_CAP": [
-    "sampling_unit.discovery = 20.0",
-    "sampling_unit.ranking = 20.0"
-   ],
    "EXPLAINABLE": [
     "data.scenarios.scenario_axes = ('area', 'length', 'ecc')",
     "feature_tables = 'explainable'"
@@ -244,10 +177,6 @@
    "FOVS_SEEN": [
     "data.crick_idr.frequency_control = (5, 10, 20)",
     "data.crick_idr.positive_control = (5, 10, 20)"
-   ],
-   "GATE_ALPHA": [
-    "sampling_unit.discovery = 0.05",
-    "sampling_unit.ranking = 0.05"
    ],
    "GROUPS": [
     "data.crick_idr.benchmark = ['condition', 'biological_repeat', 'technical_repeat']",
@@ -288,6 +217,10 @@
     "data.simulations.test_choice = 10.0",
     "sampling_unit.contrast_sampling = 0.95"
    ],
+   "MARKERS": [
+    "_palette = ('o', 's', '^', 'D', 'v', 'P', 'X', '*')",
+    "_style = {status.marker: status for status in Status}"
+   ],
    "MAX_POINTS": [
     "embedding = 5000",
     "sampling_unit.populations = 20000",
@@ -297,10 +230,6 @@
    "MAX_REPEATS": [
     "plots = 8",
     "sampling_unit.repeat_plan = 30"
-   ],
-   "MAX_ROWS_LISTED": [
-    "sampling_unit.discovery = 24",
-    "sampling_unit.ranking = 24"
    ],
    "MEMBER": [
     "data.lab.cct7_cct8_glioma_cdm_tracks.convert = 'Tracking_data_CCT8_CCT7_silencing_Glioma.csv'",
@@ -479,10 +408,6 @@
     "data.simulations.decisions.p4_sequential = 0.05",
     "retrospective._feature_relations = 0.0001"
    ],
-   "TOP_FEATURES": [
-    "sampling_unit.discovery = 5",
-    "sampling_unit.ranking = 5"
-   ],
    "UNDEFINED_TOLERANCE": [
     "strategies.fov_bootstrap = 0.1",
     "workflows._enough_targets = 0.1"
@@ -509,17 +434,9 @@
     "workflows._guided_controls = {'own_control': 'against its own control, the main verdict', 'across_normalised'",
     "workflows._populations = {'main': 'main (the rest)', 'group': 'group'}"
    ],
-   "_MARKERS": [
-    "workflows._html_cards = {status.marker: status for status in Status}",
-    "workflows._html_render = {status.marker: status for status in Status}"
-   ],
    "_MARKER_LINE": [
     "workflows._html_cards = re.compile('^\\\\s*(✅|⚠️|❌|➖)\\\\s+(.*)$')",
     "workflows._html_render = re.compile('^(✅|⚠️|❌|➖)\\\\s+(.*)$')"
-   ],
-   "_MAX_TRUSTED_CV": [
-    "strategies.jcb_planning = 0.5",
-    "strategies.scalar_precision = 0.5"
    ],
    "_METADATA": [
     "feature_tables = {*MORPHOBRICKS_SHARED_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES, *WITHIN_FOV_METADAT",
@@ -541,14 +458,6 @@
     "_style = re.compile('(?<![\\\\w.])[-+]?\\\\d+(?:\\\\.\\\\d+)?(?:[eE][-+]?\\\\d+)?')",
     "workflows._html_render = re.compile('^[−+-]?[<>≤≥]?\\\\d[\\\\d.,]*%?$')"
    ],
-   "_ORDER_COLUMNS": [
-    "retrospective.adequacy_text = {'dispersed': 'spread out', 'permuted': 'random', 'recorded': 'recorded'}",
-    "retrospective.calibration = {'recorded': 'recorded', 'permuted': 'random', 'dispersed': 'spread out'}"
-   ],
-   "_PACKAGE_DIR": [
-    "_former_repeat = os.path.dirname(os.path.abspath(__file__)) + os.sep",
-    "schema = os.path.dirname(os.path.abspath(__file__)) + os.sep"
-   ],
    "_POPULATION": [
     "calibration = ObjectiveConfig(SamplingObjective.POPULATION)",
     "retrospective.inspection = ObjectiveConfig(SamplingObjective.POPULATION)",
@@ -561,10 +470,6 @@
    "_SCOPE": [
     "_former_repeat = ContextVar('former_repeat_scope', default=None)",
     "workflows._acquisition_gap = 'the maps on raw values or centred per repeat, the separation of the conditions "
-   ],
-   "_SD_ESTIMATES": [
-    "strategies.jcb_planning = ('point', 'upper_95')",
-    "strategies.scalar_precision = ('point', 'upper_95')"
    ],
    "_UNITS": [
     "strategies.incidence_coverage = {'incidence_coverage': 'fraction of incidence in observed states', 'chao2_comple",
@@ -581,11 +486,6 @@
    ]
   },
   "literals": {
-   "1.483": [
-    "embedding: 1.4826",
-    "sampling_unit.acquisition: 1.4826",
-    "transforms: 1.482602218505602"
-   ],
    "1.96": [
     "data.simulations.decisions.p2_contrasts: 1.96",
     "data.synthetic.make_synthetic: 1.96",

@@ -32,6 +32,12 @@ from ._repeat_statistics import (
 # Relative size below which a mean, a spread or a variance is rounding noise
 # of a zero one: a constant such as 0.1 leaves an SD of about 1e-17, not 0.
 RELATIVE_TOLERANCE = 1e-12
+# The significance level and false discovery rate of the tests the report reads.
+ALPHA = 0.05
+# The MAD times this estimates a Gaussian SD (1 / Phi^-1(0.75)); 1.4826 where rounded
+# (embedding.robust_scale, sampling_unit.acquisition), kept so that no result moves.
+MAD_TO_SD = 1.482602218505602
+MAD_TO_SD_ROUNDED = 1.4826
 
 
 def _scale(values: np.ndarray) -> float:

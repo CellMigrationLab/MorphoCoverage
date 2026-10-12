@@ -63,7 +63,7 @@ from ..metadata import (
     TECHNICAL_REPEAT_COLUMN,
     column_names,
 )
-from ..statistics import benjamini_hochberg
+from ..statistics import ALPHA, benjamini_hochberg
 from ._common import groups, validated
 from ._units import (
     FIELD,
@@ -88,7 +88,7 @@ _FIELDS_OUT = (
 )
 _UNKNOWN_WELLS = "the fields' wells or dishes are unknown"
 EFFECT_CAP = 20.0
-GATE_ALPHA = 0.05
+GATE_ALPHA = ALPHA
 TOP_FEATURES = 5
 MAX_ROWS_LISTED = 24
 

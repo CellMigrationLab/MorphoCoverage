@@ -29,9 +29,9 @@ import pandas as pd
 
 from .._wording import count, listing
 from ..feature_tables import COMBINED, EXPLAINABLE
-from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..sampling_unit.populations import MAX_POINTS, Populations, find_populations
 from ..schema import validate_input_tables
+from ..separation import repeat_conditions
 from ._feature_space import explainable_space, features_words, space, table_columns, table_of
 
 if TYPE_CHECKING:
@@ -158,12 +158,7 @@ def _left_without_control(
         feature_cols=(list(setup.columns) or table_columns(setup))[:1],
         **setup.common,
     )
-    frame = data.objects
-    alone = pd.Series("all", index=frame.index)
-    repeat, condition = frame.get(REPEAT_COLUMN, alone), frame.get(CONDITION_COLUMN, alone)
-    return [
-        (str(r), [str(c) for c in pd.unique(condition[repeat == r])]) for r in pd.unique(repeat)
-    ]
+    return repeat_conditions(data.objects)
 
 
 def no_own_control_words(settings: dict[str, Any], unit: str, units: str) -> str:

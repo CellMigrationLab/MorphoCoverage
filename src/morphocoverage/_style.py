@@ -75,6 +75,8 @@ class Status(Enum):
 
 
 _RANKS = {Status.NOT_ASSESSED: 0, Status.OK: 1, Status.CAUTION: 2, Status.PROBLEM: 3}
+# Each marker's status, to read an answer's line back.
+MARKERS = {status.marker: status for status in Status}
 
 
 def worst(statuses: Iterable[Status]) -> Status:
@@ -388,6 +390,16 @@ def without_provenance(text: str) -> str:
 # --- Layout -------------------------------------------------------------------
 
 
+def indent_width(line: str) -> int:
+    """The spaces ``line`` starts with."""
+    return len(line) - len(line.lstrip(" "))
+
+
+def indented(text: str) -> str:
+    """``text`` with every non-empty line indented by two spaces."""
+    return "\n".join(f"  {line}" if line else line for line in text.splitlines())
+
+
 def width(text: str) -> int:
     """The columns ``text`` takes in a terminal: wide characters and emoji count two."""
     total = 0
@@ -539,6 +551,7 @@ __all__ = [
     "CAUTION",
     "DASH",
     "DETAILS",
+    "MARKERS",
     "NOT_ASSESSED",
     "OK",
     "PROBLEM",
@@ -549,6 +562,8 @@ __all__ = [
     "group_columns",
     "group_label",
     "headline",
+    "indent_width",
+    "indented",
     "merge_numbers",
     "number_pattern",
     "rule_label",

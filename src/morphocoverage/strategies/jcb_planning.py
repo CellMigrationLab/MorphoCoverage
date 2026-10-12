@@ -79,6 +79,7 @@ import pandas as pd
 
 from .. import _deprecated
 from .._former_repeat import one_warning, read_former
+from .._seeds import plain
 from .._wording import listing, plural
 from ..data_check import validate_input_tables
 from ..evidence import Availability, Component, Direction, Evidence, Quantity
@@ -89,11 +90,8 @@ from ..schema import OBJECT_LIKE_UNITS, ValidatedInput
 from ..statistics import sd_upper_bound_factor, spread_is_zero
 from ._averaging_cv import _central_sums, _shape_warning
 from .base import Estimator, SamplingStrategy, unsupported_observation_unit
-from .scalar_precision import required_objects
+from .scalar_precision import _MAX_TRUSTED_CV, _SD_ESTIMATES, required_objects
 
-_SD_ESTIMATES = ("point", "upper_95")
-# The paper's advice: an SD estimate above 50% CV calls for more data.
-_MAX_TRUSTED_CV = 0.5
 _REQUIRED = "planned_required_objects"
 _MEASURED = "measured_objects"
 
@@ -141,11 +139,6 @@ class ObjectCountPlan:
             "cv_upper_95": self.cv_upper_95,
             "required_objects": self.required_objects,
         }
-
-
-def _plain(value: Any) -> Any:
-    """A JSON-serializable scalar (numpy scalars become Python ones)."""
-    return value.item() if isinstance(value, np.generic) else value
 
 
 def _pilot_values(
@@ -281,9 +274,9 @@ def plan_objects_to_average(
         target_cv=float(target_cv),
         sd_estimate=sd_estimate,
         sample_cols=sample_cols,
-        control=tuple((column, _plain(value)) for column, value in control.items()),
+        control=tuple((column, plain(value)) for column, value in control.items()),
         pilot_samples=tuple(
-            tuple(_plain(v) for v in (key if isinstance(key, tuple) else (key,)))
+            tuple(plain(v) for v in (key if isinstance(key, tuple) else (key,)))
             for key in sample_means.index
         ),
         n_samples=len(sample_means),
@@ -302,7 +295,7 @@ def _samples_seen(data: ValidatedInput, sample_cols: tuple[str, ...]) -> set[tup
     for table in (data.fovs, data.objects):
         if all(column in table.columns for column in sample_cols):
             rows = table.loc[:, list(sample_cols)].itertuples(index=False, name=None)
-            return {tuple(_plain(v) for v in row) for row in rows}
+            return {tuple(plain(v) for v in row) for row in rows}
     return None
 
 

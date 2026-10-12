@@ -77,10 +77,9 @@ from .._frozen import owned
 from .._seeds import group_key, group_rng
 from .._style import check_detail
 from ..bounds import interval
-from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
-from ..schema import ValidatedInput, fov_positions
+from ..schema import ValidatedInput, canonical_fields, fov_positions, technical_repeat_columns
 from ..statistics import benjamini_hochberg, fovs_to_detect
-from ._common import canonical_fields, groups, matching_groups, validated
+from ._common import groups, matching_groups, validated
 from ._reach import reachable
 from ._state_text import clustering_parts
 from .unusual import UnusualObjects, unusual_objects
@@ -262,9 +261,9 @@ def fov_clustering(
 def _technical_repeat_of(group_data: ValidatedInput) -> np.ndarray | None:
     """Each field's technical repeat (with its condition and repeat), or None without one."""
     fovs = group_data.fovs
-    if TECHNICAL_REPEAT_COLUMN not in fovs.columns:
+    columns = technical_repeat_columns(fovs)
+    if columns is None:
         return None
-    columns = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN) if c in fovs]
     return fovs.groupby(columns, sort=False, dropna=False).ngroup().to_numpy()
 
 

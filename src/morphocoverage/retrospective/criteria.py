@@ -21,6 +21,7 @@ tolerance is part of the question, and reports state it with every answer.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
@@ -143,6 +144,17 @@ class OutcomeCriterion:
                 return Preservation.UNDEFINED, None
             return Preservation.NOT_PRESERVED, None
         return self.judge(value), value
+
+
+def checked_criteria(criteria: Iterable[OutcomeCriterion]) -> list[OutcomeCriterion]:
+    """``criteria`` as a list, refused unless it is a non-empty sequence of distinctly named
+    ``OutcomeCriterion``."""
+    criteria = list(criteria)
+    if not criteria or not all(isinstance(c, OutcomeCriterion) for c in criteria):
+        raise TypeError("criteria must be a non-empty sequence of OutcomeCriterion")
+    if len({c.name for c in criteria}) != len(criteria):
+        raise ValueError("criteria must have distinct names")
+    return criteria
 
 
 __all__ = ["OutcomeCriterion", "Preservation"]
