@@ -100,12 +100,27 @@ def title(
     field-to-field variation only (it covered the repeat's median about half
     the time with a well SD above the field SD).
     """
-    repeats_word = _named("biological repeat", layout.repeat_col, REPEAT_COLUMN)
     # A technical repeat is a well, dish or coverslip: "well" in lab words (owner, 2026-10-01).
     technical_word = _named("well", layout.technical_col, TECHNICAL_REPEAT_COLUMN)
-    technicals = _named("wells", layout.technical_col, TECHNICAL_REPEAT_COLUMN)
     # A cluster is the points of one condition, or of one condition in one repeat.
     cluster = "condition" if layout.pooled_repeats or not layout.repeat_col else "repeat"
+    repeats = _split_phrase(layout)
+    coloured = ""
+    if layout.technical_col:
+        coloured = f", its shape the {technical_word}"
+    resampled, caveat = _resampled(layout, cluster, clusters)
+    if summary == "median":
+        caveat += "\nthe median is drawn; the tests across repeats use the repeat means"
+    return (
+        f"{feature}{part}{repeats}\nevery {unit} a point in its condition's colour{coloured}\n"
+        f"{summary} with its {rate(level)} interval from resampling {resampled}{caveat}"
+    )
+
+
+def _split_phrase(layout: Any) -> str:
+    """How the plot is split: biological repeats pooled or side by side, and the units
+    pooled within each cluster."""
+    repeats_word = _named("biological repeat", layout.repeat_col, REPEAT_COLUMN)
     repeats = ""
     if layout.pooled_repeats:
         repeats = (
@@ -119,11 +134,17 @@ def title(
     ]
     if unshown:
         repeats += f"; {'/'.join(unshown)} not shown apart, pooled within each cluster"
+    return repeats
+
+
+def _resampled(
+    layout: Any, cluster: str, clusters: Sequence[tuple[int, list[int]]]
+) -> tuple[str, str]:
+    """What the interval resamples, and the caveat lines on how few units it resamples."""
     by_top = [n for n, _ in clusters if n > 1]
     single = [technical[0] for n, technical in clusters if n == 1]
-    coloured, phrases, caveat = "", [], ""
-    if layout.technical_col:
-        coloured = f", its shape the {technical_word}"
+    phrases: list[str] = []
+    caveat = ""
     if by_top:
         phrases.append(
             f"whole {_pooled_name(layout)} with all their fields ({_span(by_top)} per {cluster})"
@@ -132,36 +153,44 @@ def title(
             caveat = f"\nwith 2-3 {_pooled_name(layout)} per {cluster} the interval is only a guide"
     if single or not by_top:
         if layout.technical_col:
-            several = [n for n in single if n > 1]
-            if not single:
-                phrases.append(
-                    f"whole {technicals} with their fields, or the fields where a "
-                    f"{cluster} has one {technical_word}"
-                )
-            if several:
-                phrases.append(
-                    f"whole {technicals} with their fields ({_span(several)} per {cluster})"
-                )
-            if single and all(n == 1 for n in single) and not by_top:
-                phrases.append(f"its fields (one {technical_word} per {cluster})")
-            elif any(n == 1 for n in single):
-                phrases.append(f"the fields, where a {cluster} has one {technical_word}")
-            if any(n in (2, 3) for n in several):
-                caveat = f"\nwith 2-3 {technicals} the interval is only a guide"
-            if any(n == 1 for n in single):
-                caveat += (
-                    f"\nwith one {technical_word} the interval shows field-to-field "
-                    "variation only, not well-to-well"
-                )
+            caveat = _technical_resampled(phrases, caveat, layout, cluster, single, by_top)
         else:
             phrases.append("whole fields")
-    resampled = "; or ".join(phrases)
-    if summary == "median":
-        caveat += "\nthe median is drawn; the tests across repeats use the repeat means"
-    return (
-        f"{feature}{part}{repeats}\nevery {unit} a point in its condition's colour{coloured}\n"
-        f"{summary} with its {rate(level)} interval from resampling {resampled}{caveat}"
-    )
+    return "; or ".join(phrases), caveat
+
+
+def _technical_resampled(
+    phrases: list[str],
+    caveat: str,
+    layout: Any,
+    cluster: str,
+    single: list[int],
+    by_top: list[int],
+) -> str:
+    """Add to ``phrases`` what is resampled within clusters of one top-level unit (whole
+    technical repeats, or the fields of a single one); the caveat, updated."""
+    technical_word = _named("well", layout.technical_col, TECHNICAL_REPEAT_COLUMN)
+    technicals = _named("wells", layout.technical_col, TECHNICAL_REPEAT_COLUMN)
+    several = [n for n in single if n > 1]
+    if not single:
+        phrases.append(
+            f"whole {technicals} with their fields, or the fields where a "
+            f"{cluster} has one {technical_word}"
+        )
+    if several:
+        phrases.append(f"whole {technicals} with their fields ({_span(several)} per {cluster})")
+    if single and all(n == 1 for n in single) and not by_top:
+        phrases.append(f"its fields (one {technical_word} per {cluster})")
+    elif any(n == 1 for n in single):
+        phrases.append(f"the fields, where a {cluster} has one {technical_word}")
+    if any(n in (2, 3) for n in several):
+        caveat = f"\nwith 2-3 {technicals} the interval is only a guide"
+    if any(n == 1 for n in single):
+        caveat += (
+            f"\nwith one {technical_word} the interval shows field-to-field "
+            "variation only, not well-to-well"
+        )
+    return caveat
 
 
 __all__ = ["legend", "title"]
