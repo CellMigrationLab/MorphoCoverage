@@ -2,9 +2,10 @@
 
 ``python tools/audit.py`` rewrites ``docs/common/function_index.jsonl`` and
 ``docs/common/function_duplicates.json`` and prints the counts; ``--write-baselines`` also
-records the current function findings, exact duplicate groups, layer violations and import
-cycles as the ratchets ``tests/test_function_guards.py`` enforces (use it to record a
-removal, never to accept something new without a reason).
+records the current function findings as the ratchets ``tests/test_function_guards.py``
+enforces (use it to record a removal, never to accept something new without a reason) and
+tightens the duplicate baseline, which it never adds to: a new identical group is
+accepted with ``python tools/duplicates.py --accept HASH --reason ...``.
 """
 
 from __future__ import annotations
@@ -33,24 +34,24 @@ def main(argv: list[str] | None = None) -> int:
     index, duplicates, layers = _load("function_index"), _load("duplicates"), _load("layers")
     rows = index.build_index()
     index.write_index(rows)
-    exact, near = duplicates.find()
-    duplicates.write(exact, near)
+    payload = duplicates.report()
+    duplicates.write(payload)
     current = index.findings()
-    print(f"{len(rows)} functions; {len(exact)} exact duplicate groups, {len(near)} near pairs")
+    print(
+        f"{len(rows)} functions; {len(payload['identical'])} identical duplicate groups, "
+        f"{len(payload['structural'])} structural (package and data/)"
+    )
     print(f"{len(layers.violations())} layer violations, {len(layers.cycles())} import cycles")
     for kind, values in current.items():
         print(f"  {kind}: {len(values)}")
     if args.write_baselines:
         index.write_baselines(current)
-        extra = {
-            "duplicates": duplicates.exact_groups(),
-            "layers": {"violations": layers.violations(), "cycles": layers.cycles()},
-        }
-        for name, value in extra.items():
-            path = index.BASELINES / f"{name}.json"
-            path.write_text(
-                json.dumps(value, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
-            )
+        for line in duplicates.tighten():
+            print(f"  tightened: {line}")
+        layers_baseline = {"violations": layers.violations(), "cycles": layers.cycles()}
+        (index.BASELINES / "layers.json").write_text(
+            json.dumps(layers_baseline, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
     return 0
 
 
