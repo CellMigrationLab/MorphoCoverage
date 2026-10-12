@@ -209,48 +209,11 @@ def plan_objects_to_average(
     data, values = _pilot_values(objects, feature, sample_cols, observation_unit, validation)
     if len(values) < 2:
         raise ValueError("planning needs at least 2 pilot cells")
-
-    absent = [column for column in control if column not in data.objects.columns]
-    if absent:
-        raise ValueError(
-            f"control columns {absent} are not columns of the pilot observations (they hold "
-            f"{listing(list(data.objects.columns), limit=8)})"
-        )
-    table = data.objects.loc[:, list(sample_cols)].assign(_value=values)
-    for column in control:
-        if column not in table.columns:
-            table[column] = data.objects[column]
-    is_control = np.logical_and.reduce([table[c].eq(v).to_numpy() for c, v in control.items()])
-    # observed=True: with categorical sample columns, only the samples present in the
-    # pilot, never unobserved combinations of categories (pandas 2 defaults to all).
-    by_sample = table.groupby(list(sample_cols), sort=True, observed=True)["_value"]
+    by_sample, control_means, control_mean = _samples(data, values, sample_cols, control)
     sample_means = by_sample.mean()
-    control_rows = table.loc[is_control]
-    control_means = control_rows.groupby(list(sample_cols), observed=True)["_value"].mean()
-    if control_means.empty:
-        present = {
-            column: listing([repr(v) for v in table[column].drop_duplicates()], limit=5)
-            for column in control
-        }
-        raise ValueError(
-            f"no pilot sample matches the control {dict(control)}; the pilot holds "
-            + "; ".join(f"{column}: {values}" for column, values in present.items())
-        )
-    control_mean = float(control_rows["_value"].mean())
-    if not control_mean > 0:
-        raise ValueError("the control mean must be positive to express SD as a CV")
-
-    if len(values) <= len(sample_means):
-        # Centring each sample on its own mean leaves n_objects - n_samples degrees of
-        # freedom: with one object per sample every centred value is 0 and the SD is 0.
-        raise ValueError(
-            "planning needs at least one pilot sample with 2 or more cells: with one cell per "
-            "sample the within-sample SD is undefined"
-        )
-    centred = values - by_sample.transform("mean").to_numpy()
-    sd = float(np.std(centred, ddof=1))
-    cv = sd / control_mean
-    cv_upper = cv * sd_upper_bound_factor(len(values) - 1)
+    centred, sd, cv, cv_upper = _within_sample_cv(
+        values, by_sample, len(sample_means), control_mean
+    )
     required = required_objects(cv if sd_estimate == "point" else cv_upper, target_cv)
     if spread_is_zero(sd, values) or required < 1:
         # A plan of 0 objects would stop every evaluated group at its first FOV, even
@@ -288,6 +251,64 @@ def plan_objects_to_average(
         required_objects=required,
         warnings=tuple(text for text in warnings if text),
     )
+
+
+def _samples(
+    data: ValidatedInput,
+    values: np.ndarray,
+    sample_cols: tuple[str, ...],
+    control: Mapping[str, Any],
+) -> tuple[Any, pd.Series, float]:
+    """The pilot values grouped by sample, the control samples' means and the control's
+    mean; ``ValueError`` when the control is not in the pilot or its mean is not positive."""
+    absent = [column for column in control if column not in data.objects.columns]
+    if absent:
+        raise ValueError(
+            f"control columns {absent} are not columns of the pilot observations (they hold "
+            f"{listing(list(data.objects.columns), limit=8)})"
+        )
+    table = data.objects.loc[:, list(sample_cols)].assign(_value=values)
+    for column in control:
+        if column not in table.columns:
+            table[column] = data.objects[column]
+    is_control = np.logical_and.reduce([table[c].eq(v).to_numpy() for c, v in control.items()])
+    # observed=True: with categorical sample columns, only the samples present in the
+    # pilot, never unobserved combinations of categories (pandas 2 defaults to all).
+    by_sample = table.groupby(list(sample_cols), sort=True, observed=True)["_value"]
+    control_rows = table.loc[is_control]
+    control_means = control_rows.groupby(list(sample_cols), observed=True)["_value"].mean()
+    if control_means.empty:
+        present = {
+            column: listing([repr(v) for v in table[column].drop_duplicates()], limit=5)
+            for column in control
+        }
+        raise ValueError(
+            f"no pilot sample matches the control {dict(control)}; the pilot holds "
+            + "; ".join(f"{column}: {values}" for column, values in present.items())
+        )
+    control_mean = float(control_rows["_value"].mean())
+    if not control_mean > 0:
+        raise ValueError("the control mean must be positive to express SD as a CV")
+    return by_sample, control_means, control_mean
+
+
+def _within_sample_cv(
+    values: np.ndarray, by_sample: Any, n_samples: int, control_mean: float
+) -> tuple[np.ndarray, float, float, float]:
+    """The values centred on their sample's mean, their SD, as a CV of the control mean, and
+    that CV's upper 95% bound."""
+    if len(values) <= n_samples:
+        # Centring each sample on its own mean leaves n_objects - n_samples degrees of
+        # freedom: with one object per sample every centred value is 0 and the SD is 0.
+        raise ValueError(
+            "planning needs at least one pilot sample with 2 or more cells: with one cell per "
+            "sample the within-sample SD is undefined"
+        )
+    centred = values - by_sample.transform("mean").to_numpy()
+    sd = float(np.std(centred, ddof=1))
+    cv = sd / control_mean
+    cv_upper = cv * sd_upper_bound_factor(len(values) - 1)
+    return centred, sd, cv, cv_upper
 
 
 def _samples_seen(data: ValidatedInput, sample_cols: tuple[str, ...]) -> set[tuple] | None:
