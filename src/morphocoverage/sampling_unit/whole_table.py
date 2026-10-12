@@ -76,6 +76,7 @@ from .._seeds import group_rng
 from ..embedding import robust_scale
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, empty_values
 from ..schema import ValidatedInput, validate_input_tables
+from ..statistics import ALPHA
 from ._experiments import corrected, declared, experiments
 
 MIN_REPEATS = 3
@@ -83,7 +84,6 @@ MIN_REPEATS = 3
 # with every label swapped, so the smallest p is about 2 over their number.
 MIN_ASSIGNMENTS = 40
 PERMUTATIONS = 999
-ALPHA = 0.05
 # A comparison whose sides hold one observation in every repeat: no within-group residual.
 ONE_EACH = "not tested: one observation a side and repeat"
 COLUMNS = (

@@ -49,6 +49,7 @@ from ._former_repeat import one_warning, read_former
 from ._wording import listing
 from .data_check import validate_input_tables
 from .metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, column_names
+from .schema import ValidatedInput
 from .statistics import mean_is_zero
 
 CONTROL_MEAN = "control_mean"
@@ -61,6 +62,29 @@ class _DefaultRepeat(str):
 
 # A str subclass, so the default still reads (and compares) as "biological_repeat".
 _DEFAULT_REPEAT_COL = _DefaultRepeat(MORPHOBRICKS_GROUP_COLUMNS[1])
+
+
+def _aligned(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    feature_cols: Sequence[str],
+    fov_col: str | None,
+    group_cols: Sequence[str] | None,
+    observation_unit: str | None,
+) -> ValidatedInput:
+    """The validated tables, refused when validation changed the number of observation rows
+    (the normalised values are aligned with ``objects`` row by row)."""
+    data = validate_input_tables(
+        objects,
+        fovs=fovs,
+        feature_cols=column_names(feature_cols, "feature_cols"),
+        fov_col=fov_col,
+        group_cols=group_cols,
+        observation_unit=observation_unit,
+    )
+    if len(data.objects) != len(objects):
+        raise ValueError("validation changed the number of object rows; cannot align the values")
+    return data
 
 
 def _repeat_column(repeat_col: str | None, columns: pd.Index) -> str | None:
@@ -329,17 +353,8 @@ def normalize_to_control(
         observation_unit=observation_unit,
         leave_out_missing=leave_out_missing,
     )
-    data = validate_input_tables(
-        objects,
-        fovs=fovs,
-        feature_cols=column_names(feature_cols, "feature_cols"),
-        fov_col=fov_col,
-        group_cols=group_cols,
-        observation_unit=observation_unit,
-    )
+    data = _aligned(objects, fovs, feature_cols, fov_col, group_cols, observation_unit)
     attached = data.objects
-    if len(attached) != len(objects):
-        raise ValueError("validation changed the number of object rows; cannot align the values")
     repeat_col = _repeat_column(repeat_col, attached.columns)
     normalized = objects.copy()
     if repeat_col is None:
@@ -375,17 +390,8 @@ def normalize_to_own(
     with several declared controls (owner, 2026-10-05). A condition ``own`` does not name,
     or held in a repeat without its control, is NaN there. Each control's means are
     ``control_means`` (its errors and cautions); the row order and index are kept."""
-    data = validate_input_tables(
-        objects,
-        fovs=fovs,
-        feature_cols=column_names(feature_cols, "feature_cols"),
-        fov_col=fov_col,
-        group_cols=group_cols,
-        observation_unit=observation_unit,
-    )
+    data = _aligned(objects, fovs, feature_cols, fov_col, group_cols, observation_unit)
     attached = data.objects
-    if len(attached) != len(objects):
-        raise ValueError("validation changed the number of object rows; cannot align the values")
     repeat_col = _repeat_column(repeat_col, attached.columns)
     repeats = attached[repeat_col].tolist() if repeat_col else [None] * len(attached)
     divisors = np.full((len(objects), len(feature_cols)), np.nan)

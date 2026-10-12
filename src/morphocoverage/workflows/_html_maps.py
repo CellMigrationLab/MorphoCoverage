@@ -288,6 +288,7 @@ def _maps(
         first = next(iter(source.values())).points.set_index("observation")
         explained = [c for c in first.columns if c.startswith("z:")]
         for name, embedding in view.items():
+            # fallback: the explained columns are present only in some maps
             points = embedding.points.drop(columns=explained, errors="ignore")
             if name in own:
                 view[name] = replace(

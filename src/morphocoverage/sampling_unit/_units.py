@@ -48,9 +48,8 @@ from .._identity import IdentityKey, identity_key
 from .._seeds import group_key
 from .._wording import column_word, listing
 from ..metadata import REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, empty_values
-from ..schema import ValidatedInput, fov_values
+from ..schema import ValidatedInput, canonical_fields, fov_values
 from ..statistics import RELATIVE_TOLERANCE, cohen_d, mean_is_zero
-from ._common import canonical_fields
 from ._groups import (  # noqa: F401  (re-exported: the contrast and ranking import them here)
     Described,
     contrasts_of,
@@ -365,6 +364,7 @@ def _separations(items: list[np.ndarray], inside: np.ndarray) -> np.ndarray:
 
     n1, s1, q1 = side(inside)
     n2, s2, q2 = side(~inside)
+    # fallback: an empty side or no spread: NaN separation
     with np.errstate(divide="ignore", invalid="ignore"):
         m1, m2 = s1 / n1, s2 / n2
         pooled = ((q1 - s1 * m1) + (q2 - s2 * m2)) / (n1 + n2 - 2)

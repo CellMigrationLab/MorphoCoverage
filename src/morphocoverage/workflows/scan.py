@@ -431,6 +431,7 @@ def _constant(objects: pd.DataFrame, features: Sequence[str]) -> list[str]:
 def _quiet(function: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     """``function`` with its ``UserWarning`` s caught: the scan reports what they say."""
     with warnings.catch_warnings():
+        # fallback: the scan reports what the warnings say
         warnings.simplefilter("ignore", UserWarning)
         return function(*args, **kwargs)
 

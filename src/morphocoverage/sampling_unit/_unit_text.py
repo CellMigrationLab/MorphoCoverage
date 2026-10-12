@@ -24,18 +24,18 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import caveat_lines
-from .._style import among, group_columns, group_label, span, table, wrap
+from .._style import among, group_columns, span, table, wrap
 from .._wording import column_word, count, listing, number, percent, percent_fine, rate
 from ..schema import observation_words
-from ._group_text import count_groups, group_key, namer, skipped_label
-
-
-def _present(value: Any) -> bool:
-    return value is not None and not pd.isna(value)
-
-
-def _group(row: Mapping[str, Any], keys: Sequence[str]) -> str:
-    return group_label({key: row[key] for key in keys})
+from ._group_text import (
+    count_groups,
+    group_key,
+    namer,
+    present,
+    row_label,
+    selector_values,
+    skipped_label,
+)
 
 
 def _one(value: float) -> str:
@@ -131,7 +131,7 @@ def _single_parts(result: Any, rows: Sequence[Mapping[str, Any]], indent: int) -
     lines = [wrap(answer, indent, hang=indent + 2)]
     cells = [
         [
-            _group(r, keys),
+            row_label(r, keys),
             int(r["fovs"]),
             f"{float(r['mean']):.3g}",
             f"{float(r['fov_mean_sd']):.3g}",
@@ -173,11 +173,11 @@ def _variability_cautions(result: Any, rows: list[dict], words: str) -> list[str
         numbers = [int(r["missing_values"]) for r in missing]
         where = f" per group in {among(len(missing), len(rows))}" if len(rows) > 1 else ""
         cautions.append(f"{words} with no value were left out: {span(numbers)}{where}")
-    flat = [r for r in rows if r["status"] == "ok" and not _present(r["unusual_fov_share"])]
+    flat = [r for r in rows if r["status"] == "ok" and not present(r["unusual_fov_share"])]
     if flat:
         cautions.append(
             f"the {words} do not vary within any field in "
-            f"{listing([_group(r, keys) for r in flat], limit=3)}, so its fields cannot be "
+            f"{listing([row_label(r, keys) for r in flat], limit=3)}, so its fields cannot be "
             f"compared with random {words}"
         )
     return cautions
@@ -210,12 +210,12 @@ def variability_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str
     if ok:
         cells = [
             [
-                _group(r, keys),
+                row_label(r, keys),
                 int(r["fovs"]),
                 int(r["observations"]),
                 percent(r["icc"]),
                 _one(r["design_effect"]),
-                percent(r["unusual_fov_share"]) if _present(r["unusual_fov_share"]) else None,
+                percent(r["unusual_fov_share"]) if present(r["unusual_fov_share"]) else None,
             ]
             for r in ok
         ]
@@ -253,13 +253,13 @@ def variability_full(result: Any, indent: int = 0) -> str:
     columns += ["between", "design effect", "error ratio", "differ"]
     cells = []
     for r in rows:
-        cell = [_group(r, keys), int(r["fovs"]), int(r["observations"])]
+        cell = [row_label(r, keys), int(r["fovs"]), int(r["observations"])]
         cell.append(_per_field(r["observations_per_fov"]))
         cell += [int(r.get("missing_values") or 0)] if missing else []
         if r["status"] == "ok":
             share = r["unusual_fov_share"]
             cell += [percent(r["icc"]), _one(r["design_effect"]), _one(r["error_ratio"])]
-            cell.append(percent(share) if _present(share) else None)
+            cell.append(percent(share) if present(share) else None)
         else:
             cell += [None, None, None, None]
         cells.append(cell)
@@ -281,15 +281,6 @@ def variability_full(result: Any, indent: int = 0) -> str:
 # --- The mean-precision object-count rule ----------------------------------------------------
 
 
-def _selector(selector: Mapping[str, Any]) -> str:
-    """``MOCK`` for ``{"condition": ["MOCK"]}``: the values a selector accepts."""
-    parts = []
-    for value in selector.values():
-        values = value if isinstance(value, list | tuple | set) else [value]
-        parts.append("/".join(str(v) for v in values))
-    return " · ".join(parts)
-
-
 def rule_reference(settings: Mapping[str, Any], words: str) -> str:
     """The reference mean of the mean-precision check, in words."""
     control = settings.get("control")
@@ -297,7 +288,7 @@ def rule_reference(settings: Mapping[str, Any], words: str) -> str:
         return str(settings["reference"])
     repeat = settings.get("repeat_col")
     within = f" of the same {column_word(repeat)}" if repeat else ", every repeat pooled"
-    return f"the mean of all {_selector(control)} {words}{within}"
+    return f"the mean of all {selector_values(control)} {words}{within}"
 
 
 def _rule_cautions(result: Any, rows: list[dict]) -> list[str]:
@@ -308,7 +299,7 @@ def _rule_cautions(result: Any, rows: list[dict]) -> list[str]:
     skipped = [r for r in rows if r["status"] != "ok"]
     reasons: dict[str, list[str]] = {}
     for row in skipped:
-        where = f"{_group(row, result.group_cols)} ({rate(row['target'])})"
+        where = f"{row_label(row, result.group_cols)} ({rate(row['target'])})"
         reasons.setdefault(str(row["status"]), []).append(where)
     for reason, where in reasons.items():
         cautions.append(f"mean-precision check in {listing(where, limit=3)}: {reason}")
@@ -338,9 +329,9 @@ def object_rule_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str
         if not own:
             continue
         held = [r for r in own if r["meets_target"]]
-        misses = [_group(r, keys) for r in own if not r["meets_target"]]
+        misses = [row_label(r, keys) for r in own if not r["meets_target"]]
         missed += [(rate(target), misses)] if misses else []
-        ratios = [float(r["error_ratio"]) for r in own if _present(r["error_ratio"])]
+        ratios = [float(r["error_ratio"]) for r in own if present(r["error_ratio"])]
         predicted = span((float(r["predicted_error"]) for r in own), "percent")
         real = span((float(r["real_error"]) for r in own), "percent")
         times = f" ({_ones(ratios)}x)" if ratios else ""
@@ -394,9 +385,9 @@ def object_rule_full(result: Any, indent: int = 0) -> str:
     cells = []
     for r in ok:
         ratio = r["error_ratio"]
-        times = f" ({_one(ratio)}x)" if _present(ratio) else ""
+        times = f" ({_one(ratio)}x)" if present(ratio) else ""
         verdict = "met" if r["meets_target"] else "missed"
-        cell = [_group(r, keys), f"{rate(r['target'])} {verdict}", int(r["rule_objects"])]
+        cell = [row_label(r, keys), f"{rate(r['target'])} {verdict}", int(r["rule_objects"])]
         cell += [_one(r["fovs_used"])]
         # One decimal below 10%, so a missed 5% never reads 5% → 5% (audit, 2026-10-02).
         cell += [f"{percent_fine(r['predicted_error'])} → {percent_fine(r['real_error'])}{times}"]
@@ -440,14 +431,14 @@ def object_rule_full(result: Any, indent: int = 0) -> str:
 def _match(row: Mapping[str, Any]) -> str:
     """``from 40`` (the smallest sample matching the random-object spread), or not within."""
     match = row["objects_to_match"]
-    if _present(match):
+    if present(match):
         return f"from {int(match)}"
     return f"not by {int(row['largest_size_tried'])}"
 
 
 def _ratio(row: Mapping[str, Any]) -> str:
     ratio = row["ratio"]
-    return f"{_one(ratio)}x" if _present(ratio) else "no ratio"
+    return f"{_one(ratio)}x" if present(ratio) else "no ratio"
 
 
 def _spread_cautions(result: Any, words: str) -> list[str]:
@@ -492,7 +483,7 @@ def descriptor_spread_parts(result: Any, indent: int = 0) -> tuple[list[str], li
                 f"{_ones(list(ratios))}x" if len(ratios) else "no ratio",
                 _held(len(matched), groups),
                 span(matched) if len(matched) else None,
-                listing([_group(r, keys) for r in never], limit=2) if never else None,
+                listing([row_label(r, keys) for r in never], limit=2) if never else None,
             ]
         )
     if cells:
@@ -531,7 +522,7 @@ def descriptor_spread_full(result: Any, indent: int = 0) -> str:
     for _, own in parts if len(rows) else []:
         records = own.to_dict("records")
         by_name = {r["descriptor"]: r for r in records}
-        cell = [_group(records[0], keys)]
+        cell = [row_label(records[0], keys)]
         cell += [
             f"{_ratio(by_name[d])} ({_match(by_name[d])})" if d in by_name else None
             for d in descriptors

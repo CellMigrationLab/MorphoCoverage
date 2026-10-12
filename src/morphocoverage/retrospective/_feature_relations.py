@@ -38,7 +38,8 @@ from typing import Any
 
 import numpy as np
 
-from .._wording import listing
+from .._connected import connected_groups
+from .._wording import joined_clauses, listing
 from ..metadata import CONDITION_COLUMN
 from ..schema import ValidatedInput, fov_positions
 from ..statistics import spread_is_zero
@@ -68,6 +69,7 @@ def _pair_correlations(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     rows = mask.T @ mask
     sums = filled.T @ mask  # [i, j]: the sum of column i over the rows j is finite
     squares = (filled**2).T @ mask
+    # fallback: a pair without spread or shared values: NaN
     with np.errstate(divide="ignore", invalid="ignore"):
         products = filled.T @ filled - sums * sums.T / rows
         spread = squares - sums**2 / rows
@@ -118,21 +120,12 @@ def _related(values: np.ndarray) -> list[tuple[int, int, dict[str, Any]]]:
 
 def _groups(n: int, relations: list[tuple[int, int, Any]]) -> dict[int, list[int]]:
     """The columns joined by ``relations``, by their first column: ``{first: [columns]}``."""
-    parent = list(range(n))
-
-    def root(index: int) -> int:
-        while parent[index] != index:
-            parent[index] = parent[parent[index]]
-            index = parent[index]
-        return index
-
-    for x, y, _ in relations:
-        parent[max(root(x), root(y))] = min(root(x), root(y))
-    joined = {root(x) for x, _, _ in relations}
+    first = connected_groups(range(n), ((x, y) for x, y, _ in relations))
+    joined = {first[x] for x, _, _ in relations}
     groups: dict[int, list[int]] = {}
     for index in range(n):
-        if root(index) in joined:
-            groups.setdefault(root(index), []).append(index)
+        if first[index] in joined:
+            groups.setdefault(first[index], []).append(index)
     return dict(sorted(groups.items()))
 
 
@@ -261,16 +254,9 @@ def group_sentence(group: dict[str, Any]) -> str:
     what = "one measurement" if exact else "close to one measurement,"
     n = len(group["features"])
     return (
-        f"{NAME}: {_joined(clauses)}: {what} counted {_times(n)} in each test family; "
+        f"{NAME}: {joined_clauses(clauses)}: {what} counted {_times(n)} in each test family; "
         "keep one of them."
     )
-
-
-def _joined(clauses: list[str]) -> str:
-    """``a``, ``a, and b``, ``a, b, and c``: the clauses hold "and" of their own."""
-    if len(clauses) == 1:
-        return clauses[0]
-    return f"{', '.join(clauses[:-1])}, and {clauses[-1]}"
 
 
 def _clause(x: str, y: str, relation: dict[str, Any]) -> str:
@@ -315,12 +301,12 @@ def place_sentence(place: dict[str, Any], pooled: list[dict[str, Any]]) -> str |
         exact = all(found["kind"] != "near" for _, _, found in place["relations"])
         what = "one measurement" if exact else "close to one measurement,"
         return (
-            f"{NAME}: within each experiment, {_joined(clauses)}, a and b differing between "
+            f"{NAME}: within each experiment, {joined_clauses(clauses)}, a and b differing between "
             f"experiments: {what} counted {_times(n)} in each test family; keep one of them. "
             "The experiments may have been processed differently."
         )
     return (
-        f"{NAME}: in {listing(place['conditions'], 6)} only, {_joined(clauses)}; elsewhere "
+        f"{NAME}: in {listing(place['conditions'], 6)} only, {joined_clauses(clauses)}; elsewhere "
         "they are not one measurement, so the experiments may have been processed differently."
     )
 

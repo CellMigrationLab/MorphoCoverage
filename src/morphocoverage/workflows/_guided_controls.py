@@ -205,7 +205,7 @@ def ask_several(ask: Ask, say: Say, scan: Any) -> tuple[dict, dict | None, Any]:
         }
         try:
             Setup(readout="_", **declared)
-        except (TypeError, ValueError) as error:
+        except (TypeError, ValueError) as error:  # fallback: asked again, with what was wrong
             say(f"  These controls cannot be used ({error}). Please answer again.")
             continue
         return declared["control"], declared["control_parents"], declared["master_control"]

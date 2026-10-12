@@ -207,7 +207,7 @@ def _planes(table: pd.DataFrame, axes: list) -> list[tuple]:
     combos = list(table.loc[:, axes].drop_duplicates().itertuples(index=False, name=None))
     try:
         return sorted(combos)
-    except TypeError:
+    except TypeError:  # fallback: types that cannot be compared: sorted as text
         return sorted(combos, key=lambda combo: tuple(map(str, combo)))
 
 
@@ -300,7 +300,7 @@ def _constant_columns(table: pd.DataFrame, key: list, columns: list) -> list:
     for column in columns:
         try:
             spread = grouped[column].nunique(dropna=False)
-        except TypeError:  # lists or arrays: not comparable, so not carried
+        except TypeError:  # fallback: lists or arrays: not comparable, so not carried
             continue
         if bool((spread <= 1).all()):
             constant.append(column)

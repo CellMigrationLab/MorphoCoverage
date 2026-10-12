@@ -375,7 +375,7 @@ class LiveFolder:
                 if timeout is not None and time.monotonic() - started >= timeout:
                     return seen
                 time.sleep(interval)
-        except KeyboardInterrupt:
+        except KeyboardInterrupt:  # fallback: Ctrl-C stops watching; the FOVs seen are kept
             return seen
 
 

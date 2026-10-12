@@ -32,7 +32,7 @@ from .metadata import REPEAT_COLUMN
 _SEED_NAMES = {REPEAT_COLUMN: FORMER_REPEAT_COLUMN}
 
 
-def _plain(value: Any) -> Any:
+def plain(value: Any) -> Any:
     """A numpy scalar as the Python value it holds (``np.int64(1)`` is ``1``)."""
     return value.item() if isinstance(value, np.generic) else value
 
@@ -44,7 +44,7 @@ def group_key(group: Mapping[str, Any]) -> str:
     groups never share a key: ``{'plate': 1}`` and ``{'plate': '1'}`` differ,
     and a numpy value keys like the Python value it holds.
     """
-    items = sorted(((str(k), _plain(v)) for k, v in group.items()), key=lambda kv: kv[0])
+    items = sorted(((str(k), plain(v)) for k, v in group.items()), key=lambda kv: kv[0])
     return json.dumps(items, default=str)
 
 
@@ -54,11 +54,11 @@ def _seed_label(value: Any) -> str:
     ``1``, ``np.int64(1)``, ``1.0`` and ``"1"`` are the same label; so are
     ``0.5`` and ``"0.5"``. Other text is kept as it is.
     """
-    value = _plain(value)
+    value = plain(value)
     if isinstance(value, str):
         try:
             number = float(value)
-        except ValueError:
+        except ValueError:  # fallback: text that is not a number stays text
             return value
         value = number if np.isfinite(number) else value
     if is_integer(value):
@@ -105,4 +105,4 @@ def group_rng(random_state: int, group: Mapping[str, Any], *more: int) -> np.ran
     return np.random.default_rng(group_seed(random_state, group, *more))
 
 
-__all__ = ["group_identity", "group_key", "group_rng", "group_seed", "split_seed"]
+__all__ = ["group_identity", "group_key", "group_rng", "group_seed", "plain", "split_seed"]

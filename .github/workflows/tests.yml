@@ -1,15 +1,21 @@
 name: tests
 
 # Minimal on GitHub (owner, 2026-10-05): the whole suite runs locally before every push, so a
-# pull request only checks lint, formatting, that the package installs and imports, and the
-# guard tests (module size, type hints). A newer push to the same pull request cancels the run
-# still going; nothing runs on a push to main. The whole suite runs only on demand (Actions
-# tab, "Run workflow").
+# pull request only checks lint, formatting, that the package installs and imports, the guard
+# tests (module size, type hints, the function index and its ratchets) and that the ratchet
+# baselines only tightened against the base branch (audit 12). A newer push to the same pull
+# request cancels the run still going; nothing runs on a push to main. The whole suite runs
+# only on demand (Actions tab, "Run workflow").
 on:
   pull_request:
-    paths-ignore:
-      - "docs/**"
-      - "**.md"
+    # Documentation alone skips the run, except the generated function index and duplicate
+    # list, which the guard tests check (later patterns win).
+    paths:
+      - "**"
+      - "!docs/**"
+      - "!**.md"
+      - "docs/common/function_index.jsonl"
+      - "docs/common/function_duplicates.json"
   workflow_dispatch:
     inputs:
       full:
@@ -26,6 +32,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The pull request's merge commit and its first parent, the base branch.
+          fetch-depth: 2
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -39,7 +48,10 @@ jobs:
       - name: Import
         run: python -c "import morphocoverage, morphocoverage.workflows, morphocoverage.retrospective"
       - name: Guard tests
-        run: pytest -n 0 tests/test_guards.py
+        run: pytest -n 0 tests/test_guards.py tests/test_function_guards.py tests/test_function_tools.py
+      - name: Baselines only tighten
+        if: github.event_name == 'pull_request'
+        run: python tools/audit.py --check-against HEAD^1
       - name: Whole suite (on demand)
         if: github.event_name == 'workflow_dispatch' && inputs.full
         run: pytest

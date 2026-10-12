@@ -29,7 +29,7 @@ from .._caveats import caveat_lines
 from .._style import among, check_detail, group_columns, group_label, span, table, wrap
 from .._wording import count, duration, listing, number, percent
 from .._wording import fields as fields_text
-from ._text import order_name
+from ._text import order_name, skipped_labels
 
 _NULL = "a null result, not a preference for any order"
 _TRAVEL = (
@@ -218,21 +218,12 @@ def order_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str]]:
             "was not reliably enough in half or more of its runs."
         )
         lines.append(wrap(text, indent, hang=indent + 2))
-    lines += [wrap(line, indent, hang=indent + 2) for line in _skipped(result)]
+    lines += [
+        wrap(line, indent, hang=indent + 2)
+        for line in skipped_labels(result.skipped, result.group_cols)
+    ]
     lines.append(wrap(_TRAVEL, indent, hang=indent + 2))
     return lines, _unjudged_caution(result)
-
-
-def _skipped(result: Any) -> list[str]:
-    """``<group>: skipped, <reason>.`` for every group the replay could not run."""
-    skipped = result.skipped
-    if skipped is None or skipped.empty or "reason" not in skipped.columns:
-        return []
-    shown = [k for k in result.group_cols if k in skipped.columns]
-    return [
-        f"{group_label({k: row[k] for k in shown})}: skipped, {row['reason']}."
-        for _, row in skipped.iterrows()
-    ]
 
 
 def _cells(row: dict[str, Any], unit: str) -> tuple[str, str, str, str, str]:
@@ -300,7 +291,7 @@ def _full(result: Any) -> str:
         )
         lines.append(wrap(f"The orders differ by more than one field in {named}.", 0, hang=2))
     lines.append(_TRAVEL)
-    lines += [wrap(line, 0, hang=2) for line in _skipped(result)]
+    lines += [wrap(line, 0, hang=2) for line in skipped_labels(result.skipped, result.group_cols)]
     return "\n".join(lines)
 
 

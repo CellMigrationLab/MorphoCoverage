@@ -215,18 +215,35 @@ def embedding_plan(
         reasons.setdefault(key, no_rule)
     reasons.setdefault("effort", NOT_APPLICABLE if setup.readout is None else no_rule)
     document = assemble(results, setup)
-    unit = setup.unit_word
+    document = plan_document(document, reasons, setup, space, (objects, fovs), setup.unit_word)
+    # No settings sentence: there is no replay, so no orders or reservoirs to name.
+    return Plan(results, document, setup, reasons, {})
+
+
+def plan_document(
+    document: Any,
+    reasons: dict[str, str],
+    setup: Setup,
+    space: Any,
+    tables: tuple[pd.DataFrame, pd.DataFrame],
+    unit: str,
+) -> Any:
+    """The plan's document with its reasons, its title (the observations, as ``unit``, and
+    the fields of ``tables`` counted) and the notes on what the feature spaces left out."""
+    objects, fovs = tables
     title = (
         f"{PLAN_TITLE} {DASH} {count(len(objects), unit, setup.unit_words)} in "
         f"{count(len(fovs), 'field')}"
     )
     unread = space.unread()
     unread += space.small_groups(setup.unit_word, setup.unit_words)  # audit 8
-    document = replace(
-        with_reasons(document, reasons), title=title, notes=(*document.notes, *unread)
-    )
-    # No settings sentence: there is no replay, so no orders or reservoirs to name.
-    return Plan(results, document, setup, reasons, {})
+    return replace(with_reasons(document, reasons), title=title, notes=(*document.notes, *unread))
 
 
-__all__ = ["NOT_APPLICABLE", "embedding_plan", "embedding_reasons", "embedding_report"]
+__all__ = [
+    "NOT_APPLICABLE",
+    "embedding_plan",
+    "embedding_reasons",
+    "embedding_report",
+    "plan_document",
+]

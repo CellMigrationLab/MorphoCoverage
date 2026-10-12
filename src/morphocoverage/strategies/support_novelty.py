@@ -141,7 +141,7 @@ from ..bounds import check_confidence, upper_bound
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
-from ..schema import ValidatedInput, fov_positions
+from ..schema import ValidatedInput, fov_positions, one_per_field
 from ..transforms import FeatureTransform, constant_columns, missing_values_reason
 from .base import Estimator, SamplingStrategy
 from .support_geometry import new_state_members, novel_against, novel_observations
@@ -190,13 +190,6 @@ def per_field(novelty: _Novelty) -> _Novelty:
         return novelty
     fewest = max(novelty.min_fovs, 2)
     return replace(novelty, min_other_fovs=1, min_novel_observations=1, min_fovs=fewest)
-
-
-def one_per_field(data: ValidatedInput) -> bool:
-    """Whether every field of ``data`` with observations holds exactly one."""
-    positions = fov_positions(data, data.fovs)
-    counts = np.bincount(positions[positions >= 0])
-    return bool(len(counts)) and int(counts.max()) == 1
 
 
 def _check_novel(min_novel_observations: int) -> None:

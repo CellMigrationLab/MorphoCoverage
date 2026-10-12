@@ -33,7 +33,7 @@ from typing import Any
 import numpy as np
 
 from . import _deprecated
-from ._checks import is_integer
+from .objectives import fov_occurrences
 from .provenance import class_identity, config_hash
 from .schema import ValidatedInput
 from .statistics import mean_is_zero, srs_relative_rmse
@@ -234,11 +234,8 @@ class RareStateDetected(OutcomeMetric):
     def __post_init__(self) -> None:
         if not isinstance(self.label_col, str):
             raise TypeError("label_col must be one column name")
-        if not is_integer(self.min_fov_occurrences):
-            raise TypeError("min_fov_occurrences must be an integer count of FOVs")
-        if self.min_fov_occurrences < 1:
-            raise ValueError("min_fov_occurrences must be at least 1")
-        object.__setattr__(self, "min_fov_occurrences", int(self.min_fov_occurrences))
+        occurrences = fov_occurrences(self.min_fov_occurrences)
+        object.__setattr__(self, "min_fov_occurrences", occurrences)
         _check_label(self.label)
 
     @property

@@ -76,6 +76,7 @@ def _bootstrap(
     picks = rng.integers(0, len(units), size=(n_boot, len(units)))
     weights = np.zeros((n_boot, len(units)))
     np.add.at(weights, (np.arange(n_boot)[:, None], picks), 1.0)
+    # fallback: a resample without a defined unit: NaN, left out
     with np.errstate(invalid="ignore", divide="ignore"):
         mean_effort = (weights @ effort.T) / (weights @ count.T)
         risk = (weights @ failed.T) / (weights @ defined.T)

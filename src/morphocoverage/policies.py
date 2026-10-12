@@ -12,12 +12,12 @@ framework combines component decisions per objective:
   is undefined, ``STOP`` if all stop, otherwise ``CONTINUE``. ``balanced``
   therefore stops only when both population and rare components stop.
 
-Both combinations are ``results.combine_decisions``. ``describe`` and
-``strategy_config_id`` (the provenance entry of an estimator or policy, and the
-id of an estimator-plus-policy combination) live here rather than in
-``strategies.base`` because ``redecide`` rebuilds a strategy's configuration
-from them without importing the strategies; ``strategies.base`` imports them
-from here.
+Both combinations are ``results.combine_decisions``. ``strategy_config_id`` (the
+id of an estimator-plus-policy combination) lives here rather than in
+``strategies.base``, and ``describe`` (the provenance entry of an estimator or
+policy, ``provenance.describe``) is imported here, because ``redecide`` rebuilds a
+strategy's configuration from them without importing the strategies;
+``strategies.base`` imports them from here.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from typing import Any
 from ._checks import is_integer, is_number
 from .evidence import Availability, Component, Direction, Evidence
 from .objectives import ObjectiveConfig
-from .provenance import class_identity, config_hash
+from .provenance import class_identity, config_hash, describe
 from .results import Decision, StrategyResult, combine_decisions
 
 _EFFORTS = ("n_fovs", "n_observations", "n_objects")
@@ -212,7 +212,7 @@ def decide(
         if decision is not None:
             try:
                 decision = Decision(decision)
-            except ValueError:
+            except ValueError:  # fallback: rejected just below with the same message
                 decision = Decision.UNSUPPORTED  # rejected below with the same message
             if decision is Decision.UNSUPPORTED:
                 raise ValueError(
@@ -236,16 +236,6 @@ def decide(
         overall = combine_decisions(required_decisions)
     ordered = {c.value: per_component[c] for c in Component if c in per_component}
     return overall, ordered
-
-
-def describe(component: Any) -> dict[str, Any]:
-    """Provenance entry for an estimator or policy."""
-    return {
-        "name": component.name,
-        "type": class_identity(type(component)),
-        "config_id": component.config_id,
-        "parameters": dict(component.parameters),
-    }
 
 
 def strategy_config_id(estimator_ids: Iterable[str], policy_ids: Iterable[str]) -> str:

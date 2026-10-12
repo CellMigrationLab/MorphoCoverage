@@ -21,41 +21,34 @@ beside each verdict (``screen_wide``).
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from .._connected import connected_groups
 from .._control import VS
 from .._seeds import group_key
 from .._wording import features_counted, listing
-from ..statistics import benjamini_hochberg
-
-ALPHA = 0.05
+from ..statistics import ALPHA, benjamini_hochberg
 
 
 def experiments(repeats: Mapping[Any, Iterable[Any]]) -> dict[Any, int]:
     """Each condition's sub-experiment, numbered from 0 in the order of ``repeats``: the
     conditions linked by a shared biological repeat (``repeats`` maps a condition to the
     repeats it was compared with the control in)."""
-    parent = {condition: condition for condition in repeats}
-
-    def root(condition: Any) -> Any:
-        while parent[condition] != condition:
-            parent[condition] = parent[parent[condition]]
-            condition = parent[condition]
-        return condition
-
     first: dict[Any, Any] = {}
+    links = []
     for condition, held in repeats.items():
         for repeat in held:
             if repeat in first:
-                parent[root(condition)] = root(first[repeat])
+                links.append((condition, first[repeat]))
             else:
                 first[repeat] = condition
+    group = connected_groups(list(repeats), links)
     numbers: dict[Any, int] = {}
-    return {c: numbers.setdefault(root(c), len(numbers)) for c in repeats}
+    return {c: numbers.setdefault(group[c], len(numbers)) for c in repeats}
 
 
 def declared(numbers: Mapping[Any, int], families: Mapping[Any, Any] | None) -> dict[Any, int]:
@@ -76,13 +69,25 @@ def screen_wide(p_values: pd.Series, controls: pd.Series, family: pd.Series) -> 
     """The screen-wide q of each test (see the module): Benjamini-Hochberg over every test
     against its control label when those tests fall in two or more families; NaN for a
     label whose tests are one family, where the family's q is the screen's."""
-    q = np.full(len(p_values), np.nan)
-    labels = controls.astype(str).to_numpy()
     families = family.to_numpy()
+    finite = np.isfinite(p_values.to_numpy(dtype=float))
+    return _within(
+        p_values,
+        controls.astype(str).to_numpy(),
+        lambda mine: len(pd.unique(families[mine & finite])) > 1,
+    )
+
+
+def _within(
+    p_values: pd.Series, labels: np.ndarray, applies: Callable[[np.ndarray], bool] | None = None
+) -> np.ndarray:
+    """Benjamini-Hochberg q-values of ``p_values`` within each label of ``labels``, for the
+    labels whose rows ``applies`` accepts (all by default); NaN elsewhere and NaN kept."""
+    q = np.full(len(p_values), np.nan)
     values = p_values.to_numpy(dtype=float)
     for label in pd.unique(labels):
         mine = labels == label
-        if len(pd.unique(families[mine & np.isfinite(values)])) > 1:
+        if applies is None or applies(mine):
             q[mine] = benjamini_hochberg(values[mine])
     return q
 
@@ -152,13 +157,7 @@ def same_experiment(blocks: Mapping[Any, int], first: Any, second: Any) -> bool:
 
 def corrected(p_values: pd.Series, family: pd.Series) -> np.ndarray:
     """Benjamini-Hochberg q-values of ``p_values``, within each ``family`` (NaN kept)."""
-    q = np.full(len(p_values), np.nan)
-    values = p_values.to_numpy(dtype=float)
-    labels = family.to_numpy()
-    for label in pd.unique(labels):
-        mine = labels == label
-        q[mine] = benjamini_hochberg(values[mine])
-    return q
+    return _within(p_values, family.to_numpy())
 
 
 def family_sizes(p_values: pd.Series, family: pd.Series) -> np.ndarray:

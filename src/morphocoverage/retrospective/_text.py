@@ -10,7 +10,7 @@ analysis skipped (``skipped_lines``).
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -83,26 +83,27 @@ def median_beyond(values: Sequence[Any] | pd.Series) -> float | None:
     return float(middle.mean())
 
 
-def skipped_lines(skipped: pd.DataFrame | None, keys: Sequence[str]) -> list[str]:
-    """``<group>: skipped, <reason>.`` for every group an analysis could not run."""
+def _skipped(
+    skipped: pd.DataFrame | None, keys: Sequence[str], label: Callable[[dict], str]
+) -> list[str]:
+    """``<label>: skipped, <reason>.`` for every group an analysis could not run."""
     if skipped is None or skipped.empty or "reason" not in skipped.columns:
         return []
     shown = [k for k in keys if k in skipped.columns]
     return [
-        f"{where({k: row[k] for k in shown})}: skipped, {row['reason']}."
+        f"{label({k: row[k] for k in shown})}: skipped, {row['reason']}."
         for _, row in skipped.iterrows()
     ]
+
+
+def skipped_lines(skipped: pd.DataFrame | None, keys: Sequence[str]) -> list[str]:
+    """``<group>: skipped, <reason>.`` for every group an analysis could not run."""
+    return _skipped(skipped, keys, where)
 
 
 def skipped_labels(skipped: pd.DataFrame | None, keys: Sequence[str]) -> list[str]:
     """``MOCK · 1A: skipped, <reason>.``: ``skipped_lines`` with the groups by their values."""
-    if skipped is None or skipped.empty or "reason" not in skipped.columns:
-        return []
-    shown = [k for k in keys if k in skipped.columns]
-    return [
-        f"{group_label({k: row[k] for k in shown})}: skipped, {row['reason']}."
-        for _, row in skipped.iterrows()
-    ]
+    return _skipped(skipped, keys, group_label)
 
 
 def rule_names(settings: Mapping[str, Any], detail: str = "short") -> dict[str, str]:

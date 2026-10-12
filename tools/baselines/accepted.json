@@ -1,0 +1,72 @@
+[
+ {
+  "kind": "complexity",
+  "key": "retrospective.controls_text:representation_gate",
+  "value": 16,
+  "reason": "audit 12: complexity now counted like mccabe/ruff C901 (each extra and/or operand counts); the code did not change",
+  "date": "2026-10-12"
+ },
+ {
+  "kind": "complexity",
+  "key": "retrospective.inspection:_influence",
+  "value": 16,
+  "reason": "audit 12: complexity now counted like mccabe/ruff C901 (each extra and/or operand counts); the code did not change",
+  "date": "2026-10-12"
+ },
+ {
+  "kind": "complexity",
+  "key": "workflows._html_render:text_html",
+  "value": 16,
+  "reason": "audit 12: complexity now counted like mccabe/ruff C901 (each extra and/or operand counts); the code did not change",
+  "date": "2026-10-12"
+ },
+ {
+  "kind": "complexity",
+  "key": "retrospective.report_status_conditions:conditions_status",
+  "value": 56,
+  "reason": "audit 12: complexity now counted like mccabe/ruff C901 (each extra and/or operand counts); the code did not change",
+  "date": "2026-10-12"
+ },
+ {
+  "kind": "complexity",
+  "key": "strategies.scalar_precision:ScalarPrecisionEstimator._precision_from",
+  "value": 27,
+  "reason": "audit 12: complexity now counted like mccabe/ruff C901 (each extra and/or operand counts); the code did not change",
+  "date": "2026-10-12"
+ },
+ {
+  "kind": "complexity",
+  "key": "sufficiency_text:_next_fov_answer",
+  "value": 22,
+  "reason": "audit 12: complexity now counted like mccabe/ruff C901 (each extra and/or operand counts); the code did not change",
+  "date": "2026-10-12"
+ },
+ {
+  "kind": "complexity",
+  "key": "workflows._families:shared_family",
+  "value": 18,
+  "reason": "audit 12: complexity now counted like mccabe/ruff C901 (each extra and/or operand counts); the code did not change",
+  "date": "2026-10-12"
+ },
+ {
+  "kind": "complexity",
+  "key": "workflows._html_render:chip",
+  "value": 27,
+  "reason": "audit 12: complexity now counted like mccabe/ruff C901 (each extra and/or operand counts); the code did not change",
+  "date": "2026-10-12"
+ },
+ {
+  "kind": "fallbacks",
+  "key": "workflows._population_context:compared_values",
+  "value": 1,
+  "reason": "audit 12: a real silent fallback (any ValueError gives the values as given, unsaid); being narrowed and reported (H3)",
+  "date": "2026-10-12"
+ },
+ {
+  "kind": "lines",
+  "key": "workflows.html_report:html_report",
+  "value": 194,
+  "reason": "audit 12: the page's warning filter narrowed to the repeated data-check message (owner, 2026-10-12); 2 more lines, the module is at its 600-line limit so no helper fits",
+  "date": "2026-10-12"
+ }
+]

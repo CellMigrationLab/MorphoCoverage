@@ -252,6 +252,7 @@ src/morphocoverage/
     _fitted.py             # private: every summary fitted to 100 columns, a long line wrapped with its continuation lines
     _caveats.py            # private: the two kinds of caveat (cautions about these data, standing assumptions) and how a section states them
     _seeds.py              # private: per-group seeds (group_identity, group_seed, group_rng, split_seed) and group_key
+    _connected.py          # private: connected groups of items joined by pairs (union-find), for features and conditions
     _identity.py           # private: typed identity of FOVs, blocks, conditions and repeats: (text, type) keys, canonical order and codes, display labels (1 and "1" are two values)
     _frozen.py             # private: owned, read-only containers (FrozenDict/FrozenList, freeze, thaw) for frozen result snapshots
     _stage_coordinates.py  # private: the one contract for stage coordinates: two distinct real numeric columns, no booleans, complex, text or coercion, finite (stage_names, stage_matrix, check_xy)
@@ -456,6 +457,9 @@ tests/
     test_contracts.py      # section 9 scenarios: contracts every strategy and the framework pass
     test_contracts_*.py    # outcome-metric, transform and incremental contracts
     test_guards.py         # one guard per recurring bug class, package-wide (section 12)
+    test_function_guards.py  # the function index is current and its ratchets only tighten (section 12)
+    test_function_tools.py   # the audit tools themselves (tools/) on planted sources
+    test_duplicates_tool.py  # tools/duplicates.py, jscpd_review.py and layers.py on planted code in a temporary tree
     test_<module>.py       # unit tests per module or strategy family
     test_audit*.py, test_microscopist_audit.py  # regression tests of the audits' findings (docs/audit/README.md)
     test_human_errors.py   # the mistakes people make with the tables, and the message each gives
@@ -466,12 +470,19 @@ tests/
     test_notebooks.py      # example notebooks compile, import existing names, carry no outputs
     conftest.py            # one BLAS thread per test process
 
-tools/
-    function_index.py      # the function index and the mechanical function checks, from the source tree alone (ast; imports nothing)
-    duplicates.py          # exact and near-duplicate functions (statement shingles, names and constants anonymised): docs/common/function_duplicates.json
-    layers.py              # the import layers (core, strategies, sampling_unit, retrospective, workflows) and import cycles, from ast alone
-    audit.py               # regenerates the index and the duplicate list, and records the baselines on request
-    baselines/             # the ratchets: functions over the size, complexity and argument limits, public functions without a docstring, silent fallbacks (numbers only go down)
+tools/                     # the code audits: ast only, import nothing from the package, same result on every Python version
+    audit.py               # the command line: regenerates the index and the duplicate list; --tighten, --accept, --rename, --check-against, --fallbacks, --find
+    function_index.py      # the function index (module, class and function rows) and the metrics (lines, complexity, arguments)
+    callgraph.py           # calls and called_by, resolved through each module's imports and self./cls.
+    fallbacks.py           # the silent-fallback detector and its `# fallback: <reason>` markers
+    ratchet.py             # the function baselines: only tighten, a new entry needs a reason, compared with the merge base in CI
+    search.py              # --find: the index searched by names, docstrings and synonyms (an embedding model when installed)
+    duplicates.py          # identical function bodies (CI tier) and structural clones, repeated module constants (report-only): docs/common/function_duplicates.json
+    jscpd_review.py        # on demand, never in CI: jscpd 5.4.1 token, AST and semantic passes propose duplicate pairs for review
+    layers.py              # the import layers and their rule (docs/common/architecture.md#import-layers), runtime cycles and deferred back-edges, from ast alone
+    baselines/             # the ratchets: lines, complexity, arguments, no_docstring, fallbacks (unmarked); accepted.json (each admitted entry with its
+                           # reason and date), renames.json (moves with edits); duplicates.json (accepted identical groups with a reason),
+                           # duplicates_reviewed.json (reviewed jscpd pairs and verdicts), layers.json (recorded edges with a reason)
 
 data/
     crick_idr/             # Crick/IDR feature tables (idr0028 development, idr0139 held out), their analyses and results
@@ -593,7 +604,10 @@ If acquisition becomes targeted, do not treat targeted FOVs as an unbiased popul
 - Statistics shared by several analyses live once, in `morphocoverage.statistics`, and are reused rather than re-derived.
 - The bug classes the audits kept finding are guarded package-wide by `tests/test_guards.py`, so write new code through the shared helpers: percentages and declared rates through `_wording` (`percent`, `rate`), count and number checks through `_checks`, FOV and group identity only through `metadata`'s resolvers, group lookups by `_seeds.group_key` (never the 32-bit `group_identity`, which only seeds), and every new interval with a coverage test. The live session must give the replay's result at every step of every contract scenario, and `check_tables` must accept exactly what the validator accepts.
 - Comments explain scientific assumptions or non-obvious reasoning.
-- `docs/common/function_index.jsonl` lists every function (module, name, signature, the first line of its docstring, size, complexity, callees, body hash): regenerate it with `python tools/audit.py` after changing a function, since `tests/test_function_guards.py` fails when it is stale. The same test keeps a ratchet: no function over 60 lines, complexity 15 or 8 arguments beyond `tools/baselines/`, no public function without a docstring, no swallowed error, `errors="ignore"` or `suppress`, exact duplicate function, import across a layer or import cycle that is not already recorded; new code meets the limits, and a fix is recorded by tightening the baseline (`--write-baselines`).
+- Search before writing a helper: `python tools/audit.py --find "robust scale"` ranks the package's modules, classes and functions by name, docstring and synonyms (BH, FDR, MAD, SD, CI, ...). Reuse what it finds, or say why it does not fit.
+- `docs/common/function_index.jsonl` lists every module, class and function (kind, decorators, signature, the first line of its docstring, lines, complexity, arguments, resolved `calls` and `called_by`, body hash; no line numbers): regenerate it with `python tools/audit.py` after changing code, since `tests/test_function_guards.py` fails when it is stale. The same test keeps ratchets that only tighten: no function over 60 lines (counted after the docstring), complexity 15 (counted like ruff `C901`) or 8 named arguments beyond `tools/baselines/`, no public function without a docstring, no unmarked silent fallback, identical function body (parameters and local names aside), import across a layer (the rules: [architecture](docs/common/architecture.md#import-layers)) or deferred import closing a cycle that is not already recorded, and no runtime import cycle at all. New code meets the limits. Record a fix with `python tools/audit.py --tighten` (it lowers and drops entries, never adds); a new or larger function entry needs `--accept KIND:module:name --reason "..."`, which records the reason in `accepted.json`, an identical group that stays `python tools/duplicates.py --accept HASH --reason ...`, and CI fails on any other growth against the base branch (`--check-against`). A function moved unchanged keeps its entry; one moved and edited needs `--rename OLD NEW --reason "..."`. The limits themselves are pinned by the test.
+- A deliberate silent fallback (an `except` that does not raise, `errors="ignore"`, `contextlib.suppress`, `np.errstate(...="ignore")`, `warnings.simplefilter("ignore")`) carries its reason on its line or the line above: `# fallback: <reason>`. Unmarked ones fail the guard; `python tools/audit.py --fallbacks` lists them all.
+- Duplicates the AST guard cannot see (statements reordered, a helper inlined, one idea written twice) are found on demand, never in CI: after adding or moving several functions, and before an audit, run `python tools/jscpd_review.py` (jscpd 5.4.1 via `npx`; the semantic pass needs the local model, downloaded once with `npx -y jscpd@5.4.1 --semantic-download`, and takes about half an hour). It writes the pairs not yet reviewed to `build/duplicate_candidates.json`; check each pair function by function and record the verdict with `python tools/jscpd_review.py --record A B --source jscpd-ast --verdict merged|helper|overlap-kept|intentional --reason ...` into `tools/baselines/duplicates_reviewed.json`, so later runs report only new pairs (owner, 2026-10-12).
 - Prefer specific exception types and actionable error messages.
 - Do not perform unrelated refactors, dependency upgrades, API renames, or formatting sweeps.
 
@@ -607,7 +621,7 @@ python -m ruff check src tests data
 python -m ruff format --check src tests data
 ```
 
-The whole suite runs locally before every push. On GitHub a pull request runs only lint, formatting, the install, the import and the guard tests, and the whole suite runs on demand from the Actions tab (`.github/workflows/tests.yml`, owner 2026-10-05).
+The whole suite runs locally before every push. On GitHub a pull request runs only lint, formatting, the install, the import, the guard tests (`tests/test_guards.py`, `tests/test_function_guards.py`, `tests/test_function_tools.py`) and the baseline check against the base branch (`python tools/audit.py --check-against HEAD^1`), also when it changes only the generated index; the whole suite runs on demand from the Actions tab (`.github/workflows/tests.yml`, owner 2026-10-05; guards owner 2026-10-12).
 
 Never claim a command passed unless it actually ran successfully.
 

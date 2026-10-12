@@ -129,6 +129,7 @@ def field_moments(rows: Rows) -> tuple[np.ndarray, ...]:
         finite = ~np.isnan(x)
         n = np.bincount(rows.field, weights=finite, minlength=n_fields)
         missing[:, j] = rows.sizes - n.astype(np.int64)
+        # fallback: a field without a finite value: NaN moments, read as missing
         with np.errstate(invalid="ignore", divide="ignore"):
             high = np.maximum.reduceat(np.where(finite, x, -np.inf), rows.starts[nonempty])
             low = np.minimum.reduceat(np.where(finite, x, np.inf), rows.starts[nonempty])

@@ -8,7 +8,7 @@ continuation lines, so no word is left alone on a line; table rows stay as they 
 
 from __future__ import annotations
 
-from ._style import _TABLE_GAP, WIDTH, Status, width, wrap
+from ._style import _TABLE_GAP, WIDTH, Status, indent_width, width, wrap
 
 
 def fitted(text: str) -> str:
@@ -22,7 +22,7 @@ def fitted(text: str) -> str:
             lines.append(line)
             continue
         pad = line[: len(line) - len(line.lstrip(" "))]
-        deeper = i < len(source) and _indent_of(source[i]) > len(pad)
+        deeper = i < len(source) and indent_width(source[i]) > len(pad)
         body, hang = line[len(pad) :], pad if not deeper and _inner(source, i - 1) else None
         while not body.endswith(":") and i < len(source) and _continues(source[i], pad, hang):
             hang = source[i][: len(source[i]) - len(source[i].lstrip(" "))]
@@ -36,10 +36,6 @@ def fitted(text: str) -> str:
     return "\n".join(lines)
 
 
-def _indent_of(line: str) -> int:
-    return len(line) - len(line.lstrip(" "))
-
-
 def _inner(source: list[str], k: int) -> bool:
     """Whether line ``k`` continues a paragraph: above it, past lines in its indent, the
     first other line is prose indented less (a paragraph's first line)."""
@@ -49,8 +45,8 @@ def _inner(source: list[str], k: int) -> bool:
     for above in reversed(source[:k]):
         if not above.strip() or _TABLE_GAP.search(above.strip()):
             return False
-        if _indent_of(above) != _indent_of(source[k]):
-            return _indent_of(above) < _indent_of(source[k])
+        if indent_width(above) != indent_width(source[k]):
+            return indent_width(above) < indent_width(source[k])
         if above.lstrip(" ").startswith(starts):
             return False
     return False

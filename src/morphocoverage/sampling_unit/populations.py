@@ -60,7 +60,7 @@ import pandas as pd
 from .._checks import as_count, check_seed
 from .._frozen import owned
 from .._identity import canonical_row_codes, row_keys
-from ..embedding import _sample, _standardised, combined
+from ..embedding import _sample, _standardised, _umap, combined
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, column_names
 from ..schema import fov_positions, validate_input_tables
 from ..statistics import cohen_d
@@ -160,22 +160,9 @@ def _cluster(points: np.ndarray, min_cells: int) -> np.ndarray:
 
 
 def _embedding(z: np.ndarray, random_state: int) -> np.ndarray:
-    """The UMAP clustered (imported here: loading umap-learn takes seconds)."""
-    import warnings
-
-    import umap
-
-    reducer = umap.UMAP(
-        n_neighbors=min(15, max(2, len(z) - 1)),
-        min_dist=0.0,
-        n_components=min(MAP_COMPONENTS, max(2, z.shape[1])),
-        random_state=random_state,
-        n_jobs=1,
-    )
-    with warnings.catch_warnings():
-        # umap-learn warns that a seed disables its parallelism: that is the point here.
-        warnings.simplefilter("ignore", UserWarning)
-        return reducer.fit_transform(z)
+    """The UMAP clustered: 15 neighbours, points packed tight (``min_dist`` 0), up to
+    ``MAP_COMPONENTS`` dimensions."""
+    return _umap(z, 15, 0.0, random_state, min(MAP_COMPONENTS, max(2, z.shape[1])))
 
 
 def _purity(z: np.ndarray, member: np.ndarray) -> float:

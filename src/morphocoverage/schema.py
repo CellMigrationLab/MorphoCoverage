@@ -11,8 +11,6 @@ FOV so far).
 
 from __future__ import annotations
 
-import os
-import sys
 import warnings
 from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
@@ -22,7 +20,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._former_repeat import Reader
+from ._former_repeat import Reader, caller_stacklevel
+from ._identity import canonical_order
 from ._input_invariants import check_input, trusted_input
 from ._input_traps import warn_invalid_rows
 from ._observation_units import (  # noqa: F401  (re-exported: the observation unit)
@@ -48,7 +47,10 @@ from ._plane_rules import (  # noqa: F401  (re-exported: the plane rule)
 )
 from ._wording import count
 from .metadata import (
+    CONDITION_COLUMN,
     MORPHOBRICKS_GROUP_COLUMNS,
+    REPEAT_COLUMN,
+    TECHNICAL_REPEAT_COLUMN,
     _tables,
     attach_mapping,
     check_canonical_spellings,
@@ -150,6 +152,35 @@ def fov_positions(data: ValidatedInput, fovs: pd.DataFrame) -> np.ndarray:
             data._feature_cache["positions"] = cached
         return cached.copy()
     return _fov_positions(data, fovs)
+
+
+def one_per_field(data: ValidatedInput) -> bool:
+    """Whether every field of ``data`` with observations holds exactly one."""
+    positions = fov_positions(data, data.fovs)
+    counts = np.bincount(positions[positions >= 0])
+    return bool(len(counts)) and int(counts.max()) == 1
+
+
+def canonical_fields(data: ValidatedInput) -> np.ndarray:
+    """Positions of ``data.fovs`` in a canonical order: by their typed FOV key.
+
+    Resampling draws index the FOVs in this order, so the draws depend on
+    which FOVs were acquired, never on the FOV table's row order (row order
+    carries no information: permuting it moved a finished acquisition's
+    descriptor spread from 24.3 to 27.9 around a tolerance of 25, audit 4,
+    P4-11). The key is the value's text and its type (``_identity``), so a
+    categorical column's category order cannot change the order, and integer
+    ``1`` and text ``"1"`` are two FOVs, not a tie broken by the row order.
+    """
+    return canonical_order(data.fovs, list(data.fov_key))
+
+
+def technical_repeat_columns(fovs: pd.DataFrame) -> list[str] | None:
+    """The FOV-table columns naming a field's technical repeat with its condition and
+    repeat, or None without a technical-repeat column."""
+    if TECHNICAL_REPEAT_COLUMN not in fovs.columns:
+        return None
+    return [c for c in (CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN) if c in fovs]
 
 
 def fov_values(data: ValidatedInput, values: np.ndarray) -> list[np.ndarray]:
@@ -343,6 +374,7 @@ def _validated_fov_table(
     if missing:
         try:
             examples = sorted(missing)[:3]
+        # fallback: examples of mixed types: listed unsorted, the error is still raised
         except TypeError:
             examples = list(missing)[:3]
         raise ValueError(
@@ -420,7 +452,7 @@ def _validate_input_tables(
     )
     _check_planes_within_fields(objects, fov_key, feature_cols, observation_unit)
     _check_feature_values(objects, feature_cols)
-    warn_invalid_rows(objects, [*fov_key, *feature_cols], _caller_stacklevel() + 1)
+    warn_invalid_rows(objects, [*fov_key, *feature_cols], caller_stacklevel() + 1)
     validated_fovs = _validated_fov_table(objects, fovs, fov_key)
     if fovs is None:
         warnings.warn(
@@ -429,7 +461,7 @@ def _validate_input_tables(
             "missing, so effort is undercounted and sampling answers are optimistic. Pass "
             "fovs=, the table of every acquired FOV.",
             MissingFovTableWarning,
-            stacklevel=_caller_stacklevel(),
+            stacklevel=caller_stacklevel(),
         )
 
     return trusted_input(
@@ -448,24 +480,6 @@ def _validate_input_tables(
 
 class MissingFovTableWarning(UserWarning):
     """No FOV table was given: acquired FOVs without observations are missing."""
-
-
-_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__)) + os.sep
-
-
-def _caller_stacklevel() -> int:
-    """The ``stacklevel`` that makes a warning name the first caller outside the package.
-
-    Called by the function that warns. A warning raised through several
-    package functions (``run_strategies`` validating, an analysis validating
-    twice) then points at the user's line, so it is shown once per line.
-    """
-    frame = sys._getframe(1)
-    level = 1
-    while frame is not None and os.path.abspath(frame.f_code.co_filename).startswith(_PACKAGE_DIR):
-        frame = frame.f_back
-        level += 1
-    return level
 
 
 def fov_table_from_observations(

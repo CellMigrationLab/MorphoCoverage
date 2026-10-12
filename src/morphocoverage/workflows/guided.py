@@ -77,6 +77,7 @@ from ._guided_tables import (
     changed,
     entries,
     identity,
+    read_table,
     read_tables,
     tag_of,
     tagged,
@@ -219,7 +220,7 @@ class Answers:
         values["experiment"] = self.experiment or None
         values.update(fields)
         with warnings.catch_warnings():
-            # A control the user chose to leave out is an answer, not a guess to warn about.
+            # fallback: a control the user chose to leave out is an answer, not a guess to warn
             warnings.simplefilter("ignore", UserWarning)
             return scan.setup(self.readout, goal=goal, **values)
 
@@ -323,12 +324,7 @@ class GuidedResult:
 def _read(source: Any, name: str) -> tuple[pd.DataFrame | None, str | None]:
     if source is None:
         return None, None
-    if isinstance(source, pd.DataFrame):
-        return source, None
-    path = Path(str(source)).expanduser()
-    if not path.exists():
-        raise FileNotFoundError(f"the {name} {str(path)!r} does not exist")
-    return pd.read_csv(path), str(path)
+    return read_table(source, name)
 
 
 def _load(
@@ -369,6 +365,7 @@ def _earlier_version(path: Path) -> bool:
     """Whether ``path`` holds answers saved by an earlier ``ANSWERS_VERSION``."""
     try:
         data = json.loads(path.read_text())
+    # fallback: no saved answers, or unreadable: not an earlier version
     except (FileNotFoundError, json.JSONDecodeError):
         return False
     version = data.get("version") if isinstance(data, dict) else None
@@ -389,6 +386,7 @@ def _saved(
         return None, None
     try:
         saved = load_answers(folder)
+    # fallback: said to the user; the questions are asked again
     except (ValueError, TypeError) as error:
         say(f"{path} cannot be read ({error}).")
         saved, usable = None, False

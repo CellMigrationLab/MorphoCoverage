@@ -1,12 +1,61 @@
 {
- "exact": [
+ "identical": [
   [
-   "policies:describe",
-   "transforms:FeatureTransform.describe"
+   "data.lab.cct8_cdm_morphology.convert:main",
+   "data.lab.cct8_filopodia_screen.convert:main"
   ],
   [
-   "retrospective._text:skipped_labels",
-   "retrospective._text:skipped_lines"
+   "data.lab.cct8_cdm_morphology.convert:read_source",
+   "data.lab.cct8_filopodia_screen.convert:read_source"
+  ],
+  [
+   "data.simulations.decisions.p1_repeat_inference:simulate",
+   "data.simulations.decisions.p2_contrasts:simulate"
+  ],
+  [
+   "outcomes:OutcomeMetric.config_id",
+   "policies:DecisionPolicy.config_id",
+   "strategies.base:Estimator.config_id",
+   "transforms:FeatureTransform.config_id"
+  ],
+  [
+   "outcomes:RandomObjectRelativeError.__post_init__",
+   "outcomes:RelativeMeanError.__post_init__"
+  ]
+ ],
+ "structural": [
+  [
+   "_data_problems:Collector.error",
+   "_data_problems:Collector.warning"
+  ],
+  [
+   "_style:_cell",
+   "_style:_value"
+  ],
+  [
+   "data.lab.catalog:ids",
+   "data.scenarios.make_scenarios:names"
+  ],
+  [
+   "data.simulations.decisions.embedding:embedding_from",
+   "data.simulations.decisions.populations:population_from"
+  ],
+  [
+   "data.simulations.decisions.p1_repeat_inference:paired_t_auto",
+   "data.simulations.decisions.p1_repeat_inference:paired_t_field",
+   "data.simulations.decisions.p1_repeat_inference:paired_t_well"
+  ],
+  [
+   "data_check:DataCheck.errors",
+   "data_check:DataCheck.warnings"
+  ],
+  [
+   "outcomes:RandomObjectRelativeError.name",
+   "outcomes:RelativeMeanError.name"
+  ],
+  [
+   "reservoir:_subset",
+   "retrospective.reliability:_reservoir_split"
   ],
   [
    "retrospective.adequacy_text:adequacy_summary",
@@ -23,16 +72,8 @@
    "sampling_unit.contrast_text:contrast_summary"
   ],
   [
-   "retrospective.reliability:ReliabilityResult.summary",
-   "workflows.live:LiveUpdate.summary"
-  ],
-  [
-   "sampling_unit._common:canonical_fields",
-   "strategies.base:_canonical_fovs"
-  ],
-  [
-   "sampling_unit._state_text:_selector",
-   "sampling_unit._unit_text:_selector"
+   "retrospective.report_plan:bought_short",
+   "retrospective.report_plan:effort_short"
   ],
   [
    "sampling_unit.object_rules:DescriptorSpreadCheck.summary",
@@ -40,49 +81,468 @@
    "sampling_unit.variability:FOVVariability.summary"
   ],
   [
-   "strategies.base:Estimator.start",
-   "transforms:FeatureTransform.output_width"
+   "sampling_unit.whole_table:WholeTable.significant",
+   "workflows._whole_table:_significant"
   ],
   [
-   "strategies.scalar_precision:ScalarPrecisionEstimator.name",
-   "strategies.scalar_precision:ScalarPrecisionStrategy.name"
+   "schema:canonical_fields",
+   "strategies.support_novelty:_fov_names"
+  ],
+  [
+   "transforms:RobustStandardize.apply_matrix",
+   "transforms:Standardize.apply_matrix"
+  ],
+  [
+   "workflows.html_report:_unnumbered",
+   "workflows.html_report:_words"
   ]
  ],
- "near": [
-  {
-   "a": "retrospective.controls_text:_selected",
-   "b": "sampling_unit._state_text:_selector",
-   "similarity": 0.667
+ "constants": {
+  "names": {
+   "ALPHA": [
+    "data.simulations.test_choice = 0.05",
+    "statistics = 0.05"
+   ],
+   "ARCHIVE_MD5": [
+    "data.lab.cct8_cdm_morphology.convert = 'b27b7c7ce0118f79e6b74b62955e0fe6'",
+    "data.lab.cct8_filopodia_screen.convert = '354a7ffd888bcb55e193bd7c6f9ae697'"
+   ],
+   "ARCHIVE_URL": [
+    "data.lab.cct8_cdm_morphology.convert = f'https://zenodo.org/api/records/{RECORD}/files/Fig5%20and%20FigS5.zip/content'",
+    "data.lab.cct8_filopodia_screen.convert = f'https://zenodo.org/api/records/{RECORD}/files/Fig2%20and%20FigS2.zip/content'"
+   ],
+   "BASE": [
+    "data.simulations.decisions.p2_contrasts = {'distribution': 'lognormal', 'cv': 0.3, 'scale': 'ratio'}",
+    "data.simulations.decisions.p3_embedding = {'dims': 32, 'batch': 'additive', 'batch_size': 1.0}"
+   ],
+   "CENTRE": [
+    "data.simulations.decisions.p1_repeat_inference = {'distribution': 'lognormal', 'cv': 0.3}",
+    "data.simulations.decisions.p4_sequential = {'repeats': 1, 'conditions': (CONTROL,), 'fields': MAX_FIELDS, 'distribution': '"
+   ],
+   "CRITERIA": [
+    "data.crick_idr.heldout_idr0139 = [OutcomeCriterion(RelativeMeanError(FASCIN_RATIO), 0.05, 'lower_is_better', 'the",
+    "data.crick_idr.reliability_idr0028 = (OutcomeCriterion(RelativeMeanError(RATIO), 0.05, 'lower_is_better', 'the well m",
+    "data.crick_idr.stopping_idr0028 = (OutcomeCriterion(RelativeMeanError(RATIO), 0.05, 'lower_is_better', 'the well m"
+   ],
+   "DEPARTURES": [
+    "data.simulations.decisions.p1_repeat_inference = {'centre': {}, 'wells2': {'wells': 2}, 'fields5': {'fields': 5}, 'fields30': {'f",
+    "data.simulations.decisions.p4_sequential = {'centre': {}, 'two_wells': {'wells': 2}, 'cells5': {'cells': 5.0}, 'cells80': {"
+   ],
+   "DESIGN": [
+    "data.crick_idr.frequency_control = (('1A', 'B6', 'M23'), ('2A', 'K16', 'N23'))",
+    "data.crick_idr.positive_control = (('1A', 'B6', ('M23', 'I23')), ('2A', 'K16', ('N23', 'J23')), ('2B', 'P13', ('C1"
+   ],
+   "DESIGNS": [
+    "data.simulations.beyond_the_mean = {'equal': (3, 20, 3, 20), 'control one field of 60': (1, 60, 3, 20), 'control on",
+    "data.simulations.unusual_calibration = {'3 groups, equal': ((10, 10, 10), False), '3 groups, unequal': ((3, 10, 30), Fa"
+   ],
+   "DRAWS": [
+    "data.crick_idr.jcs_effect_fovs = 1000",
+    "data.crick_idr.positive_control = 20",
+    "sampling_unit.distribution = 50"
+   ],
+   "D_CAP": [
+    "plots_pairwise = 2.0",
+    "workflows._html_sections = 2.0"
+   ],
+   "EFFECTS": [
+    "data.simulations.decisions.p2_contrasts = {'complete': {'A': 1.0}, 'incomplete': {'A': 1.0}, 'missing_control': {'A': 1.0}",
+    "data.simulations.whole_table = (0.0, 0.3, 0.6)"
+   ],
+   "EXPLAINABLE": [
+    "data.scenarios.scenario_axes = ('area', 'length', 'ecc')",
+    "feature_tables = 'explainable'"
+   ],
+   "FEATURE": [
+    "data.lab.cct8_filopodia_screen.convert = 'Filopodia number'",
+    "data.simulations.decisions.p2_contrasts = 'x0'"
+   ],
+   "FEATURES": [
+    "data.simulations.beyond_the_mean = 5",
+    "data.synthetic.make_synthetic = ('area', 'intensity', 'eccentricity')"
+   ],
+   "FEW_UNITS": [
+    "retrospective.protocol_text = 5",
+    "retrospective.report_status_plan = 5"
+   ],
+   "FIELD_KEY": [
+    "data.lab.cct7_cct8_glioma_cdm_tracks.convert = ['experiment', 'condition', 'biological_repeat', 'technical_repeat', 'position_i",
+    "data.lab.cct8_cdm_morphology.convert = ['condition', 'biological_repeat', 'technical_repeat', 'position_id']",
+    "data.lab.cct8_filopodia_screen.convert = ['experiment', 'condition', 'biological_repeat', 'technical_repeat', 'position_i"
+   ],
+   "FIELD_SD": [
+    "data.simulations.unusual_calibration = 0.3",
+    "data.simulations.whole_table = 0.5"
+   ],
+   "FOVS_SEEN": [
+    "data.crick_idr.frequency_control = (5, 10, 20)",
+    "data.crick_idr.positive_control = (5, 10, 20)"
+   ],
+   "GROUPS": [
+    "data.crick_idr.benchmark = ['condition', 'biological_repeat', 'technical_repeat']",
+    "data.crick_idr.datasets = ('condition', 'biological_repeat', 'technical_repeat')",
+    "data.crick_idr.report_steps_idr0028 = ['condition', 'biological_repeat', 'technical_repeat']"
+   ],
+   "HERE": [
+    "data.crick_idr.datasets = Path(__file__).resolve().parent",
+    "data.crick_idr.run_all = Path(__file__).resolve().parent",
+    "data.lab.catalog = Path(__file__).resolve().parent",
+    "data.lab.cct7_cct8_glioma_cdm_tracks.convert = Path(__file__).resolve().parent",
+    "data.lab.cct8_cdm_morphology.convert = Path(__file__).resolve().parent",
+    "data.lab.cct8_filopodia_screen.convert = Path(__file__).resolve().parent",
+    "data.lab.run_lab = Path(__file__).resolve().parent",
+    "data.scenarios.make_scenarios = Path(__file__).resolve().parent",
+    "data.simulations.decisions.real_parameters = Path(__file__).resolve().parent",
+    "data.synthetic.make_synthetic = Path(__file__).resolve().parent"
+   ],
+   "K": [
+    "data.simulations.unusual_calibration = 5",
+    "separation = 10"
+   ],
+   "KEY": [
+    "data.scenarios.make_scenarios = ['condition', 'biological_repeat', 'technical_repeat', 'image_file', 'label_id']",
+    "data.simulations.test_choice = ['repeats', 'cells', 'delta', 's_rep']",
+    "data.simulations.unbalanced = ['scenario', 'delta', 's_rep']"
+   ],
+   "KINDS": [
+    "_control = (OWN, MASTER_RAW, ACROSS)",
+    "data.simulations.decisions.runner = ('core', 'stress', 'screening')",
+    "sampling_unit.populations = ('main', 'group')"
+   ],
+   "LABEL_COLUMN": [
+    "embedding = 'label_id'",
+    "feature_tables = 'label_id'"
+   ],
+   "LEVEL": [
+    "data.simulations.test_choice = 10.0",
+    "sampling_unit.contrast_sampling = 0.95"
+   ],
+   "MARKERS": [
+    "_palette = ('o', 's', '^', 'D', 'v', 'P', 'X', '*')",
+    "_style = {status.marker: status for status in Status}"
+   ],
+   "MAX_POINTS": [
+    "embedding = 5000",
+    "sampling_unit.populations = 20000",
+    "separation = 2000",
+    "workflows._html_plotly = 4000"
+   ],
+   "MAX_REPEATS": [
+    "plots = 8",
+    "sampling_unit.repeat_plan = 30"
+   ],
+   "MEMBER": [
+    "data.lab.cct7_cct8_glioma_cdm_tracks.convert = 'Tracking_data_CCT8_CCT7_silencing_Glioma.csv'",
+    "data.lab.cct8_cdm_morphology.convert = 'Fig5 and FigS5/Fig5DE 231 CDM - shape/Cell Morphology 231s CDMs.xlsx'",
+    "data.lab.cct8_filopodia_screen.convert = 'Fig2 and FigS2/Fig2C filopodia numbers after silencing/FILOPODIA NUMBER ALL.xls"
+   ],
+   "MEMBER_SHA256": [
+    "data.lab.cct7_cct8_glioma_cdm_tracks.convert = 'dec991b3fdd52956d01ee64c2348ee4ec64afe4f16b7d0f67c549350b064233e'",
+    "data.lab.cct8_cdm_morphology.convert = '944227bc9eda234b2b7eeca92fbced55258f8c8fa4df006e85b12617cc6c530e'",
+    "data.lab.cct8_filopodia_screen.convert = '4efb5c9913a47ad1f40be801ab12932ffdd697db4db6893b75b30cebfdb17b56'"
+   ],
+   "METHODS": [
+    "data.simulations.decisions.p1_repeat_inference = (Method('paired_t_auto', paired_t_auto, role='ours', simplicity=1), Method('pair",
+    "data.simulations.decisions.p2_contrasts = (Method('direct', direct, role='ours', simplicity=1), Method('fixed_block', mode",
+    "data.simulations.decisions.p3_embedding = (*(Method(n, _with_invariance(f), role=r, question='mean', simplicity=s) for n, ",
+    "data.simulations.decisions.p4_sequential = tuple((Method(name, _process(function), role=role, simplicity=simplicity, primar",
+    "data.simulations.decisions.p5_multiple_testing = (Method('bh_all', bh_all, role='ours', simplicity=1, primary='fdp'), Method('bh_",
+    "normalize = (CONTROL_MEAN,)"
+   ],
+   "MIN_FIELDS": [
+    "order_check = 4",
+    "retrospective._value_checks = 3",
+    "sampling_unit.contrast_sampling = 5",
+    "workflows._fingerprint_space = 4"
+   ],
+   "MIN_REPEATS": [
+    "sampling_unit.contrast_repeats = 3",
+    "sampling_unit.whole_table = 3"
+   ],
+   "MODULE": [
+    "data.simulations.decisions.p1_repeat_inference = Module(name='p1', title='core repeat inference', simulate=simulate, points=point",
+    "data.simulations.decisions.p2_contrasts = Module(name='p2', title='incomplete and complex contrasts', simulate=simulate, p",
+    "data.simulations.decisions.p3_embedding = Module(name='p3', title='whole-embedding inference', simulate=simulate, points=p",
+    "data.simulations.decisions.p4_sequential = Module(name='p4', title='sequential mean sufficiency', simulate=simulate, points",
+    "data.simulations.decisions.p5_multiple_testing = Module(name='p5', title='multiple testing', simulate=simulate, points=points(), "
+   ],
+   "NAME": [
+    "retrospective._feature_relations = 'Duplicated or derived features'",
+    "workflows._acquisition_gap = 'Controls apart in intensity'"
+   ],
+   "NEIGHBOURS": [
+    "sampling_unit.populations = 10",
+    "workflows._html_map_text = f\"Under each map: of each observation's {K} nearest neighbours among the other o",
+    "workflows._label_control = 64"
+   ],
+   "NO_CONTROL": [
+    "_control = 'no control is declared: comparisons are available only for explicitly requested",
+    "retrospective.effect_preservation = 'not evaluable: no control fields in this repeat'",
+    "sampling_unit.reading_text = 'no control group in'"
+   ],
+   "NO_SPREAD": [
+    "sampling_unit._discovery_tests = 'no spread within the condition and the control'",
+    "sampling_unit.contrast_repeats = 'the repeat effects are identical, so the paired test has no variance to test wi"
+   ],
+   "N_BOOT": [
+    "data.simulations.decisions.p4_sequential = 200",
+    "data.simulations.test_choice = 1000",
+    "sampling_unit.contrast_sampling = 400"
+   ],
+   "N_PERMUTATIONS": [
+    "plots_pairwise = 1999",
+    "sampling_unit.discovery = 9999"
+   ],
+   "N_REPLICATES": [
+    "data.simulations.beyond_the_mean = 400",
+    "data.simulations.unusual_calibration = 400",
+    "data.simulations.whole_table = 400"
+   ],
+   "OK": [
+    "_style = '✅'",
+    "retrospective.effect_preservation = 'ok'"
+   ],
+   "PERMUTATIONS": [
+    "data.simulations.whole_table = 199",
+    "order_check = 999",
+    "sampling_unit.whole_table = 999"
+   ],
+   "PLAN_TITLE": [
+    "workflows._html_plan = 'Plan the next experiment'",
+    "workflows._results = 'Plan for the next experiment'"
+   ],
+   "POPULATION": [
+    "data.crick_idr.benchmark = ObjectiveConfig(SamplingObjective.POPULATION)",
+    "data.crick_idr.frequency_control = ObjectiveConfig(SamplingObjective.POPULATION)"
+   ],
+   "QUANTILES": [
+    "data.simulations.unusual_calibration = (0.05, 0.01)",
+    "sampling_unit.distribution = (0.1, 0.5, 0.9)"
+   ],
+   "QUANTITIES": [
+    "strategies.incidence_coverage = ('incidence_coverage', 'chao2_completeness', 'expected_new_states_next_fov', 'pr",
+    "strategies.support_novelty = (QUANTITY, MEAN_FOV_QUANTITY, FOV_QUANTITY, UPPER_QUANTITY)"
+   ],
+   "QUANTITY": [
+    "strategies.rare_incidence = 'rare_incidence_risk'",
+    "strategies.support_novelty = 'lofo_novel_fraction'"
+   ],
+   "READOUT": [
+    "data.crick_idr.benchmark = {'idr0028_screenB': YAPTAZ_RATIO, 'idr0139': FASCIN_RATIO}",
+    "data.scenarios.scenario_edges = {'readout': 'area', 'features': list(EXPLAINABLE), 'observation_unit': 'cell'}"
+   ],
+   "RECORD": [
+    "data.lab.cct8_cdm_morphology.convert = '20704995'",
+    "data.lab.cct8_filopodia_screen.convert = '20704995'"
+   ],
+   "RENAMED": [
+    "_deprecated = {'plan_cells_to_average': 'plan_objects_to_average', 'CellCountPlan': 'ObjectCou",
+    "data.lab.cct8_cdm_morphology.convert = {' ': 'source_roi', 'Ch': 'source_channel', 'Slice': 'source_slice'}"
+   ],
+   "REPEATS": [
+    "data.scenarios.make_scenarios = tuple((f'2026_0{1 + i // 4}_{5 + 7 * (i % 4):02d}' for i in range(8)))",
+    "data.simulations.beyond_the_mean = (3, 6)",
+    "data.simulations.unbalanced = 3",
+    "data.simulations.whole_table = (3, 4, 6)",
+    "data.synthetic.make_synthetic = ('2026_01_05', '2026_01_12', '2026_01_19')"
+   ],
+   "REPEAT_SD": [
+    "data.simulations.beyond_the_mean = 0.3",
+    "data.simulations.whole_table = 1.0"
+   ],
+   "RESULTS": [
+    "data.crick_idr.datasets = HERE / 'results'",
+    "data.lab.catalog = HERE / 'results'",
+    "data.simulations.test_choice = Path(__file__).resolve().parent / 'results'",
+    "data.simulations.unbalanced = Path(__file__).resolve().parent / 'results'",
+    "data.simulations.unusual_calibration = Path(__file__).resolve().parent / 'results'"
+   ],
+   "SCALES": [
+    "_repeat_statistics = ('ratio', 'difference')",
+    "data.simulations.decisions.scalar = ('ratio', 'difference')"
+   ],
+   "SCENARIOS": [
+    "data.scenarios.scenario_axes = [lambda i=i: axes_scenario(i) for i in range(len(AXES))]",
+    "data.scenarios.scenario_edges = [two_repeats, control_elsewhere, one_condition, screen, no_shared_condition, par",
+    "data.scenarios.scenario_options = [declared_scales, trend_six_repeats, acquisition_block, whole_distribution_not_a",
+    "data.simulations.unbalanced = {'equal': ((30, 30, 30), 0), 'one 2x': ((60, 30, 30), 0), 'one 4x': ((120, 30, 3"
+   ],
+   "SEED": [
+    "data.crick_idr.fov_vs_objects = 0",
+    "data.crick_idr.frequency_control = 1",
+    "data.crick_idr.jcs_effect_fovs = 0",
+    "data.crick_idr.positive_control = 0",
+    "data.scenarios.make_scenarios = 20261006",
+    "data.synthetic.make_synthetic = 20260926",
+    "order_check = 20260928"
+   ],
+   "SHIFTS": [
+    "data.scenarios.scenario_axes = {'a': 0.8, 'a1': 0.8, 'cB': 0.2}",
+    "data.simulations.decisions.embedding = ('dense', 'sparse', 'aligned', 'covariance')",
+    "data.simulations.unusual_calibration = (0.0, 0.5)"
+   ],
+   "SIZES": [
+    "data.crick_idr.jcs_effect_fovs = list(range(10, 501, 10))",
+    "data.simulations.decisions.runner = ('smoke', 'pilot', 'full')"
+   ],
+   "SOURCE_COLUMNS": [
+    "data.lab.cct7_cct8_glioma_cdm_tracks.convert = [*IDENTIFIERS, *METRICS]",
+    "data.lab.cct8_cdm_morphology.convert = ['Condition', 'Repeat', ' ', *MEASUREMENTS, 'Ch', 'Slice', *FERET]",
+    "data.lab.cct8_filopodia_screen.convert = ['Condition', 'Filopodia number', 'Repeat', 'dataset']"
+   ],
+   "STRESS": [
+    "data.simulations.decisions.p1_repeat_inference = {'extreme_repeat': {'extreme_repeat': 2.0}, 'faulty_well': {'wells': 2, 'faulty_",
+    "data.simulations.decisions.p2_contrasts = {'heteroscedastic': {'heteroscedastic': 2.0}, 'heterogeneous': {'effect_sd': 0.5",
+    "data.simulations.decisions.p4_sequential = {'unrecorded_wells': {'wells': 2, 'wells_recorded': False, 'icc_well': 0.15}, 'a"
+   ],
+   "SUMMARIES": [
+    "plots = {'median': np.median, 'mean': np.mean}",
+    "strategies._fov_bootstrap_checks = ('centroid', 'covariance', 'quantiles', 'eigenspectrum', 'subspace')"
+   ],
+   "TITLE": [
+    "_integrity_text = 'Data integrity'",
+    "sampling_unit.acquisition = 'Acquisition anomalies'"
+   ],
+   "TOLERANCE": [
+    "_integrity_match = 1e-05",
+    "data.simulations.decisions.p4_sequential = 0.05",
+    "retrospective._feature_relations = 0.0001"
+   ],
+   "UNDEFINED_TOLERANCE": [
+    "strategies.fov_bootstrap = 0.1",
+    "workflows._enough_targets = 0.1"
+   ],
+   "UNITS": [
+    "data.simulations.decisions.p3_embedding = {'cells': {'cells': 20.0}, 'image': {'cells': 1.0, 'fixed_cells': True, 'fields'",
+    "data.simulations.whole_table = {'image per field': (6, 1), 'cells per field': (5, 20)}"
+   ],
+   "VARIANCE": [
+    "data.synthetic.make_synthetic = {'repeat': 9.0, 'well': 16.0, 'field': 25.0, 'cell': 100.0}",
+    "sampling_unit.populations = 0.9"
+   ],
+   "_COLUMNS": [
+    "sampling_unit.contrast = [REPEAT_COLUMN, 'condition', 'control_condition', 'fields', 'observations', 'con",
+    "sampling_unit.populations = ['population', 'kind', 'observations', 'share', 'fields', 'repeats', 'largest_fi",
+    "separation = ['space', 'score', 'group', 'observations', 'k', 'share', 'chance']",
+    "workflows._html_render = re.compile('\\\\S {2,}\\\\S')"
+   ],
+   "_CONFIDENCE": [
+    "retrospective._control_rates = 0.95",
+    "retrospective.protocol = 0.95"
+   ],
+   "_KIND_WORDS": [
+    "workflows._guided_controls = {'own_control': 'against its own control, the main verdict', 'across_normalised'",
+    "workflows._populations = {'main': 'main (the rest)', 'group': 'group'}"
+   ],
+   "_MARKER_LINE": [
+    "workflows._html_cards = re.compile('^\\\\s*(✅|⚠️|❌|➖)\\\\s+(.*)$')",
+    "workflows._html_render = re.compile('^(✅|⚠️|❌|➖)\\\\s+(.*)$')"
+   ],
+   "_METADATA": [
+    "feature_tables = {*MORPHOBRICKS_SHARED_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES, *WITHIN_FOV_METADAT",
+    "workflows.scan = {*MORPHOBRICKS_SHARED_COLUMNS, *WITHIN_FOV_METADATA_COLUMNS, TARGET_COLUMN, 'rep"
+   ],
+   "_NAMED": [
+    "sampling_unit.acquisition = 4",
+    "workflows._html_enough = 7"
+   ],
+   "_NAMES": [
+    "workflows._distribution = {'spread': 'spread', 'q10': '10% quantile', 'q50': 'median', 'q90': '90% quantil",
+    "workflows._html_data = {'repeat': 'biological_repeat', 'technical': 'technical_repeat'}"
+   ],
+   "_NEGATIVE": [
+    "sampling_unit.object_rules = 'not applicable: the feature takes negative values here or in the control, and a",
+    "workflows._result_influence = 'has negative values, so a relative change is undefined'"
+   ],
+   "_NUMBER": [
+    "_style = re.compile('(?<![\\\\w.])[-+]?\\\\d+(?:\\\\.\\\\d+)?(?:[eE][-+]?\\\\d+)?')",
+    "workflows._html_render = re.compile('^[−+-]?[<>≤≥]?\\\\d[\\\\d.,]*%?$')"
+   ],
+   "_POPULATION": [
+    "calibration = ObjectiveConfig(SamplingObjective.POPULATION)",
+    "retrospective.inspection = ObjectiveConfig(SamplingObjective.POPULATION)",
+    "sufficiency = ObjectiveConfig(SamplingObjective.POPULATION)"
+   ],
+   "_RUN": [
+    "retrospective.frontier = ['split', 'order_id']",
+    "retrospective.replay = ('split', 'order_id', 'order', 'order_seed')"
+   ],
+   "_SCOPE": [
+    "_former_repeat = ContextVar('former_repeat_scope', default=None)",
+    "workflows._acquisition_gap = 'the maps on raw values or centred per repeat, the separation of the conditions "
+   ],
+   "_UNITS": [
+    "strategies.incidence_coverage = {'incidence_coverage': 'fraction of incidence in observed states', 'chao2_comple",
+    "strategies.scalar_precision = ('object', 'fov')",
+    "strategies.stabilization = ('object', 'fov')",
+    "strategies.support_novelty = {QUANTITY: 'fraction of observations', MEAN_FOV_QUANTITY: 'mean fraction of obse",
+    "workflows._guided_ask = ('cell', 'nucleus', 'track', 'patch', 'object')",
+    "workflows._scan_rules = ('cell', 'nucleus', 'track', 'patch', 'object')",
+    "workflows.html_report = {'words': 'cells', 'one': 'cell'}"
+   ],
+   "_WORDS": [
+    "workflows._population_spaces = {EXPLAINABLE: 'the explainable features', COMBINED: 'the combined space'}",
+    "workflows.html_report = {}"
+   ]
   },
-  {
-   "a": "retrospective.controls_text:_selected",
-   "b": "sampling_unit._unit_text:_selector",
-   "similarity": 0.667
-  },
-  {
-   "a": "sampling_unit.cells_text:_chance",
-   "b": "sampling_unit.reading_text:_chance_words",
-   "similarity": 0.667
-  },
-  {
-   "a": "_wording:p_value",
-   "b": "plots_pairwise:format_p",
-   "similarity": 0.5
-  },
-  {
-   "a": "sampling_unit.clustering:_technical_repeat_of",
-   "b": "sufficiency:_technical_repeats",
-   "similarity": 0.5
-  },
-  {
-   "a": "separation:_where",
-   "b": "workflows._population_spaces:_left_without_control",
-   "similarity": 0.5
-  },
-  {
-   "a": "strategies.incidence_coverage:expected_new_states",
-   "b": "strategies.incidence_coverage:prob_new_state",
-   "similarity": 0.5
+  "literals": {
+   "1.96": [
+    "data.simulations.decisions.p2_contrasts: 1.96",
+    "data.synthetic.make_synthetic: 1.96",
+    "sampling_unit.variability: 1.96"
+   ],
+   "1024": [
+    "strategies._averaging_cv: 1024",
+    "workflows._html_data: 1024",
+    "workflows.guided: 1024"
+   ],
+   "199": [
+    "data.simulations.whole_table: 199",
+    "retrospective.spatial: 199"
+   ],
+   "20261006": [
+    "data.scenarios.make_scenarios: 20261006",
+    "data.simulations.decisions.runner: 20261006"
+   ],
+   "214": [
+    "plots_pairwise: 214",
+    "workflows._html_sections: 214"
+   ],
+   "227": [
+    "plots_pairwise: 227",
+    "workflows._html_sections: 227"
+   ],
+   "236": [
+    "plots_pairwise: 236",
+    "workflows._html_sections: 236"
+   ],
+   "239": [
+    "plots_pairwise: 239",
+    "workflows._html_sections: 239"
+   ],
+   "384": [
+    "data.simulations.decisions.p3_embedding: 384",
+    "data.simulations.whole_table: 384"
+   ],
+   "4096": [
+    "sampling_unit._units: 4096",
+    "statistics: 4096"
+   ],
+   "501": [
+    "data.crick_idr.jcs_effect_fovs: 501",
+    "data.crick_idr.objects_vs_fields: 501"
+   ],
+   "512": [
+    "strategies.novelty_null: 512",
+    "strategies.support_geometry: 512"
+   ],
+   "999": [
+    "data.simulations.test_choice: 999",
+    "order_check: 999",
+    "sampling_unit.clustering: 999",
+    "sampling_unit.contrast_cells: 999",
+    "sampling_unit.whole_table: 999"
+   ]
   }
- ]
+ }
 }

@@ -50,7 +50,7 @@ def _table_digest(table: pd.DataFrame) -> bytes:
     names = sorted(str(c) for c in table.columns)
     by_name = {str(c): table[c] for c in table.columns}
     rows = np.zeros(len(table), dtype=np.uint64)
-    with np.errstate(over="ignore"):
+    with np.errstate(over="ignore"):  # fallback: the hash wraps around on purpose
         for name in names:
             rows = rows * np.uint64(1000003) + _column_hash(by_name[name]) + _text_hash(name)
     return hashlib.sha256(repr(names).encode() + np.sort(rows).tobytes()).digest()

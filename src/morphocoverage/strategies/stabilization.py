@@ -94,14 +94,13 @@ from .._wording import plural
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
-from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, fov_positions
+from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, canonical_fields, fov_positions
 from ..statistics import PAPER_DESCRIPTORS, describe, spread_is_zero
 from ._descriptor_resamples import _fov_resamples, _object_resamples
 from .base import (
     Estimator,
     SamplingStrategy,
     _as_ints,
-    _canonical_fovs,
     check_order_col,
     unsupported_observation_unit,
 )
@@ -414,7 +413,7 @@ class DescriptorSpreadEstimator(Estimator):
         """Descriptors of each resample, or the reason resampling is not yet possible.
 
         Draws index the values in a canonical order (objects sorted by value;
-        FOVs by ``base._canonical_fovs``, their objects by value), so the
+        FOVs by ``schema.canonical_fields``, their objects by value), so the
         table's row order cannot change a resample: every descriptor of a
         resample is a function of the values it holds.
         """
@@ -430,7 +429,7 @@ class DescriptorSpreadEstimator(Estimator):
 
         k = len(data.fovs)
         rank = np.empty(k, dtype=int)
-        rank[_canonical_fovs(data)] = np.arange(k)
+        rank[canonical_fields(data)] = np.arange(k)
         positions = rank[fov_positions(data, data.fovs)]  # each object's FOV, canonical
         filled = len(np.unique(positions))
         if filled < MIN_SPREAD_FOVS:

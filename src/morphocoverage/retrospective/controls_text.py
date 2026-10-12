@@ -26,6 +26,7 @@ import pandas as pd
 from .._caveats import assumption, caveat_lines
 from .._style import check_detail, group_columns, group_label, table, wrap
 from .._wording import column_word, count, plural
+from ..sampling_unit._group_text import selector_values
 from ..schema import observation_words
 from ._text import percent
 
@@ -41,17 +42,6 @@ _KINDS = (
 # The gate of questions 2, 4 and 5 when the declared planted check could not run (#270).
 NOT_PLANTED = "Small-state representation not assessed: the planted check could not run"
 _UNJUDGED = "some fields could not be judged (missing feature values or too few fields)"
-
-
-def _selected(selector: Mapping[str, Any] | None) -> str:
-    """``YAP`` for ``{"condition": ["YAP"]}``; empty when nothing was declared."""
-    if not selector:
-        return ""
-    parts = []
-    for value in selector.values():
-        values = value if isinstance(value, list | tuple | set) else [value]
-        parts.append("/".join(str(v) for v in values))
-    return " · ".join(parts)
 
 
 def _stratum(entry: Mapping[str, Any], pair_cols: tuple[str, ...]) -> str:
@@ -85,7 +75,10 @@ def _rate(row: Any, full: bool, what: str = "checks") -> str | None:
 
 def _names(result: ControlResult, cells: str) -> dict[str, str]:
     control = result.settings.get("control") or {}
-    positive, reference = _selected(control.get("positive")), _selected(control.get("reference"))
+    positive, reference = (
+        selector_values(control.get("positive")),
+        selector_values(control.get("reference")),
+    )
     planted = control.get("planted_objects")
     reference_fields = f"{reference} fields" if reference else "reference fields"
     return {
@@ -256,7 +249,10 @@ def _not_assessed(result: ControlResult) -> str:
 
 def _lead(result: ControlResult) -> str:
     control = result.settings.get("control") or {}
-    positive, reference = _selected(control.get("positive")), _selected(control.get("reference"))
+    positive, reference = (
+        selector_values(control.get("positive")),
+        selector_values(control.get("reference")),
+    )
     against = f"{positive} against {reference}" if positive and reference else positive
     words = " · ".join(column_word(c) for c in result.pair_cols)
     paired = f", within each {words}" if result.pair_cols else ""

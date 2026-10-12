@@ -162,6 +162,7 @@ class BalancedDesign:
         deviation_b = squares[1] - sums[1] ** 2 / n_b
         pooled = (deviation_a + deviation_b) / (n_a + n_b - 2)
         floor = _ZERO_VARIANCE * (squares[0] + squares[1]) / (n_a + n_b)
+        # fallback: a draw without spread: NaN, left out of the median
         with np.errstate(divide="ignore", invalid="ignore"):
             d = np.where(pooled > floor, (sums[0] / n_a - sums[1] / n_b) / np.sqrt(pooled), np.nan)
         finite = np.isfinite(d).any(axis=1)

@@ -33,6 +33,7 @@ import pandas as pd
 
 from .._wording import listing, percent
 from ..metadata import CONDITION_COLUMN
+from ..normalize import control_mean_problem
 from ..retrospective._value_checks import has_few_values
 from ..sampling_unit.populations import DEFINING, defined_by
 from ..statistics import cohen_d
@@ -50,6 +51,8 @@ AGAINST_WORDS = (
     "Defined by: each group's {units} against those of the control they are compared with, "
     "a group mostly of a control against every other {unit}."
 )
+# When a control mean cannot divide the values: the groups are found on them as given.
+NOT_NORMALISED = "Clustered on the values as given, not normalised to each condition's own control"
 EXPERIMENTS_DIFFER = (
     "on values normalised to each condition's own control, as the experiments have their own "
     "controls"
@@ -110,6 +113,7 @@ def against_controls(table: pd.DataFrame, marked: pd.DataFrame, setup: Setup) ->
             continue
         values = marked[features].to_numpy(dtype=float)
         with warnings.catch_warnings():
+            # fallback: a feature without spread: NaN d, ordered last
             warnings.simplefilter("ignore", RuntimeWarning)
             d = np.array(
                 [_d(values[member, j], values[reference, j]) for j in range(len(features))]
@@ -124,20 +128,44 @@ def against_controls(table: pd.DataFrame, marked: pd.DataFrame, setup: Setup) ->
 
 def compared_values(
     objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, raw: pd.DataFrame | None
-) -> tuple[pd.DataFrame, Setup, bool]:
-    """The values the groups are found on, the Setup that reads them, and whether they are
-    normalised because the experiments differ (see the module); the values as given when
-    they cannot be normalised (a control mean that is not positive)."""
+) -> tuple[pd.DataFrame, Setup, dict[str, Any]]:
+    """The values the groups are found on, the Setup that reads them, and the result's
+    ``normalised`` (whether they are normalised because the experiments differ, see the
+    module) and ``not_normalised`` (why not when they cannot be: the values as given when a
+    control mean is not positive, said in the report). Any other problem raises."""
     if setup.normalize is not None or setup.comparisons is None or raw is None:
-        return objects, setup, False
+        return objects, setup, {"normalised": False, "not_normalised": None}
     from ._feature_space import analysed_tables  # the assembly imports this module
 
     normalised = replace(setup, normalize="control_mean")
-    try:
-        values = analysed_tables(normalised.prepared(raw, fovs), fovs, normalised)
-    except ValueError:  # a control mean that is not positive: the values as given
-        return objects, setup, False
-    return values, normalised, True
+    problem = _own_control_problem(raw, fovs, normalised)
+    if problem is not None:
+        return objects, setup, {"normalised": False, "not_normalised": problem}
+    values = analysed_tables(normalised.prepared(raw, fovs), fovs, normalised)
+    return values, normalised, {"normalised": True, "not_normalised": None}
+
+
+def _own_control_problem(raw: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> str | None:
+    """``for the control MOCK, in biological_repeat=R1, the control mean of 'x' is negative
+    (-0.3)``: the first own control whose mean cannot divide the values (zero, negative or
+    undefined; ``normalize.control_mean_problem``, the case ``normalize_to_own`` refuses),
+    or ``None``."""
+    own = setup.own_references
+    if own is None or not setup.columns:
+        return None
+    for reference in dict.fromkeys(own.values()):
+        problem = control_mean_problem(
+            raw,
+            fovs,
+            feature_cols=setup.columns,
+            control={CONDITION_COLUMN: reference},
+            repeat_col=setup.repeat_col(fovs),
+            leave_out_missing=True,
+            **setup.common,
+        )
+        if problem is not None:
+            return f"for the control {reference}, {problem}"
+    return None
 
 
 def few_valued(row: Any, marked: pd.DataFrame) -> list[str]:
@@ -167,6 +195,7 @@ __all__ = [
     "AGAINST_WORDS",
     "EXPERIMENTS_DIFFER",
     "MOSTLY",
+    "NOT_NORMALISED",
     "RARE_SHARE",
     "against_controls",
     "by_evidence",

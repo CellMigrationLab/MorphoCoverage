@@ -65,7 +65,7 @@ from .._caveats import assumption, caveat_lines, pool_assumptions
 from .._checks import is_share
 from .._fitted import fitted
 from .._frozen import owned
-from .._style import DASH, PROBLEM, Status, check_detail, headline, wrap
+from .._style import DASH, PROBLEM, Status, check_detail, headline, indented, wrap
 from .._wording import count, listing
 from ..sampling_unit import (
     ConditionContrast,
@@ -221,7 +221,7 @@ class MicroscopistReport:
         blocks = [self.title, self.at_a_glance([k for k, _ in chosen])] if short else []
         if self.overview:
             text = self.short.get("overview") if short else None
-            text = text or _indent(self.overview)
+            text = text or indented(self.overview)
             blocks.append(f"{self._header('overview', OVERVIEW_TITLE)}\n{text}")
         if self.declaration:
             text = self.short.get("declaration") if short else None
@@ -280,10 +280,6 @@ class MicroscopistReport:
             short_titles=short_questions_for(self.units),
             pointers=pointers,
         )
-
-
-def _indent(text: str) -> str:
-    return "\n".join(f"  {line}" if line else line for line in text.splitlines())
 
 
 def _check(value: object, kind: type, name: str) -> None:
@@ -465,7 +461,7 @@ def microscopist_report(
             frame=framed,
         )
     sections = {
-        key: _indent("\n\n".join(texts)) if texts else f"  Not assessed: {_NEEDS[key]}."
+        key: indented("\n\n".join(texts)) if texts else f"  Not assessed: {_NEEDS[key]}."
         for key, texts in parts.items()
     }
     # The Foundation, 1 and 3 are wrapped at the indent they are printed at.
