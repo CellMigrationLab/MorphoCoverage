@@ -220,6 +220,7 @@ src/morphocoverage/
     _integrity_match.py    # private: its matching at a stated precision, by sorting, with no loop over pairs of fields
     _integrity_text.py     # private: the integrity checks in words (IntegrityResult.summary), short and full
     _integrity_tables.py   # private: the integrity checks on each feature table apart, their union naming the table
+    _integrity_selection.py  # private: what the integrity checks compare (continuous features, informative rows, fields) and the log of their findings
     data_check.py          # check_tables: every data problem at once, where and how to fix it
     _data_check_steps.py   # private: the steps of check_tables in order: tables, arguments, sizes, fields, the validator's own rules
     _data_rules.py         # private: the rules behind check_tables, one function per kind of problem
