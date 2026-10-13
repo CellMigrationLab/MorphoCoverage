@@ -80,11 +80,8 @@ and [the live session](../live/live_session.md).
 17. A "validated across" block in the protocol summary: for each declared
     level of the hierarchy (field, sample, technical level, repeat), whether
     the protocol curve spans more than one unit of it, or "not assessed".
-18. Two process rules for AGENTS.md: a dataset stops being held out for a
-    choice once its results influence that choice (section 9 and
-    `docs/optimise/benchmarking.md`; no setting has yet been chosen on idr0139), and a
-    new method names the microscopist's question it improves that the simpler
-    tools cannot answer reliably (section 20).
+18. Done (roadmap ENG-6): the held-out rule and idr0139's status per choice
+    are in AGENTS.md section 9, the new-method rule in section 20.
 19. Smaller items left open by the 2026-09-25 audit: advice when missing
     values make the novelty question not estimable (drop those observations
     or those features, and say so); a cap on the support-novelty cost, which

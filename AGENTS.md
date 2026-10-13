@@ -611,6 +611,16 @@ Rules for these tests:
 
 A high line-coverage percentage is not a substitute for these behavior tests or for scientific validation on real acquisitions.
 
+**Held-out data.** A dataset stops being held out for a choice once its results influence that choice; from then on it is development data for that choice. Held-out data are registered in a `BenchmarkRegistry` and their digests locked before anyone reads them, and development work and audits never read them (roadmap, DATA-4).
+
+idr0139, registered held out on 2026-09-25 (`data/crick_idr/datasets.py`), was read during development before this rule, so its status is given per choice:
+
+| Choice | idr0139 for it |
+| --- | --- |
+| the presets, the definitions of new and the settings of the locked benchmark, all chosen on idr0028 | held out: scored as transfer only (`docs/preliminary_findings.md`, entries 7 and 8) |
+| the minimum of fields with objects of `sampling_unit.object_rule_check` (`min_fields`, 5 since audit 10), set with idr0139's wells of 4 fields in view, `min_fields=2` kept to reproduce entry 9 (`object_rules.py`, `docs/report/objects_or_fields.md`) | not held out |
+| the exact integrity checks, built with idr0139's tables among their negative controls (`docs/report/integrity.md`) | not held out |
+
 ## 10. JCB comparison rules
 
 The 2024 JCB "how many cells to average" framework is an important benchmark, not an opponent to caricature.
@@ -809,6 +819,8 @@ Strategies are interchangeable: the framework never branches on a strategy's ide
 7. Keep `estimate` a pure recomputation: it runs on a fresh copy for every group and prefix, so instance state is discarded. Randomness takes an explicit seed parameter. Incremental support is optional: `start(template, *, objective)` returns an `EstimatorState` whose `update(new)` receives only each newly revealed FOV and must return the same evidence as `estimate` on the whole prefix. Full recomputation stays the reference implementation.
 8. Document the source, any published parameters, and each deviation from the published method in the module docstring; expose non-standard choices as explicit parameters without defaults. To keep a published parameterization, add a `SamplingStrategy` subclass that pairs the estimator with its published policy, as the baselines do.
 9. Export it from `strategies/__init__.py`; adding it to the top-level `morphocoverage.__all__` needs approval (section 15), and candidate estimators currently stay in the subpackage. Add a strategy using it to `STRATEGIES_UNDER_CONTRACT`. `test_every_package_strategy_is_under_contract` fails otherwise; it also covers exported estimators and policies. If it is a current-practice baseline, also add it to `baseline_comparison`.
+
+A new method names the microscopist's question it improves (section 2) that the simpler tools cannot answer reliably: a fixed number of fields or objects and the current-practice baselines of `baseline_comparison` (section 9).
 
 
 ### Multidimensional acquisition rule
