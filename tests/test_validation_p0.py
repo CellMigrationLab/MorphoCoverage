@@ -1,4 +1,4 @@
-"""P0 of the pre-registered benchmark (docs/common/validation.md): what is checked by algebra
+"""P0 of the benchmark (docs/common/validation.md): what is checked by algebra
 and deterministic tests, never by simulation.
 
 1. Estimability: the candidate contrast layer (``data/simulations/decisions/candidates/

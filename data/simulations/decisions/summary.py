@@ -1,4 +1,4 @@
-"""The summary of a module's run and the pre-registered selection rule
+"""The summary of a module's run and the protocol's selection rule
 (docs/common/validation.md, "Selection rule").
 
 ``summarise(script, out)`` merges the chunks in ``<out>/<module>/chunks``, computes per point
@@ -285,7 +285,7 @@ def summarise(script: str, out: Path) -> list[Path]:
     gated = table[(table["kind"] == "core") & table["null"].astype(bool)]
     if gated.empty or gated["replicates"].min() < FULL["core_null"]:
         header += (
-            " This run is smaller than the pre-registered size (runner.FULL): a development "
+            " This run is smaller than the protocol's size (runner.FULL): a development "
             "run, never a result."
         )
     parts = [f"# {module.name.upper()}: {module.title}", "", header]

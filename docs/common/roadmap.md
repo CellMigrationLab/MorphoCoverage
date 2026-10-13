@@ -109,9 +109,9 @@ None of the three lab cards is verified by the owner yet (`verified_by` is empty
 | Id | What | Specification | Needed by | Who |
 |---|---|---|---|---|
 | DATA-1 | The written specification of DS-1 to DS-3, approved (DEC-4) | below | DATA-2 | owner |
-| DATA-2 | DS-1, the deep held-out set, with DS-2 on one of its samples | DS-1: at least 30 FOVs per sample, ideally 60; at least 5 independent units, such as biological repeats or plates; a control and a condition with a known effect; a FOV table listing zero-object fields, stage coordinates and acquisition order. DS-2: an overview of every candidate position, with covariates such as density or region, in the sampling-frame format of DEC-16. Acquired now; processed through MorphoBricks once BRICK-2 passes. | VAL, LIVE-3, LIVE-6 | the lab |
+| DATA-2 | DS-1, the deep held-out set, and, if it costs little, DS-2 on one of its samples | DS-1: at least 30 FOVs per sample, ideally 60; at least 5 independent units, such as biological repeats or plates; a control and a condition with a known effect; a FOV table listing zero-object fields, stage coordinates and acquisition order. DS-2, optional: an overview of every candidate position, with covariates such as density or region, for the sampling frame, which comes later (DEC-16). Acquired now; processed through MorphoBricks once BRICK-2 passes. | VAL, LIVE-3 | the lab |
 | DATA-3 | DS-3, a small real image set for the end-to-end test | 2 conditions, 2 repeats, a few images each, raw images with masks or a segmentation recipe, including one image with no object, one image that fails, and file names repeated across repeats | BRICK-2 | the lab |
-| DATA-4 | DS-1 and DS-2 registered as held out in `BenchmarkRegistry`, their digests locked before anyone runs a report on them | AGENTS.md section 9 | VAL, LIVE | maintainer |
+| DATA-4 | DS-1, and DS-2 if acquired, registered as held out in `BenchmarkRegistry`, their digests locked before anyone runs a report on them | AGENTS.md section 9 | VAL, LIVE | maintainer |
 | DATA-5 | DS-4, a labelled rare-state set, labelled independently of MorphoCoverage | rare states with known prevalence | VAL-4 | the lab, or a public source (none identified yet) |
 | DATA-6 | The owner verifies the three lab cards | `verified_by` filled | BENCH-1 | owner |
 | DATA-7 | DS-5, the prospective pilot: imaged with the LIVE session running, plus fields acquired past its stop | one microscope, one condition pair | LIVE-7 | the lab |
@@ -123,7 +123,7 @@ milestone, by that milestone's protocol.
 
 | Id | What | Needs | Pass condition |
 |---|---|---|---|
-| BENCH-1 | Six things before any confirmatory run:<br>1. the lab cards verified (DATA-6);<br>2. the protocol's provenance table filled, from `real_parameters.csv` and the owner's ECM summaries;<br>3. VP4's estimand settled (DEC-5);<br>4. the protocol deposited publicly with a timestamp (DEC-6);<br>5. the benchmark app installed (BRICK-0);<br>6. each module's pilot run with it, with its cost recorded. | DATA-6, DEC-2, DEC-5, DEC-6, BRICK-0 | All six done. The pilots' cost recorded in #381. |
+| BENCH-1 | Five things before any confirmatory run:<br>1. the lab cards verified (DATA-6);<br>2. the protocol's provenance table filled, from `real_parameters.csv` and the owner's ECM summaries;<br>3. VP4's truth (`sequential.Sequence.truth`) changed to the estimand of DEC-5, the mean over the wells that could have been sampled;<br>4. the benchmark app installed (BRICK-0);<br>5. each module's pilot run with it, with its cost recorded. | DATA-6, BRICK-0 | All five done. The pilots' cost recorded in #381. |
 | BENCH-2 | Confirmatory runs of VP1 to VP5 at full size and the confirmatory seed (`runner.CONFIRMATORY_SEED`). They run on the machine of DEC-7 with the benchmark app, every core a worker (`--workers`), resuming from the chunks on disk. The review's pilots of 2026-10-13, on 4 CPUs, extrapolate to about 160 CPU-hours, mostly VP1 and VP3: about 10 hours on 16 cores, about 80 on a 2-CPU Colab runtime. | BENCH-1, DEC-7 | The protocol's [selection rule](validation.md#selection-rule), applied by `summarise`. `summary.md`, `summary.csv` and `selection_<question>.csv` are archived for the paper. |
 | BENCH-3 | Per module, a pull request ships what the protocol's "What ships" says: the winner, or, when no method is eligible, the limitation stated in the report.<br>Each PR also:<br>- lists every changed output with ENG-5's script;<br>- updates the exploratory labels (`workflows._exploratory` and the docs);<br>- re-versions and re-locks the real-data stopping benchmark (`data/crick_idr/benchmark_protocol.py`) when it changes a rule that benchmark replays, rerun on development data only. | BENCH-2, DEC-18 | Per module: the owner and the second reviewer of DEC-18 verify the implementation, and the full suite passes. |
 | BENCH-4 | The six rotation-invariance xfails of `tests/test_validation_p0.py` go to their modules:<br>- VP3: the centring of the tables, the whole-table test's scaling, and the robust scaling where that test uses it;<br>- VP7: the populations' distance space;<br>- VP10: the unusual-observation score and MFA's robust scaling;<br>- VP11: the separation score. | its module | Each xfail removed in its module's PR, by an operation that passes, or kept with the reason. |
@@ -142,10 +142,10 @@ Packaging uses LabConstrictor, whose installer builds one app per repository.
 
 | Id | What | Needs | Pass condition |
 |---|---|---|---|
-| BRICK-0 | The benchmark app, in its own repository, separate from the MorphoBricks installer (owner, 2026-10-13; DEC-21). It is for the owner and reviewers rerunning the pre-registered protocol, not for users, so it never ships in the MorphoBricks installer. That keeps its comparators out of that installer, including the GPL-3.0 harmonypy, and lets one installer match one protocol commit, archived for the paper. It is a LabConstrictor app that pip-installs MorphoCoverage with its `validation` extra, at a pinned tag or commit. The benchmark code stays in MorphoCoverage, in `data/simulations/decisions/`, next to the protocol and its smoke tests. The app's `src/` carries a copy taken from a pinned MorphoCoverage commit, which each summary records. A notebook or command runs a module at a chosen size on every local core, resumes, and summarises. VP0 stays a repository run, since it is a test file. LabConstrictor builds installers with GitHub Actions, so the app repository needs Actions that run: public, or with DEC-1. It is the first test of LabConstrictor packaging and needs none of the upstream MorphoBricks changes. | DEC-1, DEC-14, DEC-15, DEC-21 | On the owner's machine, the installed app runs each module's pilot and resumes after being stopped. Its `summary.csv` equals that of a run from the repository at the same seed in every column but the run times, and it selects the same methods. |
-| BRICK-1 | The FOV table and identities upstream: the CellPatcher and fiberfeatures changes in [the FOV contract](morphobricks_fov_contract.md), section 2. CellPatcher's technical-repeat PR #9 lands when the owner says so (DEC-9). MorphoRelate is added to AGENTS.md section 18. | DEC-9 | Each upstream main emits the per-image table: zero-object and failed images listed, `position_id` where a file is not one position, the shared column names. |
+| BRICK-0 | The benchmark app, in its own private repository, `guijacquemet/MorphoCoverage-Benchmark`, where GitHub Actions run (DEC-1, DEC-21). It is for the owner and reviewers rerunning the benchmark, not for users, so it never ships in the MorphoBricks installer. That keeps its comparators out of that installer, including the GPL-3.0 harmonypy, and lets one installer match one protocol commit, archived for the paper. It is a LabConstrictor app that pip-installs MorphoCoverage with its `validation` extra at a pinned tag, reading this private repository with a read-only token stored as an Actions secret. The benchmark code stays in MorphoCoverage, in `data/simulations/decisions/`, next to the protocol and its smoke tests. The app's `src/` carries a copy taken from the pinned commit, which each summary records. A notebook or command runs a module at a chosen size on every local core, resumes, and summarises. VP0 stays a repository run, since it is a test file. It is the first test of LabConstrictor packaging and needs none of the upstream MorphoBricks changes. | DEC-14 | On the owner's machine, the installed app runs each module's pilot and resumes after being stopped. Its `summary.csv` equals that of a run from the repository at the same seed in every column but the run times, and it selects the same methods. |
+| BRICK-1 | The FOV table and identities upstream: the CellPatcher and fiberfeatures changes in [the FOV contract](morphobricks_fov_contract.md), section 2. CellPatcher's technical-repeat PR #9 is not merged yet (DEC-9), and this work proceeds without it. MorphoRelate is added to AGENTS.md section 18. | — | Each upstream main emits the per-image table: zero-object and failed images listed, `position_id` where a file is not one position, the shared column names. |
 | BRICK-2 | The end-to-end test on DS-3: raw images, then CellPatcher, then feature extraction, then MorphoCoverage's `report` and `html_report`, every tool at a pinned commit. It also becomes a job of ENG-5's script, run on every pin change. | BRICK-1, DATA-3 | The FOV table lists every image: the zero-object image with 0 objects, the failed image marked failed, not dropped. Repeated file names stay distinct fields. `check_tables` reports no error. A second run is identical. An image removed from the inputs shows as a missing field. |
-| BRICK-3 | Each module pip-installable at a pinned version: MorphoCoverage, CellPatcher and the feature extraction each get a version (`__version__` and git tags, DEC-14) and are installable from where DEC-10 says, PyPI or a git tag, which needs the repositories public or a token on the user's machine (DEC-15). | DEC-10, DEC-14, DEC-15 | `pip install` of each module at its pinned version works in a clean environment. The MorphoCoverage notebook runs from a clean Colab. |
+| BRICK-3 | Each module pip-installable at a pinned version: MorphoCoverage, CellPatcher and the feature extraction each get a version (`__version__` and git tags, DEC-14) and are installable from their git tags until 1.0, from PyPI after (DEC-10). Until the repositories are public, at paper submission (DEC-15), an install needs a read-only token. | — | `pip install` of each module at its pinned version works in a clean environment. The MorphoCoverage notebook runs from a clean Colab. |
 | BRICK-4 | One MorphoBricks installer, from a single MorphoBricks repository that does the packaging (DEC-10). That repository is a LabConstrictor app. It holds the pipeline's notebooks and the bridge's tools module, and no science code. Its `requirements.yaml` pip-installs each module at its pinned version. The modules keep their own repositories, tests and releases; a new release of a module reaches users when the MorphoBricks repository moves its pin and builds a new installer. The beta is built after M1 and BRICK-2. The release installer is built from the 1.0 candidate and passes this item again before the tag. | M1, BRICK-2, BRICK-3, DEC-10 | The installer installs on Windows, macOS and Linux. On a clean machine, the end-to-end notebook gives on DS-3 the same report as BRICK-2. The App Centre manifest (`labconstrictor-app.yaml`) is valid and lists the hosts of BRICK-5. |
 | BRICK-5 | The plugins, through LabConstrictor's Tools bridge. Tools are declared in the app's single tools module, `src/<app package>_lc_tools/` in the MorphoBricks app repository, which the installer registers. One module serves the three packages, and each tool imports its package inside the function. The tools appear in napari and Fiji, in QuPath where the bridge's host table supports the feature, and from the command line. The REPORT tools come first: a report and its page from a folder of tables, and the flagged fields. #398's lasso export follows if a host supports a selection on a scatter plot; otherwise it stays in the notebook. The bridge is experimental: `labconstrictor-tools` v0.2.0-rc.1, the app template 0.1.16 or later, and the napari and Fiji plugins not yet on PyPI or a Fiji update site. | BRICK-4, M1, DEC-17 | `labconstrictor-tools check` and `test --cases` pass. Each tool runs in napari and in Fiji. A tool's output equals the package API's on the same inputs. |
 | BRICK-6 | The LIVE tool through the bridge: a session over a `LiveFolder` that a per-field CellPatcher and feature-extraction step fills with `write_fov`. The microscope only writes images; MorphoCoverage does not control it (AGENTS.md section 4). | M4, DEC-11 | As BRICK-5, and the same continue or stop as `live_session` on DS-5. |
@@ -178,8 +178,7 @@ AUD-3 follows.
 | LIVE-3 | #84: the implemented strategies benchmarked for transfer to unseen samples. | LIVE-1, LIVE-2, DATA-4 | #84's tests 1 to 4 and 6 on held-out samples, with an interval: 5 or more units. |
 | LIVE-4 | #265, anytime-valid stopping: re-scoped after VP4, which already compares a confidence sequence, and closed if VP4 decides it. | BENCH-3 for VP4 | Done, or closed with VP4's result. |
 | LIVE-5 | OW 4 and 14: O5, a borderline state in the decision; O6, the calibration attached to the live session; the LIVE wording rule. | BENCH-3 for VP4 | The decision has a borderline state, O6's calibration is attached, and every live sentence follows the rule. |
-| LIVE-6 | #194 and OW 6: the sampling frame, a new input contract with CellPatcher upstream. | DEC-16, DATA-4 | The contract's tests pass, and DS-2's frame comparison is reported. |
-| LIVE-7 | The prospective pilot on one microscope, DS-5. | LIVE-1, LIVE-3, LIVE-5, DATA-7, DEC-11 | On every DS-5 sample the session reaches a decision. The stop's error on the fields past it is recorded beside O6's calibrated false-stop rate for that rule. The O7 latency, from field to decision and including feature extraction, is below the time between two acquisitions. |
+| LIVE-7 | The prospective pilot on one microscope, DS-5: `live_session` over a `LiveFolder`, run from a notebook. | LIVE-1, LIVE-3, LIVE-5, DATA-7 | On every DS-5 sample the session reaches a decision. The stop's error on the fields past it is recorded beside O6's calibrated false-stop rate for that rule. The O7 latency, from field to decision and including feature extraction, is below the time between two acquisitions. |
 
 **M4:**
 
@@ -196,7 +195,7 @@ sections 8 and 11).
 |---|---|---|
 | 0.2 | M1 | REPORT and OPTIMISE with VP1 to VP5's rules; the exploratory labels say what is not validated. |
 | 0.3 | M2 | VP6 to VP11's results, and BRICK-5's REPORT tools. |
-| 1.0 | M3, M4, AUD-5 | The scope of DEC-20. |
+| 1.0 | M3, M4, AUD-5 | REPORT and OPTIMISE validated, LIVE, the bridge tools including BRICK-6's, and no `repeat` alias (DEC-20). |
 
 **M5**, release 1.0, passes when:
 
@@ -231,38 +230,37 @@ These depend on nothing above:
 - #404, `patch_id`, with MorphoRelate;
 - #398, the lasso export, which BRICK-5 then uses.
 
-Not scheduled: #401, #402, #195, OW 15 to 17 and 19 to 21.
+Not scheduled: #401, #402, #195, OW 15 to 17 and 19 to 21, and the sampling frame (#194, OW 6, DEC-16), a new input contract with CellPatcher upstream, with DS-2.
 
 ## Decisions
 
-The owner makes each one before the step it names, and it is recorded in AGENTS.md or the
-protocol, not here. The open ones are put to the owner together: before BENCH-1, which needs
-DEC-2, DEC-5 and DEC-6, and through BRICK-0 DEC-1, DEC-14, DEC-15 and DEC-21; and at each
-milestone.
+The owner makes each one before the step it names. The answers are recorded in AGENTS.md
+section 8 and, for the benchmark, in the protocol's deviations, not here. The owner answered
+all of them on 2026-10-13; the three left for later are put again at the step they name.
 
-| Id | Decision | Before |
-|---|---|---|
-| DEC-1 | Restore CI, by billing or a self-hosted runner, or keep the local gate of ENG-1 | M0 |
-| DEC-2 | The ECM tables' role: development, since they were read for anchoring | ENG-6 |
-| DEC-3 | That the audit page gains paragraphs for the later audits and a table of renamed test files | ENG-7 |
-| DEC-4 | The specification of DS-1 to DS-3 (DATA-1) | DATA-2 |
-| DEC-5 | VP4's estimand. The protocol says "given its wells". If it is kept, the package's well bootstrap, which resamples wells, may fail the estimand gate; if it is changed, that is a deviation. Either way it sets LIVE's mean rule | BENCH-1 |
-| DEC-6 | Where the protocol is deposited with a timestamp, such as Zenodo or OSF, since the repository is private | BENCH-1 |
-| DEC-7 | The machine for BENCH-2: the owner's multi-core computer with the benchmark app, else Colab sessions or a paid runner | BENCH-2 |
-| DEC-8 | VP9's claim: the variance, or named quantiles | VP9's ADEMP section |
-| DEC-9 | When CellPatcher PR #9, the technical repeat, lands | BRICK-1 |
-| DEC-10 | The packaging design of the MorphoBricks installer. Proposed by the owner, 2026-10-13: a single MorphoBricks repository does the packaging and pip-installs the modules at pinned versions. To confirm: whether the modules come from PyPI or from git tags (LabConstrictor's `requirements.yaml` lists pinned pip packages; git URLs there are untested) | BRICK-3 |
-| DEC-11 | How LIVE reaches the microscope. Through a `LiveFolder` filled per field only, or also by a direct integration such as Micro-Manager, which the bridge does not provide and AGENTS.md section 4 excludes today. Also whether the bridge hosts a long-running watch, or the tool is one-shot, replaying the folder and deciding now | BRICK-6, LIVE-7 |
-| DEC-12 | Who the external auditors of VAL-5 are | VAL-5 |
-| DEC-13 | The multi-group outcome contract and its registry | VAL-6 |
-| DEC-14 | The version scheme: how versions are numbered and tagged, and from which version the interface is stable | BRICK-0, BRICK-3 |
-| DEC-15 | The repositories' visibility, and the licences: the `validation` extra holds the GPL-3.0 harmonypy, which the benchmark app bundles and the MorphoBricks installer does not | BRICK-0, BRICK-3 |
-| DEC-16 | The sampling-frame input contract, with CellPatcher | DATA-1 |
-| DEC-17 | AGENTS.md sections 3 and 18 gain the bridge's hosts and its command line as usage contexts; today they defer a command line | BRICK-5 |
-| DEC-18 | Who the second reviewer is, verifying implementations beside the owner | BENCH-3 |
-| DEC-19 | The cost-model inputs `C_sample` and `C_FOV` | OW 10 |
-| DEC-20 | The 1.0 scope: which workflows ship validated, whether LIVE is in 1.0, whether the `repeat` alias is removed | AUD-5 |
-| DEC-21 | The benchmark app's repository: its name, proposed `MorphoCoverage-Benchmark`, and its visibility, public when reviewers are to rerun it | BRICK-0 |
+| Id | Decision | Before | Status |
+|---|---|---|---|
+| DEC-1 | Restore CI, by billing or a self-hosted runner, or keep the local gate of ENG-1 | M0 | decided: the benchmark app on the owner's account; this repository keeps ENG-1's local gate |
+| DEC-2 | The ECM tables' role: development, since they were read for anchoring | ENG-6 | decided |
+| DEC-3 | That the audit page gains paragraphs for the later audits and a table of renamed test files | ENG-7 | decided |
+| DEC-4 | The specification of DS-1 to DS-3 (DATA-1) | DATA-2 | decided |
+| DEC-5 | VP4's estimand. The protocol says "given its wells". If it is kept, the package's well bootstrap, which resamples wells, may fail the estimand gate; if it is changed, that is a deviation. Either way it sets LIVE's mean rule | BENCH-1 | decided: a deviation |
+| DEC-6 | Whether the protocol is deposited with a timestamp as a pre-registration | BENCH-2 | decided: no deposit, not a registered study |
+| DEC-7 | The machine for BENCH-2: the owner's multi-core computer with the benchmark app, else Colab sessions or a paid runner | BENCH-2 | decided |
+| DEC-8 | VP9's claim: the variance, or named quantiles | VP9's ADEMP section | after VP1 to VP5 |
+| DEC-9 | When CellPatcher PR #9, the technical repeat, lands | BRICK-1 | decided: not yet |
+| DEC-10 | The packaging design of the MorphoBricks installer. Proposed by the owner, 2026-10-13: a single MorphoBricks repository does the packaging and pip-installs the modules at pinned versions. To confirm: whether the modules come from PyPI or from git tags (LabConstrictor's `requirements.yaml` lists pinned pip packages; git URLs there are untested) | BRICK-3 | decided |
+| DEC-11 | How LIVE reaches the microscope. Through a `LiveFolder` filled per field only, or also by a direct integration such as Micro-Manager, which the bridge does not provide and AGENTS.md section 4 excludes today. Also whether the bridge hosts a long-running watch, or the tool is one-shot, replaying the folder and deciding now | BRICK-6 | after M4 |
+| DEC-12 | Who the external auditors of VAL-5 are | VAL-5 | decided |
+| DEC-13 | The multi-group outcome contract and its registry | VAL-6 | decided: after M1 |
+| DEC-14 | The version scheme: how versions are numbered and tagged, and from which version the interface is stable | BRICK-0, BRICK-3 | decided |
+| DEC-15 | The repositories' visibility, and the licences: the `validation` extra holds the GPL-3.0 harmonypy, which the benchmark app bundles and the MorphoBricks installer does not | BRICK-0, BRICK-3 | decided: public at paper submission |
+| DEC-16 | The sampling-frame input contract, with CellPatcher | DS-2's format | later: not scheduled |
+| DEC-17 | AGENTS.md sections 3 and 18 gain the bridge's hosts and its command line as usage contexts; today they defer a command line | BRICK-5 | decided: all four |
+| DEC-18 | Who the second reviewer is, verifying implementations beside the owner | BENCH-3 | decided: an AI review per PR |
+| DEC-19 | The cost-model inputs `C_sample` and `C_FOV` | OW 10 | decided: user-supplied |
+| DEC-20 | The 1.0 scope: which workflows ship validated, whether LIVE is in 1.0, whether the `repeat` alias is removed | AUD-5 | decided |
+| DEC-21 | The benchmark app's repository: its name, proposed `MorphoCoverage-Benchmark`, and its visibility, public when reviewers are to rerun it | BRICK-0 | decided |
 
 ## Audits
 
@@ -292,7 +290,7 @@ An audit follows each of M1 to M4 (AUD-1 to AUD-4), and AUD-5 precedes release 1
 | The deep data come late | DATA starts now; only VAL, LIVE-3, LIVE-7 and 1.0 wait for it |
 | A held-out dataset stops being held out | ENG-6 first; DATA-4 locks before any read |
 | Compute for the benchmark | the benchmark app on every local core (BRICK-0); measured by the pilots |
-| CI stays blocked | ENG-1's local gate, which includes ENG-4's guard; the installers of BRICK-0 and BRICK-4 need Actions that run (DEC-1, DEC-15) |
+| CI stays blocked | ENG-1's local gate, which includes ENG-4's guard; BRICK-0 builds on the owner's account; BRICK-4's repository needs Actions that run, chosen when it is created |
 | The bridge changes, being experimental; its Windows hook has not run on a real Windows computer | its version pinned in the installer; BRICK-5 after M1, BRICK-6 after M4 |
 | Upstream repositories change the FOV contract | BRICK-2 rerun on every MorphoBricks pin change |
 
