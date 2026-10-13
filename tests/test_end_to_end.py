@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 import matplotlib
+from _helpers_synthetic import FEATURES, FIELD_KEY, SYNTHETIC, load
 
 matplotlib.use("Agg")
 
@@ -33,17 +33,6 @@ from morphocoverage.workflows import (
     report,
     write_fov,
 )
-
-SYNTHETIC = Path(__file__).resolve().parents[1] / "data" / "synthetic"
-FEATURES = ("area", "intensity", "eccentricity")
-FIELD_KEY = ["condition", "biological_repeat", "technical_repeat", "image_file"]
-
-
-def load() -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    """The committed tables, as a user reads them, and the truth."""
-    objects = pd.read_csv(SYNTHETIC / "synthetic_cells.csv")
-    fovs = pd.read_csv(SYNTHETIC / "synthetic_fovs.csv")
-    return objects, fovs, json.loads((SYNTHETIC / "expected.json").read_text())
 
 
 def synthetic_setup(**changes) -> Setup:

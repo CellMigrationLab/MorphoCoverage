@@ -19,11 +19,11 @@ import dataclasses
 import itertools
 import re
 import sys
-import warnings
 from pathlib import Path
 from typing import Any
 
 import matplotlib
+from _helpers_scenarios import NAMES, _page, _report
 
 matplotlib.use("Agg")
 
@@ -36,7 +36,7 @@ from morphocoverage.sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REP
 from morphocoverage.sampling_unit.contrast_text import ONE_UNIT
 from morphocoverage.sampling_unit.reading_text import CONFIRMED, CONSISTENT, NO_CONTROL
 from morphocoverage.sampling_unit.repeat_plan import repeats_needed
-from morphocoverage.workflows import Setup, html_report, optimise, report
+from morphocoverage.workflows import Setup, optimise
 from morphocoverage.workflows._enough_targets import NO_TARGET
 from morphocoverage.workflows._html_map_text import NEIGHBOURS, ONE_CONDITION
 from morphocoverage.workflows._html_tests import across_frame
@@ -48,17 +48,7 @@ try:
 finally:
     sys.path.remove(str(SCENARIOS))
 
-NAMES = make_scenarios.names()
 ALPHA = 0.05
-# The CSVs whose rows name a feature, which name its table with explainable tables.
-FEATURE_CSVS = ("tests_", "heatmap_d", "_pairs", "pca_loadings_")
-
-
-def _report(loaded: Any, setup: Setup) -> Any:
-    """``report`` on the scenario's tables, its warnings kept."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        return report(loaded.objects, loaded.fovs, setup, feature_tables=loaded.feature_tables)
 
 
 def _refused(loaded: Any, truth: dict[str, Any]) -> None:
@@ -221,27 +211,6 @@ def _tests(result: Any, truth: dict[str, Any]) -> None:
         assert all(rows.loc[c, "q_repeats"] <= ALPHA for c in conditions)
         null = rows.index.isin(truth.get("null_conditions", ()))
         assert not (rows.loc[null, "q_repeats"] <= ALPHA).any()
-
-
-def _page(result: Any, loaded: Any, truth: dict[str, Any], folder: Path) -> None:
-    """The page is built, and its CSVs name each feature's table with explainable tables."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        page = html_report(
-            result, loaded.objects, loaded.fovs, folder, feature_tables=loaded.feature_tables
-        )
-    assert page.exists()
-    named = []
-    for path in sorted((folder / "figures").glob("*.csv")):
-        if not any(part in path.name for part in FEATURE_CSVS):
-            continue
-        columns = pd.read_csv(path, nrows=0).columns
-        if "feature" in columns:
-            named.append((path.name, "table" in columns))
-    if truth.get("table_column"):
-        assert named and all(has for _, has in named), named
-    else:
-        assert not any(has for _, has in named), named
 
 
 @pytest.mark.parametrize("name", NAMES)

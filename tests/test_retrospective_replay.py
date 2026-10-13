@@ -1,8 +1,20 @@
 """Tests for replayed acquisitions: stopping calibration (P6) and adequacy points (R2, P4)."""
 
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_benchmark import MEAN_F, _two_groups
+from _helpers_retrospective import (
+    FIXED,
+    MEAN_OF_FEATURE_A,
+    _f_replay,
+    _homogeneous_replay,
+    _homogeneous_tables,
+    _make,
+    _tables,
+)
 from scenarios import FEATURE_COLS, SCENARIOS
 
 from morphocoverage import (
@@ -26,6 +38,7 @@ from morphocoverage.retrospective import (
     sustained_apparent_adequacy,
     sustained_realized_adequacy,
 )
+from morphocoverage.retrospective._run_identity import run_fingerprint
 from morphocoverage.schema import validate_input_tables
 from morphocoverage.statistics import median_standard_error
 
@@ -448,3 +461,106 @@ def test_issue_228_the_median_stop_mc_se_counts_splits_not_orders():
     # One split gives no Monte Carlo error, however many orders it has.
     one = calibration._table(_runs({0: [6, 10, 14, 18]}), ["group"]).iloc[0]
     assert one["median_stop_fovs_mc_se"] is None
+
+
+def _fovs(ids: list) -> pd.DataFrame:
+    return pd.DataFrame({"condition": "a", "position_id": ids})
+
+
+def test_fingerprint_tells_one_from_text_and_order_and_reservoir_changes():
+    where = {"condition": "a", "split": 0}
+    base = run_fingerprint(where, _fovs([1, 2]), _fovs([3]), ["condition", "position_id"])
+    same = run_fingerprint(where, _fovs([1, 2]), _fovs([3]), ["condition", "position_id"])
+    text = run_fingerprint(where, _fovs(["1", "2"]), _fovs([3]), ["condition", "position_id"])
+    order = run_fingerprint(where, _fovs([2, 1]), _fovs([3]), ["condition", "position_id"])
+    held = run_fingerprint(where, _fovs([1, 2]), _fovs([4]), ["condition", "position_id"])
+    assert base == same
+    assert len({base, text, order, held}) == 4
+
+
+def test_reservoir_row_order_does_not_move_the_fingerprint():
+    where = {"split": 0}
+    key = ["position_id"]
+    one = run_fingerprint(where, _fovs([1]), _fovs([3, 4]), key)
+    other = run_fingerprint(where, _fovs([1]), _fovs([4, 3]), key)
+    assert one == other
+
+
+def test_f15a_replay_skips_a_single_field_group_with_its_reason():
+    objects, fovs = _two_groups(12, 1)
+    result = replay_acquisitions(
+        objects,
+        fovs,
+        feature_cols=["f"],
+        strategies=[FixedFOVStrategy(3)],
+        criteria=[MEAN_F],
+        objective=POPULATION,
+        reservoir_fraction=0.3,
+        n_splits=2,
+        acquisition_order_col="order",
+    )
+    assert set(result.decisions.condition) == {"a"}
+    assert result.skipped.condition.tolist() == ["b"]
+    assert "only 1 field" in result.skipped.reason.iloc[0]
+    with pytest.raises(ValueError, match="no analysis group"):
+        replay_acquisitions(
+            objects[objects.condition == "b"],
+            fovs[fovs.condition == "b"],
+            feature_cols=["f"],
+            strategies=[FixedFOVStrategy(3)],
+            criteria=[MEAN_F],
+            objective=POPULATION,
+            reservoir_fraction=0.3,
+        )
+
+
+def test_f6_a_criterion_never_judged_is_not_called_not_reached():
+    objects, fovs = _make(n_fovs=16)
+    objects.loc[objects.groupby("position_id").head(1).index, "f"] = np.nan
+    replay = replay_acquisitions(
+        objects,
+        fovs,
+        feature_cols=["f"],
+        strategies=[FixedFOVStrategy(5)],
+        criteria=[MEAN_F],
+        objective=ObjectiveConfig(),
+        reservoir_fraction=0.3,
+        n_splits=2,
+        orders=[AcquisitionOrder.permuted(0)],
+    )
+    adequacy = adequacy_points(replay)
+    assert (adequacy.realized["judged_fovs"] == 0).all()
+    text = adequacy.summary()
+    assert "could not be judged at any field count" in text
+    assert "first preserved not within" not in text
+
+
+def test_f21_replay_refuses_a_missing_objective_before_running():
+    objects, fovs = _tables(n_fovs=8)
+    with pytest.raises(TypeError, match="objective must be an ObjectiveConfig"):
+        _f_replay(objects, fovs, objective=None)
+
+
+def test_replay_acquisitions_checks_the_order_and_stage_columns():
+    objects, fovs = _homogeneous_tables()
+    with pytest.raises(ValueError) as raised:
+        _homogeneous_replay(reservoir_fraction=1.5)
+    assert str(raised.value) == "reservoir_fraction must be between 0 and 1, not 1.5"
+    with pytest.raises(ValueError) as raised:
+        _homogeneous_replay(reservoir_fraction=0.3, acquisition_order_col="feature_a")
+    assert str(raised.value) == "acquisition order cannot also be a phenotype feature"
+    with pytest.raises(ValueError) as raised:
+        _homogeneous_replay(reservoir_fraction=0.3, acquisition_order_col="acquired_at")
+    assert str(raised.value) == "fovs is missing required columns: ['acquired_at']"
+    with pytest.raises(ValueError) as raised:
+        replay_acquisitions(
+            objects.assign(stage_x=1.0),
+            fovs,
+            feature_cols=[*FEATURE_COLS, "stage_x"],
+            strategies=FIXED,
+            criteria=[MEAN_OF_FEATURE_A],
+            objective=POPULATION,
+            reservoir_fraction=0.3,
+            stage_cols=("stage_x", "stage_y"),
+        )
+    assert str(raised.value) == "stage coordinates cannot also be phenotype features"

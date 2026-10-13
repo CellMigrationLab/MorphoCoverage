@@ -1,26 +1,45 @@
 """Tests for leave-one-FOV-out support novelty."""
 
+from __future__ import annotations
+
 import json
 
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_benchmark import _two_groups
+from _helpers_retrospective import _two_group_tables
+from _helpers_strategies import PERMUTED_NINE, _report_both_orders, _validated_values
+from _helpers_workflows import _homogeneous, _novelty_report, _setup, _well_acquisition
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 from scipy.spatial import distance
 
 from morphocoverage import (
     Decision,
+    FixedFOVStrategy,
     ObjectiveConfig,
     SamplingObjective,
     evaluate_acquisition_prefixes,
     run_strategies,
     validate_input_tables,
 )
+from morphocoverage.benchmark import AcquisitionOrder
+from morphocoverage.calibration import calibrate_next_fov_novelty
 from morphocoverage.evaluator import objects_in_fovs, restrict_input
 from morphocoverage.schema import fov_positions
-from morphocoverage.strategies import SupportNoveltyEstimator, SupportNoveltyStrategy
-from morphocoverage.strategies.support_novelty import novel_against, novel_observations
-from morphocoverage.transforms import Standardize
+from morphocoverage.strategies import (
+    SupportNoveltyEstimator,
+    SupportNoveltyStrategy,
+    support_novelty,
+)
+from morphocoverage.strategies.support_novelty import (
+    UPPER_QUANTITY,
+    novel_against,
+    novel_observations,
+)
+from morphocoverage.sufficiency import sufficiency_report
+from morphocoverage.transforms import RobustStandardize, Standardize
+from morphocoverage.workflows import report
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
@@ -532,3 +551,226 @@ def test_non_finite_transformed_values_raise_on_every_path():
     reference = np.array([[0.0, 1.0], [np.inf, 0.0]])
     with pytest.raises(ValueError, match="finite"):
         sn._supporting_fovs(reference, np.array([0, 1]), reference, 1.0, 1)
+
+
+def test_an_informative_definition_keeps_its_chance():
+    objects, fovs, names = _homogeneous(2, 8)
+    novelty = SupportNoveltyEstimator(3.0, 1, RobustStandardize(), 2, 3)
+    report = _novelty_report(novelty, objects, fovs, names)
+    assert report.next_fov["uninformative"].isna().all()
+    assert "chance" in " ".join(report.summary(detail="full").split())
+
+
+def test_b5_calibration_row_of_a_group_ignores_other_groups_and_counts():
+    objects, fovs = _two_groups()
+    novelty = SupportNoveltyEstimator(0.5, 1, None, 3)
+
+    def row_b(o, f, counts):
+        table = calibrate_next_fov_novelty(
+            o,
+            f,
+            feature_cols=["f"],
+            novelty=novelty,
+            fov_counts=counts,
+            draws=15,
+            random_state=0,
+        )
+        return (
+            table[(table.condition == "b") & (table.fovs_imaged == 4)]
+            .drop(columns="condition")
+            .reset_index(drop=True)
+        )
+
+    with_a = row_b(objects, fovs, [4])
+    pd.testing.assert_frame_equal(
+        with_a, row_b(objects[objects.condition == "b"], fovs[fovs.condition == "b"], [4])
+    )
+    pd.testing.assert_frame_equal(with_a, row_b(objects, fovs, [3, 4]))
+
+
+DISTRIBUTION = ObjectiveConfig(SamplingObjective.DISTRIBUTION)
+
+
+def _few_acquisition(shared):
+    """30 common fields and two with a far-away state: in one field each, or both in one pair."""
+    rng = np.random.default_rng(0)
+    rows = []
+    for j in range(32):
+        centre = 0.0 if j < 30 else (100.0 if shared else 100.0 * (j - 29))
+        rows += [{"image_file": f"f{j:02d}", "a": v} for v in rng.normal(centre, 0.1, 10)]
+    return pd.DataFrame(rows), pd.DataFrame({"image_file": [f"f{j:02d}" for j in range(32)]})
+
+
+def test_e4_seen_in_few_counts_recurrent_states_only_not_the_new_ones():
+    novelty = SupportNoveltyEstimator(1.0, 1, None, 2, 1)
+    counts = {}
+    for shared in (False, True):
+        objects, fovs = _few_acquisition(shared)
+        report = sufficiency_report(
+            objects,
+            fovs,
+            feature_cols=["a"],
+            strategies=[],
+            objective=DISTRIBUTION,
+            orders=[AcquisitionOrder.permuted(0)],
+            novelty=novelty,
+            few_fovs=3,
+        )
+        row = report.next_fov.iloc[0]
+        counts[shared] = (int(row["fovs_with_new"]), int(row["fovs_with_state_in_few"]))
+    # Two one-field states are new, and not "seen in few" as well.
+    assert counts[False] == (2, 0)
+    # One state shared by two fields is not new but seen in few.
+    assert counts[True] == (0, 2)
+    assert "FOVs counted as new above are not included" in report.next_fov["answer"].iloc[0]
+    assert "fields counted as new are not among them" in report.summary(detail="full")
+
+
+def test_e6_no_fields_beyond_enough_when_the_acquired_fields_are_not_enough():
+    rng = np.random.default_rng(0)
+    rows = []
+    for j in range(55):
+        centre = 0.0 if j < 40 else 100.0 * (j - 39)  # the last 15 fields each hold a new state
+        values = rng.normal(centre, 0.1, 10)
+        rows += [{"image_file": f"f{j:02d}", "order": j, "a": v} for v in values]
+    objects = pd.DataFrame(rows)
+    fovs = objects[["image_file", "order"]].drop_duplicates().reset_index(drop=True)
+    rule = SupportNoveltyStrategy(1.0, 0.25, 1, None, 2, 1, UPPER_QUANTITY, 0.95)
+    report = sufficiency_report(
+        objects,
+        fovs,
+        feature_cols=["a"],
+        strategies=[rule],
+        objective=DISTRIBUTION,
+        orders=[AcquisitionOrder.recorded()],
+        acquisition_order_col="order",
+    )
+    row = report.enough.iloc[0]
+    assert row["sampled_enough"] == "no" and row["enough_after_fovs"] == 11
+    assert pd.isna(row["fovs_beyond_enough"])
+
+
+def test_e7_a_criterion_passed_twice_is_refused_clearly():
+    objects, fovs = _two_group_tables()
+    orders = [AcquisitionOrder.permuted(0)]
+    with pytest.raises(ValueError, match="passed twice in strategies"):
+        sufficiency_report(
+            objects,
+            fovs,
+            feature_cols=["a"],
+            strategies=[FixedFOVStrategy(3), FixedFOVStrategy(3)],
+            objective=POPULATION,
+            orders=orders,
+        )
+    with pytest.raises(ValueError, match="the one novelty_target adds"):
+        sufficiency_report(
+            objects,
+            fovs,
+            feature_cols=["a"],
+            strategies=[SupportNoveltyStrategy(0.5, 0.25, 1, None, 2, 1, UPPER_QUANTITY, 0.95)],
+            objective=POPULATION,
+            orders=orders,
+            novelty=SupportNoveltyEstimator(0.5, 1, None, 2, 1),
+            novelty_target=0.25,
+        )
+
+
+def test_i5_the_report_takes_few_fovs_from_the_setup():
+    objects, fovs = _well_acquisition(n_fovs=10)  # 5 fields per well: enough for min_other_fovs=4
+    novelty = SupportNoveltyEstimator(1.5, 3, Standardize(), 3, 2)
+    with pytest.raises(ValueError, match="must exceed"):
+        _setup(novelty=novelty, few_fovs=3)
+    assert _setup(novelty=novelty).resolved_few_fovs == 5
+    result = report(objects, fovs, _setup(novelty=novelty, few_fovs=4, stage_cols=None))
+    assert set(result.results["sufficiency"].next_fov["few_fovs"].dropna()) <= {4}
+    assert "fewer than 4 other fields" in " ".join(result.setup.declaration())
+
+
+def test_b9_novelty_confidence_accepts_numpy_reals():
+    estimator = SupportNoveltyEstimator(0.5, 1, None, 3, confidence=np.float32(0.95))
+    assert estimator.confidence == pytest.approx(0.95)
+
+
+def test_d_2_a_sparse_recurrent_chain_is_new_in_both_fovs_as_documented():
+    assert "Support is symmetric" not in support_novelty.__doc__
+    assert "not symmetric" in support_novelty.__doc__
+    rng = np.random.default_rng(0)
+    state = np.column_stack([10 + np.arange(5) * 0.9, np.zeros(5)])
+    common = [rng.normal(0, 0.3, size=(40, 2)) for _ in range(6)]
+    data = _validated_values(
+        [np.vstack([common[0], state]), np.vstack([common[1], state + [0.45, 0]])] + common[2:]
+    )
+    evidence = SupportNoveltyEstimator(1.0, 1, None, 2, 3).estimate(data, objective=POPULATION)
+    assert evidence.diagnostics["novel_fovs"] == 2
+
+
+def test_d_3_too_few_other_fovs_for_the_support_is_insufficient_not_all_novel():
+    rng = np.random.default_rng(1)
+    two = _validated_values([rng.normal(size=(50, 2)), rng.normal(size=(50, 2))])
+    estimator = SupportNoveltyEstimator(1.0, 2, None, 2)
+    evidence = estimator.estimate(two, objective=POPULATION)
+    for quantity in evidence.quantities.values():
+        assert quantity.availability.value == "insufficient_data"
+        assert "fewer than 3 visible FOVs" in quantity.reason
+        assert "min_other_fovs=2" in quantity.reason
+    assert estimator.novel_observation_flags(two) is None
+    three = _validated_values([rng.normal(size=(50, 2)) for _ in range(3)])
+    upper = estimator.estimate(three, objective=POPULATION).quantities[UPPER_QUANTITY]
+    assert upper.availability.value == "available"
+
+
+def test_d_8_zero_tolerance_on_the_upper_bound_is_refused():
+    with pytest.raises(ValueError, match="never reached"):
+        SupportNoveltyStrategy(1.0, 0.0, 1, None, 2, quantity=UPPER_QUANTITY)
+    # the observed fraction can reach 0 (audit 4, P4-10: the default is now the bound)
+    SupportNoveltyStrategy(1.0, 0.0, 1, None, 2, quantity="lofo_novel_fraction")
+
+
+def test_d_susp_a_feature_varying_in_one_fov_is_named_in_the_reason():
+    rng = np.random.default_rng(3)
+    values = [np.column_stack([rng.normal(size=20), np.zeros(20)]) for _ in range(5)]
+    values.append(np.column_stack([rng.normal(size=20), rng.integers(1, 4, 20).astype(float)]))
+    data = _validated_values(values)
+    evidence = SupportNoveltyEstimator(1.0, 1, Standardize(), 2).estimate(
+        data, objective=POPULATION
+    )
+    for quantity in evidence.quantities.values():
+        assert quantity.availability.value == "insufficient_data"
+        assert "feature 'b' varies only in FOV image_file=f5.tif" in quantity.reason
+
+
+def test_e15_few_fovs_accepts_numpy_integers():
+    novelty = SupportNoveltyEstimator(1.0, 1, None, 3, 1)
+    plain = _report_both_orders(
+        "rare_clustered", [], orders=PERMUTED_NINE[:1], novelty=novelty, few_fovs=3
+    )
+    numpy = _report_both_orders(
+        "rare_clustered", [], orders=PERMUTED_NINE[:1], novelty=novelty, few_fovs=np.int64(3)
+    )
+    pd.testing.assert_frame_equal(plain.next_fov, numpy.next_fov)
+    with pytest.raises(TypeError):
+        _report_both_orders(
+            "rare_clustered", [], orders=PERMUTED_NINE[:1], novelty=novelty, few_fovs=True
+        )
+
+
+def test_p4_10_support_novelty_stops_on_the_fov_upper_bound_by_default():
+    rng = np.random.default_rng(0)
+    rows = []
+    for j in range(5):
+        xy = rng.normal(size=(800 if j < 2 else 20, 2))
+        if j >= 2:  # each sparse field shows a state of its own
+            xy = np.r_[xy, np.array([10.0 * j, 10.0]) + 0.05 * rng.normal(size=(4, 2))]
+        rows.append(pd.DataFrame({"position_id": f"f{j}", "a": xy[:, 0], "b": xy[:, 1]}))
+    data = validate_input_tables(
+        pd.concat(rows, ignore_index=True),
+        fovs=pd.DataFrame({"position_id": [f"f{j}" for j in range(5)]}),
+        feature_cols=["a", "b"],
+    )
+    strategy = SupportNoveltyStrategy(1.0, 0.05, 1, None, 5, 3)
+    assert strategy.quantity == UPPER_QUANTITY
+    evidence = strategy.estimators[0].estimate(data, objective=POPULATION)
+    # The object-weighted fraction reads settled; the default quantity does not.
+    assert evidence.value("lofo_novel_fraction") < 0.05 < evidence.value(UPPER_QUANTITY)
+    with pytest.raises(ValueError, match="tolerance 0"):
+        SupportNoveltyStrategy(1.0, 0.0, 1, None, 5, 3)

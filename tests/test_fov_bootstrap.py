@@ -1,10 +1,15 @@
 """Tests for the FOV-bootstrap uncertainty estimator and strategy."""
 
+from __future__ import annotations
+
 import json
+import math
 
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_strategies import _acquisition, _well, _words, _x_run
+from _helpers_tables import _validated_mixed
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import (
@@ -16,10 +21,17 @@ from morphocoverage import (
     validate_input_tables,
 )
 from morphocoverage.evaluator import objects_in_fovs, restrict_input
+from morphocoverage.evidence import Availability
 from morphocoverage.reservoir import spatial_blocks
 from morphocoverage.schema import fov_positions
 from morphocoverage.statistics import small_sample_widening
-from morphocoverage.strategies import FOVBootstrapEstimator, FOVBootstrapStrategy
+from morphocoverage.strategies import (
+    DescriptorSpreadStrategy,
+    FOVBootstrapEstimator,
+    FOVBootstrapStrategy,
+    fov_bootstrap,
+)
+from morphocoverage.strategies._fov_bootstrap_checks import _check
 from morphocoverage.strategies.fov_bootstrap import (
     centroid_resamples,
     covariance_resamples,
@@ -28,7 +40,7 @@ from morphocoverage.strategies.fov_bootstrap import (
     subspace_angles_to,
 )
 from morphocoverage.strategies.scalar_precision import fov_averaging_cv
-from morphocoverage.transforms import Standardize
+from morphocoverage.transforms import PCA, Standardize
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
@@ -474,3 +486,136 @@ def test_pca_availability_does_not_depend_on_the_number_of_resamples():
             "available"
         )
     assert evidence.diagnostics["degenerate_fraction"] == pytest.approx(0.0016, abs=0.001)
+
+
+def test_the_bootstrap_draws_the_same_blocks_whatever_the_row_order():
+    def weights(order: list[int]) -> np.ndarray:
+        data = _validated_mixed(order)
+        estimator = FOVBootstrapEstimator(
+            summary="centroid",
+            transform=None,
+            n_resamples=20,
+            random_state=3,
+            min_fovs=2,
+            block_col="block",
+        )
+        return estimator._weights(data)
+
+    forward, backward = weights([0, 1, 2, 3]), weights([3, 2, 1, 0])
+    assert np.array_equal(forward, backward[:, ::-1])
+
+
+def test_c6_a_transform_that_can_never_be_fitted_is_not_applicable_from_the_first_fov():
+    rng = np.random.default_rng(1)
+    values = [list(rng.normal(10, 2, 5)) for _ in range(6)]
+    objects, fovs = _acquisition(values)
+    objects["other"] = rng.normal(0, 1, len(objects))
+
+    def replay(strategy):
+        return evaluate_acquisition_prefixes(
+            objects,
+            fovs,
+            strategies=[strategy],
+            feature_cols=["area", "other"],
+            acquisition_order_col="acq",
+            objective=POPULATION,
+            fov_col="position_id",
+        )
+
+    never = replay(FOVBootstrapStrategy("centroid", 0.05, PCA(3), 50, 0, 2))
+    for step in never:
+        quantity = step.result.evidence.quantities["fov_bootstrap_centroid_max_se"]
+        assert quantity.availability == "not_applicable"
+        assert "can never be fitted on 2 features" in quantity.reason
+        assert step.result.decision is None
+    # A transform that can be fitted once more FOVs arrive is not yet enough data.
+    later = replay(FOVBootstrapStrategy("centroid", 5.0, PCA(2), 50, 0, 2))
+    first = later[0].result.evidence.quantities["fov_bootstrap_centroid_max_se"]
+    assert first.availability == "insufficient_data"
+    assert later[-1].result.evidence.quantities["fov_bootstrap_centroid_max_se"].value > 0
+
+
+def _bootstrap_to_analytic(values_per_fov):
+    objects, fovs = _acquisition(values_per_fov)
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["area"], fov_col="position_id")
+    boot = FOVBootstrapEstimator("centroid", None, 40_000, 0, 2).estimate(
+        data, objective=POPULATION
+    )
+    sums = np.array([sum(v) for v in values_per_fov])
+    counts = np.array([len(v) for v in values_per_fov], dtype=float)
+    analytic = fov_averaging_cv(sums, counts)
+    # The raw bootstrap SE: the reported one is widened for few FOVs (audit 4, P4-4).
+    raw = boot.value("fov_bootstrap_centroid_se") / boot.diagnostics["small_sample_widening"]
+    return raw / (analytic["cv_mean"] * analytic["mean"])
+
+
+def test_c8_the_bootstrap_to_ratio_se_factor_holds_only_when_every_fov_holds_objects():
+    rng = np.random.default_rng(5)
+    # Equal object counts: the ratio estimator is then linear in the FOV means.
+    filled = [list(rng.normal(10 + rng.normal(), 2, 10)) for _ in range(8)]
+    assert _bootstrap_to_analytic(filled) == pytest.approx(math.sqrt(7 / 8), rel=0.02)
+    half_empty = [values if j % 2 == 0 else [] for j, values in enumerate(filled)]
+    # With 4 of 8 FOVs empty the ratio is not sqrt((k' - 1) / k') = 0.87: it is larger.
+    assert _bootstrap_to_analytic(half_empty) > math.sqrt(3 / 4) * 1.05
+    doc = fov_bootstrap.__doc__
+    assert "When every visible FOV holds observations" in _words(doc)
+    assert "With empty FOVs it does not" in _words(doc)
+
+
+def test_c15_degenerate_pca_resamples_are_not_counted_again_as_undefined():
+    # Two one-object FOVs: no resample is empty, and half repeat one FOV (no spread).
+    objects = pd.DataFrame({"position_id": ["p0", "p1"], "a": [1.0, 2.0], "b": [0.5, 0.1]})
+    fovs = pd.DataFrame({"position_id": ["p0", "p1"]})
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["a", "b"], fov_col="position_id")
+    estimator = FOVBootstrapEstimator("eigenspectrum", None, 2000, 0, 2)
+    diagnostics = estimator.estimate(data, objective=DISTRIBUTION).diagnostics
+    assert diagnostics["degenerate_resamples"] > 800
+    assert diagnostics["undefined_resamples"] == 0
+
+
+def test_p4_11_the_fov_table_order_does_not_change_the_resampled_rules():
+    objects, fovs = _well(5)
+    rules = [
+        DescriptorSpreadStrategy("x", 1.0, "fov", 100, 0),
+        FOVBootstrapStrategy("centroid", 0.3, None, 200, 0, 3, features=("x",)),
+        FOVBootstrapStrategy("quantiles", 0.3, None, 50, 0, 3, (0.25, 0.75), features=("x",)),
+    ]
+    base = _x_run(objects, fovs, rules)
+    for seed in range(4):
+        shuffled_fovs = fovs.sample(frac=1.0, random_state=seed)
+        shuffled_objects = objects.sample(frac=1.0, random_state=seed)
+        again = _x_run(shuffled_objects, shuffled_fovs, rules)
+        for a, b in zip(base, again, strict=True):
+            # The same draws; only floating-point summation order may differ.
+            for name, quantity in a.evidence.quantities.items():
+                assert b.evidence.quantities[name].value == pytest.approx(
+                    quantity.value, rel=1e-12
+                ), (a.strategy, name)
+
+
+DISTRIBUTION = ObjectiveConfig(SamplingObjective.DISTRIBUTION)
+
+
+def test_c6_a_pca_summary_of_one_feature_is_not_applicable_from_the_start():
+    rng = np.random.default_rng(0)
+    objects = pd.DataFrame({"image_file": [f"f{j}" for j in range(5) for _ in range(4)]})
+    objects["x"] = rng.normal(size=20)
+    fovs = pd.DataFrame({"image_file": [f"f{j}" for j in range(5)], "acq": range(5)})
+    strategy = FOVBootstrapStrategy("eigenspectrum", 0.1, None, 200, 0, 3)
+    steps = evaluate_acquisition_prefixes(
+        objects,
+        fovs,
+        strategies=[strategy],
+        feature_cols=["x"],
+        acquisition_order_col="acq",
+        objective=DISTRIBUTION,
+    )
+    for step in steps:
+        quantity = step.result.evidence.quantities["fov_bootstrap_eigenspectrum_max_se"]
+        assert quantity.availability is Availability.NOT_APPLICABLE
+
+
+def test_fov_bootstrap_refuses_a_count_that_is_not_an_integer():
+    with pytest.raises(TypeError) as error:
+        _check("centroid", 2.5, 0, 2, None, None, None)
+    assert str(error.value) == "n_resamples must be an integer"

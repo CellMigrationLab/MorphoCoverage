@@ -319,5 +319,82 @@ path, and one wording. Merged in PR #403, the decisions in PR #406. Tests:
 
 ## Renamed test files
 
-Filled when roadmap ENG-3 lands: each test file this page names under its former name,
-beside the test file that now holds its tests.
+Roadmap ENG-3 folded the audit-, review-, refactor-, plan- and date-named test files into
+the test files of the modules they test. Each test kept its name, and the helpers the
+files shared moved to `tests/_helpers_*.py`. Every former file, among them each one this
+page names, with the files that hold its tests now:
+
+| Former test file | Test ids | Test files that hold its tests now (test ids) |
+|---|---|---|
+| `test_audit10_g2.py` | 20 | `test_contrast_sampling.py` (4), `test_discovery.py` (3), `test_control.py` (2), `test_policies.py` (2), `test_contrast_cells.py` (1), `test_distribution.py` (1), `test_guided_controls.py` (1), `test_html_report.py` (1), `test_object_rules.py` (1), `test_plots_pairwise.py` (1), `test_sufficiency.py` (1), `test_whole_table.py` (1), `test_workflows.py` (1) |
+| `test_audit10_merge.py` | 5 | `test_style.py` (2), `test_workflows.py` (2), `test_html_report.py` (1) |
+| `test_audit10_wording.py` | 5 | `test_contrast.py` (1), `test_enough_features.py` (1), `test_glossary.py` (1), `test_order_check.py` (1), `test_unusual_split.py` (1) |
+| `test_audit11_acquisition.py` | 4 | `test_acquisition_identity.py` (2), `test_object_rules.py` (1), `test_variability.py` (1) |
+| `test_audit11_columns.py` | 23 | `test_retrospective_hierarchy.py` (19), `test_ranking.py` (3), `test_retrospective_overview.py` (1) |
+| `test_audit11_cosmetic.py` | 3 | `test_enough_features.py` (2), `test_plots_embedding.py` (1) |
+| `test_audit11_frozen.py` | 7 | `test_policies.py` (3), `test_frozen.py` (2), `test_results.py` (2) |
+| `test_audit11_group_text.py` | 6 | `test_sampling_unit_text.py` (6) |
+| `test_audit11_identity.py` | 9 | `test_identity.py` (5), `test_contrast.py` (1), `test_fov_bootstrap.py` (1), `test_objectives.py` (1), `test_schema.py` (1) |
+| `test_audit11_q2_null.py` | 2 | `test_setup.py` (1), `test_support_novelty.py` (1) |
+| `test_audit11_rare_label.py` | 8 | `test_rare_label.py` (5), `test_data_check.py` (1), `test_rare_fingerprint.py` (1), `test_retrospective_inspection.py` (1) |
+| `test_audit11_repeat_status.py` | 13 | `test_repeat_plan.py` (10), `test_contrast_repeats.py` (3) |
+| `test_audit11_run_identity.py` | 6 | `test_retrospective_frontier.py` (4), `test_retrospective_replay.py` (2) |
+| `test_audit11_settings.py` | 9 | `test_workflows.py` (6), `test_checks.py` (2), `test_retrospective_frontier.py` (1) |
+| `test_audit11_source.py` | 6 | `test_acquisition_identity.py` (6) |
+| `test_audit11_stage.py` | 29 | `test_stage_coordinates.py` (29) |
+| `test_audit11_typed_next.py` | 4 | `test_html_next.py` (3), `test_integrity.py` (1) |
+| `test_audit11_validated_input.py` | 14 | `test_schema.py` (14) |
+| `test_audit11_wording.py` | 3 | `test_html_report.py` (1), `test_scan.py` (1), `test_setup.py` (1) |
+| `test_audit2.py` | 15 | `test_statistics.py` (9), `test_bounds.py` (3), `test_wording.py` (2), `test_architecture_regressions.py` (1) |
+| `test_audit2_a.py` | 50 | `test_data_check.py` (32), `test_metadata.py` (14), `test_policies.py` (2), `test_framework.py` (1), `test_results.py` (1) |
+| `test_audit2_b.py` | 21 | `test_benchmark.py` (6), `test_reservoir.py` (5), `test_sequential.py` (3), `test_online.py` (2), `test_calibration.py` (1), `test_evaluator.py` (1), `test_retrospective_replay.py` (1), `test_stabilization.py` (1), `test_support_novelty.py` (1) |
+| `test_audit2_cd.py` | 21 | `test_scalar_precision.py` (8), `test_jcb_planning.py` (3), `test_transforms.py` (3), `test_stabilization.py` (2), `test_statistics.py` (2), `test_fixed_area.py` (1), `test_incidence_coverage.py` (1), `test_multivariate_outcomes.py` (1) |
+| `test_audit2_ef.py` | 25 | `test_retrospective_spatial.py` (4), `test_normalize.py` (3), `test_retrospective_reliability.py` (3), `test_support_novelty.py` (3), `test_retrospective_criteria.py` (2), `test_retrospective_protocol.py` (2), `test_plots.py` (1), `test_retrospective_hierarchy.py` (1), `test_retrospective_replay.py` (1), `test_retrospective_report.py` (1), `test_spatial.py` (1), `test_stage_coordinates.py` (1), `test_sufficiency.py` (1), `test_wording.py` (1) |
+| `test_audit2_g.py` | 19 | `test_retrospective_effort.py` (6), `test_retrospective_controls.py` (4), `test_retrospective_inspection.py` (4), `test_retrospective_frontier.py` (2), `test_retrospective_report.py` (2), `test_retrospective_hierarchy.py` (1) |
+| `test_audit2_h.py` | 20 | `test_contrast.py` (6), `test_plots.py` (4), `test_clustering.py` (3), `test_ranking.py` (3), `test_object_rules.py` (1), `test_statistics.py` (1), `test_unusual.py` (1), `test_variability.py` (1) |
+| `test_audit2_i.py` | 11 | `test_workflows.py` (4), `test_live.py` (3), `test_retrospective_hierarchy.py` (1), `test_retrospective_protocol.py` (1), `test_setup.py` (1), `test_support_novelty.py` (1) |
+| `test_audit3.py` | 11 | `test_statistics.py` (5), `test_seeds.py` (3), `test_wording.py` (2), `test_checks.py` (1) |
+| `test_audit3_a.py` | 22 | `test_data_check.py` (14), `test_policies.py` (3), `test_metadata.py` (2), `test_planes.py` (1), `test_seeds.py` (1), `test_wording.py` (1) |
+| `test_audit3_b.py` | 15 | `test_benchmark.py` (3), `test_sequential.py` (3), `test_calibration.py` (2), `test_online.py` (2), `test_reservoir.py` (2), `test_strategies.py` (2), `test_support_novelty.py` (1) |
+| `test_audit3_c.py` | 18 | `test_scalar_precision.py` (7), `test_stabilization.py` (4), `test_fov_bootstrap.py` (3), `test_jcb_planning.py` (3), `test_statistics.py` (1) |
+| `test_audit3_d.py` | 13 | `test_multivariate_outcomes.py` (5), `test_support_novelty.py` (4), `test_outcomes.py` (3), `test_transforms.py` (1) |
+| `test_audit3_e.py` | 21 | `test_statistics.py` (7), `test_sufficiency.py` (6), `test_normalize.py` (2), `test_scalar_precision.py` (2), `test_benchmark.py` (1), `test_strategies.py` (1), `test_support_novelty.py` (1), `test_wording.py` (1) |
+| `test_audit3_f.py` | 25 | `test_retrospective_protocol.py` (6), `test_retrospective_spatial.py` (5), `test_retrospective_criteria.py` (4), `test_retrospective_reliability.py` (4), `test_benchmark.py` (3), `test_bounds.py` (1), `test_retrospective_adequacy.py` (1), `test_retrospective_replay.py` (1) |
+| `test_audit3_g.py` | 23 | `test_retrospective_report.py` (6), `test_retrospective_inspection.py` (5), `test_retrospective_effort.py` (4), `test_retrospective_controls.py` (3), `test_retrospective_frontier.py` (3), `test_retrospective_hierarchy.py` (2) |
+| `test_audit3_h.py` | 22 | `test_plots.py` (6), `test_contrast.py` (5), `test_object_rules.py` (3), `test_variability.py` (2), `test_clustering.py` (1), `test_ranking.py` (1), `test_schema.py` (1), `test_seeds.py` (1), `test_statistics.py` (1), `test_unusual.py` (1) |
+| `test_audit3_i.py` | 18 | `test_workflows.py` (5), `test_setup.py` (4), `test_live.py` (3), `test_workflows_shared.py` (3), `test_benchmarks.py` (2), `test_document.py` (1) |
+| `test_audit4_a.py` | 17 | `test_integrity.py` (12), `test_data_check.py` (4), `test_document.py` (1) |
+| `test_audit4_b.py` | 14 | `test_data_check.py` (9), `test_metadata.py` (1), `test_planes.py` (1), `test_plots.py` (1), `test_retrospective_overview.py` (1), `test_workflows_shared.py` (1) |
+| `test_audit4_c.py` | 15 | `test_contrast.py` (6), `test_object_rules.py` (3), `test_ranking.py` (3), `test_plots.py` (1), `test_setup.py` (1), `test_workflows_shared.py` (1) |
+| `test_audit4_d.py` | 15 | `test_scalar_precision.py` (7), `test_stabilization.py` (4), `test_fov_bootstrap.py` (1), `test_jcb_planning.py` (1), `test_rare_incidence.py` (1), `test_statistics.py` (1) |
+| `test_audit4_e.py` | 7 | `test_order_check.py` (3), `test_scalar_precision.py` (2), `test_results.py` (1), `test_sufficiency.py` (1) |
+| `test_audit4_f.py` | 6 | `test_live.py` (6) |
+| `test_audit4_g.py` | 15 | `test_clustering.py` (3), `test_sufficiency.py` (3), `test_retrospective_controls.py` (2), `test_retrospective_report.py` (2), `test_setup.py` (2), `test_transforms.py` (2), `test_support_novelty.py` (1) |
+| `test_audit4_h.py` | 16 | `test_document.py` (4), `test_retrospective_frontier.py` (2), `test_benchmarks.py` (1), `test_caveats.py` (1), `test_retrospective_calibration.py` (1), `test_retrospective_effort.py` (1), `test_retrospective_hierarchy.py` (1), `test_retrospective_inspection.py` (1), `test_retrospective_reliability.py` (1), `test_retrospective_report.py` (1), `test_seeds.py` (1), `test_sufficiency.py` (1) |
+| `test_audit8_b.py` | 17 | `test_workflows.py` (5), `test_html_report.py` (3), `test_feature_tables.py` (2), `test_setup.py` (2), `test_comparisons.py` (1), `test_guided.py` (1), `test_guided_controls.py` (1), `test_retrospective_overview.py` (1), `test_scan.py` (1) |
+| `test_audit8_f9a.py` | 18 | `test_feature_tables.py` (7), `test_enough_features.py` (2), `test_comparisons.py` (1), `test_html_maps.py` (1), `test_html_report.py` (1), `test_populations.py` (1), `test_rare_fingerprint.py` (1), `test_separation.py` (1), `test_setup.py` (1), `test_transforms.py` (1), `test_workflows.py` (1) |
+| `test_audit8_f9b.py` | 12 | `test_distribution.py` (3), `test_objectives.py` (2), `test_reading.py` (2), `test_whole_table.py` (2), `test_contrast.py` (1), `test_wording.py` (1), `test_workflows.py` (1) |
+| `test_audit_planning.py` | 11 | `test_retrospective_effort.py` (3), `test_retrospective_frontier.py` (3), `test_retrospective_inspection.py` (2), `test_retrospective_protocol.py` (1), `test_retrospective_reliability.py` (1), `test_retrospective_report.py` (1) |
+| `test_audit_report.py` | 10 | `test_contrast.py` (3), `test_ranking.py` (2), `test_variability.py` (2), `test_object_rules.py` (1), `test_retrospective_report.py` (1), `test_unusual.py` (1) |
+| `test_audit_strategies.py` | 11 | `test_scalar_precision.py` (4), `test_transforms.py` (2), `test_fixed_area.py` (1), `test_fov_bootstrap.py` (1), `test_jcb_planning.py` (1), `test_multivariate_outcomes.py` (1), `test_statistics.py` (1) |
+| `test_audit_sufficiency.py` | 6 | `test_sufficiency.py` (3), `test_objectives.py` (1), `test_retrospective_adequacy.py` (1), `test_retrospective_calibration.py` (1) |
+| `test_audit_workflows.py` | 17 | `test_setup.py` (4), `test_live.py` (3), `test_plots.py` (3), `test_benchmarks.py` (2), `test_workflows.py` (2), `test_benchmark.py` (1), `test_contrast.py` (1), `test_document.py` (1) |
+| `test_feature_tables_1006.py` | 19 | `test_feature_tables.py` (5), `test_separation.py` (4), `test_guided.py` (3), `test_populations.py` (3), `test_embedding.py` (1), `test_enough_features.py` (1), `test_html_maps.py` (1), `test_integrity.py` (1) |
+| `test_microscopist_audit.py` | 21 | `test_sufficiency.py` (5), `test_retrospective_reliability.py` (4), `test_retrospective_effort.py` (2), `test_retrospective_report.py` (2), `test_benchmark.py` (1), `test_online.py` (1), `test_retrospective_adequacy.py` (1), `test_retrospective_calibration.py` (1), `test_retrospective_inspection.py` (1), `test_retrospective_protocol.py` (1), `test_retrospective_spatial.py` (1), `test_scalar_precision.py` (1) |
+| `test_owner_1005_workflows.py` | 13 | `test_strategies.py` (7), `test_html_maps.py` (3), `test_embedding.py` (2), `test_html_report.py` (1) |
+| `test_owner_decisions_1002.py` | 21 | `test_distribution.py` (9), `test_setup.py` (3), `test_retrospective_overview.py` (2), `test_contrast.py` (1), `test_object_rules.py` (1), `test_question6_influence.py` (1), `test_rare_fingerprint.py` (1), `test_scalar_precision.py` (1), `test_unusual.py` (1), `test_wording.py` (1) |
+| `test_owner_decisions_1005_wording.py` | 8 | `test_retrospective_controls.py` (2), `test_retrospective_report.py` (2), `test_document.py` (1), `test_retrospective_effort.py` (1), `test_retrospective_frontier.py` (1), `test_retrospective_report_status.py` (1) |
+| `test_plan_v2_phase1.py` | 23 | `test_contrast.py` (6), `test_exploratory.py` (4), `test_docs.py` (2), `test_multivariate_outcomes.py` (2), `test_statistics.py` (2), `test_acquisition_gap.py` (1), `test_control.py` (1), `test_discovery.py` (1), `test_guided.py` (1), `test_html_tests.py` (1), `test_retrospective_criteria.py` (1), `test_setup.py` (1) |
+| `test_refactor_core.py` | 25 | `test_planes.py` (11), `test_sufficiency.py` (3), `test_data_check.py` (2), `test_plots.py` (2), `test_benchmark.py` (1), `test_control.py` (1), `test_feature_tables.py` (1), `test_fov_bootstrap.py` (1), `test_plots_pairwise.py` (1), `test_schema.py` (1), `test_style.py` (1) |
+| `test_refactor_html.py` | 11 | `test_html_report.py` (7), `test_html_maps.py` (1), `test_html_plan.py` (1), `test_html_tests.py` (1), `test_populations.py` (1) |
+| `test_refactor_retrospective.py` | 27 | `test_retrospective_inspection.py` (7), `test_retrospective_controls.py` (6), `test_retrospective_report_status.py` (3), `test_retrospective_report.py` (2), `test_effect_preservation.py` (1), `test_retrospective_adequacy.py` (1), `test_retrospective_effort.py` (1), `test_retrospective_frontier.py` (1), `test_retrospective_hierarchy.py` (1), `test_retrospective_overview.py` (1), `test_retrospective_protocol.py` (1), `test_retrospective_replay.py` (1), `test_retrospective_spatial.py` (1) |
+| `test_refactor_sampling_unit.py` | 16 | `test_contrast.py` (2), `test_contrast_repeats.py` (2), `test_object_rules.py` (2), `test_repeat_plan.py` (2), `test_clustering.py` (1), `test_comparisons.py` (1), `test_legend_text.py` (1), `test_populations.py` (1), `test_ranking.py` (1), `test_sampling_unit_text.py` (1), `test_unusual.py` (1), `test_whole_table.py` (1) |
+| `test_refactor_workflows.py` | 46 | `test_setup.py` (28), `test_live.py` (6), `test_workflows_shared.py` (4), `test_guided.py` (2), `test_benchmarks.py` (1), `test_document.py` (1), `test_html_tests.py` (1), `test_retrospective_criteria.py` (1), `test_scan.py` (1), `test_workflows.py` (1) |
+| `test_review_1002.py` | 15 | `test_question6_influence.py` (4), `test_html_report.py` (3), `test_populations.py` (3), `test_statistics.py` (2), `test_contrast.py` (1), `test_contrast_repeats.py` (1), `test_distribution.py` (1) |
+| `test_review_1005.py` | 14 | `test_contrast.py` (5), `test_contrast_cells.py` (4), `test_populations.py` (2), `test_comparisons.py` (1), `test_discovery.py` (1), `test_enough_features.py` (1) |
+| `test_style_polish.py` | 12 | `test_caveats.py` (6), `test_retrospective_report.py` (2), `test_scalar_precision.py` (2), `test_order_check.py` (1), `test_sufficiency.py` (1) |
+| `test_style_r1.py` | 13 | `test_retrospective_controls.py` (2), `test_retrospective_report.py` (2), `test_retrospective_report_status.py` (2), `test_sampling_unit_text.py` (2), `test_variability.py` (2), `test_clustering.py` (1), `test_document.py` (1), `test_object_rules.py` (1) |
+| `test_style_r2.py` | 10 | `test_retrospective_report_status.py` (4), `test_retrospective_adequacy.py` (2), `test_retrospective_criteria.py` (1), `test_retrospective_protocol.py` (1), `test_retrospective_reliability.py` (1), `test_retrospective_report.py` (1) |
+| `test_style_R3.py` | 11 | `test_retrospective_report.py` (3), `test_contrast.py` (2), `test_retrospective_report_status.py` (2), `test_benchmark.py` (1), `test_ranking.py` (1), `test_setup.py` (1), `test_style.py` (1) |
+| `test_style_r4.py` | 17 | `test_retrospective_frontier.py` (8), `test_integrity.py` (4), `test_benchmarks.py` (2), `test_workflows.py` (2), `test_data_check.py` (1) |
+| `test_style_R5.py` | 8 | `test_live.py` (3), `test_results.py` (3), `test_order_check.py` (2) |

@@ -1,5 +1,5 @@
 """The audit tools themselves (tools/): the index, its metrics, the call resolution, the
-silent-fallback detector, the ratchet and the search, on small planted sources."""
+silent-fallback detector, the ratchet, the search and the naming rule, on small planted sources."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ import audit
 import callgraph
 import fallbacks
 import function_index as fi
+import naming
 import ratchet
 import search
 
@@ -358,3 +359,49 @@ def test_a_new_duplicate_or_layer_entry_needs_a_reason():
     assert admitted == ["duplicates: h2:2 (to merge)"]
     layers = ratchet._reasoned('{"back_edges": {"a -> b (local)": "deferred"}}', "layers")
     assert layers == {"layers back_edges: a -> b (local)": "deferred"}
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "tests/test_audit99.py",
+        "tests/test_microscopist_audit.py",
+        "docs/review_x.md",
+        "docs/audit/audit12.md",
+        "tests/test_owner_decisions_1005.py",
+        "tests/test_style_r3.py",
+        "docs/plan_v2.md",
+        "tests/test_issue_412.py",
+        "docs/notes_2026-10-13.md",
+        "data/lab/review.csv",
+    ],
+)
+def test_a_file_named_after_an_audit_a_date_or_a_pass_breaks_the_naming_rule(path):
+    assert naming.problem(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "tools/audit.py",
+        "tools/jscpd_review.py",
+        "tools/baselines/duplicates_reviewed.json",
+        "docs/audit/README.md",
+        "src/morphocoverage/previews.py",
+        "tests/test_reporting.py",
+        "data/crick_idr/results/sufficiency_idr0028.csv",
+    ],
+)
+def test_names_for_what_they_hold_and_the_listed_tools_pass_the_naming_rule(path):
+    assert naming.problem(path) is None
+
+
+def test_every_tracked_name_says_what_it_holds():
+    assert naming.violations() == []
+
+
+def test_the_baseline_check_fails_on_a_badly_named_file(monkeypatch, capsys):
+    monkeypatch.setattr(ratchet, "check_against", lambda ref: ([], []))
+    monkeypatch.setattr(naming, "tracked", lambda root=naming.ROOT: ["tests/test_audit99.py"])
+    assert audit.main(["--check-against", "HEAD"]) == 1
+    assert "test_audit99.py" in capsys.readouterr().out

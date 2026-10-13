@@ -1,45 +1,28 @@
 """Which features separate the conditions: the cell-level gate, the paired test beside it
 (sampling_unit.discovery), and the PCA and UMAP of all the features (embedding)."""
 
+from __future__ import annotations
+
 import sys
+import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_sampling_unit import CONTROL, _make, _tables
+from _helpers_sampling_unit import _tables as _discovery_tables
+from _helpers_workflows import SCREEN, _sets
 
 from morphocoverage.embedding import embed
 from morphocoverage.plots_embedding import embedding_figures
 from morphocoverage.sampling_unit import feature_discovery
+from morphocoverage.statistics import benjamini_hochberg
+from morphocoverage.workflows import Setup, report
 
 LAB = Path(__file__).resolve().parents[1] / "data" / "lab"
 sys.path.insert(0, str(LAB))
 import catalog
-
-
-def _tables(shift=1.0, n_repeats=3, cells=30, seed=0, unbalanced=False):
-    """One well per condition and repeat: 'area' differs in every repeat, 'noise' does not,
-    'flat' holds one value."""
-    rng = np.random.default_rng(seed)
-    rows = []
-    for repeat in range(n_repeats):
-        for condition, effect in (("ctrl", 0.0), ("drug", shift)):
-            n = cells * (4 if unbalanced and repeat == 0 else 1)
-            for field in range(n):
-                rows.append(
-                    {
-                        "condition": condition,
-                        "biological_repeat": f"r{repeat}",
-                        "position_id": f"{condition}-{repeat}-{field}",
-                        "area": rng.normal(10 + effect, 1),
-                        "noise": rng.normal(5, 1),
-                        "aspect": rng.normal(2, 0.3),
-                        "flat": 1.0,
-                    }
-                )
-    objects = pd.DataFrame(rows)
-    fovs = objects[["condition", "biological_repeat", "position_id"]].drop_duplicates()
-    return objects, fovs
 
 
 def _discovery(objects, fovs, features=("area", "noise", "aspect", "flat")):
@@ -198,3 +181,167 @@ def test_question_9_is_not_assessed_without_a_comparison_or_a_test_across_repeat
     )
     # Three repeats: the test across repeats answers, as before.
     assert conditions_status(None, None, _discovery(*_tables()))[0] is Status.OK
+
+
+def _three_repeats() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Three repeats, ctrl and kd, 4 fields of 30 cells a side: ``steady`` changes by x0.83
+    in every repeat almost exactly (each repeat's cells the control's own, scaled), the other
+    features by a factor that varies between the repeats."""
+    rng = np.random.default_rng(14)
+    factors = {"steady": (0.83, 0.83, 0.83), "f1": (0.6, 0.9, 1.0), "f2": (0.7, 1.2, 0.95)}
+    factors |= {"f3": (1.3, 0.8, 1.1), "f4": (0.75, 1.0, 0.7)}
+    rows = []
+    for index, repeat in enumerate(("r1", "r2", "r3")):
+        cells = {f: np.exp(rng.normal(0, 0.3, (4, 30))) * 10 for f in factors}
+        for condition in ("ctrl", "kd"):
+            for field in range(4):
+                for label in range(30):
+                    row = {
+                        "condition": condition,
+                        "biological_repeat": repeat,
+                        "image_file": f"{repeat}_{condition}_{field}.tif",
+                        "label_id": label,
+                    }
+                    for feature, values in cells.items():
+                        scale = factors[feature][index] if condition == "kd" else 1.0
+                        row[feature] = values[field, label] * scale
+                    rows.append(row)
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    return objects, fovs
+
+
+def test_a_verdict_on_three_near_identical_repeats_is_said_and_cautioned() -> None:
+    # A10: a glioma verdict rested on 3 repeats whose log ratios agreed to 0.0018 (median
+    # 0.18 over the family): p 3e-5 from its own tiny SD.
+    objects, fovs = _three_repeats()
+    discovery = feature_discovery(
+        objects,
+        fovs,
+        features=["steady", "f1", "f2", "f3", "f4"],
+        control={"condition": "ctrl"},
+        observation_unit="cell",
+        n_permutations=199,
+    )
+    tests = discovery.tests.set_index("feature")
+    assert tests.loc["steady", "near_identical"]
+    assert not tests.drop(index="steady")["near_identical"].any()
+    assert tests.loc["steady", "repeat_sd"] < 0.2 * tests.loc["steady", "family_sd"]
+    resting = discovery.resting()
+    assert list(resting["feature"]) == ["steady"]
+    text = " ".join(discovery.summary().split())
+    assert "Rests on 3 near-identical repeats: steady for kd" in text
+    assert "under a fifth of its median" in text
+
+
+def test_a_screen_against_one_control_gives_the_screen_wide_q_beside_each_verdict() -> None:
+    # A11: the filopodia hits were significant within families of 2 tests each; over the
+    # 12 tests against siCTRL, q 0.063 and 0.054.
+    objects, fovs = _sets(SCREEN, {"siA": 0.4, "siB": 0.3})
+    common = {"features": ["area", "length"], "observation_unit": "cell", "n_permutations": 199}
+    apart = feature_discovery(objects, fovs, control={"condition": "ctrl"}, **common)
+    tests = apart.tests
+    assert tests["experiment"].nunique() == 2
+    expected = benjamini_hochberg(tests["p_paired"].to_numpy(float))
+    assert tests["q_screen"].to_numpy() == pytest.approx(expected)
+    assert "(screen-wide q " in " ".join(apart.summary().split())
+    # Declared one experiment (a screen): one family, its q the screen's, none beside it.
+    one = feature_discovery(
+        objects,
+        fovs,
+        control={"condition": "ctrl"},
+        families={"siA": "screen", "siB": "screen"},
+        **common,
+    )
+    assert one.tests["experiment"].nunique() == 1
+    assert one.tests["q_paired"].to_numpy() == pytest.approx(expected)
+    assert one.tests["q_screen"].isna().all()
+    # The readout's reading carries it too.
+    setup = Setup(readout="area", features=("area", "length"), control={"condition": "ctrl"})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        text = " ".join(report(objects, fovs, setup).summary("full").split())
+    assert "(screen-wide q " in text
+
+
+def test_declared_experiments_are_the_correction_families() -> None:
+    # B11: THBS5 vs VEC (untransfected) was corrected with the siRNA set imaged in the same
+    # repeats; declared apart, each experiment is its own family.
+    layout = {
+        "VEC": ["R1", "R2", "R3"],
+        "THBS5": ["R1", "R2", "R3"],
+        "VEC_SiNC": ["R1", "R2", "R3", "R4"],
+        "VEC_SiA": ["R1", "R2", "R3", "R4"],
+        "VEC_SiB": ["R1", "R2", "R3", "R4"],
+    }
+    objects, fovs = _sets(layout, {"THBS5": 0.3, "VEC_SiA": 0.5})
+    fovs = fovs.assign(set=np.where(fovs["condition"].isin(["VEC", "THBS5"]), "untr", "siRNA"))
+    control = {"condition": {"VEC": ["THBS5"], "VEC_SiNC": ["VEC_SiA", "VEC_SiB"]}}
+    declared = Setup(readout="area", features=("area", "length"), control=control)
+    assert declared.families(fovs) is None
+    setup = Setup(readout="area", features=("area", "length"), control=control, experiment="set")
+    families = setup.families(fovs)
+    assert families["THBS5"] == "untr" and families["VEC_SiA"] == "siRNA"
+    assert "VEC" not in families or families["VEC"] == "untr"
+    common = {"features": ["area", "length"], "observation_unit": "cell", "n_permutations": 199}
+    common |= setup.contrast_arguments
+    together = feature_discovery(objects, fovs, **common).tests
+    apart = feature_discovery(objects, fovs, families=families, **common).tests
+    assert together["experiment"].nunique() == 1
+    split = apart.groupby("experiment")["condition"].agg(lambda c: tuple(sorted(set(c))))
+    assert sorted(split) == [("THBS5 vs VEC",), ("VEC_SiA vs VEC_SiNC", "VEC_SiB vs VEC_SiNC")]
+    mine = apart[apart["condition"].astype(str).str.startswith("THBS5")]
+    expected = benjamini_hochberg(mine["p_paired"].to_numpy(float))
+    assert mine["q_paired"].to_numpy() == pytest.approx(expected)
+    words = " ".join(setup.declaration())
+    assert "Experiments: declared by the column 'set', each corrected on its own." in words
+    with pytest.raises(TypeError, match="experiment must be"):
+        Setup(readout="area", control={"condition": "VEC"}, experiment=3)
+    with pytest.raises(ValueError, match="not a column of the FOV table"):
+        Setup(readout="area", control=control, experiment="plate").families(fovs)
+
+
+def test_the_discovery_and_its_csv_carry_each_repeats_change_and_the_interval():
+    objects, fovs = _discovery_tables(n_repeats=3)
+    result = feature_discovery(
+        objects,
+        fovs,
+        features=["area", "noise"],
+        control={"condition": "ctrl"},
+        n_permutations=999,
+        observation_unit="cell",
+    )
+    tests = result.tests.set_index("feature")
+    assert {"repeat_contrasts", "ci_low", "ci_high"} <= set(result.tests.columns)
+    area = tests.loc["area"]
+    assert area["ci_low"] < area["change"] < area["ci_high"]
+    assert area["repeat_contrasts"].startswith("r0: ")
+    text = result.summary()
+    assert "change in each repeat" in text and "95% t interval" in text
+
+
+def test_a_large_family_reruns_the_screen(monkeypatch):
+    """40 null features beside area: 84 tests in E5's one sub-experiment, so the p-values at
+    or below 0.05 are rerun with 1680 shuffles and area's q reaches 0.05."""
+    objects, fovs = _make("E5")
+    rng = np.random.default_rng(3)
+    extra = [f"null{i}" for i in range(40)]
+    objects = objects.assign(**{name: rng.lognormal(3, 0.2, len(objects)) for name in extra})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        discovery = feature_discovery(
+            objects,
+            fovs,
+            features=["area", "intensity", *extra],
+            control=CONTROL,
+            n_permutations=99,
+        )
+    tests = discovery.tests.set_index(["feature", "condition"])
+    area = tests.loc[("area", "cond1")]
+    assert area["permutations"] == 1680 and area["q_cells"] <= 0.05
+    # Rerun or not: the shuffles are the first pass's or the family's, nothing between.
+    assert set(tests["permutations"].dropna()) <= {99, 999, 1680}
+    assert (tests.loc[tests["p_cells"] < 0.01, "permutations"] == 1680).all()
+    assert "the p-values at or below 0.05 rerun with 1680 shuffles" in " ".join(
+        discovery.summary().split()
+    )

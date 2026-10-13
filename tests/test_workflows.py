@@ -6,23 +6,51 @@ its contracts; the real-data run times are in ``docs/report/running_a_report.md`
 
 from __future__ import annotations
 
+import inspect
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
-from scenarios import FEATURE_COLS, _fov_table, _objects_for
+from _helpers_embedding import SEVERAL, _cells, _embedding_only, _one_per_field, _several
+from _helpers_feature_tables import _fingerprint_data, _fingerprint_setup
+from _helpers_workflows import (
+    KEY,
+    QUICK,
+    READOUT,
+    _acquisition,
+    _fingerprint,
+    _flat,
+    _rare,
+    _report,
+    _scenario_report,
+    _setup,
+    _well_acquisition,
+    _wells,
+)
+from scenarios import FEATURE_COLS
 
+import morphocoverage.workflows._document as document_module
+import morphocoverage.workflows.benchmarks as benchmarks_module
+import morphocoverage.workflows.retrospective as workflow_module
 from morphocoverage import RareTarget, validate_input_tables
+from morphocoverage._style import Status
 from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.results import Decision
-from morphocoverage.retrospective import OutcomeCriterion
-from morphocoverage.retrospective.report import DECLARATION_TITLE
+from morphocoverage.retrospective import SamplingHierarchy
+from morphocoverage.retrospective.replay import replay_acquisitions
+from morphocoverage.retrospective.report import DECLARATION_TITLE, LIMITS_TITLE
+from morphocoverage.retrospective.report_status import calibration_status
 from morphocoverage.sampling_unit import condition_contrast, fov_variability
-from morphocoverage.strategies import FixedFOVStrategy
+from morphocoverage.strategies import DescriptorSpreadStrategy, FixedFOVStrategy
 from morphocoverage.strategies.rare_planning import fovs_to_detect
 from morphocoverage.workflows import (
+    Family,
     LiveFolder,
     LiveTables,
+    Plan,
     PositiveControl,
+    Report,
     Setup,
     benchmark,
     default_families,
@@ -33,33 +61,9 @@ from morphocoverage.workflows import (
     report,
     write_fov,
 )
+from morphocoverage.workflows._shared import orders, replay_rules
 from morphocoverage.workflows.live import MANIFEST, OBJECTS_FILE
-
-READOUT = FEATURE_COLS[0]
-
-
-def _acquisition(n_fovs: int = 16, n_objects: int = 12, seed: int = 7):
-    rng = np.random.default_rng(seed)
-    fov_tables, object_tables = [], []
-    for condition, shift in (("control", 0.0), ("drug", 3.0)):
-        for repeat in ("R1", "R2"):
-            fovs = _fov_table(n_fovs, condition=condition, repeat=repeat, grid_width=4)
-            objects = _objects_for(fovs, np.full(n_fovs, n_objects), rng)
-            objects.loc[:, list(FEATURE_COLS)] += shift
-            fov_tables.append(fovs)
-            object_tables.append(objects)
-    return pd.concat(object_tables, ignore_index=True), pd.concat(fov_tables, ignore_index=True)
-
-
-def _setup(**changes) -> Setup:
-    settings = {
-        "readout": READOUT,
-        "features": FEATURE_COLS,
-        "control": {"condition": "control"},
-        "acquisition_order_col": "acquisition_order",
-        "stage_cols": ("stage_x", "stage_y"),
-    }
-    return Setup(**{**settings, **changes})
+from morphocoverage.workflows.retrospective import CALIBRATION_SHORT, CALIBRATION_TITLE
 
 
 def test_setup_rejects_ambiguous_declarations():
@@ -70,21 +74,6 @@ def test_setup_rejects_ambiguous_declarations():
     with pytest.raises(ValueError, match="declare both"):
         Setup(readout=READOUT, positive=PositiveControl({"condition": "drug"}, fovs_seen=4))
     assert Setup(readout=READOUT, features=FEATURE_COLS).columns == list(FEATURE_COLS)
-
-
-def _fingerprint(tolerance: float = 0.5) -> OutcomeCriterion:
-    return OutcomeCriterion(
-        CovarianceError(FEATURE_COLS, True),
-        tolerance,
-        "lower_is_better",
-        f"the covariance of the features within {tolerance:.0%}",
-    )
-
-
-def _rare() -> RareTarget:
-    return RareTarget(
-        fov_incidence=0.2, detection_probability=0.95, min_fov_occurrences=1, phenotype="planted"
-    )
 
 
 def test_setup_declares_what_to_preserve_and_refuses_undeclared_targets():
@@ -624,3 +613,661 @@ def test_saved_figures_stay_in_the_folder_and_never_share_a_file(tmp_path):
     taken: set[str] = set()
     names = [_file_name(name, taken) for name in ("x_1", "x_2", "x_1", "X_2", "")]
     assert names == ["x_1", "x_2", "x_1_2", "X_2_2", "feature"]
+
+
+def test_beyond_the_mean_says_not_significant_and_no_trend_from_two_repeats() -> None:
+    # C16: "the same way in every repeat, not tested (fewer than 3 repeats)" read as a trend
+    # from 2 repeats (a25); C2: "no difference" for "not significant" (a24).
+    a25 = " ".join(_scenario_report("a25_mix_several_norm_cells_tech_fp_expl").summary().split())
+    beyond = a25[a25.index("Beyond the mean") :]
+    assert "differs beyond the mean" not in beyond
+    assert "the same way in every repeat, not tested" not in beyond
+    assert "in both repeats" in beyond
+    a24 = _scenario_report("a24_expl_one_norm_image_none_fp_expl")
+    text = " ".join(a24.summary().split())
+    assert "no difference beyond the mean" not in text
+    assert "no difference in the distributions" not in a24.document.headlines["conditions"]
+    assert "beyond the mean (exploratory), not significant" in a24.document.headlines["conditions"]
+
+
+def _limits(text: str) -> str:
+    return " ".join(text[text.index("What this dataset cannot tell me") :].split())
+
+
+def test_the_closing_section_points_to_each_section_in_both_forms() -> None:
+    """One line per limit pointing to its section, the reason only in the section (owner,
+    2026-10-06; G3 had repeated the reasons in the short form)."""
+    _, result = _report("a01_tagged_several_image_none_rare")
+    reason = "each field holds one image, so a field holds a state or not"
+    for detail in ("short", "full"):
+        text = result.summary(detail=detail)
+        limits = _limits(text)
+        assert "3. What is limiting my sampling? Answered in part: see question 3." in limits
+        assert "Answered in part: see the Foundation." in limits
+        assert reason not in limits
+        assert reason in " ".join(text.split())  # said once, in its section
+    assert "no conclusion possible here, see question 10" in _limits(result.summary())
+    # The page leaves out what it cannot answer, so its closing card keeps the reasons.
+    page = " ".join(result.document.limits(None, "short", pointers=False).split())
+    assert reason in page
+
+
+def test_the_design_sentence_follows_declared_experiments() -> None:
+    """With ``Setup(experiment=...)`` an experiment may hold several controls (the ECM siRNA
+    set): the design says the declared experiments, never "each with its own control"."""
+    import numpy as np
+    import pandas as pd
+
+    layout = {
+        "VEC": ["R1", "R2", "R3"],
+        "THBS5": ["R1", "R2", "R3"],
+        "V_SiNC": ["R4", "R5", "R6"],
+        "V_SiA": ["R4", "R5", "R6"],
+        "T_SiNC": ["R7", "R8", "R9"],
+        "T_SiA": ["R7", "R8", "R9"],
+    }
+    rng = np.random.default_rng(5)
+    rows = [
+        {
+            "condition": condition,
+            "biological_repeat": repeat,
+            "image_file": f"{condition}_{repeat}_{field}.tif",
+            "label_id": label,
+            "area": 10 * np.exp(rng.normal(0, 0.3)),
+        }
+        for condition, repeats in layout.items()
+        for repeat in repeats
+        for field in range(3)
+        for label in range(10)
+    ]
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    control = {"condition": {"VEC": ["THBS5"], "V_SiNC": ["V_SiA"], "T_SiNC": ["T_SiA"]}}
+    sets = {c: "untransfected" if c in ("VEC", "THBS5") else "siRNA" for c in layout}
+    texts = {}
+    for name, extra in (("derived", {}), ("declared", {"experiment": sets})):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            setup = Setup(readout="area", control=control, observation_unit="cell", **extra)
+            texts[name] = " ".join(report(objects, fovs, setup).summary("full").split())
+    assert "Design: 3 sub-experiments, each with its own control in its own 3" in texts["derived"]
+    assert "Design: 2 experiments as declared, in 3 biological repeats" in texts["declared"]
+    assert "each with its own control" not in texts["declared"]
+    # The q-values are said corrected within the declared experiment (owner, 2026-10-06).
+    assert "Benjamini-Hochberg within the condition's experiment" in texts["declared"]
+    assert "within the condition's sub-experiment" not in texts["declared"]
+    assert "Benjamini-Hochberg within the condition's sub-experiment" in texts["derived"]
+
+
+def _tables():
+    rng = np.random.default_rng(0)
+    rows, fovs = [], []
+    for condition in ("ctrl", "drug"):
+        for repeat in ("R1", "R2", "R3"):
+            for f in range(6):
+                pid = f"{condition}{repeat}{f}"
+                fovs.append(
+                    {"position_id": pid, "condition": condition, "biological_repeat": repeat}
+                )
+                for _ in range(6):
+                    rows.append({**fovs[-1], "x": rng.normal()})
+    return pd.DataFrame(rows), pd.DataFrame(fovs)
+
+
+@pytest.mark.parametrize(
+    ("argument", "bad"),
+    [
+        ("reservoir_fraction", "0.35"),
+        ("reservoir_fraction", True),
+        ("reservoir_fraction", float("nan")),
+        ("protocol_threshold", "0.9"),
+        ("protocol_threshold", True),
+        ("protocol_threshold", float("inf")),
+    ],
+)
+def test_optimise_refuses_string_bool_and_non_finite_shares(argument, bad):
+    objects, fovs = _tables()
+    setup = Setup(readout="x", control={"condition": "ctrl"}, observation_unit="cell")
+    arguments = {"fov_counts": [2, 3], "reservoir_fraction": 0.35, argument: bad}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(ValueError, match="between 0 and 1|share in"):
+            optimise(objects, fovs, setup, **arguments)
+
+
+# Absolute spread of the readout's mean over resamples: about 0.3 on the raw
+# values (near 10) and 0.03 once divided by the control mean (near 1), so the
+# rule stops at other fields on the two scales.
+SPREAD = DescriptorSpreadStrategy(READOUT, 0.1, "fov", 20, 0)
+
+
+RULES = (FixedFOVStrategy(3), SPREAD)
+
+
+def _pooled(**changes) -> Setup:
+    """A setup for pooled groups: the recorded order ties across the repeats it pools."""
+    return _setup(acquisition_order_col=None, stage_cols=None, **changes)
+
+
+def _live_verdicts(objects, fovs, setup):
+    """Each rule's own verdict after the last field of every group, fed field by field."""
+    ordered = fovs.sort_values(["condition", "biological_repeat", "acquisition_order"]).reset_index(
+        drop=True
+    )
+    tables = LiveTables(live_session(setup))
+    parts = [objects.merge(ordered.iloc[[i]][KEY], on=KEY) for i in range(len(ordered))]
+    updates = []
+    for i in range(len(ordered)):
+        updates += tables.update(pd.concat(parts[: i + 1], ignore_index=True), ordered[: i + 1])
+    last = {}
+    for update in updates:
+        for result in update.results:
+            key = (
+                *(result.group[c] for c in ("condition", "biological_repeat", "technical_repeat")),
+            )
+            last[(*key, result.config_id)] = result.rule_decision.value
+    return last
+
+
+def test_i1_every_rule_replay_reads_the_raw_values_as_live():
+    # 8 fields per well: the per-field spread needs 5 fields with objects (audit 4, P4-6).
+    objects, fovs = _well_acquisition(n_fovs=16)
+    raw_setup = _setup(rules=RULES, stage_cols=None)
+    setup = _setup(rules=RULES, stage_cols=None, normalize="control_mean")
+    prepared = setup.prepared(objects, fovs)
+    settings = {
+        "reservoir_fraction": 0.25,
+        "orders": orders(setup, 2, 0),
+        "acquisition_order_col": "acquisition_order",
+        "n_splits": 2,
+        "random_state": 0,
+        "incremental": True,
+    }
+    arguments = {
+        "feature_cols": setup.columns,
+        "strategies": list(RULES),
+        "criteria": setup.criteria(),
+        "objective": setup.objective(),
+        **settings,
+    }
+    raw = replay_acquisitions(objects, fovs, **arguments)
+    normalised = replay_acquisitions(prepared, fovs, **arguments)
+    # The two scales give the rule different verdicts, so the test can tell them apart.
+    assert not raw.decisions.equals(normalised.decisions)
+    workflow = replay_rules(
+        objects,
+        prepared,
+        fovs,
+        setup,
+        strategies=list(RULES),
+        criteria=setup.criteria(),
+        **settings,
+    )
+    pd.testing.assert_frame_equal(workflow.decisions, raw.decisions)
+    pd.testing.assert_frame_equal(workflow.outcomes, normalised.outcomes)
+    # The report judges each rule on the raw values: the verdicts of the raw setup and
+    # of the live session, which never sees normalised values.
+    final = report(objects, fovs, setup).results["sufficiency"].final
+    expected = report(objects, fovs, raw_setup).results["sufficiency"].final
+    columns = ["condition", "biological_repeat", "technical_repeat", "config_id", "verdict"]
+    pd.testing.assert_frame_equal(final[columns], expected[columns])
+    live = _live_verdicts(objects, fovs, setup)
+    for row in final.itertuples(index=False):
+        assert (
+            row.verdict
+            == live[(row.condition, row.biological_repeat, row.technical_repeat, row.config_id)]
+        )
+    # optimise and benchmark use the same replay: their decisions are the raw ones.
+    plan = optimise(objects, fovs, setup, **QUICK)
+    plan_raw = optimise(objects, fovs, raw_setup, **QUICK)
+    pd.testing.assert_frame_equal(
+        plan.results["calibration"].table, plan_raw.results["calibration"].table
+    )
+    family = [Family("spread", SPREAD, "max_descriptor_spread", (0.05, 0.1, 0.4))]
+    bench = {
+        name: benchmark(
+            objects,
+            fovs,
+            chosen,
+            reservoir_fraction=0.25,
+            families=family,
+            n_splits=1,
+            permuted_orders=1,
+            n_boot=10,
+        )
+        for name, chosen in (("normalised", setup), ("raw", raw_setup))
+    }
+    first = next(iter(bench["raw"].frontiers))
+    pd.testing.assert_frame_equal(
+        bench["normalised"].frontiers[first].scores, bench["raw"].frontiers[first].scores
+    )
+    assert "every stopping rule runs on the raw values" in " ".join(setup.declaration())
+
+
+def test_i3_optimise_says_why_protocol_or_effort_is_not_assessed():
+    objects, fovs = _well_acquisition()
+    # A hierarchy level (the repeat) pooled by group_cols: no crash, a reason.
+    plan = optimise(objects, fovs, _pooled(group_cols=("condition", "technical_repeat")), **QUICK)
+    assert "protocol" not in plan.results and "effort" in plan.results
+    text = plan.summary()
+    assert (
+        "Protocol reliability across samples is not assessed" in text
+        and "'biological_repeat'" in text
+    )
+    # A condition stratum pooled: the reason offers explicit pooling.
+    plan = optimise(
+        objects, fovs, _pooled(group_cols=("biological_repeat", "technical_repeat")), **QUICK
+    )
+    assert "protocol" not in plan.results
+    assert "effort_strata=()" in plan.document.sections["next_time"]
+    # The technical repeat left out: the effort section names the column that exists.
+    plan = optimise(objects, fovs, _pooled(group_cols=("condition", "biological_repeat")), **QUICK)
+    effort = plan.document.sections["effort"]
+    assert "leave 'technical_repeat' out" in effort
+    # The generic need no longer tells the user to add a column that is there.
+    assert "technical_repeat column (a well, a dish) or declare" not in plan.summary()
+    # A declared hierarchy on those groups: the effort projection runs, the protocol says why.
+    hierarchy = SamplingHierarchy("image_file", "technical_repeat", "biological_repeat")
+    declared = _pooled(group_cols=("condition", "biological_repeat"), hierarchy=hierarchy)
+    plan = optimise(objects, fovs, declared, **QUICK)
+    assert "effort" in plan.results and "protocol" not in plan.results
+    assert "pool 'technical_repeat'" in plan.document.sections["next_time"]
+
+
+def test_i6_control_analyses_on_pooled_groups_are_not_assessed_with_the_reason():
+    objects, fovs = _well_acquisition()
+    pooled = report(objects, fovs, _pooled(group_cols=("condition",)))
+    assert "contrast" not in pooled.results and "object_rules" in pooled.results
+    assert "pool 'biological_repeat'" in pooled.document.sections["conditions"]
+    everything = report(objects, fovs, _pooled(group_cols=()))
+    assert "object_rules" not in everything.results and "unusual" not in everything.results
+    assert "object-rule check against the control is not assessed" in everything.summary()
+    assert "pool 'condition'" in everything.document.sections["profile"]
+
+
+def test_i12_presets_are_printed_and_the_docstrings_say_what_is_chosen():
+    objects, fovs = _well_acquisition()
+    plan = optimise(objects, fovs, _setup(stage_cols=None), **QUICK)
+    assert "90% of random acquisitions" in plan.summary() and "protocol_threshold" in plan.summary()
+    family = [Family("spread", SPREAD, "max_descriptor_spread", (0.05, 0.4))]
+    bench = benchmark(
+        objects,
+        fovs,
+        _setup(stage_cols=None),
+        reservoir_fraction=0.25,
+        families=family,
+        n_splits=1,
+        permuted_orders=1,
+        n_boot=10,
+    )
+    assert "risk levels 5% and 10% of stopping too early (alphas" in bench.summary()
+    assert "one criterion per tolerance" not in inspect.getdoc(optimise)
+    from morphocoverage import workflows
+
+    for doc in (workflows.__doc__, workflow_module.__doc__):
+        assert "no scientific choice" not in doc
+
+
+def _rare_target() -> RareTarget:
+    return RareTarget(
+        fov_incidence=0.2, detection_probability=0.95, min_fov_occurrences=1, phenotype="big"
+    )
+
+
+def test_i5_every_preset_is_printed_and_minimum_detection_reaches_the_report(monkeypatch):
+    seen = {}
+    assemble = document_module.microscopist_report
+
+    def spy(**kwargs):
+        seen.update(kwargs)
+        return assemble(**kwargs)
+
+    monkeypatch.setattr(document_module, "microscopist_report", spy)
+    objects, fovs = _acquisition(n_fovs=6, n_objects=4)
+    setup = _setup(stage_cols=None, minimum_detection=0.5)
+    first = report(objects, fovs, setup)
+    assert seen["minimum_detection"] == 0.5
+    with pytest.raises(ValueError, match="minimum_detection"):
+        _setup(minimum_detection=1.5)
+    positive = _setup(
+        novelty=default_novelty(FEATURE_COLS),
+        positive=PositiveControl({"condition": "drug"}, fovs_seen=5),
+        minimum_detection=0.8,
+    )
+    assert "fewer than 80% of its checks are recognized, a provisional threshold" in " ".join(
+        positive.declaration()
+    )
+    rules = [line for line in setup.declaration() if line.startswith("Stopping rules:")]
+    assert len(rules) == 1 and "(the default, rules=None" in rules[0]
+    chosen = _setup(rules=(FixedFOVStrategy(4),)).declaration()
+    assert any("fixed 4 fields [fixed_fov (target_fovs=4)] (rules)" in line for line in chosen)
+    assert "5 random orders" in first.summary()
+    # document() keeps the plan's settings sentence (the protocol_threshold preset) and the
+    # report's.
+    plan = optimise(objects, fovs, setup, **{**QUICK, "fov_counts": [2]}, protocol_threshold=0.8)
+    merged = document(first, plan).summary()
+    assert "(protocol_threshold, a provisional preset)" in merged
+    assert "'Did I image enough?' replays each rule" in merged
+    # benchmark: n_boot, min_fovs, the grids and the families' seed.
+    captured = {}
+    families = benchmarks_module.default_families
+
+    def quick_families(readout, n_resamples=200, random_state=0):
+        captured["random_state"] = random_state
+        return families(readout, 10, random_state)[:1]
+
+    monkeypatch.setattr(benchmarks_module, "default_families", quick_families)
+    text = benchmark(
+        objects,
+        fovs,
+        _setup(stage_cols=None, random_state=3),
+        reservoir_fraction=0.25,
+        n_splits=1,
+        permuted_orders=1,
+        n_boot=20,
+        min_fovs=2,
+    ).summary()
+    text = " ".join(text.split())  # the settings are wrapped
+    assert "from 20 bootstrap resamples (n_boot)" in text
+    assert "rules evaluated from 2 fields on (min_fovs)" in text
+    assert "JCB per object (averaging_cv 0.0025 to 0.4, 9 settings)" in text
+    assert "resampling rules seeded with random_state 3" in text
+
+
+def test_i7_the_report_clusters_the_declared_rare_label():
+    objects, fovs = _acquisition(n_fovs=6, n_objects=4)
+    objects = objects.assign(state=objects[READOUT] > objects[READOUT].quantile(0.9))
+    setup = _setup(control=None, rare=_rare_target(), rare_label="state", stage_cols=None)
+    result = report(objects, fovs, setup)
+    clustering = result.results["rare_clustering"]
+    assert clustering.settings["label_col"] == "state"
+    assert clustering.settings["states"] == [True]
+    profile = result.document.sections["profile"]
+    assert "Are the state" in profile and result.document.inputs["profile"] == "given"
+    assert "- State cells: clustered in a few fields" in result.document.short["profile"]
+    assert "fov_clustering" in set(result.document.profile["source"])
+
+
+def test_i8_document_refuses_parts_of_different_setups():
+    first, other = _setup(), _setup(tolerances=(0.1,))
+    with pytest.raises(ValueError, match="different Setups"):
+        document(Report({}, None, first, source="s"), Plan({}, None, other, source="s"))
+    # n_jobs changes no result, so parts differing only there merge (of one acquisition).
+    merged = document(
+        Report({}, None, first, source="s"), Plan({}, None, _setup(n_jobs=2), source="s")
+    )
+    assert merged.declaration == first.declaration()
+
+
+def test_i13_the_unusual_labels_are_named_for_the_reader():
+    objects, fovs = _acquisition(n_fovs=6, n_objects=4)
+    result = report(objects, fovs, _setup(stage_cols=None, observation_unit="cell"))
+    assert result.results["clustering"].settings["label_col"] == "unusual cells"
+    assert "morphocoverage_unusual" not in result.summary()
+    assert "Are the unusual cells spread over the fields?" in result.document.sections["profile"]
+
+
+def test_i18_the_unusual_values_are_relative_to_the_control_of_their_repeat():
+    # Plan v2 (owner, 2026-10-06): biological unusualness reads each value relative to the
+    # control of its own repeat, so a shift of one repeat is no longer read as unusual and
+    # the caution that the reference pools repeats has no object.
+    objects, fovs = _acquisition(n_fovs=6, n_objects=4)
+    result = report(objects, fovs, _setup(stage_cols=None))
+    profile = result.document.sections["profile"]
+    assert "pools the control cells of 2 repeats" not in profile
+    declaration = " ".join(result.setup.declaration())
+    assert "every value relative to the control of its repeat; exploratory" in declaration
+
+
+def test_seed3_seed18_b12_embedding_only_gives_the_real_reason():
+    objects, fovs, table = _one_per_field()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        alone = report(objects, fovs, Setup(observation_unit="image"), feature_tables={"T": table})
+        single = report(
+            objects,
+            fovs,
+            Setup(control={"condition": "ctrl"}, observation_unit="image"),
+            feature_tables={"T": table},
+        )
+    short = " ".join(alone.summary().split())
+    # Plan v2 (owner, 2026-10-06): requested contrasts only, not yet supported by the report.
+    assert "9. Do the conditions differ? — not applicable: no control is declared" in short
+    assert "2. Did I image enough? — not applicable: no target declared; declare the" in short
+    assert "fingerprint) or a labelled phenotype (rare with rare_label)" in short
+    assert "unusual images not assessed without a control" in short
+    # One image per field: the unusual images run (plan v2), only their clustering within
+    # fields is said not to apply; the Foundation needs explainable features.
+    short = " ".join(single.summary().split())
+    assert "3. What limits my sampling? — unusual images" in short
+    assert "cluster in a few fields is not applicable: each field holds one image" in short
+    assert "Foundation. Why count fields? — not applicable: no explainable features" in short
+    assert "unusual images on the 6 columns of T (each relative to its own control's mean" in short
+
+
+def test_b8_b9_embedding_only_values_and_space_are_said_as_they_are():
+    *_, result = _embedding_only(normalize="control_mean")
+    full = " ".join(result.summary(detail="full").split())
+    assert "Values: as given (not normalised)" not in full
+    assert "Values: the other feature tables centred per biological repeat" in full
+    # One table: its columns, not a weighted combined space.
+    # Centred tables, against each own control: never "as normalised" (audit 10, B7, C11).
+    space = "unusual cells on the 12 columns of DINO (centred per biological repeat, against "
+    assert space in full
+    assert "exploratory), no definition of new" in full
+    assert "weighted combined space" not in full
+
+
+def test_seed6_the_batch_line_says_unusual_observations_read_the_explainable_features():
+    objects, fovs, table = _cells()
+    objects["area"] = np.random.default_rng(1).normal(10, 1, len(objects))
+    setup = Setup(
+        readout="area",
+        features=("area", "mitotic"),
+        control={"condition": "ctrl"},
+        normalize="control_mean",
+        observation_unit="cell",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup, feature_tables={"DINO": table})
+    full = " ".join(result.summary(detail="full").split())
+    assert (
+        "the centred map, the populations and the separation of the conditions read them, "
+        "never a test" in full
+    )
+
+
+def test_b10_embedding_only_says_the_rows_across_experiments_are_not_tested():
+    objects, fovs, tables = _several()
+    setup = Setup(control=SEVERAL, master_control="cA", observation_unit="cell")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup, feature_tables={"DINO": tables["DINO"]})
+    full = " ".join(result.summary(detail="full").split())
+    assert "tested feature by feature only" not in full
+    assert "there are no explainable features to test them on" in full
+
+
+def test_b5_without_a_technical_repeat_the_fields_alone_are_resampled():
+    objects, fovs, _ = _several()
+    setup = Setup(readout="area", control={"condition": "cA"}, observation_unit="cell")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup)
+    full = " ".join(result.summary(detail="full").split())
+    assert "from resampling the fields as acquired" in full
+    assert "resampling the technical repeats" not in full and "within wells" not in full
+
+
+def test_optimise_does_not_judge_a_group_too_small_for_the_common_k_and_names_it():
+    objects, fovs = _fingerprint_data(True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        plan = optimise(
+            objects, fovs, _fingerprint_setup(), fov_counts=(2,), reservoir_fraction=0.35
+        )
+    curve = plan.results["reliability"].curve
+    pilot = curve[curve["condition"] == "pilot"]
+    assert len(pilot) and (pilot["defined_draws"] == 0).all() and pilot["preserved"].isna().all()
+    others = curve[curve["condition"] != "pilot"]
+    assert (others["defined_draws"] > 0).all()
+    assert (
+        "The covariance fingerprint, DINO covariance within 15%, is not assessable in "
+        "pilot · repeat R1: "
+        "fewer than "
+        "5 k, 150 cells." in plan.document.notes
+    )
+
+
+def test_item10_one_image_per_field_leaves_the_rare_clustering_out_of_question_3():
+    import sys
+    import warnings
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from _helpers_embedding import FEATURES, MITOTIC, _one_per_field
+
+    from morphocoverage.workflows import Setup, report
+
+    objects, fovs, table = _one_per_field()
+    objects["mitotic"] = (np.random.default_rng(2).random(len(objects)) < 0.3).astype(int)
+    common = {"control": {"condition": "ctrl"}, "observation_unit": "image"}
+    rare = {"rare": MITOTIC, "rare_label": "mitotic"}
+    explainable = Setup(readout="f1", features=FEATURES, **common, **rare)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for setup, tables in ((explainable, None), (Setup(**common, **rare), {"T": table})):
+            short = " ".join(report(objects, fovs, setup, feature_tables=tables).summary().split())
+            # Plan v2: question 3 runs on the images; only the clustering within fields of
+            # the labelled state (and of the unusual images) is said not to apply.
+            assert "or unusual images cluster in a few fields is not applicable" in short
+            assert "spread like random images" not in short
+
+
+def test_df1_optimise_runs_when_group_cols_leave_the_technical_repeat_out():
+    objects, fovs = _wells(*_acquisition(n_fovs=8, n_objects=6))
+    setup = _setup(group_cols=("condition", "biological_repeat"), stage_cols=None)
+    assert setup.resolved_hierarchy(objects, fovs) is None
+    plan = optimise(
+        objects,
+        fovs,
+        setup,
+        fov_counts=[2, 4],
+        reservoir_fraction=0.25,
+        n_splits=2,
+        draws=5,
+        permuted_orders=1,
+        dispersed_orders=0,
+    )
+    assert "protocol" not in plan.results and "effort" not in plan.results
+
+
+def test_df3_question_7_reads_the_raw_values_with_their_variance_between_repeats():
+    # Second audit, I-1: normalised values only for outcomes, contrast, ranking and
+    # plots; the effort projection keeps the variance between repeats of the raw values.
+    objects, fovs = _wells(*_acquisition(n_fovs=8, n_objects=6))
+    settings = {
+        "fov_counts": [2],
+        "reservoir_fraction": 0.25,
+        "n_splits": 1,
+        "draws": 3,
+        "permuted_orders": 1,
+        "dispersed_orders": 0,
+    }
+    plan = optimise(objects, fovs, _setup(normalize="control_mean", stage_cols=None), **settings)
+    raw = optimise(objects, fovs, _setup(stage_cols=None), **settings)
+    assert "Values are normalised" not in plan.results["effort"].summary()
+    pd.testing.assert_frame_equal(
+        plan.results["effort"].components, raw.results["effort"].components
+    )
+
+
+def test_optimise_measures_the_redundancy_distance_with_stage_coordinates():
+    rng = np.random.default_rng(0)
+    rows, fovs = [], []
+    for condition in ("siCTRL", "A"):
+        for repeat in ("2026_01_01", "2026_01_02"):
+            for field in range(8):
+                image = f"{condition}_{repeat}_{field}.tif"
+                key = {"condition": condition, "biological_repeat": repeat, "image_file": image}
+                stage = {"stage_x": float(field % 4) * 100, "stage_y": float(field // 4) * 100}
+                fovs.append({**key, **stage, "acquisition_order": field})
+                for label in range(6):
+                    area = float(rng.normal(100, 10))
+                    rows.append({**key, "label_id": label + 1, "area": area})
+    setup = Setup(
+        readout="area", control={"condition": "siCTRL"}, stage_cols=("stage_x", "stage_y")
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        plan = optimise(
+            pd.DataFrame(rows),
+            pd.DataFrame(fovs),
+            setup,
+            fov_counts=[2, 4],
+            reservoir_fraction=0.3,
+            n_splits=2,
+            draws=5,
+            permuted_orders=2,
+            dispersed_orders=1,
+            redundancy_bins=[0, 150, 400],
+        )
+    assert plan.results["redundancy"].to_csv(index=False) == (
+        "condition,biological_repeat,redundancy_distance,pairs_closer,smallest_lag,largest_lag,"
+        "fov_mean_variance,null_share,beyond_chance,permutations,share,unit,reason\n"
+        "siCTRL,2026_01_01,115.53300858899107,10,115.53300858899107,243.90689358613267,"
+        "26.906492434623566,1.0,False,199,0.9,µm,\n"
+        "siCTRL,2026_01_02,115.53300858899107,10,115.53300858899107,243.90689358613267,"
+        "6.191046651809311,1.0,False,199,0.9,µm,\n"
+        "A,2026_01_01,115.53300858899107,10,115.53300858899107,243.90689358613267,"
+        "27.05491116345264,1.0,False,199,0.9,µm,\n"
+        "A,2026_01_02,243.90689358613267,24,115.53300858899107,243.90689358613267,"
+        "19.445996867611395,0.425,False,199,0.9,µm,\n"
+    )
+
+
+@pytest.fixture(scope="module")
+def plan():
+    objects, fovs = _acquisition()
+    return optimise(
+        objects,
+        fovs,
+        _setup(),
+        fov_counts=[2, 4],
+        reservoir_fraction=0.25,
+        n_splits=2,
+        draws=5,
+        permuted_orders=2,
+        dispersed_orders=1,
+    )
+
+
+def test_plan_has_its_own_title_and_the_rule_check_at_a_glance(plan):
+    short = plan.summary()
+    assert short.startswith("Plan the next experiment — 768 cells in 64 fields")
+    status, answer = calibration_status(plan.results["calibration"])
+    glance = short.split("\n\n")[1]
+    assert f"{status.marker} {CALIBRATION_SHORT}" in glance
+    assert _flat(answer) in _flat(glance)
+    # The rule check is a section before the limits, and the settings close the plan.
+    section = short.index(f"{status.marker} {CALIBRATION_TITLE}")
+    assert section < short.index(f"\n{LIMITS_TITLE}\n") < short.index("Settings: a sample")
+    full = plan.summary(detail="full")
+    assert full.index(CALIBRATION_TITLE) < full.index(f"\n{LIMITS_TITLE}\n")
+    assert "90% of random acquisitions" in _flat(full) and "90% of random" in _flat(short)
+    with pytest.raises(ValueError, match="short"):
+        plan.summary(detail="everything")
+
+
+def test_calibration_status_follows_its_rule(plan):
+    calibration = plan.results["calibration"]
+    shares = calibration.table["not_preserved_at_stop"].dropna()
+    status = calibration_status(calibration)[0]
+    assert status is (Status.CAUTION if shares.max() > 0.1 else Status.OK)
+    safe = calibration.table.assign(not_preserved_at_stop=0.0)
+    ok = type(calibration)(calibration.runs, safe, calibration.group_cols, calibration.settings)
+    assert calibration_status(ok)[0] is Status.OK
+    empty = type(calibration)(calibration.runs, safe.iloc[0:0], calibration.group_cols, {})
+    assert calibration_status(empty)[0] is Status.NOT_ASSESSED
+    assert calibration_status(None)[0] is Status.NOT_ASSESSED

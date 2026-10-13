@@ -124,3 +124,9 @@ def test_fields_of_different_groups_are_never_paired():
     )
     table = fov_semivariogram(one, "x", "y", [0.0, 5.0, 20.0])
     assert table["n_pairs"].tolist() == [1] and table["gamma"].tolist() == [0.5]
+
+
+def test_e10_the_semivariogram_refuses_infinite_coordinates():
+    coords = np.array([[0.0, 0.0], [1.0, 0.0], [np.inf, 0.0]])
+    with pytest.raises(ValueError, match="must be finite"):
+        empirical_semivariogram(np.array([1.0, 2.0, 3.0]), coords, [0, 2, 4])

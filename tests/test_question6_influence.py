@@ -14,13 +14,14 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_sampling_unit import _three
 from ecm_design import CONTROLS, MASTER, PARENTS, tables
 
 from morphocoverage.retrospective import Summary, inspect_fovs
 from morphocoverage.retrospective.inspection import stands_out
 from morphocoverage.sampling_unit.contrast import condition_contrast
 from morphocoverage.workflows import Setup, report
-from morphocoverage.workflows._result_influence import with_result_influence
+from morphocoverage.workflows._result_influence import influence_on_result, with_result_influence
 
 PLANTED = "drug_r1_0"
 
@@ -135,3 +136,86 @@ def test_with_several_controls_the_influence_reads_the_raw_values_the_contrast_c
     mean, total = group["area"].mean(), len(group)
     expected = (mean * total - objects.loc[bright, "area"].sum()) / (total - bright.sum()) / mean
     assert found["value"].iloc[0] == pytest.approx(expected - 1)
+
+
+def test_a_field_is_influential_when_it_moves_the_result():
+    objects, fovs = _three({"drug": 12.0})
+    # One drug field three times as bright: it lifts its repeat's mean of cells.
+    bright = objects["position_id"] == "drug_r1_0"
+    objects.loc[bright, "x"] *= 3
+    setup = Setup(readout="x", control={"condition": "ctrl"}, observation_unit="cell")
+    contrast = condition_contrast(
+        objects, fovs, feature="x", control=setup.control, observation_unit="cell"
+    )
+    inspection = inspect_fovs(objects, fovs, feature_cols=["x"], **setup.common)
+    result = with_result_influence(inspection, objects, fovs, contrast, setup)
+    found = result.fovs[result.fovs["reason"] == "influence"]
+    assert list(found["position_id"]) == ["drug_r1_0"]
+    detail = found["detail"].iloc[0]
+    assert "removing it lowers drug's mean of x in this repeat" in detail
+    assert "its change against the control goes from ×" in detail
+    assert result.settings["influence_on"] == "result"
+
+
+def _influence(objects, fovs, control):
+    setup = Setup(readout="x", control=control, observation_unit="cell")
+    contrast = condition_contrast(
+        objects, fovs, feature="x", control=control, observation_unit="cell"
+    )
+    inspection = inspect_fovs(objects, fovs, feature_cols=["x"], **setup.common)
+    return with_result_influence(inspection, objects, fovs, contrast, setup)
+
+
+def test_a_centred_readout_is_not_judged_by_relative_change():
+    objects, fovs = _three()
+    objects["x"] = objects["x"] - 10.0  # centred near 0: a relative change explodes
+    result = _influence(objects, fovs, {"condition": "ctrl"})
+    assert result.fovs.empty or not (result.fovs["reason"] == "influence").any()
+    reasons = {entry["reason"] for entry in result.settings["skipped_summaries"]}
+    assert reasons == {"has negative values, so a relative change is undefined"}
+
+
+def test_a_mean_of_zero_is_recorded_as_not_checked():
+    objects, fovs = _three()
+    zero = (objects["condition"] == "drug") & (objects["biological_repeat"] == "r1")
+    objects.loc[zero, "x"] = 0.0
+    result = _influence(objects, fovs, {"condition": "ctrl"})
+    [entry] = result.settings["skipped_summaries"]
+    assert entry["reason"] == "is 0 here, so a relative change is undefined"
+    assert "drug" in entry["group"] and "r1" in entry["group"]
+
+
+def test_a_field_outside_a_two_column_control_is_not_a_control_field():
+    rows, fovs = [], []
+    rng = np.random.default_rng(4)
+    for repeat in ("r1", "r2", "r3"):
+        for condition, well in (("ctrl", "A"), ("ctrl", "B"), ("drug", "A")):
+            for field in range(4):
+                key = {
+                    "condition": condition,
+                    "biological_repeat": repeat,
+                    "technical_repeat": well,
+                    "position_id": f"{condition}{well}_{repeat}_{field}",
+                }
+                fovs.append(key)
+                shift = 30.0 if (condition, well) == ("ctrl", "B") else 10.0
+                rows += [{**key, "x": v} for v in rng.normal(shift, 1.0, 20)]
+    objects, fovs = pd.DataFrame(rows), pd.DataFrame(fovs)
+    result = _influence(objects, fovs, {"condition": "ctrl", "technical_repeat": "A"})
+    flagged = result.fovs[result.fovs["reason"] == "influence"] if len(result.fovs) else []
+    # Well B of ctrl is not the declared control: none of its fields is scored as one.
+    assert not len(flagged) or not flagged["position_id"].str.startswith("ctrlB").any()
+
+
+def test_without_repeats_the_influence_stays_on_the_summary():
+    objects, fovs = _three()
+    pooled = objects.drop(columns="biological_repeat")
+    contrast = condition_contrast(
+        pooled,
+        fovs.drop(columns="biological_repeat"),
+        feature="x",
+        control={"condition": "ctrl"},
+        observation_unit="cell",
+        repeat_col=None,
+    )
+    assert not influence_on_result(contrast)

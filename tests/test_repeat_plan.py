@@ -1,12 +1,17 @@
 """Planning the next experiment from a pilot of one, two or three biological repeats."""
 
+from __future__ import annotations
+
 import sys
+import warnings
 from itertools import pairwise
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_sampling_unit import _plain
 
 from morphocoverage.sampling_unit.contrast import condition_contrast
 from morphocoverage.sampling_unit.contrast_repeats import MIN_REPEATS
@@ -157,3 +162,271 @@ def test_a_repeat_without_an_interval_still_counts_and_is_not_read_as_one_repeat
     text = " ".join(" ".join(plan_parts(contrast)[0]).split())
     assert "imaged in one biological repeat" not in text
     assert "KD and KD2: fewer than two of the repeats have two fields a side" in text
+
+
+def test_power_planning_marks_a_zero_variance_as_degenerate_not_zero_power():
+    assert np.isnan(paired_power(0.5, 0.0, 5, 0.05))
+    assert np.isnan(repeats_needed(0.5, 0.0, 0.05))
+    assert paired_power(1.0, 1.0, 1, 0.05) == 0.0  # no test can run on one repeat
+    assert repeats_needed(0.5, 1.0, 0.05) >= 3  # an ordinary case is unchanged
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda: repeats_needed(0.5, 1.0, 5),
+        lambda: repeats_needed(0.5, 1.0, 0.05, power=1.5),
+        lambda: repeats_needed(np.nan, 1.0, 0.05),
+        lambda: repeats_needed(0.5, -1.0, 0.05),
+        lambda: repeats_needed("0.5", 1.0, 0.05),
+        lambda: repeats_needed(True, 1.0, 0.05),
+        lambda: paired_power(0.5, np.inf, 5, 0.05),
+        lambda: paired_power(0.5, 1.0, 2.5, 0.05),
+        lambda: paired_power(0.5, 1.0, True, 0.05),
+    ],
+)
+def test_malformed_planning_parameters_are_refused(call):
+    with pytest.raises(ValueError):
+        call()
+
+
+def _repeat_plan_edges():
+    from morphocoverage.sampling_unit.repeat_plan import repeat_plan
+
+    def row(condition, repeat, d, low, high, mean=2.0, se=0.1):
+        return {
+            "condition": condition,
+            "control_condition": "c",
+            "biological_repeat": repeat,
+            "d_objects": d,
+            "d_low": low,
+            "d_high": high,
+            "fields": 6,
+            "control_fields": 6,
+            "mean": mean,
+            "control_mean": 1.0,
+            "log_ratio_se": se,
+            "difference_se": se,
+            "between_share": 0.2,
+        }
+
+    table = pd.DataFrame(
+        [
+            row("A", "r1", 0.5, np.nan, np.nan),  # no interval anywhere
+            row("A", "r2", 0.6, np.nan, np.nan),
+            row("B", "r1", 0.5, 0.1, 0.9),  # one interval of two repeats
+            row("B", "r2", 0.7, np.nan, np.nan),
+            row("C", "r1", 0.5, 0.1, 0.9, mean=2.0, se=0.0),  # identical ratios, no error
+            row("C", "r2", 0.5, 0.1, 0.9, mean=2.0, se=0.0),
+            row("C", "r3", 0.5, 0.1, 0.9, mean=2.0, se=0.0),
+            row("D", "r1", 0.5, 0.1, 0.9, se=np.nan),  # a missing error
+            row("D", "r2", np.inf, 0.2, 1.0, se=np.nan),
+        ]
+    )
+    empty = repeat_plan(table.drop(columns="d_low"))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        plan = repeat_plan(table)
+    return (
+        list(empty.columns),
+        len(empty),
+        _plain(plan),
+        [(w.category.__name__, str(w.message)) for w in caught],
+    )
+
+
+def _plan_parts_unestimated():
+    from morphocoverage.sampling_unit.repeat_plan_text import plan_parts
+
+    plan = pd.DataFrame(
+        [
+            {
+                "condition": "A",
+                "control_condition": "c",
+                "repeats": 2,
+                "d_mean": 0.5,
+                "planned_on": "d",
+                "change": np.nan,
+                "repeats_needed": np.nan,
+                "repeats_needed_twice_fields": np.nan,
+                "fields_per_repeat": 4.0,
+                "status": "1 of 2 repeats with an interval of d",
+            },
+            {
+                "condition": "B",
+                "control_condition": "c",
+                "repeats": 1,
+                "d_mean": 0.4,
+                "planned_on": "d",
+                "change": np.nan,
+                "repeats_needed": np.nan,
+                "repeats_needed_twice_fields": np.nan,
+                "fields_per_repeat": np.inf,
+                "status": "one biological repeat: the variation between repeats is unknown",
+            },
+        ]
+    )
+    contrast = SimpleNamespace(
+        plan=plan, table=pd.DataFrame(), settings={"feature": "area", "unit": None}
+    )
+    return plan_parts(contrast, full=True)
+
+
+EXPECTED_REPEAT_PLAN_EDGES = (
+    [
+        "condition",
+        "control_condition",
+        "repeats",
+        "d_mean",
+        "between_sd",
+        "within_se",
+        "planned_on",
+        "change",
+        "fields_per_repeat",
+        "limited_by",
+        "repeats_needed",
+        "repeats_needed_twice_fields",
+        "alpha_planned",
+        "experiment",
+        "status",
+    ],
+    0,
+    [
+        {
+            "condition": "A",
+            "control_condition": "c",
+            "repeats": 2,
+            "d_mean": 0.55,
+            "between_sd": None,
+            "within_se": None,
+            "planned_on": "d",
+            "change": None,
+            "fields_per_repeat": None,
+            "limited_by": "",
+            "repeats_needed": None,
+            "repeats_needed_twice_fields": None,
+            "alpha_planned": 0.0125,
+            "experiment": 0,
+            "status": (
+                "0 of 2 repeats with an interval of d (two fields a side): the "
+                "variation between repeats is not estimated"
+            ),
+        },
+        {
+            "condition": "B",
+            "control_condition": "c",
+            "repeats": 2,
+            "d_mean": 0.6,
+            "between_sd": None,
+            "within_se": 0.2040853827698616,
+            "planned_on": "log ratio",
+            "change": 2.0,
+            "fields_per_repeat": 4.0,
+            "limited_by": "",
+            "repeats_needed": None,
+            "repeats_needed_twice_fields": None,
+            "alpha_planned": 0.0125,
+            "experiment": 0,
+            "status": (
+                "1 of 2 repeats with an interval of d (two fields a side): the "
+                "variation between repeats is not estimated"
+            ),
+        },
+        {
+            "condition": "C",
+            "control_condition": "c",
+            "repeats": 3,
+            "d_mean": 0.5,
+            "between_sd": 0.0,
+            "within_se": 0.2040853827698616,
+            "planned_on": "log ratio",
+            "change": 2.0,
+            "fields_per_repeat": 4.0,
+            "limited_by": "within repeats",
+            "repeats_needed": None,
+            "repeats_needed_twice_fields": None,
+            "alpha_planned": 0.0125,
+            "experiment": 0,
+            "status": (
+                "the estimated variance of the repeat effects is zero: the plan is not "
+                "defined there, which is not evidence of no power"
+            ),
+        },
+        {
+            "condition": "D",
+            "control_condition": "c",
+            "repeats": 2,
+            "d_mean": np.inf,
+            "between_sd": 0.0,
+            "within_se": 0.2040853827698616,
+            "planned_on": "d",
+            "change": None,
+            "fields_per_repeat": 4.0,
+            "limited_by": "within repeats",
+            "repeats_needed": None,
+            "repeats_needed_twice_fields": None,
+            "alpha_planned": 0.0125,
+            "experiment": 0,
+            "status": ("a value the plan needs is missing, so the repeats needed are not planned"),
+        },
+    ],
+    [
+        ("RuntimeWarning", "invalid value encountered in subtract"),
+        ("RuntimeWarning", "invalid value encountered in subtract"),
+    ],
+)
+
+
+EXPECTED_PLAN_PARTS_UNESTIMATED = (
+    [
+        (
+            "  Planning the next experiment on area (for a new experiment, if the "
+            "difference and the variation\n    seen here recur; not what the "
+            "current result needs): the biological repeats a paired t-test on\n    "
+            "the repeat means needs for 80% power, corrected over the conditions "
+            "of its sub-experiment (a\n    follow-up on area alone), with the "
+            "fields per repeat as now and with twice as many; then the\n    fields "
+            "a side each repeat needs to show the difference on its own:"
+        ),
+        (
+            "    condition  change across repeats  mean d per repeat (cells)  "
+            "repeats needed  with twice the fields  fields a side per repeat\n    "
+            "A vs c     –                      +0.50                      –        "
+            "       –                      about 4\n    B vs c     –               "
+            "       +0.40                      –               –                   "
+            "   more than 4 times the fields"
+        ),
+        (
+            "  A: fewer than two of the repeats have two fields a side or more, so "
+            "the variation between repeats\n    is not estimated."
+        ),
+        (
+            "  B was imaged in one biological repeat: a second repeat shows how "
+            "much the difference varies\n    between repeats."
+        ),
+    ],
+    [
+        (
+            "Repeats needed: for a paired t-test at p ≤ 0.05/m, m the conditions "
+            "of the sub-experiment (what Benjamini-Hochberg asks at most), on the "
+            "values that test compares: each repeat's change (its mean over its "
+            "control's, a fold change; the difference of the means for a feature "
+            "with a value that is not positive; the table gives their geometric "
+            "mean, as the verdict does), its spread between the repeats and its "
+            "sampling error within one. All projected from the repeats here, so "
+            "the plan is a guide."
+        ),
+        (
+            "The fields a side per repeat are the most any repeat needs, projected "
+            "from its interval of d (narrowing as 1/sqrt of the number)."
+        ),
+    ],
+)
+
+
+def test_repeat_plan_edges():
+    assert _repeat_plan_edges() == EXPECTED_REPEAT_PLAN_EDGES
+
+
+def test_plan_parts_unestimated():
+    assert _plan_parts_unestimated() == EXPECTED_PLAN_PARTS_UNESTIMATED

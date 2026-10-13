@@ -4,7 +4,7 @@ below 2), and the centred map view (audit 8: no repeat left out for a small cont
 
 import numpy as np
 import pandas as pd
-from test_feature_tables_1006 import _cells, _table, _without
+from _helpers_feature_tables import _cells, _table, _wide, _without
 
 from morphocoverage.feature_tables import attach_feature_tables
 from morphocoverage.multivariate_outcomes import ComponentsError, CovarianceError
@@ -19,19 +19,6 @@ from morphocoverage.workflows._enough_targets import (
 from morphocoverage.workflows._feature_space import centred_tables, centring_line
 from morphocoverage.workflows._fingerprint_space import fingerprint_space
 from morphocoverage.workflows._html_map_text import centred_note
-
-
-def _wide(fields: int, cells: int, columns: int = 60, seed: int = 0):
-    """Explainable area and shape, and a wide DINO table of correlated columns."""
-    objects, fovs, rng = _cells(fields=fields, cells=cells, conditions=("ctrl", "a"), seed=seed)
-    objects["area"] = rng.normal(size=len(objects))
-    objects["shape"] = rng.normal(size=len(objects))
-    latent = rng.normal(size=(len(objects), 3))
-    values = latent @ rng.normal(size=(3, columns)) + 0.3 * rng.normal(size=(len(objects), columns))
-    table = _table(objects, values, "d")
-    merged = attach_feature_tables(objects, fovs, {"DINO": table}).objects
-    names = tuple(f"d{j}" for j in range(columns))
-    return merged, fovs, names
 
 
 def _setup(names: tuple[str, ...], explainable=("area", "shape")) -> Setup:

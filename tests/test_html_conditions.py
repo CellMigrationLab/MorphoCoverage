@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 import pytest
-from test_rare_fingerprint import _screen, _setup
+from _helpers_rare_fingerprint import _screen, _setup
 
 from morphocoverage._wording import change, p_value
 from morphocoverage.sampling_unit.legend_text import _wells, n_sentence

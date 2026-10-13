@@ -1,16 +1,29 @@
 """Tests for the multivariate outcome metrics and the distance primitives they use."""
 
 import json
+import math
+import warnings
 
 import numpy as np
 import pandas as pd
 import pytest
-from scipy import stats
+from _helpers_feature_tables import _wide
+from _helpers_strategies import _estimate_input, _fovs, _validated_values
+from scipy import linalg, stats
 from scipy.spatial import distance
 
-from morphocoverage import distances, validate_input_tables
+from morphocoverage import (
+    distances,
+    multivariate_outcomes,
+    outcomes,
+    transforms,
+    validate_input_tables,
+)
+from morphocoverage.distances import frechet_distance
+from morphocoverage.embedding import robust_components
 from morphocoverage.multivariate_outcomes import (
     CentroidError,
+    ComponentsError,
     CovarianceError,
     EnergyError,
     FrechetError,
@@ -18,6 +31,9 @@ from morphocoverage.multivariate_outcomes import (
     QuantileError,
     SlicedWassersteinError,
 )
+from morphocoverage.retrospective.criteria import OutcomeCriterion
+from morphocoverage.workflows import Setup, optimise
+from morphocoverage.workflows._fingerprint_space import fingerprint_space
 
 FEATURES = ("a", "b")
 
@@ -307,3 +323,142 @@ def test_energy_error_can_be_negative():
     reference = _data([[0.4, 0.0], [0.6, 0.0]], cells_per_fov=1)
     value = EnergyError(FEATURES, False, None, 0).evaluate(reference, stop)
     assert value == pytest.approx(-0.2)
+
+
+def test_d1_frechet_distance_scales_with_the_units():
+    rng = np.random.default_rng(1)
+    x, y = rng.normal(0.0, 1.0, (200, 2)), rng.normal(0.5, 2.0, (200, 2))
+    reference = frechet_distance(x, y)
+    for unit in (1e-3, 1e-7, 1e-12):
+        assert frechet_distance(x * unit, y * unit) == pytest.approx(reference * unit, rel=1e-6)
+    assert frechet_distance(x, x) == 0.0
+    assert frechet_distance(x * 1e-9, x * 1e-9) == 0.0
+    fields = [rng.normal(400e-12, 50e-12, (30, 1)) for _ in range(5)] + [
+        rng.normal(700e-12, 50e-12, (30, 1)) for _ in range(5)
+    ]
+    full, stop = (_estimate_input(f, ("area_m2",)) for f in (fields, fields[:5]))
+    assert FrechetError(("area_m2",), False).evaluate(full, stop) > 1e-10
+
+
+def test_d_4_frechet_distance_does_not_depend_on_the_origin():
+    rng = np.random.default_rng(0)
+    x, y = rng.normal(size=(40, 3)), rng.normal(0.3, 1.2, size=(30, 3))
+    expected = distances.frechet_distance(x, y)
+    for offset in (1e3, 1e6, 1e7):
+        assert distances.frechet_distance(x + offset, y + offset) == pytest.approx(
+            expected, rel=1e-6
+        )
+    assert distances.frechet_distance(x, x) == 0.0
+    assert distances.frechet_distance(x + 1e6, x + 1e6) == 0.0
+
+
+def test_d_5_covariance_error_of_a_constant_reference_with_rounding_noise_is_undefined():
+    constant = np.column_stack([np.full(5, 0.1), np.full(5, 0.7)])
+    data = _validated_values([constant, constant], features=("f0", "f1"))
+    stop = _fovs(data, [0])
+    assert np.linalg.norm(np.cov(data.feature_matrix(), rowvar=False)) > 0  # rounding noise
+    assert CovarianceError(("f0", "f1"), False).evaluate(data, stop) is None
+    assert CovarianceError(("f0", "f1"), True).evaluate(data, stop) is None
+
+
+def test_d_10_the_energy_null_figures_state_the_number_of_features():
+    doc = multivariate_outcomes.__doc__
+    assert "of one feature" in doc and "two" in doc and "independent features" in doc
+
+
+def test_d_11_frechet_on_singular_covariances_is_accurate_and_silent():
+    rng = np.random.default_rng(5)
+    for _ in range(50):
+        d = int(rng.integers(2, 12))
+        x, y = rng.normal(size=(int(rng.integers(2, d + 2)), d)), rng.normal(size=(30, d))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            got = distances.frechet_distance(x, y)
+        cov_x, cov_y = np.cov(x, rowvar=False), np.cov(y, rowvar=False)
+        values, vectors = np.linalg.eigh(cov_x)
+        root = (vectors * np.sqrt(np.clip(values, 0, None))) @ vectors.T
+        product = root @ cov_y @ root
+        eigenvalues = np.linalg.eigvalsh((product + product.T) / 2)
+        cross = np.sqrt(np.clip(eigenvalues, 0, None)).sum()
+        squared = np.sum((x.mean(0) - y.mean(0)) ** 2) + np.trace(cov_x + cov_y) - 2 * cross
+        assert got == pytest.approx(math.sqrt(squared), rel=1e-9)
+    # A non-singular case agrees with scipy's general matrix square root.
+    x, y = rng.normal(size=(50, 3)), rng.normal(1, 2, size=(60, 3))
+    cov_x, cov_y = np.cov(x, rowvar=False), np.cov(y, rowvar=False)
+    root = linalg.sqrtm(cov_x)
+    trace = np.trace(cov_x + cov_y - 2 * np.real(linalg.sqrtm(root @ cov_y @ root)))
+    expected = math.sqrt(np.sum((x.mean(0) - y.mean(0)) ** 2) + trace)
+    assert distances.frechet_distance(x, y) == pytest.approx(expected, rel=1e-9)
+
+
+def test_j_16_modules_list_their_public_names():
+    for module in (distances, transforms, outcomes, multivariate_outcomes):
+        names = module.__all__
+        assert names and all(not name.startswith("_") for name in names)
+        assert all(hasattr(module, name) for name in names)
+
+
+def test_d1_standardised_outcomes_are_undefined_with_a_constant_reference_feature():
+    from morphocoverage.multivariate_outcomes import CentroidError
+    from morphocoverage.schema import validate_input_tables
+
+    objects = pd.DataFrame(
+        {"image_file": ["f1", "f1", "f2", "f2"], "a": [1.0, 2.0, 3.0, 4.0], "b": [0.1] * 4}
+    )
+    data = validate_input_tables(
+        objects, fovs=objects[["image_file"]].drop_duplicates(), feature_cols=["a", "b"]
+    )
+    assert CentroidError(("a", "b"), True).evaluate(data, data) is None
+
+
+def test_no_held_back_field_enters_the_fit_of_the_fingerprints_components(monkeypatch):
+    merged, fovs, names = _wide(fields=8, cells=5)
+    criterion = OutcomeCriterion(CovarianceError(names, True), 0.5, "lower_is_better", "DINO")
+    setup = Setup(
+        readout="area",
+        features=("area", "shape"),
+        fingerprint=(criterion,),
+        feature_tables={"DINO": names},
+        observation_unit="cell",
+    )
+    pooled = fingerprint_space(merged, fovs, setup).setup.fingerprint[0].metric
+    assert isinstance(pooled, ComponentsError)
+    calls = []
+    evaluate = ComponentsError.evaluate
+
+    def spy(self, full, stopped):
+        calls.append((self, full.objects.copy()))
+        return evaluate(self, full, stopped)
+
+    monkeypatch.setattr(ComponentsError, "evaluate", spy)
+    optimise(
+        merged,
+        fovs,
+        setup,
+        fov_counts=(2, 4),
+        reservoir_fraction=0.35,
+        n_splits=2,
+        draws=2,
+        permuted_orders=1,
+        dispersed_orders=0,
+    )
+    assert calls
+    k = len(pooled.loadings)
+    for metric, reference in calls:
+        # The held-back fields that judge the stop, and the group they belong to.
+        held = set(reference["image_file"])
+        same = merged[["condition", "biological_repeat"]].eq(
+            reference[["condition", "biological_repeat"]].iloc[0]
+        )
+        group = merged[same.all(axis=1)]
+        training = group[~group["image_file"].isin(held)]
+        assert held and not held & set(training["image_file"])
+        centre, _scale, loadings = robust_components(training[list(names)].to_numpy(float), k)
+        assert np.allclose(metric.loadings, loadings) and np.allclose(metric.centre, centre)
+        assert not np.allclose(metric.loadings, pooled.loadings)
+
+
+def test_a_metric_without_fitted_state_is_its_own_trained_copy():
+    metric = CovarianceError(("area", "shape"), True)
+    criterion = OutcomeCriterion(metric, 0.5, "lower_is_better")
+    assert criterion.trained(None) is criterion  # type: ignore[arg-type]

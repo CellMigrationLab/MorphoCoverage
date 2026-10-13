@@ -10,6 +10,9 @@ setting. A thread count set in the environment is kept.
 One thread here also makes the serial reference of ``tests/test_parallel.py``
 bit for bit comparable with the single-threaded workers; with a multithreaded
 BLAS the two can differ in the last digit (see ``morphocoverage._parallel``).
+
+It also registers the helper modules whose module fixtures the test modules of
+several package modules share (``pytest_plugins``).
 """
 
 import os
@@ -22,3 +25,5 @@ for _name in (
     "BLIS_NUM_THREADS",
 ):
     os.environ.setdefault(_name, "1")
+
+pytest_plugins = ["_helpers_retrospective", "_helpers_sampling_unit"]
