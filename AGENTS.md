@@ -507,6 +507,7 @@ tools/                     # the code audits: ast only, import nothing from the 
     duplicates.py          # identical function bodies (the tier the guard tests fail on) and structural clones, repeated module constants (report-only): docs/common/function_duplicates.json
     jscpd_review.py        # on demand, never in CI: jscpd 5.4.1 token, AST and semantic passes propose duplicate pairs for review
     layers.py              # the import layers and their rule (docs/common/architecture.md#import-layers), runtime cycles and deferred back-edges, from ast alone
+    naming.py              # the naming rule (below), read from the tracked paths alone; part of --check-against
     baselines/             # the ratchets: lines, complexity, arguments, no_docstring, fallbacks (unmarked); accepted.json (each admitted entry with its
                            # reason and date), renames.json (moves with edits); duplicates.json (accepted identical groups with a reason),
                            # duplicates_reviewed.json (reviewed jscpd pairs and verdicts), layers.json (recorded edges with a reason)
@@ -537,6 +538,8 @@ docs/                      # README.md: start here, the three workflows and a re
     audit/, proposals/, preliminary_findings.md  # records, kept as written
 
 `tests/test_contracts.py` checks that every module under `src/morphocoverage/` is listed above, as it checks section 9's scenarios. A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.
+
+**Naming rule** (owner, 2026-10-13, roadmap ENG-4): a file or directory is named for what it holds, never for the audit, review, pull request, issue, plan phase, date or pass that made it. A test goes in the test file of the module it tests, and its docstring says what it guards against, not where the finding came from; a record of an audit goes in `docs/audit/README.md`, its findings in a GitHub issue. `tools/naming.py` checks every tracked path, and `python tools/audit.py --check-against <base>` fails on a new one. The names that carry the words by design are listed in it: `tools/audit.py`, `tools/jscpd_review.py`, `tools/baselines/duplicates_reviewed.json` and the directory `docs/audit/`.
 
 ## 8. Development sequence
 
