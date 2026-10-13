@@ -172,8 +172,9 @@ the sum of its columns' squared loadings. The robust standardisation divides eac
 its MAD as an SD, or by its SD when the MAD is under a quarter of the SD (a column with just
 under half its values at one value, such as an embedding's ReLU outputs, would otherwise
 carry thousands of times the variance of the others); columns with an ordinary MAD are
-scaled as before. Missing values in a table are said at loading and, in each analysis that
-reads the table, the cells left out are counted (its maps, its populations, the separation
+scaled as before. A column constant up to rounding, one value with single-precision noise,
+is left out, as novelty refuses it (owner, 2026-10-12). Missing values in a table are said
+at loading and, in each analysis that reads the table, the cells left out are counted (its maps, its populations, the separation
 score, its fingerprint).
 
 An other table is never divided by a control (an embedding has no ratio scale), so its map is

@@ -4,8 +4,8 @@ With many features, a plot per feature cannot show whether the conditions separa
 combination of them. ``embed`` places every observation in two dimensions, two ways:
 
 - **PCA** of the robustly standardised features (each centred on its median and divided
-  by its MAD as an SD, or by its SD where the MAD is under ``MAD_FLOOR`` of the SD; a
-  feature with one value everywhere is left out), with the share of the variance each axis
+  by its MAD as an SD, or by its SD where the MAD is under a quarter of the SD; a feature
+  constant up to rounding is left out), with the share of the variance each axis
   holds and the ``loadings``: how much each feature weighs on each axis, the ``top`` features (the
   discovery's best-ranked ones) marked, so the axes can be read in features;
 - **UMAP** of the same standardised features (``umap-learn``: ``n_neighbors``,
@@ -20,10 +20,12 @@ fixed weight per feature, the others 1) multiply the standardised features as gi
 
 The floor on the MAD (owner, 2026-10-06): a column with just under half its values at one
 value, as an embedding's ReLU outputs, has a MAD far below its spread, and divided by it
-alone would carry thousands of times the variance of the others. Below ``MAD_FLOOR`` (a
-quarter) of the SD, the SD scales it, so no column carries more than 16 times the variance
-of another's middle; a column whose MAD is at least a quarter of its SD, as in normal,
-skewed or moderately heavy-tailed data, is scaled by its MAD as before.
+alone would carry thousands of times the variance of the others. Below a quarter of the SD
+(``statistics.robust_sd``'s geometry rule), the SD scales it, so no column carries more than
+16 times the variance of another's middle; a column whose MAD is at least a quarter of its
+SD, as in normal, skewed or moderately heavy-tailed data, is scaled by its MAD as before. A
+column constant up to rounding (single-precision noise around one value) is left out, as
+the novelty transform refuses it (audit 12).
 
 Both are descriptions, not tests: a separation in either is a pattern to read with the
 discovery's tests, and its absence does not show the conditions alike. Observations with a
@@ -47,7 +49,7 @@ from ._frozen import owned
 from .feature_tables import mfa_weights, table_shares
 from .metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from .schema import ValidatedInput, fov_positions, validate_input_tables
-from .statistics import MAD_TO_SD_ROUNDED
+from .statistics import MAD_TO_SD_ROUNDED, robust_sd
 
 MIN_FEATURES = 3
 MAX_POINTS = 5000
@@ -55,8 +57,6 @@ N_NEIGHBORS = 15
 MIN_DIST = 0.1
 # The MorphoBricks column naming an object within its image (CellPatcher's patches).
 LABEL_COLUMN = "label_id"
-# Below this share of a column's SD, its MAD is no scale: the SD scales it (see the module).
-MAD_FLOOR = 0.25
 
 
 @owned("points", "loadings", "settings")
@@ -76,14 +76,12 @@ class Embedding:
 
 
 def robust_scale(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Each column's median and robust scale: its MAD as an SD, or its SD where the MAD is
-    under ``MAD_FLOOR`` of it (see the module); 0 for a column with one value. The one
-    robust standardisation of the maps, the fingerprint of a wide table and the
-    whole-table test (owner, 2026-10-06)."""
-    centre = np.median(matrix, axis=0)
-    scale = MAD_TO_SD_ROUNDED * np.median(np.abs(matrix - centre), axis=0)
-    sd = matrix.std(axis=0, ddof=1) if len(matrix) > 1 else np.zeros(matrix.shape[1])
-    return centre, np.where(scale >= MAD_FLOOR * sd, scale, sd)
+    """Each column's median and robust scale, ``statistics.robust_sd``'s geometry rule: its
+    MAD as an SD, or its SD where the MAD is under a quarter of it (see the module); 0 for a
+    column constant up to rounding. The one robust standardisation of the maps, the
+    fingerprint of a wide table and the whole-table test (owner, 2026-10-06)."""
+    scale = robust_sd(matrix, "geometry", MAD_TO_SD_ROUNDED)
+    return np.median(matrix, axis=0), scale
 
 
 def robust_components(matrix: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -110,8 +108,7 @@ def robust_components(matrix: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarra
 
 
 def _standardised(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Median and MAD-scaled columns (the SD where the MAD is under ``MAD_FLOOR`` of it), and
-    which columns vary."""
+    """Median and MAD-scaled columns (``robust_scale``), and which columns vary."""
     centre, scale = robust_scale(matrix)
     varies = scale > 0
     return (matrix[:, varies] - centre[varies]) / scale[varies], varies

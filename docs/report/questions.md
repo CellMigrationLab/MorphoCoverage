@@ -168,8 +168,8 @@ exploratory)", to look at and never among the fields to remove (owner, 2026-10-0
 unless its line was deleted). A field sways the result when leaving it out moves its
 condition's mean in its repeat, every cell weighing one as in the paired t-test, by
 10% or more, and that change stands out from the other fields' of its group: more than
-3 robust SDs (1.4826 times the median absolute deviation) from the group's median
-leave-one-out change. With 3-5 fields a group, leaving almost any field out moves the
+3 robust SDs (1.4826 times the median absolute deviation, their SD where that is 0, most
+changes tied; owner, 2026-10-12) from the group's median leave-one-out change. With 3-5 fields a group, leaving almost any field out moves the
 mean by 10%, so the 10% alone listed noise; a group of fewer than 4 fields is not judged,
 and the groups are named once (owner, 2026-10-05). The reason gives the condition's
 change against the control and the paired t-test's p with the field and without it (a
