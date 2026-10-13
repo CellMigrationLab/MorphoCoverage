@@ -536,7 +536,7 @@ EXPECTED_BALANCE_HELD_OUT = [
     ),
     (
         "Balance: for every condition, the control as provided is pooled from "
-        "biological repeats the condition was not imaged in (1-4 of them); no "
+        "biological repeats the condition was not imaged in (1 to 4 of them); no "
         "balanced test could be drawn, so the test is given as provided only "
         "where the control comes from the condition's own biological repeats. "
         "The control means differ up to 2.5x between biological repeats, so a "

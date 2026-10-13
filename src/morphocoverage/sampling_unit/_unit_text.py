@@ -44,9 +44,10 @@ def _one(value: float) -> str:
 
 
 def _ones(values: Sequence[float]) -> str:
-    """The lowest and highest ratio with one decimal: ``1.0-3.4``, or ``1.2`` when alike."""
+    """The lowest and highest ratio with one decimal: ``1.0 to 3.4``, or ``1.2`` when
+    alike."""
     low, high = _one(min(values)), _one(max(values))
-    return low if low == high else f"{low}-{high}"
+    return low if low == high else f"{low} to {high}"
 
 
 def _held(k: int, n: int) -> str:

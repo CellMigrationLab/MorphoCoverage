@@ -159,7 +159,7 @@ def answer_lines(features: FeatureEnough, fields: str, repeats: int) -> list[str
         of = (
             str(comparisons.iloc[0])
             if comparisons.nunique() == 1
-            else f"{comparisons.min()}-{comparisons.max()}"
+            else f"{comparisons.min()} to {comparisons.max()}"
         )
         low, high = int(rows["shown"].min()), int(rows["shown"].max())
         if not high:
@@ -187,7 +187,7 @@ def _needs(contrast: Any, fields: str, repeats: int = 0, project: bool = True) -
         verb = "needs" if n == 1 else "need"
         if len(counts) > 3:
             # Many conditions: a range, not a run-on list of counts.
-            items = [f"{len(needing)} need about {first}-{counts[-1][0]}"]
+            items = [f"{len(needing)} need about {first} to {counts[-1][0]}"]
         else:
             items = [f"{n} {verb} about {first}", *(f"{k} about {v}" for v, k in more)]
         their = "its" if len(needing) == 1 else "their"

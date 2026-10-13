@@ -83,7 +83,7 @@ def test_each_part_of_a_split_figure_describes_its_own_wells():
     assert "whole wells with their fields (2 per repeat)\n" in parts[0].caption
     assert "one well" not in parts[0].caption and parts[0].axes[0].get_legend() is not None
     assert "resampling its fields (one well per repeat)" in parts[1].caption
-    assert "2-3 wells" not in parts[1].caption and parts[1].axes[0].get_legend() is None
+    assert "2 to 3 wells" not in parts[1].caption and parts[1].axes[0].get_legend() is None
 
 
 def test_many_conditions_split_and_many_repeats_are_pooled():

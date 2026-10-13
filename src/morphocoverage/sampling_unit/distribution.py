@@ -426,9 +426,9 @@ def distribution_contrast(
 
 
 def spread_words(row: Mapping[str, Any]) -> str:
-    """``SD 0.73x the control (0.70-0.78)``: the spread on the ratio scale."""
+    """``SD 0.73x the control (0.70 to 0.78)``: the spread on the ratio scale."""
     mean, low, high = (float(np.exp(row[k])) for k in ("mean", "low", "high"))
-    return f"SD {mean:.2f}x the control ({low:.2f}-{high:.2f})"
+    return f"SD {mean:.2f}x the control ({low:.2f} to {high:.2f})"
 
 
 def shift_words(row: Mapping[str, Any]) -> str:
@@ -439,13 +439,13 @@ def shift_words(row: Mapping[str, Any]) -> str:
 
 def tests_words(result: DistributionContrast) -> str:
     """The correction family counted: ``40 tests``, ``40 tests in each of 2 sub-experiments``,
-    ``16-48 tests in each of 2 sub-experiments`` when their sizes differ."""
+    ``16 to 48 tests in each of 2 sub-experiments`` when their sizes differ."""
     tests = result.tests
     sizes = tests.loc[tests["p"].notna()].groupby("experiment").size() if len(tests) else []
     if len(sizes) <= 1:
         return count(result.n_tests, "test")
     low, high = int(min(sizes)), int(max(sizes))
-    per = count(low, "test") if low == high else f"{low}-{high} tests"
+    per = count(low, "test") if low == high else f"{low} to {high} tests"
     return f"{per} in each of {len(sizes)} {family_noun(result.settings, plural=True)}"
 
 

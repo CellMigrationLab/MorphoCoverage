@@ -209,7 +209,7 @@ def test_the_fields_are_those_of_the_fov_table_empty_ones_included():
     scan = scan_design(objects, fovs)
     assert scan.design["fields"] == len(fovs) == 55
     assert scan.design["per_field"] == (0, 10.0, 10)
-    assert "55 fields, 0-10 observations per field (median 10)." in scan.summary()
+    assert "55 fields, 0 to 10 observations per field (median 10)." in scan.summary()
     assert scan_design(objects).design["fields"] == 54
     # No observation at all: zero fields, not a crash.
     assert scan_design(objects.iloc[:0]).design["per_field"] == (0, 0.0, 0)

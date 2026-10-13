@@ -240,7 +240,7 @@ def test_a_group_with_no_judged_run_is_said_out_of_the_range():
         for g, u, m in (("a", 0, 3.0), ("b", 0, 5.0), ("c", 2, None))
     ]
     text = EfficiencyResult(pd.DataFrame(), pd.DataFrame(rows), ("g",), {}).summary()
-    assert "3-5 (not judged in 1 group)" in " ".join(text.split())
+    assert "3 to 5 (not judged in 1 group)" in " ".join(text.split())
 
 
 # --- 7. More fields or more samples? ------------------------------------------------

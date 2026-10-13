@@ -199,7 +199,7 @@ def _variability_rows(variability: FOVVariability | None, observations: str) -> 
             "statement": (
                 f"a mean from whole fields varies {effect.median():.1f} times as much as "
                 f"one from as many random {observations} (design effect of the variance "
-                f"{level}, range {effect.min():.1f}-{effect.max():.1f}){unusual}"
+                f"{level}, range {effect.min():.1f} to {effect.max():.1f}){unusual}"
             ),
             "source": "fov_variability",
         }

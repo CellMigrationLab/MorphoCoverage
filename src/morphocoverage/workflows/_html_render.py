@@ -12,7 +12,7 @@ from __future__ import annotations
 import html
 import re
 
-from .._style import MARKERS, Status, indent_width, without_provenance
+from .._style import MARKER_LINE, MARKERS, Status, indent_width, without_provenance
 from ..glossary import GLOSSARY, PHRASES, Term, slug
 
 STATUS_WORDS = {
@@ -21,7 +21,6 @@ STATUS_WORDS = {
     Status.PROBLEM: ("problem", "Check the data first"),
     Status.NOT_ASSESSED: ("na", "Not assessed"),
 }
-_MARKER_LINE = re.compile(r"^(✅|⚠️|❌|➖)\s+(.*)$")
 _COLUMNS = re.compile(r"\S {2,}\S")
 _SPLIT = re.compile(r" {2,}")
 _NUMBER = re.compile(r"^[−+-]?[<>≤≥]?\d[\d.,]*%?$")
@@ -246,7 +245,7 @@ def _table(rows: list[str]) -> str:
 
 def _paragraph(text: str, level: int) -> str:
     style = f' style="margin-left:{min(level, 4) * 1.1:.1f}em"' if level else ""
-    marker = _MARKER_LINE.match(text)
+    marker = MARKER_LINE.match(text)
     if marker:
         status = MARKERS[marker.group(1)]
         kind, word = STATUS_WORDS[status]
@@ -325,7 +324,7 @@ def _continues(lines: list[str], index: int, first: int, hang: int | None) -> bo
     return (
         bool(stripped)
         and indent_width(lines[index]) > first
-        and not _MARKER_LINE.match(stripped)
+        and not MARKER_LINE.match(stripped)
         and not stripped.startswith("- ")
         and not _COLUMNS.search(stripped)
         and not _starts_own(lines, index, hang)

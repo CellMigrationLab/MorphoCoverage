@@ -138,7 +138,7 @@ def _cells(rows: pd.DataFrame, units: pd.DataFrame, w: Mapping[str, str]) -> lis
         interval = (
             "–"
             if row.share_low is None or pd.isna(row.share_low)
-            else f"{percent(row.share_low)}–{percent(row.share_high)}"
+            else f"{percent(row.share_low)} to {percent(row.share_high)}"
         )
         cells.append(
             [
@@ -468,7 +468,7 @@ def _needed(
         return [], "–"
     pool = [*known.tolist(), *([None] * len(short))]
     median = median_beyond(pool)
-    spread = f"range {known.min()}–{known.max()}" if len(known) else ""
+    spread = f"range {known.min()} to {known.max()}" if len(known) else ""
     if median is None:
         reached = f"{len(known)} of {count(len(pool), sample, samples_word)}"
         line = (

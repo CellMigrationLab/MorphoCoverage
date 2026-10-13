@@ -68,7 +68,7 @@ def _present(value: Any) -> bool:
 
 
 def _span(values: Sequence[float], format_one: Any = number) -> str:
-    """``8`` or ``3-5``; ``4%`` or ``0-20%`` for ``percent`` (``_style.span``)."""
+    """``8`` or ``3 to 5``; ``4%`` or ``0 to 20%`` for ``percent`` (``_style.span``)."""
     return span(values, "percent" if format_one is percent else "number")
 
 
@@ -160,7 +160,7 @@ def _stops_cell(stops: pd.DataFrame, config: str, kind: str, groups: int) -> str
         return text if len(reached) == groups else f"{text} ({len(reached)} of {groups})"
     median = statistics.median(reached["stop_fov_median"].astype(float))
     text = (
-        f"{number(median)} ({number(reached['stop_fov_p10'].min())}-"
+        f"{number(median)} ({number(reached['stop_fov_p10'].min())} to "
         f"{number(reached['stop_fov_p90'].max())})"
     )
     total, stopped = int(rows["orders"].sum()), int(met.sum())
@@ -200,7 +200,7 @@ def _rules_table(report: Any, tallies: list[dict[str, Any]], indent: int) -> lis
         *(("fields when first met",) if "recorded" in kinds else ()),
     ]
     if "permuted" in kinds:
-        header.append("fields needed in random orders: median (10-90%)")
+        header.append("fields needed in random orders: median (10 to 90%)")
     rows = []
     for tally in tallies:
         if tally["groups"] == 1:
@@ -223,7 +223,7 @@ def _rules_table(report: Any, tallies: list[dict[str, Any]], indent: int) -> lis
             spreads.append("recorded: the range over groups")
         if groups > 1 and "permuted" in kinds:
             spreads.append(
-                "random: the median of the groups' medians, 10-90% from the lowest to the "
+                "random: the median of the groups' medians, 10 to 90% from the lowest to the "
                 "highest group"
             )
         first = (
@@ -425,8 +425,8 @@ def field_bound_assumption(label: str, own: pd.DataFrame) -> str | None:
         return None
     return assumption(
         f"{label}: in simulations its upper bound, a bootstrap of whole fields, covered the true "
-        "averaging error about 85-95% of the time with uneven field sizes and 93-99% with "
-        "Poisson sizes"
+        "averaging error about 85 to 95% of the time with uneven field sizes and 93 to 99% "
+        "with Poisson sizes"
     )
 
 

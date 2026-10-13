@@ -148,7 +148,7 @@ def test_h3_plot_intervals_are_the_widened_nested_ones_with_the_small_unit_cavea
     objects, fovs = _tables(spec, per_field=10)
     ax = plots_of_data(objects, fovs, features=["x"], n_boot=50)["x"][0].axes[0]
     assert calls == [[4, 4, 4]]  # the wells, each with its fields, into bootstrap_nested
-    assert "with 2-3 wells the interval is only a guide" in (ax.figure.caption)
+    assert "with 2 to 3 wells the interval is only a guide" in (ax.figure.caption)
 
 
 def test_h4_repeats_left_out_of_the_layout_are_pooled_not_merged(monkeypatch):

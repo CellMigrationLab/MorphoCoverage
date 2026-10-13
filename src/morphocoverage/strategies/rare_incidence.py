@@ -83,8 +83,8 @@ QUANTITY = "rare_incidence_risk"
 _CAUTION = (
     "a posterior risk, not a detection guarantee: with the state at exactly the target "
     "incidence (5%, max_risk 5%) the rule stopped short of r positive FOVs in 5.2%, 7.7% and "
-    "9.6% of simulated acquisitions for r = 1, 2 and 3 with a uniform prior, 14-21% with "
-    "Jeffreys' prior, and 55-69% when the state came in runs of 5 neighbouring FOVs"
+    "9.6% of simulated acquisitions for r = 1, 2 and 3 with a uniform prior, 14 to 21% "
+    "with Jeffreys' prior, and 55 to 69% when the state came in runs of 5 neighbouring FOVs"
 )
 _META = {
     "direction": Direction.LOWER_IS_BETTER,

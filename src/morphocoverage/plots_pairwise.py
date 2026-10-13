@@ -44,7 +44,7 @@ from ._checks import as_count, check_seed
 from ._figure_layout import grow_bottom, panel_letter, remove_legend, sentences, set_legend
 from ._palette import MUTED
 from ._seeds import group_rng
-from ._wording import shortened
+from ._wording import p_value, shortened
 from .data_check import validate_input_tables
 from .metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from .sampling_unit.contrast_cells import cell_randomization
@@ -319,13 +319,9 @@ def p_colour(p: float) -> tuple[float, float, float]:
 
 
 def format_p(p: float) -> str:
-    """A p-value in a cell: ``<0.001``, two significant digits below 0.01, four decimals
-    near 0.05 (so a p either side of it never reads as 0.050), three below 0.1, else two."""
-    if p < 0.001:
-        return "<0.001"
-    if 0.045 <= p < 0.055:
-        return f"{p:.4f}"
-    return f"{p:.2g}" if p < 0.01 else f"{p:.3f}" if p < 0.1 else f"{p:.2f}"
+    """A p-value in a cell, written as in a sentence (``_wording.p_value``: ``< 0.001``, two
+    significant digits below 0.01, four decimals near 0.05; owner, 2026-10-12)."""
+    return p_value(p)
 
 
 def _ink(colour: tuple[float, float, float]) -> str:

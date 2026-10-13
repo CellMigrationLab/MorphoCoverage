@@ -234,8 +234,8 @@ def test_the_report_states_the_field_bounds_simulated_coverage():
     built = SCENARIOS["homogeneous"]()
     sentence = (
         "in simulations its upper bound, a bootstrap of whole fields, covered the true "
-        "averaging error about 85-95% of the time with uneven field sizes and 93-99% with "
-        "Poisson sizes"
+        "averaging error about 85 to 95% of the time with uneven field sizes and 93 to 99% "
+        "with Poisson sizes"
     )
     for sd, said in (("upper_95", True), ("point", False)):
         report = sufficiency_report(

@@ -94,7 +94,9 @@ def _chance(row: Any, columns: tuple[str, str]) -> str:
     low, high = (row.get(c, np.nan) for c in columns)
     if pd.isna(low):
         return "–"
-    return f"about {percent(low)}" if np.isclose(low, high) else f"{percent(low)}–{percent(high)}"
+    if np.isclose(low, high):
+        return f"about {percent(low)}"
+    return f"{percent(low)} to {percent(high)}"
 
 
 def _version(normalised: Any, balanced: Any) -> str:

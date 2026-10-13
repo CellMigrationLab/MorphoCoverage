@@ -307,10 +307,6 @@
     "order_check = 999",
     "sampling_unit.whole_table = 999"
    ],
-   "PLAN_TITLE": [
-    "workflows._html_plan = 'Plan the next experiment'",
-    "workflows._results = 'Plan for the next experiment'"
-   ],
    "POPULATION": [
     "data.crick_idr.benchmark = ObjectiveConfig(SamplingObjective.POPULATION)",
     "data.crick_idr.frequency_control = ObjectiveConfig(SamplingObjective.POPULATION)"
@@ -433,10 +429,6 @@
    "_KIND_WORDS": [
     "workflows._guided_controls = {'own_control': 'against its own control, the main verdict', 'across_normalised'",
     "workflows._populations = {'main': 'main (the rest)', 'group': 'group'}"
-   ],
-   "_MARKER_LINE": [
-    "workflows._html_cards = re.compile('^\\\\s*(✅|⚠️|❌|➖)\\\\s+(.*)$')",
-    "workflows._html_render = re.compile('^(✅|⚠️|❌|➖)\\\\s+(.*)$')"
    ],
    "_METADATA": [
     "feature_tables = {*MORPHOBRICKS_SHARED_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES, *WITHIN_FOV_METADAT",

@@ -96,7 +96,7 @@ def _layout_lines(scan: Any) -> list[str]:
     rows = []
     for condition, counts in layout.iterrows():
         held = counts.dropna().astype(int)
-        rows.append([condition, len(held), f"{held.min()}-{held.max()}", int(held.sum())])
+        rows.append([condition, len(held), f"{held.min()} to {held.max()}", int(held.sum())])
     return [
         f"{words.capitalize()} per condition (over its biological repeats):",
         table(rows, ["condition", "repeats", "per repeat", "total"], indent=4, align="lrrr"),

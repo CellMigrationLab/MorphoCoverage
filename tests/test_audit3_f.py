@@ -227,8 +227,9 @@ def test_f4_fields_needed_median_counts_samples_that_never_got_there():
     result = protocol_reliability(_curve(curve), BY_WELL, threshold=0.9, strata=["condition"])
     text = " ".join(result.summary(detail="full").split())
     # Reached at 2, 2 and 4, and 2 never: the median of 2, 2, 4, beyond, beyond is 4.
-    assert "Fields needed per sample: median 4, range 2–4; 2 needing more counted as more" in text
-    assert "4 (2-4; 2 more)" in result.summary()
+    needed = "Fields needed per sample: median 4, range 2 to 4; 2 needing more counted as more"
+    assert needed in text
+    assert "4 (2 to 4; 2 more)" in result.summary()
 
 
 def test_f5_protocol_interval_is_never_narrower_than_the_exact_one():
@@ -319,7 +320,7 @@ def test_f8_a_stop_the_whole_stream_could_not_fix_is_not_too_early():
     assert total.sum() == pytest.approx(stops["stopped"])
     text = " ".join(result.summary(detail="full").split())
     # Audit 4, P2-9: the total not preserved is the headline, the split its bounds.
-    assert "100%, 0%-100% too early" in text
+    assert "100%, 0% to 100% too early" in text
     assert "not even every available field together preserved it" in text
     # The short form keeps the headline share and says that the split is in the full form.
     short = result.summary()
@@ -506,7 +507,7 @@ def test_f19_unequal_streams_state_the_range_of_available_fields():
     assert "All 6 to 10 available fields together" in text
     assert "nothing is said beyond 10 fields (6 in some splits)" in text
     short = " ".join(result.summary().split())
-    assert "all 6-10" in short and "nothing is said beyond 10 fields (6 in some splits)" in short
+    assert "all 6 to 10" in short and "nothing is said beyond 10 fields (6 in some splits)" in short
 
 
 def test_f20_numpy_integers_are_accepted_as_counts_and_seeds():

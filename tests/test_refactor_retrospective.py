@@ -425,8 +425,8 @@ def test_conditions_status_from_contrasts_alone_and_from_a_ranking_alone(monkeyp
     assert module.conditions_status(contrast, None) == (
         Status.CAUTION,
         (
-            "2 contrasts, |d| on field means 0.5-1.2; 1 of 2 tested differ (Bonferroni p ≤ 0.05); "
-            "opposite signs between repeats"
+            "2 contrasts, |d| on field means 0.5 to 1.2; 1 of 2 tested differ (Bonferroni "
+            "p ≤ 0.05); opposite signs between repeats"
         ),
     )
     contrast = SimpleNamespace(table=table, repeats=pd.DataFrame({"x": [1]}), settings=settings)

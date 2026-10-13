@@ -174,7 +174,7 @@ def _finding_table(result: IntegrityResult) -> list[str]:
                 count(len(found), "field" if within else "pair"),
                 observations[0]
                 if len(observations) == 1
-                else f"{observations[0]}-{observations[-1]}",
+                else f"{observations[0]} to {observations[-1]}",
             ]
         )
     rows, more = _capped(rows, "more row")

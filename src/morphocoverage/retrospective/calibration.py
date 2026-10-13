@@ -240,7 +240,7 @@ def _not_preserved_cell(row: Any) -> str:
         return percent(total)
     if reach <= 0:
         return f"{percent(total)}, all too early"
-    return f"{percent(total)}, {percent(premature)}-{percent(total)} too early"
+    return f"{percent(total)}, {percent(premature)} to {percent(total)} too early"
 
 
 def _never_cell(row: Any, min_fovs: int) -> str | None:

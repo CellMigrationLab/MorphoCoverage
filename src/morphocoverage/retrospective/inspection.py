@@ -157,7 +157,7 @@ def stands_out(changes: np.ndarray, spread: float | None = INFLUENCE_SPREAD) -> 
     alone), and a field 4 times the others 66-97% of the time. With fewer than
     ``INFLUENCE_MIN_FIELDS`` fields one of the two others sets the spread, so such groups are
     not judged (the callers say where). With most changes tied, as for a discrete summary,
-    the MAD is 0 and would flag every field off the median: 11% to 23% of null fields in
+    the MAD is 0 and would flag every field off the median: 11 to 23% of null fields in
     simulations (audit 12), so the SD scales them there.
     """
     changes = np.asarray(changes, dtype=float)

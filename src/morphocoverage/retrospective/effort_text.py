@@ -277,7 +277,7 @@ def _comparison_table(compared: pd.DataFrame, samples: str) -> str | None:
         return None
     rows = []
     for row in compared.itertuples(index=False):
-        interval = "–" if pd.isna(row.ratio_low) else f"{row.ratio_low:.3g}-{row.ratio_high:.3g}"
+        interval = "–" if pd.isna(row.ratio_low) else f"{row.ratio_low:.3g} to {row.ratio_high:.3g}"
         rows.append(
             [
                 row.samples,

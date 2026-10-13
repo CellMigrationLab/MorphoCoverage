@@ -478,7 +478,7 @@ def readings_headline(contrast: Any) -> str | None:
     each = (
         count(n_repeats, word)
         if held.min() == n_repeats
-        else f"{held.min()}-{count(n_repeats, word)}"
+        else f"{held.min()} to {count(n_repeats, word)}"
     )
     table = getattr(contrast, "table", pd.DataFrame())
     repeat_col = contrast.settings.get("repeat_col")

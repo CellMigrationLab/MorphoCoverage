@@ -90,7 +90,7 @@ through float32 (parquet, HDF5, `.npy`) or a six-digit export still matches:
   copied track positions of 4 tracks, and could never see a copied cell with
   one cell per field;
 - **repeated within a field**: a field holds many of its observations twice
-  ("the field holds its observations 1-28 again from observation 29": a table
+  ("the field holds its observations 1 to 28 again from observation 29": a table
   appended to itself, or merged with one that has a row per channel);
 - **repeated field summary**: two fields with the same number of
   observations and the same mean of every feature (to 12 significant digits)

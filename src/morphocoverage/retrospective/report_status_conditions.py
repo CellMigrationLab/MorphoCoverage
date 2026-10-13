@@ -39,7 +39,7 @@ def across_headline(across: pd.DataFrame, repeat_col: str | None) -> str:
     each = (
         count(int(held.max()), word)
         if held.min() == held.max()
-        else f"{held.min()}-{count(int(held.max()), word)}"
+        else f"{held.min()} to {count(int(held.max()), word)}"
     )
     lower = int((across["lower"] == across["repeats"]).sum())
     higher = int((across["higher"] == across["repeats"]).sum())

@@ -382,7 +382,7 @@ def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
             "'with no effect' column"
             + (
                 f" (with one repeat s is unknown and taken as "
-                f"{TYPICAL_BETWEEN[0]:g}–{TYPICAL_BETWEEN[1]:g})"
+                f"{TYPICAL_BETWEEN[0]:g} to {TYPICAL_BETWEEN[1]:g})"
                 if single
                 else ""
             )
@@ -406,8 +406,9 @@ def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
                 f"{words} from each repeat, p from the condition and control labels shuffled "
                 "within each repeat, the same statistic on the same draws for each shuffle. In "
                 "data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells "
-                "of the others, the test as provided gives 22-46% false positives where equal "
-                "repeats give 16% (s = 0.25), and the balanced test 15-19%; with the control "
+                "of the others, the test as provided gives 22 to 46% false positives where "
+                "equal repeats give 16% (s = 0.25), and the balanced test 15 to 19%; with the "
+                "control "
                 "pooled from repeats the condition was not imaged in, the raw test as provided "
                 "gives 46% even when the repeats agree, the balanced test about 5%. Balancing "
                 "removes the weight of the repeats holding more, not the independence assumption."

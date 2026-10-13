@@ -98,7 +98,7 @@ def resolved_headline(contrast: Any) -> tuple[Status, str]:
     if len(needing):
         fields = needing["fields_to_resolve"].astype(float)
         low, high = int(fields.min()), int(fields.max())
-        about = f"{low}" if low == high else f"{low}-{high}"
+        about = f"{low}" if low == high else f"{low} to {high}"
         text += f"; {len(needing)} would need about {about} {fields_word} a side"
     if small:
         text += f"; {small} too small to show with more {fields_word}"

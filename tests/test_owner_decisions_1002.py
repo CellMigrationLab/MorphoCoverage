@@ -186,7 +186,7 @@ def test_the_distribution_families_are_counted_as_corrected():
         tests = pd.DataFrame({"p": 0.5, "experiment": experiment})
         return DistributionContrast(tests, {"families": len(sizes)})
 
-    assert tests_words(result([4, 8])) == "4-8 tests in each of 2 sub-experiments"
+    assert tests_words(result([4, 8])) == "4 to 8 tests in each of 2 sub-experiments"
     assert tests_words(result([4, 4])) == "4 tests in each of 2 sub-experiments"
     assert tests_words(result([8])) == "8 tests"
 

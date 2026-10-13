@@ -405,7 +405,7 @@ def fingerprint_lines(
         tolerance = _number(judged["tolerance"].iloc[0])
         text = (
             f"{title}: its error with the {fields} acquired, estimated "
-            f"from random halves of each {word}'s {fields}, is {_number(errors.min())}-"
+            f"from random halves of each {word}'s {fields}, is {_number(errors.min())} to "
             f"{_number(errors.max())} (median {_number(errors.median())}; the tolerance "
             f"{tolerance}): within it in {met} of {count(len(judged), word)}"
         )

@@ -354,10 +354,10 @@ def test_short_novelty_lines_with_pooled_technical_repeats():
     assert lines == [
         (
             "One more field: no field showed a state counted as new, in both groups; nominal 95% "
-            "bound for the next field 30-40%."
+            "bound for the next field 30 to 40%."
         ),
         (
-            "Not yet seen: a state no field has shown is in at most 20-25% of fields (95% "
+            "Not yet seen: a state no field has shown is in at most 20 to 25% of fields (95% "
             "confidence); rarer states can remain."
         ),
         (

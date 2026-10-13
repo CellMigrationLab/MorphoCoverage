@@ -464,7 +464,7 @@ def _within_field(
         )
         if length >= min(block_length, n):
             detail = (
-                f"the field holds its observations {start + 1}-{start + length} again from "
+                f"the field holds its observations {start + 1} to {start + length} again from "
                 f"observation {again + 1} ({_PRECISION})"
                 + (f"; {n} observations repeat in all" if n > length else "")
                 + ": a table appended to itself, or merged with one that has a row per channel "

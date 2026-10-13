@@ -66,7 +66,7 @@ def _stop_cell(stops: pd.DataFrame, row: Mapping[str, Any], kind: str) -> str | 
         return median
     se = stop.get("stop_fov_median_mc_se")
     se = "" if se is None or pd.isna(se) else f"{number(se)}; "
-    text = f"{median} ({se}{number(stop['stop_fov_p10'])}-{number(stop['stop_fov_p90'])})"
+    text = f"{median} ({se}{number(stop['stop_fov_p10'])} to {number(stop['stop_fov_p90'])})"
     return text if met == orders else f"{text}; {met} of {orders} orders"
 
 
@@ -90,7 +90,7 @@ def _group_table(report: Any, group: Mapping[str, Any], indent: int) -> list[str
     header = ["rule", "enough", *(("recorded",) if "recorded" in kinds else ())]
     if "permuted" in kinds:
         orders = int(stops[stops["order_kind"].eq("permuted")]["orders"].max())
-        header.append(f"{count(orders, 'random order')}: median (MC SE; 10-90%)")
+        header.append(f"{count(orders, 'random order')}: median (MC SE; 10 to 90%)")
     header.append("beyond")
     unit = getattr(report, "observation_unit", None)
     rows = []
@@ -226,7 +226,8 @@ def _few_line(row: Mapping[str, Any], confidence: str) -> list[str]:
     if int(seen):
         text += (
             f"; together {percent(row['few_state_incidence'])} of fields ({confidence} interval "
-            f"{percent(row['few_state_incidence_low'])}-{percent(row['few_state_incidence_high'])})"
+            f"{percent(row['few_state_incidence_low'])} to "
+            f"{percent(row['few_state_incidence_high'])})"
             f": to see it once with {confidence} probability, about "
             f"{int(row['fovs_to_see_again'])} independent representative fields, up to "
             f"{int(row['fovs_to_see_again_low_end'])} at the low end of the interval"

@@ -169,9 +169,9 @@ def test_f7_f12_one_unit_and_half_field_medians_are_stated_plainly():
     text = _full(text)
     assert "With a single plate, no number can be chosen on other plates" in text
     assert "the others reached no number" not in text
-    assert "median 7.5, range 5–10" in text
+    assert "median 7.5, range 5 to 10" in text
     assert "with a single plate, no number can be chosen on other plates" in short
-    assert "7.5 (5-10)" in short
+    assert "7.5 (5 to 10)" in short
 
 
 def test_f8_f14_frontier_refuses_foreign_replays_and_says_when_there_is_no_interval():

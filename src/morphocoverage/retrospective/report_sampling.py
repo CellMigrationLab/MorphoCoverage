@@ -250,7 +250,7 @@ def unstable_labels(unusual: Any) -> str | None:
 
 def _variance_line(effort: Any, observations: str) -> tuple[str | None, list[str]]:
     """``Largest share of the variance of the mean: between samples in LATS1, YAP and ARAP2
-    (79-99%); ...``, by level over the strata, and the caveat of a share not established."""
+    (79 to 99%); ...``, by level over the strata, and the caveat of a share not established."""
     if effort is None or effort.components.empty:
         return None, []
     hierarchy = effort.settings.get("hierarchy", {})
@@ -293,7 +293,7 @@ def _fields_line(profile: pd.DataFrame, variability: Any, observations: str) -> 
             if len(shares)
             else ""
         )
-        spread = f"{effects.min():.1f}-{effects.max():.1f} over {count(len(ok), 'group')}"
+        spread = f"{effects.min():.1f} to {effects.max():.1f} over {count(len(ok), 'group')}"
         text = (
             f"Fields: a mean from whole fields varies {effects.median():.1f} times as much as one "
             f"from as many random {observations} (median; {spread}){differ}."

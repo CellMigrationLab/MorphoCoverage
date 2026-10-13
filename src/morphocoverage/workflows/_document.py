@@ -503,7 +503,7 @@ def held_back_text(settings: Mapping[str, Any]) -> str:
     if not sizes:
         return f"no field held back ({asked}: no group had enough fields)"
     low, high = sizes
-    held = fields(low) if low == high else f"{low}-{high} fields"
+    held = fields(low) if low == high else f"{low} to {high} fields"
     return f"{held} of each group held back ({asked}, rounded up to whole fields)"
 
 

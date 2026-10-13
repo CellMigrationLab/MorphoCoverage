@@ -40,7 +40,7 @@ def chance_words(low: float, high: float) -> str:
         return ""
     if np.isclose(low, high):
         return f"about {percent(low)}"
-    return f"{percent(low)}–{percent(high)}"
+    return f"{percent(low)} to {percent(high)}"
 
 
 def _chance_sentence(chance: str, single: bool = False) -> str:

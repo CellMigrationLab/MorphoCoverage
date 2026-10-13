@@ -181,7 +181,8 @@ def test_p7_9_an_appended_table_with_a_fresh_index_and_object_numbers_is_reporte
     assert any("repeat another observation of the same field" in p.title for p in report.warnings)
     result = _checks(twice.sort_values(["image_file", "Unnamed: 0"]), fovs)
     assert set(_found(result)) == {"repeated within a field"}
-    assert "holds its observations 1-20 again from observation 21" in result.findings["detail"][0]
+    detail = result.findings["detail"][0]
+    assert "holds its observations 1 to 20 again from observation 21" in detail
 
 
 def test_p7_10_an_exact_copy_does_not_hide_the_label_warning():
