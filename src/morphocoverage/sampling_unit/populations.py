@@ -52,7 +52,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -62,7 +62,7 @@ from .._frozen import owned
 from .._identity import canonical_row_codes, row_keys
 from ..embedding import _sample, _standardised, _umap, combined
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, column_names
-from ..schema import fov_positions, validate_input_tables
+from ..schema import ValidatedInput, fov_positions, validate_input_tables
 from ..statistics import cohen_d
 from ._population_rule import Rule, population_rule
 
@@ -280,6 +280,51 @@ def find_populations(
         group_cols=group_cols,
         observation_unit=observation_unit,
     )
+    space = _space(data, features, weights, named_by, blocks)
+    clusters = _clusters(data, space, min_cells, max_points, random_state)
+    raw = clusters.raw
+    judged = _kinds(raw, space.z)
+    names = _names(raw, judged)
+    labels = pd.Series([None] * len(data.objects), index=data.objects.index, dtype=object)
+    labels.iloc[np.flatnonzero(space.complete)] = [names.get(c) for c in raw]
+    # One key per field: the FOV identity (its groups and its identifier).
+    keys = canonical_row_codes(clusters.meta, list(data.fov_key))
+    rows = [
+        _population_row(
+            space, clusters.meta, keys, raw == cluster, name, judged[cluster], random_state
+        )
+        for cluster, name in names.items()
+    ]
+    table = pd.DataFrame(rows, columns=_COLUMNS)
+    settings = _settings(data, space, clusters, names, random_state, weights, blocks)
+    assessed = data.objects.index[space.complete]
+    members = {
+        name: (labels.index[labels.eq(name).to_numpy()], assessed) for name in names.values()
+    }
+    return Populations(labels, table, settings, members)
+
+
+class _Space(NamedTuple):
+    """The feature space clustered: which observations hold every value (``complete``),
+    those standardised and weighted (``z``), the features that vary (``kept``) and their
+    values in their own units, and the positions in ``kept`` a group may be named by."""
+
+    complete: np.ndarray
+    z: np.ndarray
+    kept: list[str]
+    values: np.ndarray
+    named: list[int]
+
+
+def _space(
+    data: ValidatedInput,
+    features: list[str],
+    weights: Mapping[str, float] | None,
+    named_by: Sequence[str] | None,
+    blocks: Mapping[str, Sequence[str]] | None,
+) -> _Space:
+    """The observations with every value, standardised, the features that vary weighed as
+    ``embed`` weighs them, and the features a group may be named by."""
     matrix = data.feature_matrix()
     complete = ~np.isnan(matrix).any(axis=1)
     if complete.any():
@@ -291,10 +336,36 @@ def find_populations(
     values = matrix[complete][:, np.flatnonzero(varies)]
     named = [i for i, f in enumerate(kept) if named_by is None or f in set(named_by)]
     named = named if named or named_by is not None else list(range(len(kept)))
-    n = int(complete.sum())
+    return _Space(complete, z, kept, values, named)
+
+
+class _Clusters(NamedTuple):
+    """Each complete observation's cluster (``raw``, -1 unassigned), its field's row of the
+    FOV table (``meta``), the observations clustered, the smallest group and the principal
+    components the rest were assigned on."""
+
+    raw: np.ndarray
+    meta: pd.DataFrame
+    sample: np.ndarray
+    size: int
+    components: int
+    clustered: bool
+
+
+def _clusters(
+    data: ValidatedInput,
+    space: _Space,
+    min_cells: int | None,
+    max_points: int,
+    random_state: int,
+) -> _Clusters:
+    """HDBSCAN on the UMAP of at most ``max_points`` observations, balanced over the
+    conditions; the others take the cluster of their nearest clustered neighbour on the
+    principal components."""
+    n = int(space.complete.sum())
     size = as_count(min_cells, "min_cells", 2) if min_cells is not None else None
-    points, k = _components(z) if len(kept) else (np.zeros((n, 1)), 0)
-    meta = data.fovs.iloc[fov_positions(data, data.fovs)[complete]].reset_index(drop=True)
+    points, k = _components(space.z) if len(space.kept) else (np.zeros((n, 1)), 0)
+    meta = data.fovs.iloc[fov_positions(data, data.fovs)[space.complete]].reset_index(drop=True)
     conditions = meta[CONDITION_COLUMN].to_numpy() if CONDITION_COLUMN in meta else np.zeros(n)
     sample = _sample(conditions, max_points, np.random.default_rng(random_state))
     # A share of the observations clustered, not of all of them: above ``max_points`` a
@@ -303,83 +374,96 @@ def find_populations(
     raw = np.full(n, -1)
     # Too few observations (or no feature that varies) for two clusters of ``size``: not
     # clustered, which is not a continuum.
-    clustered = bool(len(kept)) and n > 0 and len(sample) >= 2 * size + 2
+    clustered = bool(len(space.kept)) and n > 0 and len(sample) >= 2 * size + 2
     if clustered:
-        raw[sample] = _cluster(_embedding(z[sample], random_state), size)
+        raw[sample] = _cluster(_embedding(space.z[sample], random_state), size)
     if clustered and len(sample) < n:
         from scipy.spatial import cKDTree
 
         rest = np.setdiff1d(np.arange(n), sample)
         _, nearest = cKDTree(points[sample]).query(points[rest])
         raw[rest] = raw[sample][nearest]
-    judged = _kinds(raw, z)
-    names = _names(raw, judged)
-    labels = pd.Series([None] * len(data.objects), index=data.objects.index, dtype=object)
-    labels.iloc[np.flatnonzero(complete)] = [names.get(c) for c in raw]
-    # One key per field: the FOV identity (its groups and its identifier).
-    keys = canonical_row_codes(meta, list(data.fov_key))
+    return _Clusters(raw, meta, sample, size, k, clustered)
+
+
+def _population_row(
+    space: _Space,
+    meta: pd.DataFrame,
+    keys: Any,
+    member: np.ndarray,
+    name: str,
+    judged: tuple[str | None, float],
+    random_state: int,
+) -> dict[str, Any]:
+    """One population's row: its size, fields and repeats, the features that set it apart
+    and, for a group, the simplest rule that picks it out."""
+    kind, purity = judged
+    named = space.named
     field_keys = pd.Series(keys)
-    rows = []
-    for cluster, name in names.items():
-        member = raw == cluster
-        kind, purity = judged[cluster]
-        pairs = _defining(z[:, named], member, [kept[i] for i in named]) if named else []
-        # The rule on the features in their own units, for a group (the main one is the rest).
-        rule = (
-            population_rule(
-                values[:, named], member, [kept[i] for i in named], random_state, groups=keys
-            )
-            if kind == "group" and named
-            else Rule((), np.nan, np.nan)
+    pairs = _defining(space.z[:, named], member, [space.kept[i] for i in named]) if named else []
+    # The rule on the features in their own units, for a group (the main one is the rest).
+    rule = (
+        population_rule(
+            space.values[:, named],
+            member,
+            [space.kept[i] for i in named],
+            random_state,
+            groups=keys,
         )
-        rows.append(
-            {
-                "population": name,
-                "kind": kind,
-                "observations": int(member.sum()),
-                "share": float(member.mean()),
-                "fields": int(field_keys[member].nunique()),
-                "repeats": int(meta.loc[member, REPEAT_COLUMN].nunique())
-                if REPEAT_COLUMN in meta
-                else 1,
-                **_support(member, field_keys, meta),
-                "defined_by": defined_by(pairs),
-                "defining": pairs,
-                "purity": purity,
-                "rule": rule.words(),
-                "rule_code": rule.code(),
-                "rule_terms": rule.terms,
-                "rule_recall": rule.recall,
-                "rule_precision": rule.precision,
-                "rule_held_out": rule.held_out,
-            }
-        )
-    table = pd.DataFrame(rows, columns=_COLUMNS)
-    settings = {
+        if kind == "group" and named
+        else Rule((), np.nan, np.nan)
+    )
+    return {
+        "population": name,
+        "kind": kind,
+        "observations": int(member.sum()),
+        "share": float(member.mean()),
+        "fields": int(field_keys[member].nunique()),
+        "repeats": int(meta.loc[member, REPEAT_COLUMN].nunique()) if REPEAT_COLUMN in meta else 1,
+        **_support(member, field_keys, meta),
+        "defined_by": defined_by(pairs),
+        "defining": pairs,
+        "purity": purity,
+        "rule": rule.words(),
+        "rule_code": rule.code(),
+        "rule_terms": rule.terms,
+        "rule_recall": rule.recall,
+        "rule_precision": rule.precision,
+        "rule_held_out": rule.held_out,
+    }
+
+
+def _settings(
+    data: ValidatedInput,
+    space: _Space,
+    clusters: _Clusters,
+    names: dict[int, str],
+    random_state: int,
+    weights: Mapping[str, float] | None,
+    blocks: Mapping[str, Sequence[str]] | None,
+) -> dict[str, Any]:
+    """The settings of ``find_populations``: what was clustered and how."""
+    n, kept = int(space.complete.sum()), space.kept
+    return {
         "features": kept,
-        "components": k,
+        "components": clusters.components,
         "variance": VARIANCE,
         "map_components": min(MAP_COMPONENTS, max(2, len(kept))),
-        "min_cells": int(size),
+        "min_cells": int(clusters.size),
         "purity": PURITY,
         "neighbours": NEIGHBOURS,
         "observations": n,
-        "incomplete_observations": int((~complete).sum()),
-        "assigned": float(np.isin(raw, list(names)).mean()) if n else 0.0,
-        "sampled": len(sample),
-        "clustered": clustered,
+        "incomplete_observations": int((~space.complete).sum()),
+        "assigned": float(np.isin(clusters.raw, list(names)).mean()) if n else 0.0,
+        "sampled": len(clusters.sample),
+        "clustered": clusters.clustered,
         "random_state": random_state,
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
         "weights": dict(weights) if weights else None,
         "blocks": {name: list(columns) for name, columns in blocks.items()} if blocks else None,
-        "named_by": [kept[i] for i in named],
+        "named_by": [kept[i] for i in space.named],
     }
-    assessed = data.objects.index[complete]
-    members = {
-        name: (labels.index[labels.eq(name).to_numpy()], assessed) for name in names.values()
-    }
-    return Populations(labels, table, settings, members)
 
 
 __all__ = [

@@ -85,8 +85,17 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
     plan = _plan(contrast)
     if plan.empty:
         return [], []
-    words = observation_words(contrast.settings)[1]
     _, fields = field_words(contrast)
+    lines = [
+        _plan_head(contrast, plan, fields, indent),
+        _plan_table(contrast, plan, fields, indent + 2),
+        *_unplanned(plan, fields, indent),
+    ]
+    return lines, _plan_notes(contrast, fields, full)
+
+
+def _plan_head(contrast: Any, plan: pd.DataFrame, fields: str, indent: int) -> str:
+    """The sentence above the plan's table: what is planned, at which power and correction."""
     feature = contrast.settings.get("feature", "the readout")
     held = sorted({int(n) for n in plan["repeats"]})
     # Each condition's own repeats: "each of 3 repeats", "the one repeat", or "each repeat".
@@ -97,19 +106,22 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
         if len(held) == 1
         else "each repeat"
     )
-    lines = [
-        wrap(
-            f"Planning the next experiment on {feature} (for a new experiment, if the "
-            "difference and the variation seen here recur; not what the current result "
-            "needs): the biological repeats a paired t-test on the repeat means needs for "
-            f"{percent(POWER)} power, corrected over the conditions of its sub-experiment (a "
-            f"follow-up on {feature} alone), with the "
-            f"{fields} per repeat as now and with twice as many; then the {fields} a side "
-            f"{each} needs to show the difference on its own:",
-            indent,
-            hang=indent + 2,
-        )
-    ]
+    return wrap(
+        f"Planning the next experiment on {feature} (for a new experiment, if the "
+        "difference and the variation seen here recur; not what the current result "
+        "needs): the biological repeats a paired t-test on the repeat means needs for "
+        f"{percent(POWER)} power, corrected over the conditions of its sub-experiment (a "
+        f"follow-up on {feature} alone), with the "
+        f"{fields} per repeat as now and with twice as many; then the {fields} a side "
+        f"{each} needs to show the difference on its own:",
+        indent,
+        hang=indent + 2,
+    )
+
+
+def _plan_table(contrast: Any, plan: pd.DataFrame, fields: str, indent: int) -> str:
+    """The plan's table, one row per condition."""
+    words = observation_words(contrast.settings)[1]
     rows = []
     for row in plan.to_dict("records"):
         rows.append(
@@ -130,7 +142,13 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
         f"with twice the {fields}",
         f"{fields} a side per repeat",
     ]
-    lines.append(table(rows, columns, indent=indent + 2))
+    return table(rows, columns, indent=indent)
+
+
+def _unplanned(plan: pd.DataFrame, fields: str, indent: int) -> list[str]:
+    """The conditions whose variation between repeats is not estimated, and those imaged in
+    one biological repeat (empty without)."""
+    lines = []
     single = plan[plan["status"].str.startswith("one biological repeat")]
     # Imaged in several repeats, but fewer than two with an interval of d (``repeat_plan``).
     unestimated = plan[(plan["status"] != "ok") & ~plan.index.isin(single.index)]
@@ -154,6 +172,12 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
                 hang=indent + 2,
             )
         )
+    return lines
+
+
+def _plan_notes(contrast: Any, fields: str, full: bool) -> list[str]:
+    """The plan's assumptions; the full form adds how the fields are projected and the most
+    repeats searched."""
     notes = [
         assumption(
             f"Repeats needed: for a paired t-test at p ≤ {ALPHA:g}/m, m the conditions of the "
@@ -187,7 +211,7 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
                 f"Most repeats searched: {MAX_REPEATS}; per condition, its own experiment's m."
             )
         )
-    return lines, notes
+    return notes
 
 
 __all__ = ["change_cell", "field_words", "plan_parts"]

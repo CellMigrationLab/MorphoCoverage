@@ -206,67 +206,97 @@ def repeat_plan(
     for (condition, control), whole in groups:
         # Every repeat compared counts; the plan rests on those with an interval of d.
         block = whole[whole["d_low"].notna()]
-        d = whole["d_objects"].to_numpy(float)
-        row: dict[str, Any] = {
-            "condition": condition,
-            "control_condition": control,
-            "repeats": len(d),
-            "d_mean": float(d.mean()),
-            "between_sd": np.nan,
-            "within_se": np.nan,
-            "planned_on": "d",
-            "change": np.nan,
-            "fields_per_repeat": _fields_per_repeat(block),
-            "limited_by": "",
-            "repeats_needed": np.nan,
-            "repeats_needed_twice_fields": np.nan,
-            "alpha_planned": alpha / int(sizes[family[condition]]),
-            "experiment": family[condition],
-            "status": "ok",
-        }
-        if len(d) < 2:
-            row["status"] = "one biological repeat: the variation between repeats is unknown"
-        elif len(block) < 2:
-            row["status"] = (
-                f"{len(block)} of {len(d)} repeats with an interval of d (two fields a side): "
-                "the variation between repeats is not estimated"
-            )
-        if not len(block):
-            rows.append(row)
-            continue
-        d_within = float(np.mean(((block["d_high"] - block["d_low"]) / (2 * _Z)) ** 2))
-        planned_on, values, errors = _test_values(block, log)
-        within = float(np.mean(errors**2))
-        # Twice the fields halve only the part of each repeat's sampling error within wells
-        # (``between_share``, owner 2026-10-05, #96); the part between wells stays.
-        shares = (
-            block["between_share"].fillna(0.0).to_numpy(float)
-            if "between_share" in block
-            else np.zeros(len(block))
-        )
-        within_twice = float(np.mean(errors**2 * (shares + (1 - shares) / 2)))
-        mean = float(values.mean())
-        row["within_se"] = float(np.sqrt(d_within))
-        row["planned_on"] = planned_on
-        row["change"] = _change(table, condition, control, log) if planned_on != "d" else np.nan
-        if len(block) >= 2:
-            d = block["d_objects"].to_numpy(float)
-            row["between_sd"] = float(np.sqrt(max(0.0, float(np.var(d, ddof=1)) - d_within)))
-            between = max(0.0, float(np.var(values, ddof=1)) - within)
-            row["limited_by"] = "between repeats" if between > within else "within repeats"
-            for column, error in (
-                ("repeats_needed", within),
-                ("repeats_needed_twice_fields", within_twice),
-            ):
-                sd = float(np.sqrt(between + error))
-                if not (np.isfinite(mean) and np.isfinite(sd)):
-                    row["status"] = MISSING_VALUE  # said, never read as zero power
-                    continue
-                row[column] = repeats_needed(mean, sd, row["alpha_planned"], power)
-                if np.isnan(row[column]) and row["status"] == "ok":
-                    row["status"] = DEGENERATE
+        planned = alpha / int(sizes[family[condition]])
+        row = _plan_row(condition, control, whole, block, planned, family[condition])
+        if len(block):
+            _plan(row, table, block, power, log)
         rows.append(row)
     return pd.DataFrame(rows, columns=PLAN_COLUMNS)
+
+
+def _plan_row(
+    condition: Any,
+    control: Any,
+    whole: pd.DataFrame,
+    block: pd.DataFrame,
+    alpha_planned: float,
+    experiment: Any,
+) -> dict[str, Any]:
+    """A condition's row before its plan: the repeats compared and their mean d, the fields
+    a side, and why the variation between repeats is not estimated, if it is not."""
+    d = whole["d_objects"].to_numpy(float)
+    row: dict[str, Any] = {
+        "condition": condition,
+        "control_condition": control,
+        "repeats": len(d),
+        "d_mean": float(d.mean()),
+        "between_sd": np.nan,
+        "within_se": np.nan,
+        "planned_on": "d",
+        "change": np.nan,
+        "fields_per_repeat": _fields_per_repeat(block),
+        "limited_by": "",
+        "repeats_needed": np.nan,
+        "repeats_needed_twice_fields": np.nan,
+        "alpha_planned": alpha_planned,
+        "experiment": experiment,
+        "status": "ok",
+    }
+    if len(d) < 2:
+        row["status"] = "one biological repeat: the variation between repeats is unknown"
+    elif len(block) < 2:
+        row["status"] = (
+            f"{len(block)} of {len(d)} repeats with an interval of d (two fields a side): "
+            "the variation between repeats is not estimated"
+        )
+    return row
+
+
+def _plan(
+    row: dict[str, Any], table: pd.DataFrame, block: pd.DataFrame, power: float, log: bool | None
+) -> None:
+    """The plan filled into ``row`` from the repeats with an interval of d (``block``): the
+    sampling error within repeats, the values planned on, and with two or more repeats the
+    variation between them and the repeats needed at the fields acquired and at twice."""
+    d_within = float(np.mean(((block["d_high"] - block["d_low"]) / (2 * _Z)) ** 2))
+    planned_on, values, errors = _test_values(block, log)
+    within = float(np.mean(errors**2))
+    # Twice the fields halve only the part of each repeat's sampling error within wells
+    # (``between_share``, owner 2026-10-05, #96); the part between wells stays.
+    shares = (
+        block["between_share"].fillna(0.0).to_numpy(float)
+        if "between_share" in block
+        else np.zeros(len(block))
+    )
+    within_twice = float(np.mean(errors**2 * (shares + (1 - shares) / 2)))
+    mean = float(values.mean())
+    condition, control = row["condition"], row["control_condition"]
+    row["within_se"] = float(np.sqrt(d_within))
+    row["planned_on"] = planned_on
+    row["change"] = _change(table, condition, control, log) if planned_on != "d" else np.nan
+    if len(block) < 2:
+        return
+    d = block["d_objects"].to_numpy(float)
+    row["between_sd"] = float(np.sqrt(max(0.0, float(np.var(d, ddof=1)) - d_within)))
+    between = max(0.0, float(np.var(values, ddof=1)) - within)
+    row["limited_by"] = "between repeats" if between > within else "within repeats"
+    for column, error in (
+        ("repeats_needed", within),
+        ("repeats_needed_twice_fields", within_twice),
+    ):
+        _needed(row, column, mean, between + error, power)
+
+
+def _needed(row: dict[str, Any], column: str, mean: float, variance: float, power: float) -> None:
+    """The repeats needed into ``row[column]``, for repeat effects of ``mean`` and
+    ``variance``; a missing value or a degenerate variance said in ``status``."""
+    sd = float(np.sqrt(variance))
+    if not (np.isfinite(mean) and np.isfinite(sd)):
+        row["status"] = MISSING_VALUE  # said, never read as zero power
+        return
+    row[column] = repeats_needed(mean, sd, row["alpha_planned"], power)
+    if np.isnan(row[column]) and row["status"] == "ok":
+        row["status"] = DEGENERATE
 
 
 __all__ = [

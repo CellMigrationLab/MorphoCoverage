@@ -63,7 +63,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -164,71 +164,126 @@ def fov_clustering(
         raise ValueError(f"label_col {label_col!r} is not a column of objects")
     if not 0 < detection_probability < 1 or not 0 < confidence < 1:
         raise ValueError("detection_probability and confidence must be between 0 and 1")
-    n_permutations = as_count(n_permutations, "n_permutations", 1)
-    m = as_count(min_objects_per_fov, "min_objects_per_fov", 1)
-    k = as_count(min_fov_occurrences, "min_fov_occurrences", 1)
-    random_state = check_seed(random_state)
-    labels = objects[label_col]
-    if states is not None and (isinstance(states, (str, bytes, Mapping)) or not len(states)):
-        raise ValueError(f"states must be a list of {label_col!r} values, such as ['rare']")
-    chosen = list(pd.unique(labels.dropna())) if states is None else list(states)
-    if len(set(chosen)) < len(chosen):
-        raise ValueError(f"states names a state twice: {chosen}")
-    codes = pd.Series(np.nan, index=objects.index)
-    lookup = {state: i for i, state in enumerate(chosen)}
-    known = labels.notna()
-    # every labelled observation gets a code: its state's, or -1 for "another state"
-    codes[known] = [lookup.get(v, -1) for v in labels[known]]
+    rules = _Rules(
+        n_permutations=as_count(n_permutations, "n_permutations", 1),
+        m=as_count(min_objects_per_fov, "min_objects_per_fov", 1),
+        k=as_count(min_fov_occurrences, "min_fov_occurrences", 1),
+        random_state=check_seed(random_state),
+        detection_probability=detection_probability,
+        confidence=confidence,
+    )
+    chosen, codes = _state_codes(objects[label_col], label_col, states)
     table = objects.assign(**{_LABEL_CODE: codes.to_numpy(dtype=float)})
     data = validated(table, fovs, [_LABEL_CODE], fov_col, group_cols, observation_unit)
     all_groups = groups(data)
     references = [] if reference is None else matching_groups(all_groups, reference, "reference")
     rows = []
     for group, group_data in all_groups:
-        code = group_data.feature_values(_LABEL_CODE)
-        positions = fov_positions(group_data, group_data.fovs)
-        n_acquired = len(group_data.fovs)
-        observed_fields = np.bincount(positions, minlength=n_acquired) > 0
-        keep = ~np.isnan(code)
-        code, positions = code[keep].astype(int), positions[keep]
-        rank = np.empty(n_acquired, dtype=np.int64)
-        rank[canonical_fields(group_data)] = np.arange(n_acquired)
-        sizes = np.bincount(positions, minlength=n_acquired)
-        # A field whose observations all lack a label was not looked at; a field
-        # without observations was, and did not show the state.
-        unlabelled = int(np.sum(observed_fields & (sizes == 0)))
-        wells = _technical_repeat_of(group_data)
-        for index, state in enumerate(chosen):
-            is_state = code == index
-            # One generator per state and its observations in a canonical order (fields by FOV
-            # key, the state's last), so neither the other states nor the row order change its p.
-            rng = group_rng(random_state, {**group, "state": state})
-            order = np.lexsort((is_state, rank[positions]))
-            row = _state_row(
-                is_state[order],
-                positions[order],
-                sizes,
-                n_acquired - unlabelled,
-                rng,
-                n_permutations,
-                m,
-                k,
-            )
-            per_fov = np.bincount(positions[is_state], minlength=n_acquired)
-            if wells is not None:
-                row["technical_repeats"] = len(np.unique(wells))
-                row["technical_repeats_holding"] = len(np.unique(wells[per_fov >= m]))
-            rows.append(
-                {
-                    **group,
-                    "state": state,
-                    "fovs_acquired": n_acquired,
-                    "fovs_unlabelled": unlabelled,
-                    **row,
-                    **_plan(row, detection_probability, confidence, k, m),
-                }
-            )
-    table = pd.DataFrame(rows)
+        rows += _group_rows(group, group_data, chosen, rules)
+    table = _tested(pd.DataFrame(rows))
+    if reference is not None:
+        _add_reference(table, list(data.group_cols), references)
+    settings = {
+        ACQUISITION: acquisition_identity(data),
+        "label_col": label_col,
+        "states": chosen,
+        "detection_probability": detection_probability,
+        "confidence": confidence,
+        "n_permutations": rules.n_permutations,
+        "random_state": rules.random_state,
+        "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
+        "min_objects_per_fov": rules.m,
+        "min_fov_occurrences": rules.k,
+        "reference": None if reference is None else dict(reference),
+    }
+    return FOVClustering(table, tuple(data.group_cols), settings)
+
+
+class _Rules(NamedTuple):
+    """The checked settings every group and state of ``fov_clustering`` reads."""
+
+    n_permutations: int
+    m: int
+    k: int
+    random_state: int
+    detection_probability: float
+    confidence: float
+
+
+def _state_codes(
+    labels: pd.Series, label_col: str, states: Sequence[Any] | None
+) -> tuple[list[Any], pd.Series]:
+    """The states assessed and each observation's code: its state's index, -1 for another
+    state, missing when unlabelled."""
+    if states is not None and (isinstance(states, (str, bytes, Mapping)) or not len(states)):
+        raise ValueError(f"states must be a list of {label_col!r} values, such as ['rare']")
+    chosen = list(pd.unique(labels.dropna())) if states is None else list(states)
+    if len(set(chosen)) < len(chosen):
+        raise ValueError(f"states names a state twice: {chosen}")
+    codes = pd.Series(np.nan, index=labels.index)
+    lookup = {state: i for i, state in enumerate(chosen)}
+    known = labels.notna()
+    # every labelled observation gets a code: its state's, or -1 for "another state"
+    codes[known] = [lookup.get(v, -1) for v in labels[known]]
+    return chosen, codes
+
+
+def _group_rows(
+    group: dict[str, Any], group_data: ValidatedInput, chosen: list[Any], rules: _Rules
+) -> list[dict[str, Any]]:
+    """One row per state of one analysis group: its counts, clustering and plan."""
+    code = group_data.feature_values(_LABEL_CODE)
+    positions = fov_positions(group_data, group_data.fovs)
+    n_acquired = len(group_data.fovs)
+    observed_fields = np.bincount(positions, minlength=n_acquired) > 0
+    keep = ~np.isnan(code)
+    code, positions = code[keep].astype(int), positions[keep]
+    rank = np.empty(n_acquired, dtype=np.int64)
+    rank[canonical_fields(group_data)] = np.arange(n_acquired)
+    sizes = np.bincount(positions, minlength=n_acquired)
+    # A field whose observations all lack a label was not looked at; a field
+    # without observations was, and did not show the state.
+    unlabelled = int(np.sum(observed_fields & (sizes == 0)))
+    wells = _technical_repeat_of(group_data)
+    rows = []
+    for index, state in enumerate(chosen):
+        is_state = code == index
+        # One generator per state and its observations in a canonical order (fields by FOV
+        # key, the state's last), so neither the other states nor the row order change its p.
+        rng = group_rng(rules.random_state, {**group, "state": state})
+        order = np.lexsort((is_state, rank[positions]))
+        row = _state_row(
+            is_state[order],
+            positions[order],
+            sizes,
+            n_acquired - unlabelled,
+            rng,
+            rules.n_permutations,
+            rules.m,
+            rules.k,
+        )
+        per_fov = np.bincount(positions[is_state], minlength=n_acquired)
+        if wells is not None:
+            row["technical_repeats"] = len(np.unique(wells))
+            row["technical_repeats_holding"] = len(np.unique(wells[per_fov >= rules.m]))
+        plan = _plan(row, rules.detection_probability, rules.confidence, rules.k, rules.m)
+        rows.append(
+            {
+                **group,
+                "state": state,
+                "fovs_acquired": n_acquired,
+                "fovs_unlabelled": unlabelled,
+                **row,
+                **plan,
+            }
+        )
+    return rows
+
+
+def _tested(table: pd.DataFrame) -> pd.DataFrame:
+    """``tested`` and ``q_clustered`` added in place: the p of a test that cannot reach 0.05
+    removed, the others corrected together."""
     if len(table):
         # Only the tests that can reach 0.05 are run (audit 10); the tests kept are one
         # family: every group and state of this analysis.
@@ -239,23 +294,7 @@ def fov_clustering(
         table.insert(
             table.columns.get_loc("p_clustered") + 1, "q_clustered", benjamini_hochberg(p_values)
         )
-    if reference is not None:
-        _add_reference(table, list(data.group_cols), references)
-    settings = {
-        ACQUISITION: acquisition_identity(data),
-        "label_col": label_col,
-        "states": chosen,
-        "detection_probability": detection_probability,
-        "confidence": confidence,
-        "n_permutations": n_permutations,
-        "random_state": random_state,
-        "observation_unit": data.observation_unit,
-        "observation_unit_declared": data.observation_unit_declared,
-        "min_objects_per_fov": m,
-        "min_fov_occurrences": k,
-        "reference": None if reference is None else dict(reference),
-    }
-    return FOVClustering(table, tuple(data.group_cols), settings)
+    return table
 
 
 def _technical_repeat_of(group_data: ValidatedInput) -> np.ndarray | None:

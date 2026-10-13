@@ -336,7 +336,9 @@ src/morphocoverage/
         __init__.py        # the subpackage's public names
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
         object_rules.py    # mean-precision rule and JCS descriptor spread with random objects and whole FOVs
+        _control_means.py  # private: the control means per repeat behind the rule's reference, and the caution when the repeats' means differ
         contrast.py        # each condition against the control: per repeat, across repeats, cell-level; question 9
+        _contrast_rows.py  # private: its per-repeat rows: each contrast's test, effect sizes and JCS draws, the sides the cell-level test pools
         contrast_text.py   # its words: the readings first, then a table per contrast and per draw size, each caveat once
         contrast_repeats.py  # across biological repeats: direction, per-repeat d, paired t raw and normalised, sign-flip
         contrast_across.py # the contrast table's secondary rows: each normalised to its own control, controls against the master raw
@@ -344,8 +346,10 @@ src/morphocoverage/
         repeats_text.py    # its words: the across-repeat table and its notes
         contrast_cells.py  # the Plot&Stats cell-level test, raw and normalised, its balance check and balanced version
         _balanced.py       # private: the balanced test's arithmetic, every labelling at once by matrix products, from the same random keys
+        _cell_chance.py    # private: the cell-level test's chance of p <= 0.05 without an effect, re-exported by contrast_cells
         cells_text.py      # its words: the balance line, the tables, the false-positive chance, the notes
         reading_text.py    # one verdict per condition, read from every test (confirmed, same direction, not significant, not tested, mixed, one repeat)
+        _reading_cells.py  # private: the cell-level screen in a reading: the version trusted most, its chance without an effect, in words
         reagents_text.py   # whether independent reagents for one target agree (with a `target` column)
         repeat_plan.py     # planning the next experiment at the design the user ran: fields a side per repeat
         repeat_plan_text.py  # its words
@@ -355,6 +359,7 @@ src/morphocoverage/
         _reach.py          # private: run a test only when the design lets its smallest p reach 0.05 after Bonferroni
         ranking.py         # which features separate the conditions: BH-gated |d| ranking over whole technical repeats
         discovery.py       # the same question by the cell-level gate (BH), the paired t on repeat means beside it
+        _discovery_gate.py  # private: its cell-level gate refined where the family needs more shuffles, then corrected per sub-experiment
         _discovery_tests.py  # private: its tests per feature and condition, the features in worker processes (n_jobs)
         distribution.py    # beyond the mean: spread and 10/50/90% quantiles per repeat on field-balanced subsamples, tested across repeats
         whole_table.py     # the whole-table test: a table's centre shifted the same way in every repeat (leave-one-repeat-out projections, paired t corrected), a field-level permutation beside it

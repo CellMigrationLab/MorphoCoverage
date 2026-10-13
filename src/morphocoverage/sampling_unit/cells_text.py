@@ -58,6 +58,60 @@ def _chance(row: dict[str, Any], prefix: str = "chance") -> str:
     return chance_words(row[f"{prefix}_low"], row[f"{prefix}_high"]) or "–"
 
 
+def _which(rows: pd.DataFrame, cells: pd.DataFrame) -> str:
+    """The conditions a reason holds for: ``every condition`` or their names."""
+    # Each reason names the conditions it holds for (audit, 2026-10-02).
+    return (
+        "every condition"
+        if len(rows) == len(cells)
+        else listing([str(c) for c in rows["condition"]], 3)
+    )
+
+
+def _pooled_from(others: pd.DataFrame, cells: pd.DataFrame, word: str) -> str:
+    """The repeats a pooled control comes from that its condition was not imaged in."""
+    # Each condition's own number, in the order named (their range beyond three).
+    held_out = [int(n) for n in others["other_control_repeats"]]
+    if len(set(held_out)) == 1:
+        return f"{count(held_out[0], word)} the condition was not imaged in"
+    named = len(held_out) <= 3 and len(others) != len(cells)
+    numbers = listing([str(n) for n in held_out]) if named else None
+    return f"{word}s the condition was not imaged in " + (
+        f"({numbers} of them)" if numbers else f"({span(held_out)} of them)"
+    )
+
+
+def _shifted(others: pd.DataFrame, cells: pd.DataFrame, word: str) -> str:
+    """The sentence on control means that differ between repeats; empty when they do not."""
+    shift = others["control_shift"].max() if len(others) and "control_shift" in others else np.nan
+    # A pooled control mixes these levels: the raw test as provided then compares a condition
+    # with other repeats' level.
+    return (
+        f" The control means differ up to {shift:.1f}x between {word}s, so a raw test pooling "
+        "them would compare each condition with other repeats' level: read the normalised"
+        + (" or balanced" if cells["p_balanced"].notna().any() else "")
+        + " columns."
+        if pd.notna(shift) and shift > IMBALANCE
+        else ""
+    )
+
+
+def _also(cells: pd.DataFrame, word: str, words: str) -> str:
+    """Which tests are given: balanced too, or as provided only, and why."""
+    # "Also given balanced" only when some condition got that test (audit 10, C6).
+    return (
+        f"so the test is also given balanced (each "
+        f"condition against the control of its own {word}s, the same number of {words} from "
+        f"each {word}; the median d over {BALANCED_DRAWS} draws, labels shuffled within each "
+        f"{word} for p), and as provided only "
+        if cells["p_balanced"].notna().any()
+        else f"no balanced test could be drawn, every {word} holding fewer than {MIN_BALANCED} "
+        f"{words}, so the test is given as provided only "
+        if (cells["sparse_repeats"].map(len) >= cells["repeats"]).all()
+        else "no balanced test could be drawn, so the test is given as provided only "
+    )
+
+
 def _balance(contrast: Any, cells: pd.DataFrame) -> str:
     """The balance check in a sentence."""
     word = column_word(contrast.settings["repeat_col"])
@@ -70,61 +124,22 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
             "is run on the data as provided." + _control_only(contrast, cells)
         )
     reasons = []
-
-    def which(rows: pd.DataFrame) -> str:
-        # Each reason names the conditions it holds for (audit, 2026-10-02).
-        return (
-            "every condition"
-            if len(rows) == len(cells)
-            else listing([str(c) for c in rows["condition"]], 3)
-        )
-
     uneven = unbalanced[unbalanced["spread"] > IMBALANCE]
     if len(uneven):
         reasons.append(
-            f"for {which(uneven)}, one {word} holds more than {percent(IMBALANCE - 1)} more "
-            f"{words} than another on one side (up to {uneven['spread'].max():.1f} times)"
+            f"for {_which(uneven, cells)}, one {word} holds more than {percent(IMBALANCE - 1)} "
+            f"more {words} than another on one side (up to {uneven['spread'].max():.1f} times)"
         )
     others = unbalanced[unbalanced["other_control_repeats"] > 0]
     if len(others):
-        # Each condition's own number, in the order named (their range beyond three).
-        held_out = [int(n) for n in others["other_control_repeats"]]
-        if len(set(held_out)) == 1:
-            pooled_from = f"{count(held_out[0], word)} the condition was not imaged in"
-        else:
-            named = len(held_out) <= 3 and len(others) != len(cells)
-            numbers = listing([str(n) for n in held_out]) if named else None
-            pooled_from = f"{word}s the condition was not imaged in " + (
-                f"({numbers} of them)" if numbers else f"({span(held_out)} of them)"
-            )
-        reasons.append(f"for {which(others)}, the control as provided is pooled from {pooled_from}")
-    shift = others["control_shift"].max() if len(others) and "control_shift" in others else np.nan
-    # A pooled control mixes these levels: the raw test as provided then compares a condition
-    # with other repeats' level.
-    shifted = (
-        f" The control means differ up to {shift:.1f}x between {word}s, so a raw test pooling "
-        "them would compare each condition with other repeats' level: read the normalised"
-        + (" or balanced" if cells["p_balanced"].notna().any() else "")
-        + " columns."
-        if pd.notna(shift) and shift > IMBALANCE
-        else ""
-    )
-    # "Also given balanced" only when some condition got that test (audit 10, C6).
-    also = (
-        f"so the test is also given balanced (each "
-        f"condition against the control of its own {word}s, the same number of {words} from "
-        f"each {word}; the median d over {BALANCED_DRAWS} draws, labels shuffled within each "
-        f"{word} for p), and as provided only "
-        if cells["p_balanced"].notna().any()
-        else f"no balanced test could be drawn, every {word} holding fewer than {MIN_BALANCED} "
-        f"{words}, so the test is given as provided only "
-        if (cells["sparse_repeats"].map(len) >= cells["repeats"]).all()
-        else "no balanced test could be drawn, so the test is given as provided only "
-    )
+        reasons.append(
+            f"for {_which(others, cells)}, the control as provided is pooled from "
+            f"{_pooled_from(others, cells, word)}"
+        )
     return (
-        f"Balance: {'; and '.join(reasons)}; {also}"
+        f"Balance: {'; and '.join(reasons)}; {_also(cells, word, words)}"
         f"where the control comes from the condition's own {word}s."
-        + shifted
+        + _shifted(others, cells, word)
         + _control_only(contrast, cells)
     )
 
@@ -202,6 +217,95 @@ def balance_lines(contrast: Any) -> list[str]:
     return balance + _sparse(contrast, cells)
 
 
+def _as_provided(cells: pd.DataFrame) -> list[list[str]]:
+    """The rows of the test as provided, for the conditions compared with their own repeats'
+    control only."""
+    return [
+        [
+            versus(row["condition"], row["control_condition"]),
+            _test(row["d_cells"], row["p_cells"], row["q_cells"]),
+            _test(
+                row["d_cells_normalised"],
+                row["p_cells_normalised"],
+                row["q_cells_normalised"],
+            ),
+            _chance(row),
+        ]
+        for row in cells.to_dict("records")
+        if row["other_control_repeats"] == 0
+    ]
+
+
+def _pooled_note(contrast: Any, cells: pd.DataFrame, pooled: list[str], indent: int) -> str:
+    """Why the conditions whose control pools other repeats get no test as provided, and which
+    of them get no test at all."""
+    word = column_word(contrast.settings["repeat_col"])
+    # Neither test for a condition: said, with why (audit 10, C6).
+    none = set(cells.loc[cells["p_balanced"].isna(), "condition"].astype(str))
+    neither = [c for c in pooled if c in none]
+    return wrap(
+        f"Not given as provided for {listing(pooled, 3)}: "
+        f"{'its' if len(pooled) == 1 else 'their'} control would include "
+        f"{word}s the condition was not imaged in"
+        + (
+            f"; so no {_unit(contrast)}-level test for {listing(neither, 3)}, which "
+            f"{'has' if len(neither) == 1 else 'have'} no balanced test either."
+            if neither
+            else "."
+        ),
+        indent,
+        hang=indent + 2,
+    )
+
+
+def _balanced_table(cells: pd.DataFrame, words: str, full: bool, indent: int) -> list[str]:
+    """The test balanced over the repeats: its title and table, the observations per repeat of
+    each draw in the full form."""
+    rows = []
+    for row in cells[cells["p_balanced"].notna()].to_dict("records"):
+        values = [
+            versus(row["condition"], row["control_condition"]),
+            _test(row["d_balanced"], row["p_balanced"], row["q_balanced"]),
+            _test(
+                row["d_balanced_normalised"],
+                row["p_balanced_normalised"],
+                row["q_balanced_normalised"],
+            ),
+        ]
+        if full:
+            values.append(f"{int(row['balanced_cells'])} / {int(row['balanced_control_cells'])}")
+        values.append(_chance(row, "chance_balanced"))
+        rows.append(values)
+    names = ["condition", "raw: d, p (q)", "normalised: d, p (q)"]
+    names += [f"{words} per repeat, condition / control"] if full else []
+    names.append(f"gives p ≤ {ALPHA:g} with no effect")
+    return [
+        wrap("Balanced over the repeats:", indent, hang=indent + 2),
+        table(rows, names, indent=indent),
+    ]
+
+
+def _family_note(settings: dict[str, Any], indent: int) -> list[str]:
+    """What q is corrected over, with several features (empty with one)."""
+    features = settings.get("family_features")
+    if not (features and features > 1):
+        return []
+    # The version the reading uses shares the family of every feature (_families).
+    return [
+        wrap(
+            "q: the version the reading uses (balanced and normalised when given, else "
+            "normalised) is corrected over the "
+            f"{features_counted(int(features), settings.get('family_share'), ', ')} and "
+            "their conditions "
+            f"of each {family_noun(settings)}, as the feature ranking; the other columns over "
+            "this "
+            "feature's conditions only.",
+            indent,
+            hang=indent + 2,
+        )
+    ]
+
+
 def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list[str], list[str]]:
     """The balance check, the table of the cell-level test and its note (empty without it)."""
     cells = _cells(contrast)
@@ -224,20 +328,7 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
     pooled = [
         str(r["condition"]) for r in cells.to_dict("records") if r["other_control_repeats"] > 0
     ]
-    as_provided = [
-        [
-            versus(row["condition"], row["control_condition"]),
-            _test(row["d_cells"], row["p_cells"], row["q_cells"]),
-            _test(
-                row["d_cells_normalised"],
-                row["p_cells_normalised"],
-                row["q_cells_normalised"],
-            ),
-            _chance(row),
-        ]
-        for row in cells.to_dict("records")
-        if row["other_control_repeats"] == 0
-    ]
+    as_provided = _as_provided(cells)
     columns = [
         "condition",
         "raw: d, p (q)",
@@ -249,65 +340,10 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
     if as_provided:
         lines.append(table(as_provided, columns, indent=indent + 2))
     if pooled:
-        word = column_word(contrast.settings["repeat_col"])
-        # Neither test for a condition: said, with why (audit 10, C6).
-        none = set(cells.loc[cells["p_balanced"].isna(), "condition"].astype(str))
-        neither = [c for c in pooled if c in none]
-        lines.append(
-            wrap(
-                f"Not given as provided for {listing(pooled, 3)}: "
-                f"{'its' if len(pooled) == 1 else 'their'} control would include "
-                f"{word}s the condition was not imaged in"
-                + (
-                    f"; so no {_unit(contrast)}-level test for {listing(neither, 3)}, which "
-                    f"{'has' if len(neither) == 1 else 'have'} no balanced test either."
-                    if neither
-                    else "."
-                ),
-                indent + 2,
-                hang=indent + 4,
-            )
-        )
+        lines.append(_pooled_note(contrast, cells, pooled, indent + 2))
     if balanced:
-        lines.append(wrap("Balanced over the repeats:", indent + 2, hang=indent + 4))
-        rows = []
-        for row in cells[cells["p_balanced"].notna()].to_dict("records"):
-            values = [
-                versus(row["condition"], row["control_condition"]),
-                _test(row["d_balanced"], row["p_balanced"], row["q_balanced"]),
-                _test(
-                    row["d_balanced_normalised"],
-                    row["p_balanced_normalised"],
-                    row["q_balanced_normalised"],
-                ),
-            ]
-            if full:
-                values.append(
-                    f"{int(row['balanced_cells'])} / {int(row['balanced_control_cells'])}"
-                )
-            values.append(_chance(row, "chance_balanced"))
-            rows.append(values)
-        names = ["condition", "raw: d, p (q)", "normalised: d, p (q)"]
-        names += [f"{words} per repeat, condition / control"] if full else []
-        names.append(f"gives p ≤ {ALPHA:g} with no effect")
-        lines.append(table(rows, names, indent=indent + 2))
-    settings = contrast.settings
-    features = settings.get("family_features")
-    if features and features > 1:
-        # The version the reading uses shares the family of every feature (_families).
-        lines.append(
-            wrap(
-                "q: the version the reading uses (balanced and normalised when given, else "
-                "normalised) is corrected over the "
-                f"{features_counted(int(features), settings.get('family_share'), ', ')} and "
-                "their conditions "
-                f"of each {family_noun(settings)}, as the feature ranking; the other columns over "
-                "this "
-                "feature's conditions only.",
-                indent + 2,
-                hang=indent + 4,
-            )
-        )
+        lines += _balanced_table(cells, words, full, indent + 2)
+    lines += _family_note(contrast.settings, indent + 2)
     return lines, (_notes if full else _short_notes)(contrast, cells, balanced)
 
 

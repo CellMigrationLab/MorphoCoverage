@@ -207,6 +207,104 @@ def secondary_headline(contrast: Any) -> str:
     return f"across experiments: {hits} of {len(compared)} significant" if hits else ""
 
 
+def _across_head(contrast: Any, word: str, indent: int) -> str:
+    """The lead line of ``Compared across experiments``, naming the readout first when there
+    are several features."""
+    every = contrast.settings.get("across_features")
+    features = every["feature"].nunique() if every is not None and len(every) else 1
+    readout = contrast.settings["feature"]
+    family = "each family corrected on its own" + (
+        f", over its rows of the {features} features" if features > 1 else ""
+    )
+    lead = f"; first {readout}, the readout:" if features > 1 else ":"
+    return wrap(
+        "Compared across experiments, secondary to the verdicts above: the paired t-test on "
+        f"the {word} means, one value per {word}, {family}{lead}",
+        indent,
+        hang=indent + 2,
+    )
+
+
+def _normalised_lines(
+    normalised: pd.DataFrame, word: str, gaps: list[dict], indent: int
+) -> list[str]:
+    """The same treatment in two experiments, each normalised to its own control: the
+    sentence, the table and the rows joining controls apart in intensity (empty without)."""
+    if not len(normalised):
+        return []
+    columns = ["comparison", f"larger ratio, by {word}", "change", "paired t: p (q)", f"{word}s"]
+    return [
+        wrap(
+            "The same treatment in two experiments, each condition normalised to its own "
+            f"control: in every {word} holding all four, the log ratio of each to its "
+            "control, the one minus the other; the larger ratio is named.",
+            indent,
+            hang=indent + 2,
+        ),
+        table(_rows(normalised), columns, indent=indent + 2),
+        *_gap_note(normalised, gaps, indent + 2),
+    ]
+
+
+def _raw_lines(contrast: Any, across: pd.DataFrame, word: str, indent: int) -> list[str]:
+    """The controls against the master on the raw values: the sentence (whenever a row is of
+    that kind), then the table of those compared and their gap note."""
+    if not (across["kind"] == MASTER_RAW).any():
+        return []
+    raw = across[(across["status"] == "ok") & (across["kind"] == MASTER_RAW)]
+    lines = [
+        wrap(
+            f"{_master(contrast, word)} The controls against it on the raw values, not "
+            f"normalised, in the {word}s holding both, on each feature's scale: the log "
+            "ratio of the control's mean to the master's, else their difference; raw "
+            "comparisons across experiments assume they were imaged and processed alike.",
+            indent,
+            hang=indent + 2,
+        )
+    ]
+    if len(raw):
+        columns = ["comparison", f"by {word}", "change", "paired t: p (q)", f"{word}s"]
+        lines.append(table(_rows(raw), columns, indent=indent + 2))
+        lines += _gap_note(raw, contrast.settings.get("acquisition_gaps", []), indent + 2)
+    return lines
+
+
+def _fallback_lines(compared: pd.DataFrame, indent: int) -> list[str]:
+    """The compared rows whose values fell back to differences, the normalised ones then the
+    raw ones."""
+    lines = []
+    for kind, compared_values in (
+        (ACROSS, "differences of the raw differences"),
+        (MASTER_RAW, "raw differences"),
+    ):
+        fell = compared[(compared["kind"] == kind) & (compared["values"] == RAW)]
+        if len(fell):
+            lines.append(
+                wrap(
+                    f"{listing(list(fell['comparison']), 3)}: a value is not positive, so the "
+                    f"{compared_values} are compared instead of log ratios.",
+                    indent,
+                    hang=indent + 2,
+                )
+            )
+    return lines
+
+
+def _not_compared(across: pd.DataFrame, word: str, indent: int) -> list[str]:
+    """The rows held in too few repeats, named once (empty without)."""
+    left = across[across["status"] != "ok"]
+    if not len(left):
+        return []
+    return [
+        wrap(
+            f"Not compared: {listing(list(left['comparison']), 4)}: fewer than "
+            f"{MIN_REPEATS} {word}s hold every condition of the comparison.",
+            indent,
+            hang=indent + 2,
+        )
+    ]
+
+
 def across_parts(contrast: Any, indent: int = 2) -> list[str]:
     """``Compared across experiments`` and its tables, the readout's rows first, then the
     other features' significant rows and their count, then the contrast table (empty with a
@@ -217,81 +315,11 @@ def across_parts(contrast: Any, indent: int = 2) -> list[str]:
     word = column_word(contrast.settings.get("repeat_col")) or "repeat"
     compared = across[across["status"] == "ok"]
     gaps = contrast.settings.get("acquisition_gaps", [])
-    every = contrast.settings.get("across_features")
-    features = every["feature"].nunique() if every is not None and len(every) else 1
-    readout = contrast.settings["feature"]
-    family = "each family corrected on its own" + (
-        f", over its rows of the {features} features" if features > 1 else ""
-    )
-    lead = f"; first {readout}, the readout:" if features > 1 else ":"
-    lines = [
-        wrap(
-            "Compared across experiments, secondary to the verdicts above: the paired t-test on "
-            f"the {word} means, one value per {word}, {family}{lead}",
-            indent,
-            hang=indent + 2,
-        )
-    ]
-    columns = ["comparison", f"by {word}", "change", "paired t: p (q)", f"{word}s"]
-    normalised = compared[compared["kind"] == ACROSS]
-    if len(normalised):
-        lines.append(
-            wrap(
-                "The same treatment in two experiments, each condition normalised to its own "
-                f"control: in every {word} holding all four, the log ratio of each to its "
-                "control, the one minus the other; the larger ratio is named.",
-                indent + 2,
-                hang=indent + 4,
-            )
-        )
-        larger = ["comparison", f"larger ratio, by {word}", *columns[2:]]
-        lines.append(table(_rows(normalised), larger, indent=indent + 4))
-        lines += _gap_note(normalised, gaps, indent + 4)
-    raw = compared[compared["kind"] == MASTER_RAW]
-    if len(raw) or (across["kind"] == MASTER_RAW).any():
-        lines.append(
-            wrap(
-                f"{_master(contrast, word)} The controls against it on the raw values, not "
-                f"normalised, in the {word}s holding both, on each feature's scale: the log "
-                "ratio of the control's mean to the master's, else their difference; raw "
-                "comparisons across experiments assume they were imaged and processed alike.",
-                indent + 2,
-                hang=indent + 4,
-            )
-        )
-        if len(raw):
-            lines.append(table(_rows(raw), columns, indent=indent + 4))
-            lines += _gap_note(raw, gaps, indent + 4)
-    fell = compared[(compared["kind"] == ACROSS) & (compared["values"] == RAW)]
-    if len(fell):
-        lines.append(
-            wrap(
-                f"{listing(list(fell['comparison']), 3)}: a value is not positive, so the "
-                "differences of the raw differences are compared instead of log ratios.",
-                indent + 2,
-                hang=indent + 4,
-            )
-        )
-    fell = compared[(compared["kind"] == MASTER_RAW) & (compared["values"] == RAW)]
-    if len(fell):
-        lines.append(
-            wrap(
-                f"{listing(list(fell['comparison']), 3)}: a value is not positive, so the "
-                "raw differences are compared instead of log ratios.",
-                indent + 2,
-                hang=indent + 4,
-            )
-        )
-    left = across[across["status"] != "ok"]
-    if len(left):
-        lines.append(
-            wrap(
-                f"Not compared: {listing(list(left['comparison']), 4)}: fewer than "
-                f"{MIN_REPEATS} {word}s hold every condition of the comparison.",
-                indent + 2,
-                hang=indent + 4,
-            )
-        )
+    lines = [_across_head(contrast, word, indent)]
+    lines += _normalised_lines(compared[compared["kind"] == ACROSS], word, gaps, indent + 2)
+    lines += _raw_lines(contrast, across, word, indent + 2)
+    lines += _fallback_lines(compared, indent + 2)
+    lines += _not_compared(across, word, indent + 2)
     lines += _others(contrast, word, indent + 2)
     return lines + contrast_lines(contrast, indent)
 

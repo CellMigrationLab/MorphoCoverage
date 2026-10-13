@@ -61,7 +61,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -71,11 +71,11 @@ from .._checks import as_count, check_seed
 from .._control import control_name
 from .._former_repeat import one_warning, read_former
 from .._frozen import owned
-from .._identity import IdentityKey, display, identity_key
+from .._identity import identity_key
 from .._seeds import group_key, group_rng
 from .._style import check_detail, group_label
 from .._wording import column_word, where
-from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
+from ..metadata import REPEAT_COLUMN
 from ..schema import ValidatedInput, canonical_fields, fov_values, observation_words
 from ..statistics import (
     describe,
@@ -86,7 +86,7 @@ from ..statistics import (
     spread_is_zero,
 )
 from ._common import groups, matching_groups, validated
-from ._experiments import repeat_experiments
+from ._control_means import _pooled_by_repeat, _repeat_caution, _repeats_of
 from ._unit_text import (
     descriptor_spread_full,
     descriptor_spread_parts,
@@ -105,8 +105,6 @@ _NEGATIVE = (
     "non-negative measurements"
 )
 _ZERO_REFERENCE = "not applicable: the reference mean is 0, so an error relative to it is undefined"
-# Repeat control means differing by more than this factor are flagged (D3).
-REFERENCE_SHIFT = 1.5
 _NO_REFERENCE = (
     "not applicable: no control object in this group's repeat, so there is no reference mean "
     "of the same repeat"
@@ -172,64 +170,22 @@ def _reference_means(
         means = {k: float(v.mean()) if len(v) else None for k, v in values_by_group.items()}
         return means, "each group's own mean", dict.fromkeys(means, False), None
     chosen = {group_key(g) for g in matching_groups(all_groups, control, "control")}
-
-    def repeats_of(data: ValidatedInput) -> list[Any]:
-        return data.fovs[repeat_col].drop_duplicates().tolist() if repeat_col else [None]
-
-    by_repeat: dict[IdentityKey, list[np.ndarray]] = {}
-    for group, data in all_groups:
-        if group_key(group) in chosen:
-            for repeat in repeats_of(data):
-                by_repeat.setdefault(identity_key(repeat), []).append(
-                    values_by_group[group_key(group)]
-                )
-    pooled = {r: np.concatenate(v) for r, v in by_repeat.items()}
+    pooled = _pooled_by_repeat(all_groups, chosen, values_by_group, repeat_col)
     if not any(len(v) for v in pooled.values()):
         raise ValueError("the control groups have no observations of the feature")
     means, negative = {}, {}
     for group, data in all_groups:
-        parts = [pooled[identity_key(r)] for r in repeats_of(data) if identity_key(r) in pooled]
+        parts = [
+            pooled[identity_key(r)]
+            for r in _repeats_of(data, repeat_col)
+            if identity_key(r) in pooled
+        ]
         values = np.concatenate(parts) if parts else np.array([])
         means[group_key(group)] = float(values.mean()) if len(values) else None
         negative[group_key(group)] = bool((values < 0).any())
     within = f" of the same {column_word(repeat_col)}" if repeat_col else ""
     label = f"mean of all objects of the control groups, {control_name(control)}{within}"
-    names = display(list(pooled))
-    # Control means are compared within a sub-experiment only: two sets of a screen, each
-    # with its own control and repeats, are not one control drifting (owner, 2026-10-02).
-    block = (
-        repeat_experiments([g for g, _ in all_groups], chosen, CONDITION_COLUMN, repeat_col)
-        if repeat_col
-        else {}
-    )
-    of_name = {identity_key(r): block.get(r) for _, d in all_groups for r in repeats_of(d)}
-    # A repeat holding only the control belongs to no sub-experiment: compared with all.
-    blocks: dict[int | None, dict[str, np.ndarray]] = {b: {} for b in set(block.values())}
-    blocks = blocks or {None: {}}
-    for r, values in pooled.items():
-        for b in blocks if of_name.get(r) is None else [of_name[r]]:
-            blocks[b][names[r]] = values
-    shifts = [shift for shift in map(_shift, blocks.values()) if shift is not None]
-    caution = max(shifts)[1] if shifts else None
-    return means, label, negative, caution
-
-
-def _shift(pooled: dict[str, np.ndarray]) -> tuple[float, str] | None:
-    """The ratio and a caution when the repeats' control means differ by more than
-    ``REFERENCE_SHIFT``; ``None`` below it."""
-    levels = {r: float(v.mean()) for r, v in pooled.items() if len(v)}
-    if len(levels) < 2 or min(levels.values()) <= 0:
-        return None
-    low, high = min(levels, key=levels.get), max(levels, key=levels.get)
-    ratio = levels[high] / levels[low]
-    if ratio <= REFERENCE_SHIFT:
-        return None
-    return ratio, (
-        f"the control means of the repeats differ by {ratio:.1f}x (repeat {low}: "
-        f"{levels[low]:.3g}, repeat {high}: {levels[high]:.3g}); each repeat is judged "
-        "against its own control, but a shift that large may be a batch effect or a change "
-        "of units (a feature exported in other units in one repeat)"
-    )
+    return means, label, negative, _repeat_caution(all_groups, chosen, pooled, repeat_col)
 
 
 def _canonical_fov_values(data: ValidatedInput, feature: str) -> list[np.ndarray]:
@@ -299,86 +255,20 @@ def object_rule_check(
     data = validated(objects, fovs, [feature], fov_col, group_cols, observation_unit)
     words = observation_words(data)[1]
     all_groups = groups(data)
-    if repeat_col is not None and repeat_col not in data.fovs.columns:
-        if repeat_col != REPEAT_COLUMN:
-            raise ValueError(
-                f"repeat_col {repeat_col!r} is not a column of the FOV table; name the "
-                "biological-repeat column, or pass repeat_col=None to pool every repeat's control"
-            )
-        repeat_col = None  # the default is absent: one implicit repeat
+    repeat_col = _present_repeat_col(data, repeat_col)
     references, label, negative_control, shift = _reference_means(
         all_groups, feature, control, repeat_col
     )
+    context = _RuleContext(control is not None, min_fields, words, n_draws, random_state)
     rows = []
     for group, group_data in all_groups:
-        per_fov = _canonical_fov_values(group_data, feature)
-        sizes = np.array([len(v) for v in per_fov], dtype=float)
-        sums = np.array([v.sum() for v in per_fov])
-        filled = [v for v in per_fov if len(v)]
+        fields = _fields(group_data, feature)
         reference = references[group_key(group)]
-        base = {
-            **group,
-            "fovs": len(per_fov),
-            "fovs_with_observations": len(filled),
-            "observations": int(sizes.sum()),
-        }
-        negative = negative_control[group_key(group)] or any(bool((v < 0).any()) for v in filled)
+        negative = negative_control[group_key(group)] or any(
+            bool((v < 0).any()) for v in fields.filled
+        )
         for target in targets:
-            if reference is None and control is not None:
-                rows.append({**base, "target": target, "status": _NO_REFERENCE})
-                continue
-            if negative:
-                rows.append({**base, "target": target, "status": _NEGATIVE})
-                continue
-            if len(filled) < min_fields:
-                # Drawn with replacement, a few fields repeat themselves: below MIN_FIELDS the
-                # check reads its own resampling (audit 10, owner, 2026-10-06; before, 2).
-                status = f"fewer than {min_fields} fields with {words}"
-                rows.append({**base, "target": target, "status": status})
-                continue
-            if reference == 0:
-                rows.append({**base, "target": target, "status": _ZERO_REFERENCE})
-                continue
-            relative = np.concatenate(filled) / reference
-            sd = float(np.std(relative, ddof=1))
-            if spread_is_zero(sd, relative):
-                rows.append({**base, "target": target, "status": _CONSTANT})
-                continue
-            n = max(1, jcb_required_objects(sd, target))
-            rng = group_rng(random_state, group, int(target * 1e6))
-            means, obtained, used = _fovs_until(sizes, sums / reference, n, n_draws, rng)
-            real = float(means.std(ddof=1))
-            predicted = float(np.mean(sd / np.sqrt(obtained)))
-            # The mean-precision rule with the field as the unit: the SD of one field's mean, from
-            # the unweighted mean of field means (statistics.field_weighted_mean_se), not the
-            # object-weighted ratio estimator of ScalarPrecisionStrategy(resampling_unit="fov").
-            _, fov_se, n_filled = field_weighted_mean_se(np.array([v.mean() for v in filled]))
-            fov_sd = fov_se * math.sqrt(n_filled) / reference
-            upper = fov_sd * sd_upper_bound_factor(n_filled - 1)
-            fov_rule = max(1, jcb_required_objects(fov_sd, target))
-            fov_rule_upper = max(1, jcb_required_objects(upper, target))
-            # Fields with observations, scaled to the acquired fields that hold that many.
-            per_filled = len(per_fov) / n_filled
-            rows.append(
-                {
-                    **base,
-                    "target": target,
-                    "status": "ok",
-                    "object_sd": sd,
-                    "rule_objects": n,
-                    "rule_exceeds_acquired": bool(n > sizes.sum()),
-                    "objects_obtained": float(obtained.mean()),
-                    "fovs_used": float(used.mean()),
-                    "predicted_error": predicted,
-                    "real_error": real,
-                    "error_ratio": real / predicted if predicted > 0 else None,
-                    "meets_target": bool(real <= target),
-                    "fov_rule_fovs": fov_rule,
-                    "fov_rule_fovs_upper95": fov_rule_upper,
-                    "fov_rule_acquired": math.ceil(round(fov_rule * per_filled, 9)),
-                    "fov_rule_acquired_upper95": math.ceil(round(fov_rule_upper * per_filled, 9)),
-                }
-            )
+            rows.append(_target_row(group, fields, reference, negative, target, context))
     settings = {
         ACQUISITION: acquisition_identity(data),
         "feature": feature,
@@ -393,6 +283,133 @@ def object_rule_check(
         "observation_unit_declared": data.observation_unit_declared,
     }
     return ObjectRuleCheck(pd.DataFrame(rows), tuple(data.group_cols), settings)
+
+
+def _present_repeat_col(data: ValidatedInput, repeat_col: str | None) -> str | None:
+    """``repeat_col`` when the FOV table holds it; ``None`` for the default when absent (one
+    implicit repeat); any other absent column is an error."""
+    if repeat_col is not None and repeat_col not in data.fovs.columns:
+        if repeat_col != REPEAT_COLUMN:
+            raise ValueError(
+                f"repeat_col {repeat_col!r} is not a column of the FOV table; name the "
+                "biological-repeat column, or pass repeat_col=None to pool every repeat's control"
+            )
+        return None  # the default is absent: one implicit repeat
+    return repeat_col
+
+
+class _RuleContext(NamedTuple):
+    """The checked settings every group and target of ``object_rule_check`` reads."""
+
+    has_control: bool
+    min_fields: int
+    words: str
+    n_draws: int
+    random_state: int
+
+
+class _Fields(NamedTuple):
+    """A group's fields for the rule: the values per field in canonical order, their sizes
+    and sums, and the fields with observations."""
+
+    per_fov: list[np.ndarray]
+    sizes: np.ndarray
+    sums: np.ndarray
+    filled: list[np.ndarray]
+
+
+def _fields(group_data: ValidatedInput, feature: str) -> _Fields:
+    """The group's fields of ``feature`` (``_canonical_fov_values``)."""
+    per_fov = _canonical_fov_values(group_data, feature)
+    sizes = np.array([len(v) for v in per_fov], dtype=float)
+    sums = np.array([v.sum() for v in per_fov])
+    return _Fields(per_fov, sizes, sums, [v for v in per_fov if len(v)])
+
+
+def _not_assessable(
+    reference: float | None, negative: bool, filled: int, context: _RuleContext
+) -> str | None:
+    """Why the rule cannot be read for a group (``filled`` fields with observations), or
+    ``None``."""
+    if reference is None and context.has_control:
+        return _NO_REFERENCE
+    if negative:
+        return _NEGATIVE
+    if filled < context.min_fields:
+        # Drawn with replacement, a few fields repeat themselves: below MIN_FIELDS the
+        # check reads its own resampling (audit 10, owner, 2026-10-06; before, 2).
+        return f"fewer than {context.min_fields} fields with {context.words}"
+    if reference == 0:
+        return _ZERO_REFERENCE
+    return None
+
+
+def _target_row(
+    group: dict[str, Any],
+    fields: _Fields,
+    reference: float | None,
+    negative: bool,
+    target: float,
+    context: _RuleContext,
+) -> dict[str, Any]:
+    """One group and target: why the rule cannot be read, or the rule's objects, the error
+    they really give drawn as whole fields, and the rule with the field as the unit."""
+    base = {
+        **group,
+        "fovs": len(fields.per_fov),
+        "fovs_with_observations": len(fields.filled),
+        "observations": int(fields.sizes.sum()),
+        "target": target,
+    }
+    status = _not_assessable(reference, negative, len(fields.filled), context)
+    if status is not None:
+        return {**base, "status": status}
+    relative = np.concatenate(fields.filled) / reference
+    sd = float(np.std(relative, ddof=1))
+    if spread_is_zero(sd, relative):
+        return {**base, "status": _CONSTANT}
+    n = max(1, jcb_required_objects(sd, target))
+    rng = group_rng(context.random_state, group, int(target * 1e6))
+    means, obtained, used = _fovs_until(
+        fields.sizes, fields.sums / reference, n, context.n_draws, rng
+    )
+    real = float(means.std(ddof=1))
+    predicted = float(np.mean(sd / np.sqrt(obtained)))
+    return {
+        **base,
+        "status": "ok",
+        "object_sd": sd,
+        "rule_objects": n,
+        "rule_exceeds_acquired": bool(n > fields.sizes.sum()),
+        "objects_obtained": float(obtained.mean()),
+        "fovs_used": float(used.mean()),
+        "predicted_error": predicted,
+        "real_error": real,
+        "error_ratio": real / predicted if predicted > 0 else None,
+        "meets_target": bool(real <= target),
+        **_field_rule(fields, reference, target),
+    }
+
+
+def _field_rule(fields: _Fields, reference: float, target: float) -> dict[str, int]:
+    """The rule with the field as the unit: the fields with observations it asks for, with
+    the upper 95% bound of the SD, and the acquired fields that hold that many."""
+    # The mean-precision rule with the field as the unit: the SD of one field's mean, from
+    # the unweighted mean of field means (statistics.field_weighted_mean_se), not the
+    # object-weighted ratio estimator of ScalarPrecisionStrategy(resampling_unit="fov").
+    _, fov_se, n_filled = field_weighted_mean_se(np.array([v.mean() for v in fields.filled]))
+    fov_sd = fov_se * math.sqrt(n_filled) / reference
+    upper = fov_sd * sd_upper_bound_factor(n_filled - 1)
+    fov_rule = max(1, jcb_required_objects(fov_sd, target))
+    fov_rule_upper = max(1, jcb_required_objects(upper, target))
+    # Fields with observations, scaled to the acquired fields that hold that many.
+    per_filled = len(fields.per_fov) / n_filled
+    return {
+        "fov_rule_fovs": fov_rule,
+        "fov_rule_fovs_upper95": fov_rule_upper,
+        "fov_rule_acquired": math.ceil(round(fov_rule * per_filled, 9)),
+        "fov_rule_acquired_upper95": math.ceil(round(fov_rule_upper * per_filled, 9)),
+    }
 
 
 @owned("curves", "at_threshold", "settings")
@@ -455,19 +472,8 @@ def descriptor_spread_check(
         per_fov = [v for v in _canonical_fov_values(group_data, feature) if len(v)]
         pooled = np.concatenate(per_fov) if per_fov else np.array([])
         rng = group_rng(random_state, group)
-        spreads: dict[tuple[str, int], np.ndarray] = {}
-        for n in [s for s in sizes if s <= len(pooled)]:
-            for how in (RANDOM_OBJECTS, WHOLE_FOVS):
-                if how == RANDOM_OBJECTS:
-                    samples = [rng.choice(pooled, size=n, replace=False) for _ in range(n_draws)]
-                else:
-                    samples = [field_sample(per_fov, n, rng) for _ in range(n_draws)]
-                values = np.array([list(describe(s).values()) for s in samples])
-                spread = values.max(axis=0) - values.min(axis=0)
-                spreads[(how, n)] = spread
-                rows.append(
-                    {**group, "n": n, "sampling": how, **dict(zip(DESCRIPTORS, spread.tolist()))}
-                )
+        curves, spreads = _spreads(group, per_fov, pooled, sizes, n_draws, rng)
+        rows += curves
         if (RANDOM_OBJECTS, threshold) not in spreads:
             skipped.append(
                 {
@@ -478,24 +484,7 @@ def descriptor_spread_check(
                 }
             )
             continue
-        tried = sorted(n for how, n in spreads if how == WHOLE_FOVS)
-        for index, name in enumerate(DESCRIPTORS):
-            reference = spreads[(RANDOM_OBJECTS, threshold)][index]
-            above = [n for n in tried if spreads[(WHOLE_FOVS, n)][index] > reference]
-            later = [n for n in tried if not above or n > max(above)]
-            fov_spread = spreads[(WHOLE_FOVS, threshold)][index]
-            threshold_rows.append(
-                {
-                    **group,
-                    "descriptor": name,
-                    "threshold": threshold,
-                    "random_objects_spread": float(reference),
-                    "whole_fovs_spread": float(fov_spread),
-                    "ratio": float(fov_spread / reference) if reference > 0 else None,
-                    "objects_to_match": later[0] if later else None,
-                    "largest_size_tried": tried[-1],
-                }
-            )
+        threshold_rows += _threshold_rows(group, spreads, threshold)
     settings = {
         ACQUISITION: acquisition_identity(data),
         "feature": feature,
@@ -510,6 +499,60 @@ def descriptor_spread_check(
     return DescriptorSpreadCheck(
         pd.DataFrame(rows), pd.DataFrame(threshold_rows), tuple(keys), settings
     )
+
+
+def _spreads(
+    group: dict[str, Any],
+    per_fov: list[np.ndarray],
+    pooled: np.ndarray,
+    sizes: list[int],
+    n_draws: int,
+    rng: np.random.Generator,
+) -> tuple[list[dict[str, Any]], dict[tuple[str, int], np.ndarray]]:
+    """Each descriptor's max - min over ``n_draws`` samples of each size the group holds,
+    with random objects and with whole fields: a curve row per size and sampling, and the
+    spreads by sampling and size."""
+    rows, spreads = [], {}
+    for n in [s for s in sizes if s <= len(pooled)]:
+        for how in (RANDOM_OBJECTS, WHOLE_FOVS):
+            if how == RANDOM_OBJECTS:
+                samples = [rng.choice(pooled, size=n, replace=False) for _ in range(n_draws)]
+            else:
+                samples = [field_sample(per_fov, n, rng) for _ in range(n_draws)]
+            values = np.array([list(describe(s).values()) for s in samples])
+            spread = values.max(axis=0) - values.min(axis=0)
+            spreads[(how, n)] = spread
+            rows.append(
+                {**group, "n": n, "sampling": how, **dict(zip(DESCRIPTORS, spread.tolist()))}
+            )
+    return rows, spreads
+
+
+def _threshold_rows(
+    group: dict[str, Any], spreads: dict[tuple[str, int], np.ndarray], threshold: int
+) -> list[dict[str, Any]]:
+    """Per descriptor, both spreads at the threshold, their ratio and the smallest size from
+    which whole fields stay within the random objects' spread."""
+    tried = sorted(n for how, n in spreads if how == WHOLE_FOVS)
+    rows = []
+    for index, name in enumerate(DESCRIPTORS):
+        reference = spreads[(RANDOM_OBJECTS, threshold)][index]
+        above = [n for n in tried if spreads[(WHOLE_FOVS, n)][index] > reference]
+        later = [n for n in tried if not above or n > max(above)]
+        fov_spread = spreads[(WHOLE_FOVS, threshold)][index]
+        rows.append(
+            {
+                **group,
+                "descriptor": name,
+                "threshold": threshold,
+                "random_objects_spread": float(reference),
+                "whole_fovs_spread": float(fov_spread),
+                "ratio": float(fov_spread / reference) if reference > 0 else None,
+                "objects_to_match": later[0] if later else None,
+                "largest_size_tried": tried[-1],
+            }
+        )
+    return rows
 
 
 __all__ = [

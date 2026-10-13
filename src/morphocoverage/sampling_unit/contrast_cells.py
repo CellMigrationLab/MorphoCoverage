@@ -96,15 +96,20 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 
 from .._parallel import map_units
 from ..statistics import ALPHA, cohen_d
 from ._balanced import BalancedDesign, BalancedRerun
+from ._cell_chance import (
+    TYPICAL_BETWEEN,
+    _chance_columns,
+    chance_without_effect,
+    effective_per_well,
+)
 from ._experiments import corrected, declared, experiments, family_sizes
 
 # Balanced resamples per condition, and the shuffles of the randomization test in each.
@@ -116,8 +121,6 @@ IMBALANCE = 1.25
 # MIN_BALANCED observations, is too small to balance to.
 SPARSE = 0.25
 MIN_BALANCED = 5
-# The variation between repeats assumed when one repeat cannot estimate it (observation SDs).
-TYPICAL_BETWEEN = (0.25, 0.5)
 CELL_COLUMNS = [
     "condition",
     "control_condition",
@@ -159,29 +162,6 @@ CELL_COLUMNS = [
 Pair = tuple[np.ndarray, np.ndarray]
 Retest = list[Pair] | Callable[[int, np.random.Generator], float]
 _P_COLUMNS = ("p_cells", "p_cells_normalised", "p_balanced", "p_balanced_normalised")
-
-
-def effective_per_well(sizes: list[int]) -> float:
-    """The observations per well a pooled test weighs the repeats by: ``sum(n^2) / sum(n)``
-    (``n`` when every repeat holds ``n``; near the largest when one repeat dominates)."""
-    counts = np.asarray(sizes, float)
-    return float((counts**2).sum() / counts.sum())
-
-
-def _chances(per_well: float, between_sd: float) -> tuple[float, float]:
-    """The chance at the estimated variation between repeats, or the ``TYPICAL_BETWEEN``
-    range when it is unknown."""
-    if np.isfinite(between_sd):
-        value = chance_without_effect(per_well, between_sd)
-        return value, value
-    low, high = (chance_without_effect(per_well, value) for value in TYPICAL_BETWEEN)
-    return low, high
-
-
-def chance_without_effect(per_well: float, between_sd: float, alpha: float = ALPHA) -> float:
-    """How often the cell-level test gives p <= ``alpha`` without an effect (see the module)."""
-    inflation = 1 + per_well * between_sd**2 / 2
-    return float(2 * stats.norm.sf(stats.norm.isf(alpha / 2) / np.sqrt(inflation)))
 
 
 def cell_randomization(
@@ -413,6 +393,103 @@ def trusted_test(
     }
 
 
+class _Balance(NamedTuple):
+    """One condition's balance check (``cell_table``): observations per repeat on each side,
+    their spread, the control repeats it was not imaged in, how far apart the control means
+    are, the sparse repeats and those the balanced test keeps."""
+
+    sizes: dict[Any, int]
+    control_sizes: dict[Any, int]
+    spread: float
+    others: int
+    shift: float
+    unbalanced: bool
+    small: list[Any]
+    kept: list[Any]
+
+
+def _balance(
+    by_t: dict[Any, np.ndarray], by_c: dict[Any, np.ndarray], every: dict[Any, np.ndarray]
+) -> _Balance:
+    """The balance check of one condition (see the module)."""
+    sizes = {r: len(x) for r, x in by_t.items()}
+    control_sizes = {r: len(x) for r, x in by_c.items()}
+    spread = max(max(n.values()) / max(min(n.values()), 1) for n in (sizes, control_sizes))
+    others = len(every) - len(control_sizes)
+    # How far apart the repeats' control means are: pooled, they mix those levels.
+    control_means = [float(np.mean(x)) for x in every.values() if len(x)]
+    shift = (
+        max(control_means) / min(control_means)
+        if control_means and min(control_means) > 0
+        else np.nan
+    )
+    unbalanced = bool(spread > IMBALANCE or others > 0)
+    small = sorted(set(sparse(sizes)) | set(sparse(control_sizes)), key=str)
+    kept = repeats_to_balance(by_t, small, unbalanced)
+    return _Balance(sizes, control_sizes, spread, others, shift, unbalanced, small, kept)
+
+
+def _cell_row(
+    condition: Any,
+    side: dict[str, Any],
+    between: pd.Series,
+    n_permutations: int,
+    rng_for: Any,
+    retests: dict[str, dict[Any, Retest]],
+) -> dict[str, Any]:
+    """One condition's row of ``cell_table``; what ``refined`` may rerun added to
+    ``retests`` for its tests at p <= ``ALPHA``."""
+    by_t, by_c, every = (
+        side["treated_by_repeat"],
+        side["control_by_repeat"],
+        side["control_all"],
+    )
+    check = _balance(by_t, by_c, every)
+    d, p, d_bal, p_bal, per_t, per_c, raw = _tests(
+        by_t, by_c, every, check.kept, False, n_permutations, rng_for(condition, "raw")
+    )
+    scaled = normalised(by_t, every), normalised(by_c, every), normalised(every, every)
+    d_n = p_n = d_bal_n = p_bal_n = np.nan
+    scaled_retests: dict[str, Retest] = {}
+    if all(x is not None for x in scaled):
+        d_n, p_n, d_bal_n, p_bal_n, _, _, scaled_retests = _tests(
+            by_t, by_c, every, check.kept, True, n_permutations, rng_for(condition, "normalised")
+        )
+    for column, value, pairs in (
+        ("p_cells", p, raw["cells"]),
+        ("p_balanced", p_bal, raw["balanced"]),
+        ("p_cells_normalised", p_n, scaled_retests.get("cells", [])),
+        ("p_balanced_normalised", p_bal_n, scaled_retests.get("balanced", [])),
+    ):
+        if value <= ALPHA:
+            retests[column][condition] = pairs
+    s = float(between.get(condition, np.nan)) if condition in between.index else np.nan
+    return {
+        "condition": condition,
+        "control_condition": side["control_condition"],
+        "observations": sum(check.sizes.values()),
+        "control_observations": sum(len(x) for x in every.values()),
+        "d_cells": d,
+        "p_cells": p,
+        "d_cells_normalised": d_n,
+        "p_cells_normalised": p_n,
+        "repeats": len(check.sizes),
+        "spread": float(check.spread),
+        "other_control_repeats": check.others,
+        "control_shift": check.shift,
+        "unbalanced": check.unbalanced,
+        "sparse_repeats": check.small,
+        "balanced_repeats": len(check.kept),
+        "balanced_cells": per_t,
+        "balanced_control_cells": per_c,
+        "d_balanced": d_bal,
+        "p_balanced": p_bal,
+        "d_balanced_normalised": d_bal_n,
+        "p_balanced_normalised": p_bal_n,
+        **_chance_columns(check.sizes, check.control_sizes, s, p_bal, per_t, per_c),
+    }
+
+
 def cell_table(
     pooled: dict[Any, dict[str, Any]],
     plan: pd.DataFrame,
@@ -431,97 +508,30 @@ def cell_table(
     (``"raw"`` or ``"normalised"``; with `` refined`` and the version, the rerun of a small
     p, ``refined``)."""
     between = plan.set_index("condition")["between_sd"] if len(plan) else pd.Series(dtype=float)
-    rows = []
     # What refined may rerun, per p column: only the tests at p <= ALPHA keep theirs.
     retests: dict[str, dict[Any, Retest]] = {column: {} for column in _P_COLUMNS}
-    for condition, side in pooled.items():
-        by_t, by_c, every = (
-            side["treated_by_repeat"],
-            side["control_by_repeat"],
-            side["control_all"],
-        )
-        sizes = {r: len(x) for r, x in by_t.items()}
-        control_sizes = {r: len(x) for r, x in by_c.items()}
-        spread = max(max(n.values()) / max(min(n.values()), 1) for n in (sizes, control_sizes))
-        others = len(every) - len(control_sizes)
-        # How far apart the repeats' control means are: pooled, they mix those levels.
-        control_means = [float(np.mean(x)) for x in every.values() if len(x)]
-        shift = (
-            max(control_means) / min(control_means)
-            if control_means and min(control_means) > 0
-            else np.nan
-        )
-        unbalanced = bool(spread > IMBALANCE or others > 0)
-        small = sorted(set(sparse(sizes)) | set(sparse(control_sizes)), key=str)
-        kept = repeats_to_balance(by_t, small, unbalanced)
-        d, p, d_bal, p_bal, per_t, per_c, raw = _tests(
-            by_t, by_c, every, kept, False, n_permutations, rng_for(condition, "raw")
-        )
-        scaled = normalised(by_t, every), normalised(by_c, every), normalised(every, every)
-        d_n = p_n = d_bal_n = p_bal_n = np.nan
-        scaled_retests: dict[str, Retest] = {}
-        if all(x is not None for x in scaled):
-            d_n, p_n, d_bal_n, p_bal_n, _, _, scaled_retests = _tests(
-                by_t, by_c, every, kept, True, n_permutations, rng_for(condition, "normalised")
-            )
-        for column, value, pairs in (
-            ("p_cells", p, raw["cells"]),
-            ("p_balanced", p_bal, raw["balanced"]),
-            ("p_cells_normalised", p_n, scaled_retests.get("cells", [])),
-            ("p_balanced_normalised", p_bal_n, scaled_retests.get("balanced", [])),
-        ):
-            if value <= ALPHA:
-                retests[column][condition] = pairs
-        s = float(between.get(condition, np.nan)) if condition in between.index else np.nan
-        per_well = float(
-            np.mean(
-                [
-                    effective_per_well(list(sizes.values())),
-                    effective_per_well(list(control_sizes.values())),
-                ]
-            )
-        )
-        low, high = _chances(per_well, s)
-        low_bal = high_bal = np.nan
-        if np.isfinite(p_bal):
-            low_bal, high_bal = _chances(float(np.mean([per_t, per_c])), s)
-        rows.append(
-            {
-                "condition": condition,
-                "control_condition": side["control_condition"],
-                "observations": sum(sizes.values()),
-                "control_observations": sum(len(x) for x in every.values()),
-                "d_cells": d,
-                "p_cells": p,
-                "d_cells_normalised": d_n,
-                "p_cells_normalised": p_n,
-                "repeats": len(sizes),
-                "spread": float(spread),
-                "other_control_repeats": others,
-                "control_shift": shift,
-                "unbalanced": unbalanced,
-                "sparse_repeats": small,
-                "balanced_repeats": len(kept),
-                "balanced_cells": per_t,
-                "balanced_control_cells": per_c,
-                "d_balanced": d_bal,
-                "p_balanced": p_bal,
-                "d_balanced_normalised": d_bal_n,
-                "p_balanced_normalised": p_bal_n,
-                "per_well": per_well,
-                "between_sd": s,
-                "chance_low": low,
-                "chance_high": high,
-                "chance_balanced_low": low_bal,
-                "chance_balanced_high": high_bal,
-            }
-        )
+    rows = [
+        _cell_row(condition, side, between, n_permutations, rng_for, retests)
+        for condition, side in pooled.items()
+    ]
     table = pd.DataFrame(rows, columns=CELL_COLUMNS)
     family = experiments(
         {condition: list(side["treated_by_repeat"]) for condition, side in pooled.items()}
     )
     table["experiment"] = table["condition"].map(declared(family, families))
     table = table.set_index("condition", drop=False)
+    _correct(table, n_permutations, rng_for, retests)
+    return table.reset_index(drop=True)
+
+
+def _correct(
+    table: pd.DataFrame,
+    n_permutations: int,
+    rng_for: Any,
+    retests: dict[str, dict[Any, Retest]],
+) -> None:
+    """Each p column refined and corrected within its sub-experiment, in place: its ``q_``
+    column, and the shuffles behind the p-values."""
     # A test as provided whose control pools repeats the condition lacks is withheld, so it
     # leaves the correction family: q only over the tests reported (owner, 2026-10-05).
     withheld = table["other_control_repeats"] > 0
@@ -545,7 +555,6 @@ def cell_table(
         )
         # A withheld test keeps its p, for inspection only: it has no q.
         table[column] = np.where(out, table[column], p_values)
-    return table.reset_index(drop=True)
 
 
 __all__ = [

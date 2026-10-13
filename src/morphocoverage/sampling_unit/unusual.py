@@ -67,7 +67,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -80,7 +80,7 @@ from .._frozen import owned
 from .._seeds import group_key, group_rng
 from .._style import check_detail
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
-from ..schema import observation_words
+from ..schema import ValidatedInput, observation_words
 from ..transforms import Standardize
 from ._common import groups, matching_groups, validated
 from ._experiments import repeat_experiments, same_experiment
@@ -170,9 +170,58 @@ def unusual_objects(
     by_key = {group_key(g): d for g, d in all_groups}
     matrix = data.feature_matrix()
     scale = np.array([float(weights.get(c, 1.0)) for c in data.feature_cols]) if weights else None
+    context = _Scoring(quantile, n_neighbors, per_fov, random_state, seed_checks, scale)
     positions_all = np.arange(len(data.objects))
     labels = np.full(len(data.objects), np.nan)
     distances = np.full(len(data.objects), np.nan)
+    observation_group = _observation_groups(data, all_groups)
+    rows = []
+    reference_keys = {group_key(g) for g in reference_groups}
+    block = _experiment_block(all_groups, reference_groups, within_experiment)
+    for g_index, (group, _) in enumerate(all_groups):
+        others = _others(group, reference_groups, block, own)
+        row: dict[str, Any] = {**group, "reference_groups": [dict(g) for g in others]}
+        # A control group, scored against the other control groups: the background share.
+        row["reference_group"] = group_key(group) in reference_keys
+        mine = positions_all[observation_group == g_index]
+        if not others:
+            rows.append({**row, "status": _no_reference(group, reference_groups, block)})
+            continue
+        refs = [by_key[group_key(g)] for g in others]
+        results = _fits(group, refs, matrix, mine, data.feature_cols, context)
+        columns, scores = _scored(group, others, results, data)
+        if scores is not None:
+            distances[mine] = scores
+            labels[mine] = np.where(np.isnan(scores), np.nan, scores > columns["threshold"])
+        rows.append({**row, **columns})
+    # the validated table keeps the order of the input rows (metadata joins are left joins)
+    label_series = pd.Series(labels, index=objects.index).map(
+        lambda v: pd.NA if np.isnan(v) else bool(v)
+    )
+    return UnusualObjects(
+        label_series,
+        pd.Series(distances, index=objects.index),
+        pd.DataFrame(rows),
+        tuple(data.group_cols),
+        _settings(data, reference, own, context, within_experiment, block, weights),
+    )
+
+
+class _Scoring(NamedTuple):
+    """The checked settings every group of ``unusual_objects`` is scored with."""
+
+    quantile: float
+    n_neighbors: int
+    per_fov: int
+    random_state: int
+    seed_checks: int
+    scale: np.ndarray | None
+
+
+def _observation_groups(
+    data: ValidatedInput, all_groups: list[tuple[dict[str, Any], ValidatedInput]]
+) -> np.ndarray:
+    """Each observation's analysis group, by its position in ``all_groups``."""
     # map each group's observations back to rows of the validated table
     key = list(data.fov_key)
     row_of = {fov: i for i, fov in enumerate(zip(*(data.fovs[c].tolist() for c in key)))}
@@ -185,121 +234,167 @@ def unusual_objects(
     for g_index, (_, group_data) in enumerate(all_groups):
         members = [row_of[f] for f in zip(*(group_data.fovs[c].tolist() for c in key))]
         fov_group[members] = g_index
-    observation_group = fov_group[observation_fov]
-    rows = []
-    reference_keys = {group_key(g) for g in reference_groups}
-    block = (
-        repeat_experiments(
-            [g for g, _ in all_groups],
-            {group_key(g) for g in reference_groups},
-            CONDITION_COLUMN,
-            REPEAT_COLUMN,
-        )
-        if within_experiment
-        else {}
+    return fov_group[observation_fov]
+
+
+def _experiment_block(
+    all_groups: list[tuple[dict[str, Any], ValidatedInput]],
+    reference_groups: list[dict[str, Any]],
+    within_experiment: bool,
+) -> dict[Any, Any]:
+    """Each repeat's sub-experiment when groups are scored within their own, else empty."""
+    if not within_experiment:
+        return {}
+    return repeat_experiments(
+        [g for g, _ in all_groups],
+        {group_key(g) for g in reference_groups},
+        CONDITION_COLUMN,
+        REPEAT_COLUMN,
     )
-    for g_index, (group, _) in enumerate(all_groups):
-        target = None if own is None else own.get(group.get(CONDITION_COLUMN))
-        others = [
-            g
-            for g in reference_groups
-            if group_key(g) != group_key(group)
-            and same_experiment(block, g.get(REPEAT_COLUMN), group.get(REPEAT_COLUMN))
-            and (own is None or g.get(CONDITION_COLUMN) == target)
-        ]
-        row: dict[str, Any] = {**group, "reference_groups": [dict(g) for g in others]}
-        # A control group, scored against the other control groups: the background share.
-        row["reference_group"] = group_key(group) in reference_keys
-        mine = positions_all[observation_group == g_index]
-        if not others:
-            elsewhere = any(group_key(g) != group_key(group) for g in reference_groups)
-            status = (
-                "no reference group in the repeats of its sub-experiment"
-                if elsewhere and block
-                else "no other reference group to score against"
-            )
-            rows.append({**row, "status": status})
-            continue
-        refs = [by_key[group_key(g)] for g in others]
-        results = []
-        for seed in range(random_state, random_state + seed_checks + 1):
-            rng = group_rng(seed, group)
-            sample, fov_ids, group_ids = reference_sample(refs, per_fov, rng)
-            results.append(
-                score(
-                    sample,
-                    fov_ids,
-                    group_ids,
-                    matrix[mine],
-                    n_neighbors,
-                    quantile,
-                    rng,
-                    data.feature_cols,
-                    scale,
-                )
-            )
-        if isinstance(results[0], str):
-            rows.append({**row, "status": results[0]})
-            continue
-        scores, threshold, state, calibration = results[0]
-        if np.isnan(scores).all():
-            # Values relative to the own control are missing where the repeat has none: that
-            # is the reason, not a missing feature (audit 10, B4 and C9).
-            repeat = group.get(REPEAT_COLUMN)
-            if repeat is not None and all(g.get(REPEAT_COLUMN) != repeat for g in others):
-                reason = "its repeat holds no own control"
-            else:
-                words = observation_words(data)[1]
-                reason = f"none of its {len(scores)} {words} has a value of every feature"
-            rows.append({**row, "status": f"not assessed: {reason}"})
-            continue
-        flagged = scores > threshold
-        distances[mine] = scores
-        labels[mine] = np.where(np.isnan(scores), np.nan, flagged)
-        agreement, failed, refits = [], [], []
-        for other in results[1:]:
-            if isinstance(other, str):
-                # A refit that fails is a sign of instability too: counted, never dropped.
-                failed.append(other)
-                continue
-            other_flagged = other[0] > other[1]
-            refits.append(int(np.sum(other_flagged)))
-            union = np.sum(flagged | other_flagged)
-            agreement.append(float(np.sum(flagged & other_flagged) / union) if union else 1.0)
-        # None unusual: no labels to agree on (a Jaccard index with an empty set read 0%);
-        # the refits' own count is kept instead (owner, 2026-10-06, audit 10).
-        none = not np.nansum(flagged)
-        rows.append(
-            {
-                **row,
-                "status": "ok",
-                "threshold": threshold,
-                "calibration": calibration,
-                "scored": int((~np.isnan(scores)).sum()),
-                "unusual": int(np.nansum(flagged)),
-                "unusual_share": float(np.nanmean(np.where(np.isnan(scores), np.nan, flagged))),
-                "seed_agreement": min(agreement) if agreement and not none else None,
-                "refit_unusual": max(refits) if refits and none else None,
-                "seed_failures": len(failed),
-                "seed_failure": failed[0] if failed else None,
-                "standardize_state": state,
-            }
-        )
-    # the validated table keeps the order of the input rows (metadata joins are left joins)
-    label_series = pd.Series(labels, index=objects.index).map(
-        lambda v: pd.NA if np.isnan(v) else bool(v)
+
+
+def _others(
+    group: dict[str, Any],
+    reference_groups: list[dict[str, Any]],
+    block: dict[Any, Any],
+    own: Mapping[Any, Any] | None,
+) -> list[dict[str, Any]]:
+    """The reference groups ``group`` is scored against: never itself, those of its own
+    sub-experiment, and with ``own`` its own control's only."""
+    target = None if own is None else own.get(group.get(CONDITION_COLUMN))
+    return [
+        g
+        for g in reference_groups
+        if group_key(g) != group_key(group)
+        and same_experiment(block, g.get(REPEAT_COLUMN), group.get(REPEAT_COLUMN))
+        and (own is None or g.get(CONDITION_COLUMN) == target)
+    ]
+
+
+def _no_reference(
+    group: dict[str, Any], reference_groups: list[dict[str, Any]], block: dict[Any, Any]
+) -> str:
+    """Why a group has no reference group to be scored against."""
+    elsewhere = any(group_key(g) != group_key(group) for g in reference_groups)
+    return (
+        "no reference group in the repeats of its sub-experiment"
+        if elsewhere and block
+        else "no other reference group to score against"
     )
-    settings = {
+
+
+def _fits(
+    group: dict[str, Any],
+    refs: list[ValidatedInput],
+    matrix: np.ndarray,
+    mine: np.ndarray,
+    feature_cols: Sequence[str],
+    context: _Scoring,
+) -> list[Any]:
+    """The group's observations scored against a reference sample drawn with its seed, then
+    with each of the ``seed_checks`` next seeds: a result or the reason it failed, each."""
+    results = []
+    for seed in range(context.random_state, context.random_state + context.seed_checks + 1):
+        rng = group_rng(seed, group)
+        sample, fov_ids, group_ids = reference_sample(refs, context.per_fov, rng)
+        results.append(
+            score(
+                sample,
+                fov_ids,
+                group_ids,
+                matrix[mine],
+                context.n_neighbors,
+                context.quantile,
+                rng,
+                feature_cols,
+                context.scale,
+            )
+        )
+    return results
+
+
+def _scored(
+    group: dict[str, Any], others: list[dict[str, Any]], results: list[Any], data: ValidatedInput
+) -> tuple[dict[str, Any], np.ndarray | None]:
+    """A group's columns from its fits, and the scores behind its labels (``None`` when the
+    first fit failed or scored nothing)."""
+    if isinstance(results[0], str):
+        return {"status": results[0]}, None
+    scores, threshold, state, calibration = results[0]
+    if np.isnan(scores).all():
+        return {"status": f"not assessed: {_unassessed(group, others, scores, data)}"}, None
+    flagged = scores > threshold
+    # None unusual: no labels to agree on (a Jaccard index with an empty set read 0%);
+    # the refits' own count is kept instead (owner, 2026-10-06, audit 10).
+    none = not np.nansum(flagged)
+    columns = {
+        "status": "ok",
+        "threshold": threshold,
+        "calibration": calibration,
+        "scored": int((~np.isnan(scores)).sum()),
+        "unusual": int(np.nansum(flagged)),
+        "unusual_share": float(np.nanmean(np.where(np.isnan(scores), np.nan, flagged))),
+        **_seed_agreement(flagged, results[1:], none),
+        "standardize_state": state,
+    }
+    return columns, scores
+
+
+def _unassessed(
+    group: dict[str, Any], others: list[dict[str, Any]], scores: np.ndarray, data: ValidatedInput
+) -> str:
+    """Why no observation of the group was scored."""
+    # Values relative to the own control are missing where the repeat has none: that
+    # is the reason, not a missing feature (audit 10, B4 and C9).
+    repeat = group.get(REPEAT_COLUMN)
+    if repeat is not None and all(g.get(REPEAT_COLUMN) != repeat for g in others):
+        return "its repeat holds no own control"
+    words = observation_words(data)[1]
+    return f"none of its {len(scores)} {words} has a value of every feature"
+
+
+def _seed_agreement(flagged: np.ndarray, refits: list[Any], none: bool) -> dict[str, Any]:
+    """How the refits with other seeds agree with the labels (the lowest Jaccard index), or
+    with no unusual observation the most a refit flags; the failed refits counted."""
+    agreement, failed, counts = [], [], []
+    for other in refits:
+        if isinstance(other, str):
+            # A refit that fails is a sign of instability too: counted, never dropped.
+            failed.append(other)
+            continue
+        other_flagged = other[0] > other[1]
+        counts.append(int(np.sum(other_flagged)))
+        union = np.sum(flagged | other_flagged)
+        agreement.append(float(np.sum(flagged & other_flagged) / union) if union else 1.0)
+    return {
+        "seed_agreement": min(agreement) if agreement and not none else None,
+        "refit_unusual": max(counts) if counts and none else None,
+        "seed_failures": len(failed),
+        "seed_failure": failed[0] if failed else None,
+    }
+
+
+def _settings(
+    data: ValidatedInput,
+    reference: Mapping[str, Any],
+    own: Mapping[Any, Any] | None,
+    context: _Scoring,
+    within_experiment: bool,
+    block: dict[Any, Any],
+    weights: Mapping[str, float] | None,
+) -> dict[str, Any]:
+    """The settings of ``unusual_objects``: the arguments and how observations are scored."""
+    return {
         ACQUISITION: acquisition_identity(data),
         "feature_cols": list(data.feature_cols),
         "reference": dict(reference),
         # Several controls: each condition against its own (owner, 2026-10-05).
         "own": dict(own) if own is not None else None,
-        "quantile": quantile,
-        "n_neighbors": n_neighbors,
-        "per_fov": per_fov,
-        "random_state": random_state,
-        "seed_checks": seed_checks,
+        "quantile": context.quantile,
+        "n_neighbors": context.n_neighbors,
+        "per_fov": context.per_fov,
+        "random_state": context.random_state,
+        "seed_checks": context.seed_checks,
         "within_experiment": bool(within_experiment and len(set(block.values())) > 1),
         "transform": Standardize().describe(),
         "weights": dict(weights) if weights else None,
@@ -307,13 +402,6 @@ def unusual_objects(
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
     }
-    return UnusualObjects(
-        label_series,
-        pd.Series(distances, index=objects.index),
-        pd.DataFrame(rows),
-        tuple(data.group_cols),
-        settings,
-    )
 
 
 __all__ = ["SEED_AGREEMENT_WARNING", "UnusualObjects", "unusual_objects"]

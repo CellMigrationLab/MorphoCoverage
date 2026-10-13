@@ -105,6 +105,17 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
     if repeats.empty:
         return []
     word = column_word(contrast.settings["repeat_col"])
+    notes = _untested_notes(repeats, word)
+    if repeats["p_paired_t"].notna().any() and not full:
+        notes.append(_short_paired_note(contrast, repeats, word))
+    elif repeats["p_paired_t"].notna().any():
+        notes.append(_full_paired_note(contrast, repeats, word))
+    return notes
+
+
+def _untested_notes(repeats: pd.DataFrame, word: str) -> list[str]:
+    """The conditions with no paired test: those whose change is the same in every repeat,
+    then those held in too few repeats (empty without)."""
     notes = []
     untested = repeats[repeats["status"] == FEW_REPEATS]
     flat = repeats[repeats["status"] == NO_SPREAD]
@@ -135,69 +146,73 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
                 f"size; the paired test across repeats needs {MIN_REPEATS}."
             )
         )
-    if repeats["p_paired_t"].notna().any() and not full:
-        # As ``reading_text._paired``: the normalised q, the raw q where there is none.
-        raw = repeats["p_paired_t"].notna() & repeats["q_paired_t_normalised"].isna()
-        why = (
-            "the feature is declared on the difference scale (scales)"
-            if contrast.settings.get("scale") == "difference"
-            else "a value of the feature is not positive, so there is no ratio to the control"
-        )
-        used = (
-            f"the raw q: {why}"
-            if raw[repeats["p_paired_t"].notna()].all()
-            else "the normalised q"
-            + (
-                f", the raw q for {listing([str(c) for c in repeats.loc[raw, 'condition']], 3)}"
-                " where a repeat mean is not positive"
-                if raw.any()
-                else ""
-            )
-        )
-        # "with 3 repeats only large effects" only where 3 is the most held (audit 10, C24).
-        few = (
-            f", but with 3 {word}s only large, consistent effects reach q ≤ 0.05"
-            if repeats["repeats"].max() <= MIN_REPEATS
+    return notes
+
+
+def _short_paired_note(contrast: Any, repeats: pd.DataFrame, word: str) -> str:
+    """The paired test in a sentence: what it keeps, its correction and which q the verdict
+    reads (the short report)."""
+    # As ``reading_text._paired``: the normalised q, the raw q where there is none.
+    raw = repeats["p_paired_t"].notna() & repeats["q_paired_t_normalised"].isna()
+    why = (
+        "the feature is declared on the difference scale (scales)"
+        if contrast.settings.get("scale") == "difference"
+        else "a value of the feature is not positive, so there is no ratio to the control"
+    )
+    used = (
+        f"the raw q: {why}"
+        if raw[repeats["p_paired_t"].notna()].all()
+        else "the normalised q"
+        + (
+            f", the raw q for {listing([str(c) for c in repeats.loc[raw, 'condition']], 3)}"
+            " where a repeat mean is not positive"
+            if raw.any()
             else ""
         )
-        notes.append(
-            assumption(
-                f"The paired t-test on the repeat means treats each {word} as one replicate: "
-                f"it keeps false positives at 5%{few}. "
-                f"q: Benjamini-Hochberg {family_words(contrast.settings)}; "
-                f"'significant across repeats' uses {used}. {WITHIN_FAMILY}"
-            )
+    )
+    # "with 3 repeats only large effects" only where 3 is the most held (audit 10, C24).
+    few = (
+        f", but with 3 {word}s only large, consistent effects reach q ≤ 0.05"
+        if repeats["repeats"].max() <= MIN_REPEATS
+        else ""
+    )
+    return assumption(
+        f"The paired t-test on the repeat means treats each {word} as one replicate: "
+        f"it keeps false positives at 5%{few}. "
+        f"q: Benjamini-Hochberg {family_words(contrast.settings)}; "
+        f"'significant across repeats' uses {used}. {WITHIN_FAMILY}"
+    )
+
+
+def _full_paired_note(contrast: Any, repeats: pd.DataFrame, word: str) -> str:
+    """The paired test's assumptions with its simulated power, the sign-flip test's when it
+    ran, and its correction (the full report)."""
+    unit = observation_words(contrast.settings)[0]
+    flip = repeats["p_sign_flip"].notna().any()
+    return assumption(
+        f"Across {word}s, the paired t-test on the repeat means (as in SuperPlots) "
+        f"treats each {word} as one replicate and assumes the differences (raw) or the "
+        "log ratios to the control (normalised) are normally distributed and "
+        f"independent between {word}s. It keeps false positives at 5% when the effect "
+        f"varies between {word}s, which the {unit}-level test does not; the cost is "
+        "power: "
+        f"with 3 {word}s and 30 cells a well, d 1.5 is found in 98, 90 and 63% of "
+        f"experiments and d 1.0 in 85, 67 and 39% as {word}s differ by 0, 0.25 and 0.5 "
+        "cell SD (data/simulations/test_choice.py)"
+        + (
+            "; the exact sign-flip test (full report) assumes only that each "
+            "difference is as likely positive as negative"
+            if flip
+            else ""
         )
-    elif repeats["p_paired_t"].notna().any():
-        unit = observation_words(contrast.settings)[0]
-        flip = repeats["p_sign_flip"].notna().any()
-        notes.append(
-            assumption(
-                f"Across {word}s, the paired t-test on the repeat means (as in SuperPlots) "
-                f"treats each {word} as one replicate and assumes the differences (raw) or the "
-                "log ratios to the control (normalised) are normally distributed and "
-                f"independent between {word}s. It keeps false positives at 5% when the effect "
-                f"varies between {word}s, which the {unit}-level test does not; the cost is "
-                "power: "
-                f"with 3 {word}s and 30 cells a well, d 1.5 is found in 98, 90 and 63% of "
-                f"experiments and d 1.0 in 85, 67 and 39% as {word}s differ by 0, 0.25 and 0.5 "
-                "cell SD (data/simulations/test_choice.py)"
-                + (
-                    "; the exact sign-flip test (full report) assumes only that each "
-                    "difference is as likely positive as negative"
-                    if flip
-                    else ""
-                )
-                + ". p uncorrected, q corrected (Benjamini-Hochberg within each "
-                + (
-                    "experiment, as declared). "
-                    if contrast.settings.get("declared_experiments")
-                    else "sub-experiment: the conditions sharing their repeats and control). "
-                )
-                + WITHIN_FAMILY
-            )
+        + ". p uncorrected, q corrected (Benjamini-Hochberg within each "
+        + (
+            "experiment, as declared). "
+            if contrast.settings.get("declared_experiments")
+            else "sub-experiment: the conditions sharing their repeats and control). "
         )
-    return notes
+        + WITHIN_FAMILY
+    )
 
 
 __all__ = ["repeat_cautions"]
