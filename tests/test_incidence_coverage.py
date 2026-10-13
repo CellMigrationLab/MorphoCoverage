@@ -259,3 +259,21 @@ def test_new_state_bound_covers_the_true_probability_in_simulation():
         count = fovs_with_unique_states(labels, positions)
         covered.append(upper_bound(count, 8, 0.95) >= truth)
     assert np.mean(covered) >= 0.93
+
+
+def test_d2_coverage_uses_the_bias_corrected_unseen_states_when_no_doubleton():
+    incidences, units = np.array([1, 1, 1, 4]), 5
+    unseen = (units - 1) / units * 3 * 2 / 2
+    a = units * unseen / (units * unseen + 3)
+    assert incidence_coverage(incidences, units) == pytest.approx(1 - 3 / 7 * a)
+    assert incidence_coverage(incidences, units) == pytest.approx(0.6571, abs=1e-4)
+    # Coverage, Chao2 and the expected new states agree: E[new] = (U / T)(1 - C).
+    for incidences, units in (([1, 1, 1, 4], 5), ([1, 1, 2, 3, 5], 6), ([1, 1, 1, 3], 10)):
+        incidences = np.array(incidences)
+        implied = incidences.sum() / units * (1 - incidence_coverage(incidences, units))
+        assert expected_new_states(incidences, units) == pytest.approx(implied)
+        assert chao2(incidences, units) >= len(incidences)
+    # With Q2 > 0 it is Chao and Jost's own form, unchanged.
+    assert incidence_coverage(np.array([5, 2, 1, 1]), 5) == pytest.approx(1 - (2 / 9) * (8 / 10))
+    # One singleton and no doubleton: nothing unseen is estimated, so coverage is 1.
+    assert incidence_coverage(np.array([1, 3, 3]), 4) == 1.0

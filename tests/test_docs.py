@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from _helpers_workflows import DOCS
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -163,3 +164,15 @@ def test_setup_md_says_what_reads_the_normalised_values_as_the_code_does():
     text = " ".join((ROOT / "docs" / "common" / "setup.md").read_text().split())
     assert f"With one control, {normalised_readers()}." in text
     assert f"With several controls, {normalised_readers(several=True)}." in text
+
+
+def test_the_docs_give_the_exact_chance_of_one_direction_in_every_repeat():
+    docs = " ".join((DOCS / "report" / "conditions.md").read_text().split())
+    assert "the exact chance that all `n` repeats go the same way is `2^(1-n)`: 25% at 3" in docs
+    assert "12.5% at 4" in docs and "3.1% at 6" in docs
+
+
+def test_the_whole_table_correction_is_described_as_asymptotic_not_exact():
+    docs = " ".join((DOCS / "report" / "conditions.md").read_text().split())
+    assert "asymptotic high-dimensional, low-sample-size (HDLSS) correlation correction" in docs
+    assert "not an exact one" in docs

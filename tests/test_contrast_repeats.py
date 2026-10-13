@@ -1,7 +1,11 @@
 """The contrast across biological repeats: the repeat as the replicate (question 9)."""
 
+from __future__ import annotations
+
 import sys
+import warnings
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -10,11 +14,15 @@ import pytest
 from morphocoverage.retrospective.report_status import conditions_status
 from morphocoverage.sampling_unit.contrast import condition_contrast
 from morphocoverage.sampling_unit.contrast_repeats import (
+    FEW_REPEATS,
     MIN_REPEATS,
+    NO_SPREAD,
     across_repeats,
     sign_flip_test,
+    untested_reason,
 )
 from morphocoverage.statistics import benjamini_hochberg
+from morphocoverage.workflows import Setup, report
 
 LAB = Path(__file__).resolve().parents[1] / "data" / "lab"
 sys.path.insert(0, str(LAB))
@@ -171,3 +179,151 @@ def test_two_repeats_and_one_coverslip_are_described_not_flagged(screen):
     assert "within repeats: no test (one well on a side)" in headline
     assert "⚠️" not in two.summary()
     assert "the paired test across repeats needs 3" in " ".join(two.summary().split())
+
+
+def _identical_effects(repeats: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Every repeat holds the same change (x2) exactly: the repeat effects have no spread."""
+    rows, fovs = [], []
+    for condition, level in (("ctrl", 10.0), ("drug", 20.0)):
+        for r in range(repeats):
+            for f in range(5):
+                pid = f"{condition}{r}{f}"
+                fovs.append(
+                    {"position_id": pid, "condition": condition, "biological_repeat": f"R{r}"}
+                )
+                for k in range(4):
+                    rows.append({**fovs[-1], "x": level + (k - 1.5), "y": 1.0 + (f + k) % 3})
+    return pd.DataFrame(rows), pd.DataFrame(fovs)
+
+
+def test_the_reason_is_read_from_the_repeats_held_not_from_a_missing_p():
+    assert untested_reason(2, float("nan")) == FEW_REPEATS
+    assert untested_reason(3, float("nan")) == NO_SPREAD
+    assert untested_reason(5, 0.03) is None
+
+
+@pytest.mark.parametrize("repeats", [3, 4])
+def test_identical_effects_are_never_described_as_needing_three_repeats(repeats):
+    objects, fovs = _identical_effects(repeats)
+    setup = Setup(
+        readout="x", features=("x", "y"), control={"condition": "ctrl"}, observation_unit="cell"
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup)
+    across = result.results["contrast"].repeats
+    assert list(across["status"]) == [NO_SPREAD]
+    text = " ".join(result.summary(detail="full").split())
+    assert "the paired test across repeats needs 3" not in text
+    assert "has the same change in every biological repeat" in text
+
+
+def _across_one_repeat():
+    from morphocoverage.sampling_unit.contrast_repeats import across_repeats
+
+    table = pd.DataFrame(
+        {
+            "condition": ["A", "B"],
+            "control_condition": ["c", "c"],
+            "biological_repeat": ["r1", "r1"],
+            "mean": [2.0, 3.0],
+            "control_mean": [1.0, 1.0],
+            "d_objects": [0.5, 0.7],
+        }
+    )
+    out = across_repeats(table, "biological_repeat", 0)
+    return list(out.columns), len(out)
+
+
+def _repeat_cautions_flat():
+    from morphocoverage.sampling_unit.repeats_text import repeat_cautions
+
+    repeats = pd.DataFrame(
+        [
+            {
+                "condition": "A",
+                "status": "the repeat effects are identical, so the paired test has "
+                "no variance to test with",
+                "repeats": 3,
+                "p_paired_t": np.nan,
+                "q_paired_t_normalised": np.nan,
+                "p_sign_flip": np.nan,
+            },
+            {
+                "condition": "B",
+                "status": "the repeat effects are identical, so the paired test has "
+                "no variance to test with",
+                "repeats": 4,
+                "p_paired_t": np.nan,
+                "q_paired_t_normalised": np.nan,
+                "p_sign_flip": np.nan,
+            },
+        ]
+    )
+    contrast = SimpleNamespace(repeats=repeats, settings={"repeat_col": "biological_repeat"})
+    return repeat_cautions(contrast, full=False), repeat_cautions(contrast, full=True)
+
+
+EXPECTED_ACROSS_ONE_REPEAT = (
+    [
+        "condition",
+        "control_condition",
+        "repeats",
+        "lower",
+        "higher",
+        "mean_difference",
+        "fold_change",
+        "d_mean",
+        "d_min",
+        "d_max",
+        "p_sign_flip",
+        "q_sign_flip",
+        "p_sign_flip_floor",
+        "p_sign_flip_exact",
+        "p_paired_t",
+        "q_paired_t",
+        "p_paired_t_normalised",
+        "q_paired_t_normalised",
+        "experiment",
+        "status",
+        "repeat_contrasts",
+        "ci_low",
+        "ci_high",
+        "q_screen",
+    ],
+    0,
+)
+
+
+EXPECTED_REPEAT_CAUTIONS_FLAT = (
+    [
+        (
+            "A and B have the same change in every biological repeat, so the "
+            "paired test has no variance to test with: no p is given, and the "
+            "change is described by its direction and size."
+        )
+    ],
+    [
+        (
+            "A and B have the same change in every biological repeat, so the "
+            "paired test has no variance to test with: no p is given, and the "
+            "change is described by its direction and size."
+        )
+    ],
+)
+
+
+def test_across_one_repeat():
+    assert _across_one_repeat() == EXPECTED_ACROSS_ONE_REPEAT
+
+
+def test_repeat_cautions_flat():
+    assert _repeat_cautions_flat() == EXPECTED_REPEAT_CAUTIONS_FLAT
+
+
+def test_a_sign_flip_test_reads_the_same_at_any_scale():
+    from morphocoverage.sampling_unit.contrast_repeats import sign_flip_test
+
+    for scale in (1.0, 1e-12, 1e-13):
+        p, floor, exact = sign_flip_test(scale * np.arange(1.0, 8.0), np.random.default_rng(0))
+        assert exact and p == pytest.approx(2 / 2**7) and floor == pytest.approx(2 / 2**7)

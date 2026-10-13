@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_retrospective import EMPTY
 
 from morphocoverage.retrospective import EffectPreservation, effect_preservation
 from morphocoverage.retrospective.effect_preservation import (
@@ -170,3 +171,15 @@ def test_invalid_settings_raise():
         effect_preservation(objects, fovs, control=CONTROL)
     with pytest.raises(ValueError, match="control"):
         effect_preservation(objects, fovs, feature="x")
+
+
+def test_effect_preservation_checks_the_control_before_the_tables():
+    with pytest.raises(ValueError) as raised:
+        effect_preservation(EMPTY, EMPTY, feature="x", control={"well": "A1"})
+    assert str(raised.value) == "control must name the condition column 'condition'"
+    with pytest.raises(TypeError) as raised:
+        effect_preservation(EMPTY, EMPTY, feature="x", comparisons="not pairs")
+    assert str(raised.value) == "comparisons must be a sequence of (condition, reference) pairs"
+    # Valid comparisons replace the control: the tables are read next.
+    with pytest.raises(ValueError, match="^Could not resolve a spatial FOV/position identifier"):
+        effect_preservation(EMPTY, EMPTY, feature="x", comparisons=[("a", "b")])

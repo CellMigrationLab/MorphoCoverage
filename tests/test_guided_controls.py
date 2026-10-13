@@ -1,12 +1,20 @@
 """The guided session's control gate: one control, or several with their conditions
 (owner, 2026-10-05)."""
 
+from __future__ import annotations
+
+import warnings
+from types import SimpleNamespace
+
+import pandas as pd
 import pytest
+from _helpers_embedding import NOTHING_UNDER
 from _helpers_guided import Script, _cells
+from _helpers_workflows import SCREEN, _sets
 from ecm_design import CONTROLS, MASTER, PARENTS, tables
 
-from morphocoverage.workflows import Setup, guide, load_answers, save_answers
-from morphocoverage.workflows._guided_controls import treatment_key
+from morphocoverage.workflows import Setup, guide, load_answers, report, save_answers
+from morphocoverage.workflows._guided_controls import ask_experiment, treatment_key
 
 # loaded; unit; one control? (No is proposed); the controls; the conditions of THBS5_SiNC, its
 # keys, those of VEC_SiNC, its keys, those of VEC, its keys; THBS5_SiNC under THBS5, its key;
@@ -159,3 +167,55 @@ def test_the_master_proposed_is_the_control_imaged_in_most_repeats(tmp_path):
     assert most_imaged(scan, ["THBS5_SiNC", "VEC_SiNC"]) == "THBS5_SiNC"
     fewer = fovs[~((fovs["condition"] == "THBS5_SiNC") & (fovs["biological_repeat"] == "R1"))]
     assert most_imaged(SimpleNamespace(fovs=fewer), ["THBS5_SiNC", "VEC_SiNC"]) == "VEC_SiNC"
+
+
+def test_the_report_runs_with_declared_experiments_and_the_guided_session_asks() -> None:
+    # B11: the Setup's experiment column reaches every family; the guided session asks
+    # whether sets of conditions are separate experiments, No by default.
+    layout = {"ctrl": SCREEN["ctrl"], "siA": SCREEN["siA"], "siB": SCREEN["siB"]}
+    objects, fovs = _sets(layout, {"siA": 0.4, "siB": 0.3})
+    fovs = fovs.assign(screen="one")
+    setup = Setup(
+        readout="area",
+        features=("area", "length"),
+        control={"condition": "ctrl"},
+        experiment="screen",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup)
+    tests = result.discovery.tests
+    assert tests["experiment"].nunique() == 1 and tests["q_screen"].isna().all()
+    assert "screen-wide" not in result.summary("full")
+    scan = SimpleNamespace(fovs=fovs)
+    prompts: list[str] = []
+
+    def answer(text: str) -> str:
+        prompts.append(text)
+        return "y"
+
+    found = ask_experiment(answer, lambda text: None, scan, {"condition": "ctrl"})
+    assert found == {"siA": "screen", "siB": "screen"}
+    assert prompts[0].startswith("Are they one experiment against ctrl")
+    assert ask_experiment(lambda text: "", print, scan, {"condition": "ctrl"}) is None
+    several = {"condition": {"c1": ["a"], "c2": {"k": "b"}}}
+    assert ask_experiment(answer, print, scan, several) == {"a": "c1", "b": "c2"}
+
+
+def test_b3_the_guided_controls_question_has_no_all_default_and_asks_again():
+    from types import SimpleNamespace
+
+    from morphocoverage.workflows._guided_controls import ask_several
+
+    fovs = pd.DataFrame({"condition": ["cA", "a1", "cB", "b1"], "biological_repeat": "R1"})
+    scan = SimpleNamespace(design={"conditions": list(fovs["condition"])}, fovs=fovs)
+    # Enter (asked again); cA and cB with nothing under them, a1 and b1 compared with
+    # nothing, the master (refused, asked again); then a1 under cA and b1 under cB.
+    replies = iter(["", "cA, cB", "", "", "", "", "", "cA, cB", "a1", "", "b1", "", ""])
+    said: list[str] = []
+    control, parents, master = ask_several(lambda prompt: next(replies), said.append, scan)
+    text = "\n".join(said)
+    assert "'all' (the default)" not in text and "Nothing was chosen." in text
+    assert NOTHING_UNDER in text
+    assert control == {"condition": {"cA": {"a1": "a1"}, "cB": {"b1": "b1"}}}
+    assert parents is None and master == "cA"

@@ -142,7 +142,7 @@ independent fields.
 
 ## 5. How they were validated
 
-- **Synthetic copies** (`tests/test_integrity.py`, `tests/test_audit4_a.py`):
+- **Synthetic copies** (`tests/test_integrity.py`, `tests/test_data_check.py`):
   into the committed idr0028 table and into constructed tables, one field is
   replaced by each kind of copy of another field (exact, shuffled, through
   float32 or a six-digit export, scaled with a sign flip on one feature, with

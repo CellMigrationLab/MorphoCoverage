@@ -1,15 +1,19 @@
 """Builders shared by the retrospective tests: plates, acquisitions, replays and reports."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scenarios import FEATURE_COLS
+import pytest
+from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import FixedFOVStrategy, ObjectiveConfig, SamplingObjective
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.evidence import Component, Direction, Evidence, Quantity
-from morphocoverage.outcomes import RelativeMeanError
+from morphocoverage.outcomes import RareStateDetected, RelativeMeanError
 from morphocoverage.policies import ThresholdPolicy
 from morphocoverage.retrospective import (
     OutcomeCriterion,
@@ -17,11 +21,17 @@ from morphocoverage.retrospective import (
     RepresentationControl,
     SamplingHierarchy,
     Summary,
+    adequacy_points,
+    effort_projection,
     inspect_fovs,
     order_efficiency,
+    protocol_reliability,
     replay_acquisitions,
     representation_control,
+    sampling_reliability,
 )
+from morphocoverage.retrospective.controls import ControlResult
+from morphocoverage.retrospective.reliability import _curve_row
 from morphocoverage.strategies import SupportNoveltyEstimator
 from morphocoverage.strategies.base import Estimator, SamplingStrategy
 from morphocoverage.sufficiency import sufficiency_report
@@ -332,3 +342,498 @@ def _efficiency(objects, fovs, orders, tolerance=0.06):
         n_splits=3,
     )
     return order_efficiency(replay, per_fov_seconds=2.0, stage_speed=1000.0)
+
+
+def _make(n_fovs=20, per_fov=8, empty=(), seed=0, groups=(("A", "r1"),)):
+    """Objects and FOVs, one analysis group per (condition, repeat), FOVs on a 5-wide grid."""
+    rng = np.random.default_rng(seed)
+    objects, fovs = [], []
+    for condition, repeat in groups:
+        for i in range(n_fovs):
+            position = f"p{i:02d}"
+            fovs.append(
+                {
+                    "condition": condition,
+                    "biological_repeat": repeat,
+                    "position_id": position,
+                    "x": float(i % 5) * 100.0,
+                    "y": float(i // 5) * 100.0,
+                }
+            )
+            if i in empty:
+                continue
+            shift = rng.normal(0, 1)
+            objects += [
+                {
+                    "condition": condition,
+                    "biological_repeat": repeat,
+                    "position_id": position,
+                    "f": 10 + shift + rng.normal(0, 1),
+                }
+                for _ in range(per_fov)
+            ]
+    return pd.DataFrame(objects), pd.DataFrame(fovs)
+
+
+def _two_group_tables():
+    rng = np.random.default_rng(0)
+    rows = [
+        {"condition": c, "biological_repeat": r, "image_file": f"{c}{r}_{j}", "a": v}
+        for c in ("A", "B")
+        for r in (1, 2)
+        for j in range(12)
+        for v in rng.normal(10, 1, 10)
+    ]
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    return objects, fovs.reset_index(drop=True)
+
+
+def _plate_curve(preserved, stream=12, unit="plate"):
+    """A reliability result from {(plate, well): {k: preserved}}, one criterion."""
+    rows = [
+        {
+            "condition": "ctrl",
+            unit: plate,
+            "well": well,
+            "criterion": "mean",
+            "fovs": k,
+            "preserved": value,
+            "stream_fovs": stream,
+        }
+        for (plate, well), by_k in preserved.items()
+        for k, value in by_k.items()
+    ]
+    return ReliabilityResult(pd.DataFrame(rows), pd.DataFrame(), ("condition", unit, "well"))
+
+
+V_SAMPLE, V_FIELD, V_OBJECT = 1.0, 0.2, 1.0
+
+
+def _wells(fields, cells, seed=0, repeats=None):
+    """Tables of wells with ``fields[s]`` fields of ``cells[s]`` objects (0: empty fields)."""
+    rng = np.random.default_rng(seed)
+    fov_rows, object_rows = [], []
+    for s, (n_fields, m) in enumerate(zip(fields, cells, strict=True)):
+        sample = rng.normal(0, np.sqrt(V_SAMPLE))
+        for f in range(n_fields):
+            name = f"s{s}_f{f}"
+            row = {"well": f"W{s}", "image_file": name, "condition": "c"}
+            if repeats is not None:
+                row["biological_repeat"] = repeats[s]
+            fov_rows.append(row)
+            values = sample + rng.normal(0, np.sqrt(V_FIELD)) + rng.normal(0, np.sqrt(V_OBJECT), m)
+            object_rows.append(pd.DataFrame({"image_file": name, "x": values}))
+    fovs = pd.DataFrame(fov_rows)
+    objects = pd.concat(object_rows, ignore_index=True).merge(fovs, on="image_file")
+    return objects, fovs
+
+
+OBJECTIVE = ObjectiveConfig()
+
+
+MEAN_OF_F = OutcomeCriterion(RelativeMeanError("f"), 0.02, "lower_is_better", "the mean within 2%")
+
+
+RARE = OutcomeCriterion(RareStateDetected("rare", 1), 1.0, "higher_is_better", "the rare state")
+
+
+FIX3 = FixedFOVStrategy(target_fovs=3)
+
+
+GROUPS = ("condition", "biological_repeat", "technical_repeat")
+
+
+BY_WELL = SamplingHierarchy("image_file", "well", "biological_repeat")
+
+
+def _tables(
+    n_fovs=12,
+    objs=5,
+    seed=0,
+    wells=("A1",),
+    repeats=("R1",),
+    rare_fovs=(),
+    scale=1.0,
+):
+    """Objects and FOVs of one condition: repeats x wells x fields on a 4-wide grid."""
+    rng = np.random.default_rng(seed)
+    fov_rows, object_rows = [], []
+    for repeat in repeats:
+        for well in wells:
+            for i in range(n_fovs):
+                fid = f"ctrl_{repeat}_{well}_{i:02d}"
+                base = {"condition": "ctrl", "biological_repeat": repeat, "technical_repeat": well}
+                fov_rows.append(
+                    {
+                        **base,
+                        "position_id": fid,
+                        "order": i + 1,
+                        "x": (i % 4) * 100.0,
+                        "y": (i // 4) * 100.0,
+                    }
+                )
+                object_rows += [
+                    {
+                        **base,
+                        "position_id": fid,
+                        "f": float(rng.normal(10.0, scale)),
+                        "rare": bool(i in rare_fovs and j == 0),
+                    }
+                    for j in range(objs)
+                ]
+    return pd.DataFrame(object_rows), pd.DataFrame(fov_rows)
+
+
+def _f_replay(objects, fovs, **kwargs):
+    settings = {
+        "feature_cols": ["f"],
+        "strategies": [FIX3],
+        "criteria": [MEAN_OF_F],
+        "objective": OBJECTIVE,
+        "reservoir_fraction": 0.3,
+        "orders": [AcquisitionOrder.permuted(0)],
+        "n_splits": 2,
+        "fov_col": "position_id",
+    }
+    settings.update(kwargs)
+    return replay_acquisitions(objects, fovs, **settings)
+
+
+def _f_reliability(objects, fovs, **kwargs):
+    settings = {
+        "feature_cols": ["f"],
+        "criteria": [MEAN_OF_F],
+        "fov_counts": [2],
+        "reservoir_fraction": 0.5,
+        "n_splits": 3,
+        "draws": 4,
+        "fov_col": "position_id",
+    }
+    settings.update(kwargs)
+    return sampling_reliability(objects, fovs, **settings)
+
+
+def _repeat_curve(preserved, **extra):
+    """A reliability result from {(repeat, well): {k: preserved}}, streams of 12 fields."""
+    rows = [
+        {
+            "condition": "c",
+            "biological_repeat": repeat,
+            "well": well,
+            "criterion": "m",
+            "fovs": k,
+            "preserved": value,
+            "stream_fovs": 12,
+            **extra,
+        }
+        for (repeat, well), by_k in preserved.items()
+        for k, value in by_k.items()
+    ]
+    return ReliabilityResult(
+        pd.DataFrame(rows),
+        pd.DataFrame(),
+        ("condition", "biological_repeat", "well"),
+        {"labels": {"m": "m"}},
+    )
+
+
+def _ninety_percent_result():
+    """Two wells, each preserved in exactly 9 of 10 draws in each of 9 splits."""
+    draws = pd.DataFrame(
+        [
+            {
+                "condition": "c",
+                "biological_repeat": "R1",
+                "technical_repeat": well,
+                "split": split,
+                "fovs": 4,
+                "draw": draw,
+                "criterion": "m",
+                "value": 0.0,
+                "status": "preserved" if draw < 9 else "not_preserved",
+                "reservoir_fovs": 4,
+                "stream_fovs": 8,
+                "holdout": f"{well}-{split}",
+            }
+            for well in ("A1", "A2")
+            for split in range(9)
+            for draw in range(10)
+        ]
+    )
+    curve = pd.DataFrame(
+        [
+            {**dict(zip(GROUPS, key, strict=True)), "criterion": "m", "fovs": 4, **_curve_row(runs)}
+            for key, runs in draws.groupby(list(GROUPS))
+        ]
+    )
+    return ReliabilityResult(curve, draws, GROUPS, {"labels": {"m": "the mean"}, "n_splits": 9})
+
+
+SYNTHETIC = Path(__file__).resolve().parents[1] / "data" / "synthetic"
+
+
+SYN_FEATURES = ["area", "intensity", "eccentricity"]
+
+
+SYN_NOVELTY = SupportNoveltyEstimator(float(np.sqrt(3)), 1, Standardize(), 5, 3)
+
+
+KEY = ["condition", "biological_repeat", "technical_repeat", "image_file"]
+
+
+@pytest.fixture(scope="module")
+def synthetic():
+    objects = pd.read_csv(SYNTHETIC / "synthetic_cells.csv")
+    fovs = pd.read_csv(SYNTHETIC / "synthetic_fovs.csv")
+    return objects, fovs
+
+
+def _syn_inspection(objects, fovs, **kwargs):
+    return inspect_fovs(
+        objects,
+        fovs,
+        feature_cols=["area"],
+        novelty=SYN_NOVELTY,
+        novelty_cols=SYN_FEATURES,
+        count_ratio=None,
+        observation_unit="cell",
+        **kwargs,
+    )
+
+
+def _pooled(**rates):
+    """A ControlResult holding only pooled counts: kind -> (judged new, judged)."""
+    pooled = pd.DataFrame(
+        [
+            {"candidate": k, "judged_new": n, "candidates": t, "not_judged": 0, "rate": n / t}
+            for k, (n, t) in rates.items()
+        ]
+    )
+    table = pooled.assign(stratum="all FOVs")
+    return ControlResult(table, pooled, "assessed", ("biological_repeat",), {"fovs_seen": 10})
+
+
+def _grid_well(rng, well, trend, n=6, pitch=500.0):
+    fovs, objects = [], []
+    for i in range(n):
+        for j in range(n):
+            key = {
+                "condition": "c",
+                "biological_repeat": "r",
+                "technical_repeat": well,
+                "position_id": f"{well}_{i}_{j}",
+            }
+            fovs.append({**key, "x_um": i * pitch, "y_um": j * pitch})
+            level = 10 + trend * i + rng.normal(0, 0.3)
+            objects += [{**key, "x": v} for v in level + rng.normal(0, 0.2, 10)]
+    return fovs, objects
+
+
+def _full(result):
+    """The full summary with its line breaks as spaces (the text is wrapped)."""
+    return " ".join(result.summary(detail="full").split())
+
+
+def _curve_with_ceiling(preserved, ceiling, stream=18):
+    rows, ceilings = [], []
+    for well, by_k in preserved.items():
+        for k, value in by_k.items():
+            rows.append(
+                {
+                    "condition": "ctrl",
+                    "plate": "P1",
+                    "well": well,
+                    "criterion": "var",
+                    "fovs": k,
+                    "preserved": value,
+                    "stream_fovs": stream,
+                }
+            )
+        ceilings.append(
+            {
+                "condition": "ctrl",
+                "plate": "P1",
+                "well": well,
+                "criterion": "var",
+                "splits": 10,
+                "defined_splits": 10,
+                "whole_stream_preserved": ceiling[well],
+                "stream_fovs": stream,
+            }
+        )
+    return ReliabilityResult(
+        pd.DataFrame(rows),
+        pd.DataFrame(),
+        ("condition", "plate", "well"),
+        {"labels": {"var": "the variance within 10%"}},
+        pd.DataFrame(ceilings),
+    )
+
+
+@pytest.fixture(scope="module")
+def gradient_replay():
+    built = SCENARIOS["neighbour_correlation"]()
+    orders = [AcquisitionOrder.recorded(), AcquisitionOrder.permuted(0)] + [
+        AcquisitionOrder.dispersed(s) for s in range(2)
+    ]
+    return replay_acquisitions(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[FixedFOVStrategy(4)],
+        criteria=[
+            OutcomeCriterion(
+                RelativeMeanError("feature_a"), 0.05, "lower_is_better", "the mean within 5%"
+            )
+        ],
+        objective=POPULATION,
+        reservoir_fraction=0.35,
+        orders=orders,
+        acquisition_order_col=ORDER_COL,
+        stage_cols=("stage_x", "stage_y"),
+        n_splits=3,
+    )
+
+
+def _two_plates(settings=None, **rates):
+    """A ControlResult over two plates: kind -> ((new, judged) on P1, (new, judged) on P2),
+    pooled as ``representation_control`` pools them."""
+    table = pd.DataFrame(
+        [
+            {"plate": plate, "stratum": f"plate={plate}", "candidate": kind}
+            | {"judged_new": n, "candidates": t, "not_judged": 0, "rate": n / t}
+            for kind, per_plate in rates.items()
+            for plate, (n, t) in zip(("P1", "P2"), per_plate, strict=True)
+        ]
+    )
+    pooled = table.groupby("candidate", sort=False)[["judged_new", "candidates"]].sum()
+    pooled = pooled.reset_index().assign(not_judged=0)
+    pooled["rate"] = pooled["judged_new"] / pooled["candidates"]
+    return ControlResult(
+        table, pooled, "assessed", ("plate",), {"fovs_seen": 10, **(settings or {})}
+    )
+
+
+EMPTY = pd.DataFrame()
+
+
+MEAN_OF_FEATURE_A = OutcomeCriterion(
+    RelativeMeanError("feature_a"), 0.02, "lower_is_better", "the mean"
+)
+
+
+FIXED = [FixedFOVStrategy(3), FixedFOVStrategy(5)]
+
+
+def _homogeneous_tables() -> tuple[pd.DataFrame, pd.DataFrame]:
+    built = SCENARIOS["homogeneous"]()
+    return built.objects, built.fovs
+
+
+def _homogeneous_replay(**kwargs: object):
+    objects, fovs = _homogeneous_tables()
+    return replay_acquisitions(
+        objects,
+        fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=FIXED,
+        criteria=[MEAN_OF_FEATURE_A],
+        objective=POPULATION,
+        **kwargs,
+    )
+
+
+MEAN_A = OutcomeCriterion(RelativeMeanError("feature_a"), 0.05, "lower_is_better", "the mean")
+
+
+MEAN_B = OutcomeCriterion(RelativeMeanError("feature_b"), 0.05, "lower_is_better", "mean b")
+
+
+def _scenario_reliability(criteria=(MEAN_A,)):
+    built = SCENARIOS["condition_repeat_groups"]()
+    return sampling_reliability(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        criteria=list(criteria),
+        fov_counts=[2, 4],
+        reservoir_fraction=0.3,
+        n_splits=3,
+        draws=5,
+    )
+
+
+def _mean_curve(preserved, stream=12, labels=None):
+    """A reliability result from {(plate, well): {k: preserved}} (one criterion, "mean")."""
+    rows = [
+        {
+            "condition": "ctrl",
+            "plate": plate,
+            "well": well,
+            "criterion": "mean",
+            "fovs": k,
+            "preserved": value,
+            "stream_fovs": stream,
+        }
+        for (plate, well), by_k in preserved.items()
+        for k, value in by_k.items()
+    ]
+    settings = {"labels": labels or {"mean": "the mean"}}
+    return ReliabilityResult(
+        pd.DataFrame(rows), pd.DataFrame(), ("condition", "plate", "well"), settings
+    )
+
+
+def _plate_protocol(preserved, plates=("P1", "P2")):
+    return protocol_reliability(
+        _mean_curve(preserved), HIERARCHY, threshold=0.9, strata=["condition"]
+    )
+
+
+def _well_values(plates, value_5, value_10):
+    return {(p, w): {5: value_5, 10: value_10} for p in plates for w in ("A1", "A2")}
+
+
+def _adequacy():
+    built = SCENARIOS["condition_repeat_groups"]()
+    replay = replay_acquisitions(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[FixedFOVStrategy(3), FixedFOVStrategy(1000)],
+        criteria=[MEAN_A, MEAN_B],
+        objective=ObjectiveConfig(SamplingObjective.POPULATION),
+        reservoir_fraction=0.3,
+        n_splits=2,
+    )
+    return adequacy_points(replay)
+
+
+def _effort(repeats=3):
+    rng = np.random.default_rng(6)
+    rows, fovs = [], []
+    for r in range(repeats):
+        for s in range(3):
+            for f in range(5):
+                name = f"r{r}_s{s}_f{f}"
+                fovs.append(
+                    {
+                        "condition": "ctrl",
+                        "biological_repeat": f"R{r}",
+                        "well": f"W{s}",
+                        "image_file": name,
+                    }
+                )
+                values = rng.normal(r * 0.5 + s * 0.3, 1.0, 15)
+                rows.append(pd.DataFrame({"image_file": name, "x": values}))
+    fov_table = pd.DataFrame(fovs)
+    objects = pd.concat(rows, ignore_index=True).merge(fov_table, on="image_file")
+    return effort_projection(
+        objects,
+        fov_table,
+        feature="x",
+        hierarchy=SamplingHierarchy("image_file", "well", "biological_repeat"),
+        strata=["condition"],
+        n_boot=50,
+    )

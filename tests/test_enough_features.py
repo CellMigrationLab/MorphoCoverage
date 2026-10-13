@@ -2,6 +2,8 @@
 question 2 asks each feature the same questions, a summary table first and then one feature
 at a time, and says when it is enough as well as when it is not."""
 
+from __future__ import annotations
+
 import html
 import re
 import warnings
@@ -10,18 +12,26 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_embedding import SEVERAL, _several
+from _helpers_feature_tables import _cells, _fingerprint_data, _fingerprint_setup, _table
 from _helpers_html import _tables
 
 from morphocoverage._style import Status
+from morphocoverage.feature_tables import attach_feature_tables
+from morphocoverage.multivariate_outcomes import CovarianceError
+from morphocoverage.retrospective.criteria import OutcomeCriterion
 from morphocoverage.sampling_unit.contrast import condition_contrast
 from morphocoverage.workflows import _enough_features, _html_tabs, html_report, report
 from morphocoverage.workflows._enough_features import (
     ENOUGH,
     NOT_YET,
     FeatureEnough,
+    _needed,
     features_status,
     features_table,
 )
+from morphocoverage.workflows._enough_targets import fingerprint_lines, fingerprint_precision
+from morphocoverage.workflows._feature_space import attached
 from morphocoverage.workflows._html_enough import answer_lines, enough_body
 from morphocoverage.workflows._html_tabs import TABS_AT_MOST, tabs_html
 from morphocoverage.workflows.setup import Setup
@@ -339,3 +349,117 @@ def test_comparisons_too_small_are_counted_over_the_features_they_sum(result):
     one = features.table.assign(too_small=[2] + [0] * (len(features.table) - 1))
     _, text = features_status(FeatureEnough(one, features.contrasts, {}), "group")
     assert f"2 comparisons of {names[0]} too small to show even" in text
+
+
+def test_one_comparison_needs_more_wells_a19():
+    row = {"needing": 0, "too_small": 2, "between_wells": 1}
+    assert _needed(row, "fields") == "2 too small to show; 1 needs more wells or biological repeats"
+    assert _needed({**row, "between_wells": 2}, "fields").endswith(
+        "2 need more wells or biological repeats"
+    )
+
+
+def _row(**changes):
+    return {"needing": 0, "too_small": 0, "between_wells": 0, "unassessed": 0, **changes}
+
+
+def test_comparisons_not_projected_are_counted_so_the_row_adds_up():
+    """A4: 0 shown + 1 too small + 1 not assessable of 3 left one comparison unaccounted for."""
+    said = _needed(_row(needing=1, flagged=False, too_small=1, unassessed=1), "images")
+    assert "1 not projected (no candidate difference)" in said
+    assert "1 too small to show" in said and "1 not assessable" in said
+
+
+def test_a_flagged_feature_still_gets_its_projection():
+    said = _needed(_row(needing=2, flagged=True, fields_low=12, fields_high=20), "images")
+    assert "about 12 to 20 images a side" in said and "not projected" not in said
+
+
+def test_a_small_pilot_group_is_not_assessable_and_named_never_lowering_k():
+    setup = _fingerprint_setup()
+    alone = fingerprint_precision(*_fingerprint_data(False), setup)
+    with_pilot = fingerprint_precision(*_fingerprint_data(True), setup)
+    # k = a fifth of the median group's 150 cells, capped at the 30 columns (audit 8 A6).
+    assert set(alone["components"]) == set(with_pilot["components"]) == {30}
+    pilot = with_pilot[with_pilot["condition"] == "pilot"].iloc[0]
+    assert pilot["small"] and pilot["met"] is None
+    others = with_pilot[with_pilot["condition"] != "pilot"].reset_index(drop=True)
+    assert others["met"].tolist() == alone["met"].tolist()
+    text = " ".join(" ".join(fingerprint_lines(with_pilot, "group", "fields", unit="cell")).split())
+    assert "not assessable in pilot · repeat R1, holding fewer than 5 k, 150 cells)" in text
+    assert "Not judged in 1 group: too few observations for the common k." in text
+
+
+def test_with_several_controls_the_fingerprint_names_the_cells_without_their_own_control():
+    objects, fovs, tables = _several()
+    criterion = OutcomeCriterion(
+        CovarianceError(("area", "fib_len"), True), 0.5, "lower_is_better", "shape"
+    )
+    setup = Setup(
+        readout="area",
+        features=("area", "fib_len", "fib_w"),
+        control=SEVERAL,
+        normalize="control_mean",
+        fingerprint=(criterion,),
+        observation_unit="cell",
+    )
+    merged, setup, _ = attached(objects, fovs, setup, {"fiber": tables["fiber"]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        rows = fingerprint_precision(merged, fovs, setup)
+    assert int(rows["left_out"].sum()) == 0 and int(rows["no_own_control"].sum()) == 18
+    text = " ".join(" ".join(fingerprint_lines(rows, "group", "fields", unit="cell")).split())
+    assert "18 cells of b1 in R1 left out: no own control." in text
+    assert "missing value" not in text
+
+
+def test_each_tables_fingerprint_has_its_own_verdict_and_line():
+    objects, fovs, _ = _cells(fields=6, cells=5, conditions=("ctrl", "a"))
+    objects["area"] = np.random.default_rng(2).normal(size=len(objects))
+    objects["shape"] = np.random.default_rng(3).normal(size=len(objects))
+    rng = np.random.default_rng(1)
+    table = _table(objects, rng.normal(size=(len(objects), 3)), "e")
+    table.loc[0, "e1"] = np.nan  # a missing value: that cell left out of DINO's fingerprint
+    merged = attach_feature_tables(objects, fovs, {"DINO": table}).objects
+    fingerprint = tuple(
+        OutcomeCriterion(CovarianceError(columns, True), 5.0, "lower_is_better", words)
+        for columns, words in (
+            (("area", "shape"), "the covariance of the standardised features within 500%"),
+            (("e0", "e1", "e2"), "the covariance of the standardised DINO columns within 500%"),
+        )
+    )
+    setup = Setup(
+        readout="area",
+        features=("area", "shape"),
+        fingerprint=fingerprint,
+        feature_tables={"DINO": ("e0", "e1", "e2")},
+        observation_unit="cell",
+    )
+    precision = fingerprint_precision(merged, fovs, setup)
+    assert set(precision["table"]) == {"the explainable features", "DINO"}
+    assert precision.loc[precision["table"] == "DINO", "left_out"].sum() == 1
+    text = " ".join(" ".join(fingerprint_lines(precision, "well", "fields", unit="cell")).split())
+    assert "The covariance fingerprint of the explainable features (the covariance" in text
+    assert "The covariance fingerprint of DINO (the covariance of the standardised DINO" in text
+    assert "1 cell with a missing value of its columns left out." in text
+
+
+def test_comparisons_too_small_are_counted_over_the_features_named(designs):
+    from morphocoverage.workflows._enough_features import FeatureEnough, features_status
+
+    contrast, _ = designs["E4"]
+    table = pd.DataFrame(
+        {
+            "feature": ["area", "intensity", "perimeter"],
+            "verdict": ["partly"] * 3,
+            "too_small": [2, 3, 0],
+            "needing": [0, 0, 1],
+            "fields_high": [np.nan, np.nan, 12],
+            "precision_met": [np.nan] * 3,
+        }
+    )
+    _, headline = features_status(FeatureEnough(table, {"area": contrast}, {}))
+    assert "5 comparisons over area and intensity too small to show even with" in headline
+    one = table.assign(too_small=[2, 0, 0])
+    _, headline = features_status(FeatureEnough(one, {"area": contrast}, {}))
+    assert "2 comparisons of area too small to show" in headline

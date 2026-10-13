@@ -1,11 +1,20 @@
 """Tests for the benchmark protocol (roles, orders, records) and the outcome metrics."""
 
+from __future__ import annotations
+
 import math
+import re
 from dataclasses import replace
 
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_benchmark import MEAN_F, _two_groups
+from _helpers_retrospective import RARE, _f_reliability, _f_replay, _tables
+from _helpers_sampling_unit import _orders
+from _helpers_strategies import _report_both_orders
+from _helpers_tables import _four_cell_tables
+from _helpers_workflows import READOUT, _acquisition
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import (
@@ -15,6 +24,11 @@ from morphocoverage import (
     RareTarget,
     SamplingObjective,
     ScalarPrecisionStrategy,
+    benchmark,
+    calibration,
+    online,
+    reservoir,
+    sequential,
     validate_input_tables,
 )
 from morphocoverage.benchmark import (
@@ -22,8 +36,10 @@ from morphocoverage.benchmark import (
     BenchmarkDataset,
     BenchmarkRegistry,
     DatasetRole,
+    _area,
     _record_run,
     leave_one_dataset_out,
+    permuted_fovs,
     records_to_frame,
     run_benchmark,
 )
@@ -34,8 +50,17 @@ from morphocoverage.outcomes import (
     RelativeMeanError,
     srs_relative_rmse,
 )
+from morphocoverage.reservoir import ReservoirSplit
 from morphocoverage.results import Timing
+from morphocoverage.retrospective import (
+    OutcomeCriterion,
+    adequacy_points,
+    order_efficiency,
+    replay_acquisitions,
+)
 from morphocoverage.sequential import evaluate_acquisition_prefixes
+from morphocoverage.strategies import FOVBootstrapEstimator, ImagedAreaEstimator
+from morphocoverage.workflows import default_families
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
@@ -490,3 +515,300 @@ def test_a_missing_field_area_is_refused_not_counted_as_zero():
     )
     with pytest.raises(ValueError, match="missing for some fields"):
         _run(BenchmarkRegistry([dataset]), "area", strategies=[FixedFOVStrategy(3)])
+
+
+def _one_dataset_registry(objects, fovs, **dataset):
+    return BenchmarkRegistry(
+        [BenchmarkDataset("d", "development", lambda: (objects, fovs), ("f",), "order", **dataset)]
+    )
+
+
+def _permuted_error(objects, fovs, seed=5):
+    records = run_benchmark(
+        _one_dataset_registry(objects, fovs, fov_col="position_id", group_cols=("condition",)),
+        "d",
+        strategies=[FixedFOVStrategy(3)],
+        metrics=[RelativeMeanError("f")],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(seed)],
+    )
+    return {r.group["condition"]: r.outcomes["relative_mean_error:f"] for r in records}
+
+
+def test_b4_permuted_orders_are_per_group_and_ignore_row_order():
+    objects, fovs = _two_groups()
+    both = _permuted_error(objects, fovs)["a"]
+    alone = _permuted_error(objects[objects.condition == "a"], fovs[fovs.condition == "a"])["a"]
+    shuffled = _permuted_error(objects, fovs.sample(frac=1, random_state=3))["a"]
+    assert both == alone == shuffled
+    # The replay draws the same permutation function, seeded from random_state.
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["f"])
+    group, group_data = next(iter(iter_analysis_groups(data)))
+    order = permuted_fovs(group_data.fovs, group_data.fov_key, 0, group, 1)
+    reversed_rows = group_data.fovs.iloc[::-1]
+    again = permuted_fovs(reversed_rows, group_data.fov_key, 0, group, 1)
+    assert order.position_id.tolist() == again.position_id.tolist()
+    replays = {
+        state: replay_acquisitions(
+            objects,
+            fovs,
+            feature_cols=["f"],
+            strategies=[FixedFOVStrategy(3)],
+            criteria=[MEAN_F],
+            objective=POPULATION,
+            reservoir_fraction=0.3,
+            n_splits=1,
+            orders=[AcquisitionOrder.permuted(0)],
+            random_state=state,
+        ).outcomes
+        for state in (0, 1)
+    }
+    assert not replays[0]["value"].equals(replays[1]["value"])
+
+
+@pytest.mark.parametrize(
+    "areas",
+    [
+        [100.0, -100.0, 100.0, 100.0],
+        [100.0, 0.0, 100.0, 100.0],
+        [100.0, np.inf, 100.0, 100.0],
+        ["100"] * 4,
+    ],
+)
+def test_b7_benchmark_refuses_unusable_areas(areas):
+    fovs = pd.DataFrame({"position_id": [f"p{i}" for i in range(4)], "order": range(4)})
+    fovs["area"] = pd.Series(areas, dtype=object if isinstance(areas[0], str) else float)
+    objects = pd.DataFrame({"position_id": np.repeat(fovs.position_id, 3), "f": np.arange(12.0)})
+    with pytest.raises(ValueError, match="area_col"):
+        run_benchmark(
+            _one_dataset_registry(objects, fovs, area_col="area"),
+            "d",
+            strategies=[FixedFOVStrategy(2)],
+            metrics=[RelativeMeanError("f")],
+            objective=POPULATION,
+        )
+
+
+def test_b9_records_keep_stop_on_and_a_consistent_final_decision():
+    rng = np.random.default_rng(0)
+    fovs = pd.DataFrame({"position_id": [f"p{i}" for i in range(8)], "order": range(8)})
+    objects = pd.DataFrame(
+        {"position_id": np.repeat(fovs.position_id, 50), "f": rng.uniform(9, 11, 400)}
+    )
+    phenotype = ObjectiveConfig(SamplingObjective.PHENOTYPE)
+    for stop_on in ("decision", "rule"):
+        (record,) = run_benchmark(
+            _one_dataset_registry(objects, fovs),
+            "d",
+            strategies=[ScalarPrecisionStrategy("f", 0.05, "object", "point")],
+            metrics=[RelativeMeanError("f")],
+            objective=phenotype,
+            stop_on=stop_on,
+        )
+        assert record.stop_on == stop_on == record.as_row()["stop_on"]
+        assert record.stopped == (record.final_decision.value == "stop")
+    assert record.stopped  # the rule's own verdict stops
+
+
+def test_b11_numpy_group_values_seed_like_python_ones():
+    fovs = pd.DataFrame({"biological_repeat": 1, "position_id": [f"p{i:02d}" for i in range(20)]})
+    objects = pd.DataFrame(
+        {"biological_repeat": 1, "position_id": fovs.position_id, "f": np.arange(20.0)}
+    )
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["f"])
+    group_from_table = {"biological_repeat": data.fovs["biological_repeat"].iloc[0]}
+    assert isinstance(group_from_table["biological_repeat"], np.integer)
+    split = ReservoirSplit(0.3, 0, None)
+    held = split.split(group_from_table, data)[1].fovs["position_id"].tolist()
+    assert held == split.split({"biological_repeat": 1}, data)[1].fovs["position_id"].tolist()
+    order = permuted_fovs(data.fovs, data.fov_key, 0, group_from_table)
+    assert order.equals(permuted_fovs(data.fovs, data.fov_key, 0, {"biological_repeat": 1}))
+
+
+def test_b12_benchmark_and_imaged_area_share_one_area_check():
+    built = SCENARIOS["homogeneous"]()
+    estimator = ImagedAreaEstimator("area_um2")
+    for bad in (np.nan, -1.0, 0.0, np.inf):
+        fovs = built.fovs.copy()
+        fovs.loc[0, "area_um2"] = bad
+        data = validate_input_tables(built.objects, fovs=fovs, feature_cols=list(FEATURE_COLS))
+        quantity = estimator.estimate(data, objective=POPULATION).quantities["imaged_area"]
+        assert quantity.availability.value == "not_applicable"
+        with pytest.raises(ValueError) as refused:
+            _area(data, "area_um2")
+        assert str(refused.value) == quantity.reason
+    fovs = built.fovs.assign(area_um2=built.fovs["area_um2"].astype(str))
+    data = validate_input_tables(built.objects, fovs=fovs, feature_cols=list(FEATURE_COLS))
+    for check in (
+        lambda: _area(data, "area_um2"),
+        lambda: estimator.estimate(data, objective=POPULATION),
+    ):
+        with pytest.raises(ValueError, match="not numbers"):
+            check()
+
+
+def test_j16_modules_list_their_public_names():
+    assert online.__all__ == ["OnlineSession"]
+    assert sequential.__all__ == ["SequentialResult", "evaluate_acquisition_prefixes"]
+    assert "run_benchmark" in benchmark.__all__ and "permuted_fovs" not in benchmark.__all__
+    for module in (online, sequential, benchmark, calibration, reservoir):
+        assert all(not name.startswith("_") and hasattr(module, name) for name in module.__all__)
+
+
+def test_e4_recorded_and_random_orders_are_summarised_apart():
+    report = _report_both_orders("neighbour_correlation", [FixedFOVStrategy(4)])
+    stops = report.stops
+    assert list(stops["order_kind"]) == ["recorded", "permuted"]
+    assert list(stops["orders"]) == [1, 9]
+    answer = report.enough["answer"].iloc[0]
+    assert "in the recorded order, first met after 4 FOVs" in answer
+    assert "in all 9 random orders, first met after 4 FOVs" in answer
+    row = report.enough.iloc[0]
+    assert row["order_kind"] == "permuted" and row["orders"] == 9
+    recorded_only = _report_both_orders(
+        "neighbour_correlation", [FixedFOVStrategy(4)], orders=[AcquisitionOrder.recorded()]
+    )
+    assert recorded_only.enough["order_kind"].iloc[0] == "recorded"
+
+
+def test_f6_neighbouring_seeds_share_no_reservoir_and_both_analyses_hold_the_same_one():
+    objects, fovs = _tables(n_fovs=20)
+    kwargs = {"orders": [AcquisitionOrder.recorded()], "acquisition_order_col": "order"}
+    first = _f_replay(objects, fovs, random_state=0, n_splits=5, **kwargs).outcomes
+    second = _f_replay(objects, fovs, random_state=1, n_splits=5, **kwargs).outcomes
+    for split in range(4):
+        shifted = first[first["split"] == split + 1]["value"].round(12).tolist()
+        assert second[second["split"] == split]["value"].round(12).tolist() != shifted
+    # The same random_state and split hold back the same fields in reliability and replay:
+    # the whole stream scores the same against the reservoir in both.
+    replay = _f_replay(objects, fovs, random_state=4, n_splits=3, **kwargs)
+    stream = int(replay.streams["stream_fovs"].iloc[0])
+    whole = replay.outcomes[replay.outcomes["fovs"] == stream].set_index("split")["value"]
+    draws = _f_reliability(
+        objects, fovs, fov_counts=[stream], reservoir_fraction=0.3, random_state=4
+    ).draws
+    drawn = draws.groupby("split")["value"].first()
+    assert np.allclose(drawn.sort_index().to_numpy(), whole.sort_index().to_numpy())
+
+
+def test_f7_order_efficiency_leaves_unjudged_runs_out():
+    objects, fovs = _tables(n_fovs=16, rare_fovs=(3, 9))
+    replay = _f_replay(
+        objects,
+        fovs,
+        criteria=[RARE],
+        orders=[AcquisitionOrder.permuted(s) for s in range(4)],
+        n_splits=6,
+        stage_cols=("x", "y"),
+    )
+    realized = adequacy_points(replay).realized
+    unjudged = int((realized[realized["criterion"] == "all criteria"]["judged_fovs"] == 0).sum())
+    assert unjudged > 0
+    result = order_efficiency(replay)
+    row = result.table.iloc[0]
+    assert row["unjudged"] == unjudged
+    judged = result.runs[result.runs["judged"]]
+    assert row["reached"] == pytest.approx(judged["sustained_realized"].notna().mean())
+    assert f"{unjudged} of {int(row['runs'])} runs could not be judged" in result.summary()
+
+
+def test_f13_dispersed_seeds_beyond_the_stream_are_replayed_once():
+    objects, fovs = _tables(n_fovs=5)
+    replay = _f_replay(
+        objects,
+        fovs,
+        reservoir_fraction=0.4,
+        orders=[AcquisitionOrder.dispersed(s) for s in range(5)],
+        n_splits=1,
+        stage_cols=("x", "y"),
+    )
+    stream = int(replay.streams["stream_fovs"].iloc[0])
+    assert stream == 3 and len(replay.streams) == stream
+    firsts = replay.paths[replay.paths["fovs"] == 2].groupby("order_id")["travel"].first()
+    assert len(firsts) == stream
+
+
+def test_h3_the_benchmark_bootstrap_of_the_mean_reads_the_readout_only():
+    family = default_families(READOUT, n_resamples=20)[-1]
+    assert family.strategy.estimators[0].features == (READOUT,)
+    objects, fovs = _acquisition(n_fovs=8, n_objects=6)
+    everything = validate_input_tables(objects, fovs=fovs, feature_cols=list(FEATURE_COLS))
+    alone = validate_input_tables(objects, fovs=fovs, feature_cols=[READOUT])
+    selected = FOVBootstrapEstimator("centroid", None, 50, 0, 2, features=(READOUT,))
+    plain = FOVBootstrapEstimator("centroid", None, 50, 0, 2)
+    name = "fov_bootstrap_centroid_max_se"
+    assert selected.estimate(everything, objective=POPULATION).value(name) == pytest.approx(
+        plain.estimate(alone, objective=POPULATION).value(name)
+    )
+    # Without features the configuration is the one it always was.
+    assert "features" not in plain.parameters
+
+
+def test_orders_that_agree_within_one_field_are_called_a_null_result():
+    built = SCENARIOS["homogeneous"]()
+    replay = replay_acquisitions(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[FixedFOVStrategy(2)],
+        criteria=[
+            OutcomeCriterion(RelativeMeanError("feature_a"), 0.05, "lower_is_better", "the mean")
+        ],
+        objective=POPULATION,
+        reservoir_fraction=0.3,
+        orders=[
+            AcquisitionOrder.recorded(),
+            AcquisitionOrder.permuted(0),
+            AcquisitionOrder.dispersed(0),
+        ],
+        acquisition_order_col=ORDER_COL,
+        stage_cols=("stage_x", "stage_y"),
+        n_splits=2,
+    )
+    result = order_efficiency(replay)
+    spread = result.table["median_fovs"].max() - result.table["median_fovs"].min()
+    text = result.summary()
+    assert ("null result" in text) == (spread <= 1 and (result.table["reached"] == 1).all())
+
+
+def test_run_benchmark_refusals():
+    objects, fovs = _four_cell_tables()
+
+    def load():
+        return objects.assign(order=range(4)), fovs.assign(order=range(2))
+
+    rule = [FixedFOVStrategy(2)]
+    registry = BenchmarkRegistry(
+        [BenchmarkDataset("d", "development", load, ("area",), "order", area_col="missing")]
+    )
+    with pytest.raises(ValueError) as error:
+        run_benchmark(registry, "d", strategies=rule, metrics=[], objective=POPULATION, stop_on="x")
+    assert str(error.value) == "stop_on must be 'decision' or 'rule', not 'x'"
+    with pytest.raises(ValueError) as error:
+        run_benchmark(registry, "d", strategies=rule, metrics=[], objective=POPULATION)
+    assert str(error.value) == "area_col 'missing' is not a column of the FOV table"
+    registry = BenchmarkRegistry([BenchmarkDataset("d", "development", load, ("area",), "order")])
+    with pytest.raises(TypeError) as error:
+        run_benchmark(
+            registry, "d", strategies=rule, metrics=[], objective=POPULATION, reservoir="x"
+        )
+    assert str(error.value) == "reservoir must be a ReservoirSplit"
+
+
+def test_the_order_comparison_is_one_table_per_order_kind_and_every_median_in_full():
+    result = _orders()
+    short = result.summary()
+    assert re.search(r"order\s+fields\s+stage travel\s+time\s+never enough", short)
+    for name in ("recorded", "random", "spread out"):
+        assert re.search(rf"^  {name}\s", short, re.MULTILINE)
+    assert short.count("straight-line path") == 1
+    full = result.summary(detail="full")
+    table = result.table
+    for row in table.to_dict("records"):
+        if row["median_fovs"] is not None and not np.isnan(row["median_fovs"]):
+            fields = f"{row['median_fovs']:g} field"
+            assert fields in full
+    assert "Analysis groups: condition · biological repeat." in full
+    assert "min" in full  # the timing was given
+    with pytest.raises(ValueError, match="short"):
+        result.summary(detail="brief")

@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 
 from morphocoverage.feature_tables import attach_feature_tables
+from morphocoverage.multivariate_outcomes import CovarianceError
+from morphocoverage.retrospective.criteria import OutcomeCriterion
 from morphocoverage.workflows import Setup
 
 
@@ -103,3 +105,45 @@ def _wide(fields: int, cells: int, columns: int = 60, seed: int = 0):
     merged = attach_feature_tables(objects, fovs, {"DINO": table}).objects
     names = tuple(f"d{j}" for j in range(columns))
     return merged, fovs, names
+
+
+def _two_tables(seed: int = 0) -> tuple[np.ndarray, list[str]]:
+    """4 correlated columns (A) and 2 independent ones (B), robustly standardised enough."""
+    rng = np.random.default_rng(seed)
+    latent = rng.normal(size=(300, 1))
+    first = latent + 0.3 * rng.normal(size=(300, 4))
+    return np.hstack([first, rng.normal(size=(300, 2))]), ["a0", "a1", "a2", "a3", "b0", "b1"]
+
+
+COLUMNS = tuple(f"d{j}" for j in range(30))
+
+
+def _fingerprint_data(pilot: bool, fields: int = 6, cells: int = 25):
+    """ctrl and a in 3 repeats, ``fields`` fields of ``cells`` cells, a table of 30 columns
+    on 3 latent axes; with ``pilot``, a condition of 4 fields of 3 cells in R1."""
+    rng = np.random.default_rng(0)
+    load = rng.normal(size=(3, len(COLUMNS)))
+    groups = [(c, r, fields, cells) for c in ("ctrl", "a") for r in ("R1", "R2", "R3")]
+    groups += [("pilot", "R1", 4, 3)] if pilot else []
+    frames = []
+    for c, r, n_fields, n_cells in groups:
+        for field in range(n_fields):
+            values = rng.normal(size=(n_cells, 3)) @ load
+            values += 0.3 * rng.normal(size=(n_cells, len(COLUMNS)))
+            frame = pd.DataFrame(values, columns=list(COLUMNS))
+            frame.insert(0, "label_id", np.arange(1, n_cells + 1))
+            frame.insert(0, "image_file", f"{c}{r}{field}")
+            frame.insert(0, "biological_repeat", r)
+            frame.insert(0, "condition", c)
+            frames.append(frame)
+    objects = pd.concat(frames, ignore_index=True)
+    return objects, objects[KEY[:3]].drop_duplicates().reset_index(drop=True)
+
+
+def _fingerprint_setup() -> Setup:
+    criterion = OutcomeCriterion(
+        CovarianceError(COLUMNS, True), 0.15, "lower_is_better", "DINO covariance within 15%"
+    )
+    return Setup(
+        fingerprint=(criterion,), feature_tables={"DINO": COLUMNS}, observation_unit="cell"
+    )

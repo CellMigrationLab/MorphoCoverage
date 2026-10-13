@@ -1,8 +1,18 @@
+from __future__ import annotations
+
+import inspect
+
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_sampling_unit import _well_tables_with_empty_fields
+from _helpers_tables import _four_cell_tables, _validated_mixed
 
-from morphocoverage import validate_input_tables
+import morphocoverage.plots as plots_module
+from morphocoverage import ValidatedInput, schema, validate_input_tables
+from morphocoverage.evaluator import restrict_input
+from morphocoverage.plots import plots_of_data
+from morphocoverage.schema import _validate_input_tables, canonical_fields
 
 
 def _objects():
@@ -276,3 +286,108 @@ def test_an_observation_of_an_unlisted_fov_is_named_when_groups_come_from_fovs()
     fovs = pd.DataFrame({"image_file": ["a"], "condition": ["c"], "biological_repeat": ["r"]})
     with pytest.raises(ValueError, match=r"absent from the supplied fovs table.*\['zz'\]"):
         validate_input_tables(objects, fovs=fovs, feature_cols=["x"])
+
+
+def test_the_canonical_fov_order_does_not_depend_on_row_order_when_ids_print_alike():
+    forward, backward = _validated_mixed([0, 1, 2, 3]), _validated_mixed([3, 2, 1, 0])
+    first = [forward.fovs["position_id"].iloc[i] for i in canonical_fields(forward)]
+    second = [backward.fovs["position_id"].iloc[i] for i in canonical_fields(backward)]
+    assert first == second
+
+
+def _tables() -> tuple[pd.DataFrame, pd.DataFrame]:
+    fovs = pd.DataFrame({"condition": ["a", "a", "b"], "position_id": ["f1", "f2", "f3"]})
+    objects = fovs.loc[[0, 0, 1, 2]].reset_index(drop=True).assign(x=[1.0, 2.0, 3.0, 4.0])
+    return objects, fovs
+
+
+def _fields(**changes):
+    objects, fovs = _tables()
+    base = {
+        "objects": objects,
+        "fovs": fovs,
+        "feature_cols": ("x",),
+        "fov_col": "position_id",
+        "group_cols": ("condition",),
+        "fov_key": ("condition", "position_id"),
+    }
+    return {**base, **changes}
+
+
+def test_a_hand_built_valid_input_is_accepted_and_equals_the_validated_one():
+    objects, fovs = _tables()
+    built = ValidatedInput(**_fields())
+    validated = validate_input_tables(objects=objects, fovs=fovs, feature_cols=["x"])
+    assert built.fov_key == validated.fov_key and built.feature_cols == validated.feature_cols
+    assert np.array_equal(built.feature_matrix(), validated.feature_matrix())
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"feature_cols": ("missing",)}, "lacks the column"),
+        ({"fov_key": ("condition", "gone"), "fov_col": "gone"}, "lacks the column"),
+        ({"fov_key": ("condition", "position_id", "condition")}, "repeats a column"),
+        ({"fov_col": "condition"}, "must end with the FOV column"),
+        ({"group_cols": ("batch",)}, "must be part of fov_key"),
+        ({"feature_cols": ()}, "feature_cols is empty"),
+        ({"feature_cols": ("position_id",)}, "both a feature and part of the FOV identity"),
+        ({"observation_unit": "Cells"}, "not canonical"),
+        ({"observation_unit_declared": 1}, "must be True or False"),
+        ({"feature_cols": ["x"]}, "must be a tuple"),
+    ],
+)
+def test_direct_construction_checks_the_declared_columns_and_unit(changes, message):
+    with pytest.raises(ValueError, match=message):
+        ValidatedInput(**_fields(**changes))
+
+
+def test_duplicated_fov_rows_and_unlisted_fovs_are_refused():
+    _, fovs = _tables()
+    with pytest.raises(ValueError, match="exactly one row per acquired FOV"):
+        ValidatedInput(**_fields(fovs=pd.concat([fovs, fovs.iloc[[0]]], ignore_index=True)))
+    with pytest.raises(ValueError, match="absent from the supplied fovs"):
+        ValidatedInput(**_fields(fovs=fovs.iloc[:2]))
+
+
+def test_non_numeric_infinite_and_missing_identity_are_refused():
+    objects, _ = _tables()
+    with pytest.raises(ValueError, match="infinite"):
+        ValidatedInput(**_fields(objects=objects.assign(x=[1.0, np.inf, 3.0, 4.0])))
+    with pytest.raises((ValueError, TypeError)):
+        ValidatedInput(**_fields(objects=objects.assign(x=["a", "b", "c", "d"])))
+    with pytest.raises(ValueError, match="missing"):
+        ValidatedInput(**_fields(objects=objects.assign(position_id=["f1", None, "f2", "f3"])))
+
+
+def test_the_frameworks_own_subsets_are_trusted_and_keep_their_state():
+    objects, fovs = _tables()
+    data = validate_input_tables(objects=objects, fovs=fovs, feature_cols=["x"])
+    subset = restrict_input(data, data.objects.iloc[:2], data.fovs.iloc[:1])
+    assert len(subset.fovs) == 1 and subset.feature_cols == data.feature_cols
+    copy = data.with_tables(feature_cols=("x",))
+    assert copy is not data and copy._feature_cache == {}
+
+
+def test_j3_j9_j11_plots_use_the_shared_helpers():
+    source = inspect.getsource(plots_module)
+    assert "sampling_unit" not in source.split('"""', 2)[2]  # no private import from there
+    assert not hasattr(plots_module, "_technical_count")
+    assert not hasattr(plots_module, "_ordinal")
+    assert plots_module.fov_values is schema.fov_values
+    with pytest.raises(ValueError, match="n_boot must be a positive integer"):
+        plots_of_data(
+            *_well_tables_with_empty_fields([("ctrl", "r1", "w", 2, 0, 0)]),
+            features=["x"],
+            n_boot=True,
+        )
+
+
+def test_the_validator_refuses_tables_that_are_not_tables():
+    objects, _ = _four_cell_tables()
+    with pytest.raises(TypeError) as error:
+        _validate_input_tables([1], feature_cols=["area"])
+    assert str(error.value) == "objects must be a pandas DataFrame"
+    with pytest.raises(TypeError) as error:
+        _validate_input_tables(objects, feature_cols=["area"], fovs=[1])
+    assert str(error.value) == "fovs must be a pandas DataFrame when provided"

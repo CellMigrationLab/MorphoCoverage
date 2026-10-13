@@ -8,9 +8,16 @@ different experiments with the same treatment each normalised to its own control
 One control behaves exactly as before.
 """
 
+from __future__ import annotations
+
+import warnings
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_embedding import SEVERAL, _several
+from _helpers_sampling_unit import _flat
 from ecm_design import CONDITIONS, CONTROLS, MASTER, PARENTS, tables
 
 from morphocoverage._control import (
@@ -20,12 +27,16 @@ from morphocoverage._control import (
     control_mask,
     versus,
 )
+from morphocoverage.sampling_unit._experiments import bridges
 from morphocoverage.sampling_unit.contrast import condition_contrast
 from morphocoverage.sampling_unit.contrast_across import _effects, across_rows
 from morphocoverage.sampling_unit.discovery import feature_discovery
 from morphocoverage.sampling_unit.ranking import feature_ranking
+from morphocoverage.sampling_unit.reading_text import readings_parts
 from morphocoverage.statistics import benjamini_hochberg
 from morphocoverage.workflows import Setup, plots, report
+from morphocoverage.workflows._contrasts import normalised_readers
+from morphocoverage.workflows._declaration import declaration_short
 
 FAST = {"n_permutations": 99, "n_draws": 10, "object_counts": ()}
 OWN = [
@@ -433,3 +444,143 @@ def test_the_figure_legend_pairs_each_condition_with_its_own_control(ecm, ecm_re
     # A condition is "not compared" only in repeats without its own reference.
     assert legends and all(", in repeats without" not in text for text in legends.values())
     assert "VEC_SiCol6a1: n = " in legends["area"]
+
+
+def test_seed7_the_overview_and_the_declaration_print_the_one_list():
+    objects, fovs, _ = _several()
+    one = Setup(
+        readout="area",
+        control={"condition": "cA"},
+        normalize="control_mean",
+        observation_unit="cell",
+    )
+    several = Setup(
+        readout="area", control=SEVERAL, normalize="control_mean", observation_unit="cell"
+    )
+    for setup, words in ((one, normalised_readers()), (several, normalised_readers(True))):
+        assert words in setup.normalized_sentence(fovs, objects)
+        assert words in " ".join(" ".join(setup.declaration()).split())
+        assert words in " ".join(declaration_short(setup).split())
+
+
+def test_the_fingerprint_reads_normalised_values_with_several_controls_too():
+    objects, fovs, _ = _several()
+    for control in (SEVERAL, {"condition": "cA"}):
+        setup = Setup(readout="area", control=control, normalize="control_mean")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            values = setup.compared_values(objects, fovs)
+            expected = setup.prepared(objects, fovs)
+        pd.testing.assert_frame_equal(values, expected)
+        assert not values["area"].equals(objects["area"])
+    plain = Setup(readout="area", control=SEVERAL)
+    assert plain.compared_values(objects, fovs) is objects
+    several = normalised_readers(several=True)
+    assert "the fingerprint and the outcomes judged on held-back fields read the normalised" in (
+        several
+    )
+
+
+def _across_fallbacks():
+    from morphocoverage.sampling_unit.across_text import across_parts
+
+    base = {
+        "feature": "area",
+        "status": "ok",
+        "values": "raw",
+        "fold_change": np.nan,
+        "effect": 0.5,
+        "p_paired_t": 0.02,
+        "q_paired_t": 0.04,
+        "held": ["R1", "R2", "R3"],
+        "repeats": 3,
+        "lower": 0,
+        "higher": 3,
+    }
+    across = pd.DataFrame(
+        [
+            {
+                **base,
+                "kind": "across_normalised",
+                "comparison": "B/cB vs D/cD",
+                "condition": "B",
+                "condition_control": "cB",
+                "reference": "D",
+                "reference_control": "cD",
+            },
+            {
+                **base,
+                "kind": "vs_master_raw",
+                "comparison": "cB vs M",
+                "condition": "cB",
+                "condition_control": None,
+                "reference": "M",
+                "reference_control": None,
+                "lower": 1,
+                "higher": 2,
+            },
+            {
+                **base,
+                "kind": "vs_master_raw",
+                "comparison": "cD vs M",
+                "condition": "cD",
+                "condition_control": None,
+                "reference": "M",
+                "reference_control": None,
+                "status": "fewer",
+            },
+        ]
+    )
+    contrast = SimpleNamespace(
+        across=across,
+        settings={
+            "repeat_col": "biological_repeat",
+            "feature": "area",
+            "across_features": None,
+            "acquisition_gaps": [{"controls": ["cB", "M"]}],
+            "master_repeats": ("M", ["R1", "R2", "R3"], ["R1", "R2", "R3", "R4"]),
+            "family_features": 1,
+        },
+    )
+    return "\n".join(across_parts(contrast))
+
+
+EXPECTED_ACROSS_FALLBACKS = (
+    "  Compared across experiments, secondary to the verdicts above: the "
+    "paired t-test on the biological\n    repeat means, one value per "
+    "biological repeat, each family corrected on its own:\n    The same "
+    "treatment in two experiments, each condition normalised to its own "
+    "control: in every\n      biological repeat holding all four, the log "
+    "ratio of each to its control, the one minus the\n      other; the "
+    "larger ratio is named.\n      comparison    larger ratio, by "
+    "biological repeat  change  paired t: p (q)  biological repeats\n      "
+    "B/cB vs D/cD  B/cB in 3 of 3                      +0.5    0.020 "
+    "(0.040)    R1, R2 and R3\n    The master control M was imaged in 3 of "
+    "the 4 biological repeats, not in R4. The controls\n      against it "
+    "on the raw values, not normalised, in the biological repeats holding "
+    "both, on each\n      feature's scale: the log ratio of the control's "
+    "mean to the master's, else their difference;\n      raw comparisons "
+    "across experiments assume they were imaged and processed alike.\n     "
+    " comparison  by biological repeat  change  paired t: p (q)  "
+    "biological repeats\n      cB vs M     1 lower, 2 higher     +0.5    "
+    "0.020 (0.040)    R1, R2 and R3\n      ⚠️ cB vs M: joins controls "
+    "apart in intensity (cB vs M), so it may show acquisition rather\n     "
+    "    than biology.\n    B/cB vs D/cD: a value is not positive, so the "
+    "differences of the raw differences are compared\n      instead of log "
+    "ratios.\n    cB vs M: a value is not positive, so the raw differences "
+    "are compared instead of log ratios.\n    Not compared: cD vs M: fewer "
+    "than 3 biological repeats hold every condition of the comparison."
+)
+
+
+def test_across_fallbacks():
+    assert _across_fallbacks() == EXPECTED_ACROSS_FALLBACKS
+
+
+def test_a_bridging_condition_is_said_in_the_design_sentence(designs):
+    assert bridges({"a": [1, 2], "b": [3, 4], "x": [1, 3]}) == {"x": 2}
+    assert bridges({"a": [1, 2], "b": [1]}) == {}
+    contrast, _ = designs["E6"]
+    reading = _flat(readings_parts(contrast))
+    assert reading.count("bridge, imaged in both sets of biological repeats, joins them") == 1
+    assert "into one sub-experiment of 3 tests" in reading

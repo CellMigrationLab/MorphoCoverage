@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_strategies import _joined_words, _ordered_acquisition, _x_run
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 from scipy import stats
 
@@ -14,7 +15,7 @@ from morphocoverage import (
     evaluate_acquisition_prefixes,
     validate_input_tables,
 )
-from morphocoverage.strategies import RareIncidenceEstimator, RareIncidenceStrategy
+from morphocoverage.strategies import RareIncidenceEstimator, RareIncidenceStrategy, rare_incidence
 from morphocoverage.strategies.rare_incidence import incidence_risk
 from morphocoverage.strategies.rare_planning import fovs_to_detect
 
@@ -155,3 +156,20 @@ def test_population_objectives_are_unsupported():
 def test_invalid_settings_are_refused(build):
     with pytest.raises((TypeError, ValueError)):
         build()
+
+
+def test_p4_8_rare_incidence_states_its_false_stop_rates():
+    doc = _joined_words(rare_incidence.__doc__)
+    for rate in ("5.2%", "7.7%", "9.6%", "13.9%", "18.3%", "20.9%", "55-69%"):
+        assert rate in doc
+    assert "not recalibrated" in doc
+    objects, fovs = _ordered_acquisition([[1.0, 2.0]] * 3)
+    objects["state"] = False
+    target = RareTarget(
+        fov_incidence=0.05, detection_probability=0.95, min_fov_occurrences=2, phenotype="state"
+    )
+    objective = ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=target)
+    [result] = _x_run(objects, fovs, [RareIncidenceStrategy("state", 1, 1, 0.05)], objective)
+    caution = result.evidence.diagnostics["warning"]
+    assert caution.startswith("a posterior risk, not a detection guarantee")
+    assert "7.7%" in caution and "runs of 5 neighbouring FOVs" in caution

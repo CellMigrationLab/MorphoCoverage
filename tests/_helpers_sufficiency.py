@@ -1,7 +1,12 @@
 """An acquisition with a new state, shared by the sufficiency tests."""
 
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
+
+from morphocoverage.benchmark import AcquisitionOrder
+from morphocoverage.objectives import ObjectiveConfig, SamplingObjective
 
 
 def _novel_acquisition(n_fovs=12, state_fovs=(3, 7), outlier_fovs=(5,)):
@@ -19,3 +24,9 @@ def _novel_acquisition(n_fovs=12, state_fovs=(3, 7), outlier_fovs=(5,)):
         ]
     fovs = pd.DataFrame({"image_file": [f"f{j}" for j in range(n_fovs + 1)]})  # one empty
     return pd.DataFrame(rows), fovs
+
+
+POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
+
+
+PERMUTED = [AcquisitionOrder.permuted(seed) for seed in range(5)]

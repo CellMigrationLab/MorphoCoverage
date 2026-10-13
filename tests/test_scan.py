@@ -1,12 +1,16 @@
 """The design scan run before any analysis: what the dataset is, whether it was loaded
 correctly, which columns would say more, and the questions to ask (workflows.scan)."""
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_embedding import _cells
+from _helpers_workflows import _sictrl_tables, _uneven_tables
 
 from morphocoverage._style import Status
 from morphocoverage.workflows import DesignScan, Setup, scan_design
@@ -237,3 +241,37 @@ def test_a_condition_or_repeat_held_only_by_empty_fields_is_counted():
     assert "2026_04_01: the control only" in text
     # Without the FOV table, only what the observations hold.
     assert scan_design(objects).design["conditions"] == ["siCTRL", "drugA", "drugB"]
+
+
+def test_the_scan_says_one_image_not_one_images():
+    objects, fovs = _uneven_tables()
+    scan = scan_design(
+        objects, fovs, feature_cols=["area"], observation_unit="image", fov_col="position_id"
+    )
+    text = " ".join(scan.summary().split())
+    assert "(1 image)" in text and "1 images" not in text
+
+
+def test_b11_the_scan_accepts_several_controls_as_setup_declares_them():
+    objects, fovs, _ = _cells()
+    controls = {"condition": {"ctrl": ["a"], "b": []}}
+    scan = scan_design(objects, fovs, observation_unit="cell", control=controls)
+    assert scan.data_check.ok and scan.status.marker != "❌"
+    assert scan.design["controls"] == ["ctrl", "b"]
+    text = scan.summary()
+    assert "ctrl (a control)" in text and "b (a control)" in text
+    assert "Several conditions" not in text  # one condition besides the controls
+    setup = scan.setup("mitotic", control_parents={"b": "ctrl"})
+    assert setup.own_references == {"a": "ctrl", "b": "ctrl", "ctrl": "ctrl"}
+
+
+def test_scan_counts_planes_and_conditions_without_repeats():
+    with pytest.raises(TypeError) as raised:
+        scan_design([1, 2])
+    assert str(raised.value) == "objects must be a pandas DataFrame, not list"
+    objects, _ = _sictrl_tables()
+    planes = objects.assign(z=objects["label_id"] % 2).drop(columns=["biological_repeat"])
+    scan = scan_design(planes)
+    assert scan.design["planes"] == {"z": (2, 2)}
+    assert scan.design["repeats"] == []
+    assert scan.layout.to_csv() == "condition,observations\nsiCTRL,6\nA,6\n"

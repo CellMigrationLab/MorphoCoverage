@@ -1,5 +1,11 @@
+import ast
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
 import pytest
+from _helpers_benchmark import MEAN_F, POPULATION
+from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import (
     Estimator,
@@ -10,6 +16,8 @@ from morphocoverage import (
     SamplingStrategy,
     evaluate_acquisition_prefixes,
 )
+from morphocoverage import sequential as sequential_module
+from morphocoverage.retrospective import replay_acquisitions
 from morphocoverage.strategies import EstimatorState
 
 
@@ -245,3 +253,135 @@ def test_an_order_column_named_twice_is_refused_by_the_validator():
             objective=ObjectiveConfig(SamplingObjective.POPULATION),
         )
     assert "truth value" not in str(error.value) and "order" in str(error.value).split("\n")[0]
+
+
+SRC = Path(__file__).resolve().parents[1] / "src" / "morphocoverage"
+
+
+def test_b3_text_acquisition_order_is_refused():
+    fovs = pd.DataFrame(
+        {"position_id": [f"p{i}" for i in range(1, 13)], "order": [str(i) for i in range(1, 13)]}
+    )
+    objects = pd.DataFrame({"position_id": np.repeat(fovs.position_id, 2), "f": np.arange(24.0)})
+    with pytest.raises(ValueError, match="not numbers or date-times"):
+        evaluate_acquisition_prefixes(
+            objects,
+            fovs,
+            strategies=[FixedFOVStrategy(3)],
+            feature_cols=["f"],
+            acquisition_order_col="order",
+            objective=POPULATION,
+        )
+    with pytest.raises(ValueError, match="not numbers or date-times"):
+        replay_acquisitions(
+            objects,
+            fovs,
+            feature_cols=["f"],
+            strategies=[FixedFOVStrategy(3)],
+            criteria=[MEAN_F],
+            objective=POPULATION,
+            reservoir_fraction=0.3,
+            acquisition_order_col="order",
+        )
+    # Date-times are an order.
+    timed = fovs.assign(order=pd.date_range("2026-01-01", periods=12, freq="min"))
+    results = evaluate_acquisition_prefixes(
+        objects,
+        timed,
+        strategies=[FixedFOVStrategy(3)],
+        feature_cols=["f"],
+        acquisition_order_col="order",
+        objective=POPULATION,
+    )
+    assert [k[-1] for k in results[2].acquired_fovs] == ["p1", "p2", "p3"]
+
+
+def test_a_categorical_or_incomplete_acquisition_order_is_refused_naming_the_replay():
+    # Owner, 2026-10-12: the replay checks its order as a pilot does (check_order_col), its
+    # messages naming the replay's argument.
+    fovs = pd.DataFrame({"position_id": [f"p{i}" for i in range(1, 13)], "order": range(12)})
+    objects = pd.DataFrame({"position_id": np.repeat(fovs.position_id, 2), "f": np.arange(24.0)})
+    categorical = fovs.assign(order=pd.Categorical(range(12), ordered=True))
+    replay = "the replay of the acquisition order"
+    named = "acquisition_order_col 'order'"  # the replay's own argument, not order_col
+    with pytest.raises(TypeError, match=f"{named} is categorical.*give {replay} its order"):
+        evaluate_acquisition_prefixes(
+            objects,
+            categorical,
+            strategies=[FixedFOVStrategy(3)],
+            feature_cols=["f"],
+            acquisition_order_col="order",
+            objective=POPULATION,
+        )
+    with pytest.raises(TypeError, match=f"{named} is categorical.*give {replay} its order"):
+        replay_acquisitions(
+            objects,
+            categorical,
+            feature_cols=["f"],
+            strategies=[FixedFOVStrategy(3)],
+            criteria=[MEAN_F],
+            objective=POPULATION,
+            reservoir_fraction=0.3,
+            acquisition_order_col="order",
+        )
+    gap = fovs.assign(order=[np.nan, *range(1, 12)])
+    with pytest.raises(ValueError, match=f"{named} has missing values; {replay} needs an"):
+        evaluate_acquisition_prefixes(
+            objects,
+            gap,
+            strategies=[FixedFOVStrategy(3)],
+            feature_cols=["f"],
+            acquisition_order_col="order",
+            objective=POPULATION,
+        )
+
+
+def test_b17_shared_private_sequential_helpers_are_documented():
+    shared = set()
+    for path in (SRC / "benchmark.py", SRC / "retrospective" / "replay.py"):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ImportFrom) and (node.module or "").endswith("sequential"):
+                shared |= {alias.name for alias in node.names if alias.name.startswith("_")}
+    assert shared
+    doc = sequential_module.__doc__
+    assert "Shared-private" in doc
+    assert all(f"``{name}``" in doc for name in shared), shared
+
+
+def test_b6_replay_reads_generator_feature_columns_once():
+    built = SCENARIOS["homogeneous"]()
+    kwargs = {
+        "strategies": [FixedFOVStrategy(3)],
+        "acquisition_order_col": ORDER_COL,
+        "objective": POPULATION,
+    }
+    from_list = evaluate_acquisition_prefixes(
+        built.objects, built.fovs, feature_cols=list(FEATURE_COLS), **kwargs
+    )
+    from_generator = evaluate_acquisition_prefixes(
+        built.objects, built.fovs, feature_cols=(c for c in FEATURE_COLS), **kwargs
+    )
+    assert [r.result.without_timing() for r in from_generator] == [
+        r.result.without_timing() for r in from_list
+    ]
+    with pytest.raises(ValueError, match="acquisition order cannot also be a phenotype feature"):
+        evaluate_acquisition_prefixes(
+            built.objects, built.fovs, feature_cols=iter([*FEATURE_COLS, ORDER_COL]), **kwargs
+        )
+
+
+@pytest.mark.parametrize("incremental", [False, True])
+def test_b7_min_fovs_must_be_an_integer(incremental):
+    built = SCENARIOS["homogeneous"]()
+    kwargs = {
+        "strategies": [FixedFOVStrategy(3)],
+        "feature_cols": list(FEATURE_COLS),
+        "acquisition_order_col": ORDER_COL,
+        "objective": POPULATION,
+        "incremental": incremental,
+    }
+    for bad in (2.5, 2.0, 0, True):
+        with pytest.raises(ValueError, match="min_fovs must be an integer of at least 1"):
+            evaluate_acquisition_prefixes(built.objects, built.fovs, min_fovs=bad, **kwargs)
+    steps = evaluate_acquisition_prefixes(built.objects, built.fovs, min_fovs=np.int64(2), **kwargs)
+    assert min(r.step for r in steps) == 2

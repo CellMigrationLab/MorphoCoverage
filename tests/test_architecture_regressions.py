@@ -5,6 +5,9 @@ modular framework violated without raising. They constrain behaviour, not a part
 implementation.
 """
 
+import subprocess
+import sys
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -511,3 +514,14 @@ def test_estimators_cannot_report_framework_effort_under_any_name():
                     )
                 }
             )
+
+
+def test_j11_j19_sampling_unit_and_schema_import_without_cycles():
+    code = (
+        "import sys, morphocoverage.sampling_unit, morphocoverage.schema\n"
+        "assert not [m for m in sys.modules if m.startswith('morphocoverage.retrospective')]\n"
+        "import morphocoverage.schema as s\n"
+        "from morphocoverage.data_check import validate_input_tables\n"
+        "assert s.validate_input_tables is validate_input_tables\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)

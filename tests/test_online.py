@@ -1,5 +1,8 @@
 """Prospective OnlineSession contracts."""
 
+import warnings
+
+import numpy as np
 import pandas as pd
 import pytest
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
@@ -11,7 +14,9 @@ from morphocoverage import (
     SamplingObjective,
     ScalarPrecisionStrategy,
     evaluate_acquisition_prefixes,
+    validate_input_tables,
 )
+from morphocoverage.transforms import Standardize
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
@@ -310,3 +315,201 @@ def test_a_copy_warning_raised_as_an_error_leaves_the_session_as_it_was():
             session.add_fov(relabelled, second.to_dict())
     [result] = session.add_fov(rows(second), second.to_dict())
     assert result.n_fovs == 2
+
+
+def test_b1_live_session_refuses_z_planes_counted_as_fovs():
+    # 3 positions x 4 z-planes, one file per plane and no position_id: the
+    # validator refuses the table, so the live session must refuse it too.
+    rows, fov_rows = [], []
+    for position in range(3):
+        for z in range(4):
+            name = f"pos{position}_z{z}.tif"
+            fov_rows.append({"condition": "a", "biological_repeat": "r1", "image_file": name})
+            rows += [
+                {"condition": "a", "biological_repeat": "r1", "image_file": name, "z": z, "f": v}
+                for v in np.linspace(1, 2, 5)
+            ]
+    objects, fovs = pd.DataFrame(rows), pd.DataFrame(fov_rows)
+    with pytest.raises(ValueError, match="plane/channel/frame"):
+        validate_input_tables(objects, feature_cols=["f"], fovs=fovs)
+    session = OnlineSession(
+        strategies=[FixedFOVStrategy(5)], feature_cols=["f"], objective=POPULATION
+    )
+    first = fovs.iloc[0]
+    session.add_fov(objects[objects.image_file == first.image_file], first.to_dict())
+    second = fovs.iloc[1]
+    with pytest.raises(ValueError, match="plane/channel/frame"):
+        session.add_fov(objects[objects.image_file == second.image_file], second.to_dict())
+    # With fov_col named explicitly, each file is accepted as one position.
+    named = OnlineSession(
+        strategies=[FixedFOVStrategy(5)],
+        feature_cols=["f"],
+        objective=POPULATION,
+        fov_col="image_file",
+    )
+    for _, meta in fovs.iterrows():
+        (result,) = named.add_fov(objects[objects.image_file == meta.image_file], meta.to_dict())
+    assert result.n_fovs == 12
+
+
+def test_b6_add_fov_is_atomic_when_an_estimator_refuses():
+    def observations(position):
+        return pd.DataFrame({"position_id": position, "f": np.linspace(1, 2, 5)})
+
+    pilot = ScalarPrecisionStrategy("f", 0.05, "object", "point", pilot_fovs=2, order_col="order")
+    session = OnlineSession(
+        strategies=[FixedFOVStrategy(10), pilot, FixedFOVStrategy(20)],
+        feature_cols=["f"],
+        objective=POPULATION,
+    )
+    session.add_fov(observations("p1"), {"position_id": "p1", "order": 1})
+    with pytest.raises(ValueError, match="missing values"):
+        session.add_fov(observations("p2"), {"position_id": "p2", "order": None})
+    session.add_fov(observations("p2"), {"position_id": "p2", "order": 2})  # the retry
+    results = session.add_fov(observations("p3"), {"position_id": "p3", "order": 3})
+    assert [(r.n_fovs, r.n_observations) for r in results] == [(3, 15)] * 3
+    # A refused first FOV does not fix the session's columns.
+    fresh = OnlineSession(
+        strategies=[FixedFOVStrategy(3)], feature_cols=["f"], objective=POPULATION
+    )
+    with pytest.raises(ValueError):
+        fresh.add_fov(pd.DataFrame({"f": [np.inf]}), {"position_id": "p1"})
+    assert fresh.fov_col is None
+
+
+def _session(**kwargs):
+    return OnlineSession(
+        strategies=[FixedFOVStrategy(5)], feature_cols=["f"], objective=POPULATION, **kwargs
+    )
+
+
+def _plane_files(rows_per_file=5):
+    """3 positions written as 4 z-plane files each, z only in the FOV table."""
+    rows, fov_rows = [], []
+    for position in range(3):
+        for z in range(4):
+            name = f"pos{position}_z{z}.tif"
+            fov_rows.append(
+                {"condition": "a", "biological_repeat": "r1", "image_file": name, "z": z}
+            )
+            rows += [
+                {"condition": "a", "biological_repeat": "r1", "image_file": name, "f": value}
+                for value in np.linspace(1, 2, rows_per_file)
+            ]
+    return pd.DataFrame(rows), pd.DataFrame(fov_rows)
+
+
+def _feed(session, objects, fovs):
+    for _, meta in fovs.iterrows():
+        session.add_fov(objects[objects.image_file == meta.image_file], meta.to_dict())
+
+
+def test_b1_live_plane_rule_reads_z_from_the_fov_table():
+    objects, fovs = _plane_files()
+    message = r"holds a single 'z' value \(in the FOV table\)"
+    with pytest.raises(ValueError, match=message):
+        validate_input_tables(objects, feature_cols=["f"], fovs=fovs)
+    # Live, a z is read as planes once one of its values recurs in another field
+    # (audit 3, A-14: a stage z distinct in every field is a focus height): the
+    # first four files hold z 0-3, and the fifth, z=0 again, is refused.
+    session = _session()
+    _feed(session, objects, fovs.iloc[:4])
+    fifth = fovs.iloc[4]
+    with pytest.raises(ValueError, match=message):
+        session.add_fov(objects[objects.image_file == fifth.image_file], fifth.to_dict())
+    # Refused atomically: the session still holds the first four FOVs only.
+    [result] = session.add_fov(
+        objects[objects.image_file == fifth.image_file].assign(image_file="other.tif"),
+        {**fifth.to_dict(), "image_file": "other.tif", "z": 99},
+    )
+    assert result.n_fovs == 5
+
+    # One row per field: the validator warns, and so does the live session.
+    one, fovs = _plane_files(rows_per_file=1)
+    with pytest.warns(UserWarning, match="in the FOV table"):
+        validate_input_tables(one, feature_cols=["f"], fovs=fovs)
+    with pytest.warns(UserWarning, match="in the FOV table"):
+        _feed(_session(), one, fovs)
+    # Naming the FOV column says each file is one position: no rule, no warning.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _feed(_session(fov_col="image_file"), one, fovs)
+
+
+def test_b2_live_identity_is_resolved_over_observations_and_fov_row():
+    rows, fov_rows = [], []
+    for position in range(3):
+        for tile in range(4):
+            name = f"pos{position}_{tile}.tif"
+            fov_rows.append({"condition": "a", "biological_repeat": "r1", "image_file": name})
+            rows += [
+                {"condition": "a", "biological_repeat": "r1", "position_id": f"pos{position}"}
+                | {"image_file": name, "f": value}
+                for value in np.linspace(1, 2, 5)
+            ]
+    objects, fovs = pd.DataFrame(rows), pd.DataFrame(fov_rows)
+    message = "'position_id' is present in objects but absent from fovs"
+    with pytest.raises(ValueError, match=message):
+        validate_input_tables(objects, feature_cols=["f"], fovs=fovs)
+    session = _session()
+    with pytest.raises(ValueError, match=message):
+        _feed(session, objects, fovs)
+    assert session.fov_col is None  # the refused first FOV fixed nothing
+
+    # Later FOVs are resolved the same way, observation columns included.
+    session = _session()
+    session.add_fov(pd.DataFrame({"f": [1.0]}), {"image_file": "a.tif"})
+    with pytest.raises(ValueError, match=message):
+        session.add_fov(pd.DataFrame({"f": [1.0], "position_id": ["P2"]}), {"image_file": "b.tif"})
+    with pytest.raises(
+        ValueError, match="'biological_repeat' is present in objects but absent from fovs"
+    ):
+        session.add_fov(
+            pd.DataFrame({"f": [1.0], "biological_repeat": ["r1"]}), {"image_file": "b.tif"}
+        )
+    # Identity carried by the FOV row alone is copied onto the observations.
+    [result] = session.add_fov(pd.DataFrame({"f": [2.0]}), {"image_file": "b.tif"})
+    assert (session.fov_col, session.group_cols, result.n_fovs) == ("image_file", (), 2)
+    # An empty position_id (a producer writing every column) is still absent.
+    [result] = session.add_fov(
+        pd.DataFrame({"f": [3.0], "position_id": [""]}), {"image_file": "c.tif", "position_id": ""}
+    )
+    assert result.n_fovs == 3
+
+
+def test_a_result_explains_its_decision_in_one_line():
+    from morphocoverage import OnlineSession
+    from morphocoverage.strategies import SupportNoveltyStrategy
+
+    built = SCENARIOS["homogeneous"]()
+    strategies = [
+        FixedFOVStrategy(3),
+        SupportNoveltyStrategy(np.sqrt(2), 0.25, 1, Standardize(), 2, 3, "lofo_novel_fov_upper"),
+    ]
+    session = OnlineSession(
+        strategies=strategies,
+        feature_cols=list(FEATURE_COLS),
+        objective=POPULATION,
+        observation_unit="cell",
+    )
+    for _, fov in built.fovs.iloc[:3].iterrows():
+        rows = built.objects[built.objects["image_file"] == fov["image_file"]]
+        results = session.add_fov(
+            rows.drop(columns=["condition", "biological_repeat"]), fov.to_dict()
+        )
+    fixed, novelty = results
+    # A stop says what it rests on (audit 4, Q2): here, the random-sample assumption.
+    assert fixed.explain() == (
+        "stop: n_fovs = 3 (stop at >= 3, population); after 3 FOVs, 90 cells; treats the "
+        "fields as a random sample of the well's positions; a raster over a spatial trend can "
+        "stop early"
+    )
+    line = novelty.explain()
+    # The value, then the rule: a "continue" never reads as a false inequality.
+    # Under the population objective the novelty rule cannot settle the decision, and says
+    # so beside its own verdict.
+    assert line.startswith(
+        "unsupported (the rule itself: continue): lofo_novel_fov_upper = 0.632 "
+        "(stop at <= 0.25, distribution)"
+    )
+    assert line.endswith("after 3 FOVs, 90 cells")

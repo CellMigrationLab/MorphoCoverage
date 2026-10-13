@@ -2,6 +2,8 @@
 features, and only then is a condition asked whether it is enriched in one; the PCA and
 UMAP ring them, colour by any feature and describe a selection by its features."""
 
+from __future__ import annotations
+
 import json
 import re
 import warnings
@@ -9,15 +11,26 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_embedding import SEVERAL, _several
+from _helpers_feature_tables import _cells, _table
 from _helpers_rare_fingerprint import FEATURES, _screen, _setup
 
 from morphocoverage._style import Status
 from morphocoverage.embedding import embed
+from morphocoverage.feature_tables import attach_feature_tables
 from morphocoverage.sampling_unit import find_populations
-from morphocoverage.workflows import html_report, report
+from morphocoverage.sampling_unit.populations import Populations
+from morphocoverage.workflows import Setup, html_report, report
+from morphocoverage.workflows._feature_space import attached
+from morphocoverage.workflows._html_cards import chip_words
 from morphocoverage.workflows._html_render import chip
+from morphocoverage.workflows._population_spaces import _merged, found_words, populations_in_spaces
 from morphocoverage.workflows._populations import (
+    PopulationsResult,
+    _side,
     enrichment_tests,
+    labelled_populations,
+    one_sided,
     populations_in_report,
     populations_text,
 )
@@ -230,3 +243,301 @@ def test_no_group_reads_neutrally_in_the_text_the_chip_and_the_report():
     assert "no candidate group passed the neighbours-inside check on these features" in flat
     assert "continuum" not in flat
     assert chip(status, "populations", headline).endswith("No group</span>")
+
+
+def test_the_populations_name_the_cells_without_their_own_control_never_a_missing_value():
+    objects, fovs, tables = _several()
+    objects.loc[objects.index[:5], "area"] = np.nan  # a true missing value, counted as one
+    setup = Setup(
+        readout="area",
+        features=("area", "fib_len", "fib_w"),
+        control=SEVERAL,
+        normalize="control_mean",
+        observation_unit="cell",
+    )
+    merged, setup, _ = attached(objects, fovs, setup, {"fiber": tables["fiber"]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        prepared = setup.prepared(merged, fovs)
+        found = populations_in_report(prepared, fovs, setup, merged)
+    settings = found.populations.settings
+    # b1 in R1, where cB was not imaged: 3 fields of 6 cells (audit 8, seed 4).
+    assert [(b["reason"], b["observations"]) for b in settings["left_out_by"]] == [
+        ("no own control", 18)
+    ]
+    assert settings["incomplete_observations"] == 5
+    text = " ".join(populations_text(found, setup)[2].split())
+    assert "(18 cells of b1 in R1 left out: no own control)" in text
+
+
+def _found(index: pd.Index, members: dict[str, tuple[range, str]]) -> Populations:
+    """A ``Populations`` with these groups (cells by position) of these kinds."""
+    labels = pd.Series([None] * len(index), index=index, dtype=object)
+    rows, kept = [], {}
+    for name, (cells, kind) in members.items():
+        inside = index[list(cells)]
+        labels[inside] = name
+        kept[name] = (inside, index)
+        rows.append(
+            {
+                "population": name,
+                "kind": kind,
+                "observations": len(inside),
+                "share": len(inside) / len(index),
+                "defining": [("f1", 2.0)],
+                "defined_by": "high f1 (d +2.0)",
+                "rule": "",
+            }
+        )
+    settings = {
+        "features": ["f1"],
+        "observations": len(index),
+        "incomplete_observations": 0,
+        "clustered": True,
+        "sampled": len(index),
+    }
+    return Populations(labels, pd.DataFrame(rows), settings, kept)
+
+
+def test_a_group_found_in_two_spaces_is_reported_once_naming_both():
+    index = pd.RangeIndex(100)
+    results = {
+        "explainable": _found(index, {"G1": (range(20), "group")}),
+        # Jaccard 18/22 with the explainable G1: the same group; 50-69 is another.
+        "DINO": _found(index, {"G1": (range(2, 22), "group"), "G2": (range(50, 70), "group")}),
+        # Jaccard 11/20 with DINO's second group: the same.
+        "combined": _found(index, {"G1": (range(50, 61), "group")}),
+    }
+    merged = _merged(results, index)
+    table = merged.table.set_index("population")
+    assert list(table.index) == ["G1", "G2"]
+    assert table.loc["G1", "found_in"] == ["explainable", "DINO"]
+    assert table.loc["G2", "found_in"] == ["DINO", "combined"]
+    # Each keeps the cells of the first space that found it.
+    assert merged.membership("G1").sum() == 20 and merged.membership("G2").eq(1).sum() == 20
+    assert found_words(table.loc["G1"]) == "found in the explainable features and DINO"
+    assert found_words(table.loc["G2"]) == (
+        "found in DINO and the combined space only; no rule in the explainable features "
+        "describes it"
+    )
+
+
+def test_a_group_living_in_one_table_is_found_there_and_not_named_with_noise():
+    # Audit B, finding 8: found alone (J about 1), lost in the combined space, and described
+    # by explainable features at d about 0.25. Owner, 2026-10-06: each space searched.
+    objects, fovs, rng = _cells(fields=6, cells=20)
+    n = len(objects)
+    member = rng.random(n) < 0.06
+    for j in range(5):
+        objects[f"x{j}"] = rng.normal(size=n)
+    embedding = rng.normal(size=(n, 40))
+    embedding[np.ix_(member, np.arange(12))] += 4.0
+    table = _table(objects, embedding, "d")
+    merged = attach_feature_tables(objects, fovs, {"DINO": table}).objects
+    setup = Setup(
+        readout="x0",
+        features=tuple(f"x{j}" for j in range(5)),
+        control={"condition": "ctrl"},
+        feature_tables={"DINO": tuple(table.columns[4:])},
+        observation_unit="cell",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        found = populations_in_spaces(merged, fovs, setup)
+    best = max(
+        found.of_kind("group"),
+        key=lambda name: (found.membership(name).eq(1) & member).sum(),
+    )
+    inside = found.membership(best).eq(1).to_numpy()
+    assert (inside & member).sum() / (inside | member).sum() > 0.9
+    row = found.table.set_index("population").loc[best]
+    assert "DINO" in row["found_in"] and "explainable" not in row["found_in"]
+    assert row["defining"] == [] and not row["rule"]
+    result = PopulationsResult(found, None, None, None)
+    text = " ".join(populations_text(result, setup)[2].split())
+    assert f"so no rule in them describes it: {best} (DINO" in text
+    assert "clustered in each feature space apart: the 5 explainable features" in text
+
+
+def test_populations_with_no_complete_observation_are_not_assessed():
+    # Audit B, finding 5: a population search with no complete observation crashed.
+    objects, fovs, rng = _cells(fields=2, cells=5)
+    objects["x0"] = rng.normal(size=len(objects))
+    objects["x1"] = np.nan
+    found = find_populations(objects, fovs, features=["x0", "x1"])
+    assert not found.names and found.settings["observations"] == 0
+    setup = Setup(readout="x0", features=("x0", "x1"), observation_unit="cell")
+    status, headline, text = populations_text(PopulationsResult(found, None, None, None), setup)
+    assert status.marker == "➖" and "not assessed" in headline
+    assert "no cell has a value of every feature" in text
+
+
+def test_enrichment_without_a_repeat_column_skips_a_condition_without_cells():
+    marked = pd.DataFrame(
+        {"condition": ["ctrl"] * 4 + ["drug"] * 4, "G1": [0, 0, 0, 1, 1, 1, 0, 0]}
+    )
+    tests = enrichment_tests(marked, ["G1"], (("drug", "ctrl"), ("other", "ctrl")))
+    assert tests[["feature", "condition", "repeats", "higher", "lower"]].to_dict("records") == [
+        {"feature": "G1", "condition": "drug vs ctrl", "repeats": 1, "higher": 1, "lower": 0}
+    ]
+    assert np.isnan(tests["p_paired"].iloc[0])
+    assert tests["share"].iloc[0] == 0.5 and tests["control_share"].iloc[0] == 0.25
+    assert tests.attrs["unpaired"] == []
+
+
+def _populations_edges():
+    from morphocoverage.sampling_unit import find_populations
+
+    rng = np.random.default_rng(0)
+    rows = []
+    for condition, shift in (("ctrl", 0.0), ("A", 0.0)):
+        for j in range(15):
+            for _ in range(10):
+                rows.append(
+                    {
+                        "condition": condition,
+                        "biological_repeat": "r1",
+                        "image_file": f"{condition}{j}",
+                        "a": rng.normal(shift, 1),
+                        "b": rng.normal(0, 1),
+                    }
+                )
+    objects = pd.DataFrame(rows)
+    planted = objects.index[:90]
+    objects.loc[planted, ["a", "b"]] += 9.0
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    sampled = find_populations(objects, fovs, features=["a", "b"], max_points=150, min_cells=20)
+    missing = objects.assign(a=np.nan)
+    none = find_populations(missing, fovs, features=["a", "b"])
+    keep = ["population", "kind", "observations", "fields", "repeats", "defined_by"]
+    return (
+        sampled.table[keep].to_dict("records"),
+        {k: sampled.settings[k] for k in ("sampled", "clustered", "assigned", "min_cells")},
+        sampled.labels.value_counts(dropna=False).to_dict(),
+        none.table.shape,
+        {
+            k: none.settings[k]
+            for k in (
+                "features",
+                "observations",
+                "incomplete_observations",
+                "clustered",
+                "assigned",
+            )
+        },
+    )
+
+
+EXPECTED_POPULATIONS_EDGES = (
+    [
+        {
+            "population": "P1",
+            "kind": "main",
+            "observations": 210,
+            "fields": 21,
+            "repeats": 1,
+            "defined_by": "low b (d -9.2), low a (d -9.0)",
+        },
+        {
+            "population": "G1",
+            "kind": "group",
+            "observations": 90,
+            "fields": 9,
+            "repeats": 1,
+            "defined_by": "high b (d +9.2), high a (d +9.0)",
+        },
+    ],
+    {"sampled": 150, "clustered": True, "assigned": 1.0, "min_cells": 20},
+    {"P1": 210, "G1": 90},
+    (0, 17),
+    {
+        "features": [],
+        "observations": 0,
+        "incomplete_observations": 300,
+        "clustered": False,
+        "assigned": 0.0,
+    },
+)
+
+
+def test_populations_edges():
+    assert _populations_edges() == EXPECTED_POPULATIONS_EDGES
+
+
+def _shares(counts):
+    """``counts``: (condition, repeat) -> (cells in the population, cells)."""
+    rows = []
+    for (condition, repeat), (inside, cells) in counts.items():
+        rows += [
+            {"condition": condition, "biological_repeat": repeat, "P2": float(i < inside)}
+            for i in range(cells)
+        ]
+    return pd.DataFrame(rows)
+
+
+def test_an_enrichment_reads_the_way_its_test_goes():
+    # 1 of 5000 cells against 0 of 300, in every repeat: higher, never "lower".
+    counts = {}
+    for repeat in ("r1", "r2", "r3"):
+        counts[("drug", repeat)] = (1, 5000)
+        counts[("ctrl", repeat)] = (0, 300)
+    [row] = enrichment_tests(_shares(counts), ["P2"], "ctrl").to_dict("records")
+    assert row["higher"] == 3 and row["d"] > 0
+
+
+def test_a_tie_between_repeats_is_mixed_and_one_repeat_is_no_trend():
+    assert _side({"higher": 1, "lower": 1, "repeats": 3}) == "mixed (1 higher, 1 lower, of 3)"
+    assert _side({"higher": 0, "lower": 0, "repeats": 3}) == "no change in 3 of 3"
+    single = pd.DataFrame({"higher": [1], "lower": [0], "repeats": [1]})
+    assert not one_sided(single).any()
+
+
+def test_a_condition_without_a_shared_repeat_is_named():
+    counts = {("drug", "r9"): (5, 50), ("ctrl", "r1"): (1, 50), ("ctrl", "r2"): (1, 50)}
+    tests = enrichment_tests(_shares(counts), ["P2"], "ctrl")
+    assert tests.empty and tests.attrs["unpaired"] == ["drug"]
+
+
+def test_a_repeat_where_the_group_is_absent_on_both_sides_counts_as_no_change():
+    rows = []
+    for r, (control_k, drug_k) in enumerate(((5, 30), (6, 28), (0, 0), (4, 25))):
+        for condition, k in (("ctrl", control_k), ("drug", drug_k)):
+            rows += [{"condition": condition, "biological_repeat": f"r{r}", "P2": 1.0}] * k
+            rows += [{"condition": condition, "biological_repeat": f"r{r}", "P2": 0.0}] * (300 - k)
+    [row] = enrichment_tests(pd.DataFrame(rows), ["P2"], "ctrl").to_dict("records")
+    assert row["repeats"] == 4 and row["higher"] == 3 and row["lower"] == 0
+
+
+@pytest.fixture(scope="module")
+def labelled():
+    from _helpers_rare_fingerprint import _screen, _setup
+
+    objects, fovs = _screen()
+    setup = _setup(fingerprint=())
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        found = populations_in_report(objects, fovs, setup)
+    return found, setup
+
+
+def test_the_declared_labels_group_is_tested_once_as_the_label(labelled):
+    found, setup = labelled
+    own = labelled_populations(found.label)
+    assert own and not set(own) & set(found.enrichment["feature"])
+    status, headline, text = populations_text(found, setup)
+    flat = " ".join(text.split())
+    name = own[0]
+    said = f"{name} is the declared rare phenotype, mitotic: most of its cells carry the label"
+    # Said once, in the headline (the page's In short); the text gives its numbers only.
+    assert said in headline and said not in flat
+    held = rf"{name}: \d+% of its cells carry the label mitotic, and it holds \d+% of the "
+    assert re.search(held + "labelled ones; not tested again here.", flat)
+    assert "its share is compared in “Do the conditions differ?”" in headline
+    assert "q " not in headline and status is Status.OK
+
+    class Result:
+        pass
+
+    result = Result()
+    result.results = {"populations": found}
+    assert chip_words(result)["populations"] == "The declared label"

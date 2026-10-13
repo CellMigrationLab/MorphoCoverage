@@ -3,8 +3,10 @@
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_benchmark import _novelty_tables, _two_groups
 from scenarios import FEATURE_COLS, SCENARIOS
 
+from morphocoverage import calibration
 from morphocoverage._seeds import group_rng
 from morphocoverage.calibration import (
     CALIBRATION_COLUMNS,
@@ -178,3 +180,36 @@ def test_invalid_settings_are_refused(kwargs):
     objects, fovs = _acquisition(0.1, n_fovs=10)
     with pytest.raises((TypeError, ValueError)):
         _calibrate(objects, fovs, **kwargs)
+
+
+def test_b12_calibration_reports_a_group_too_small_for_every_count():
+    objects, fovs = _two_groups(12, 5)
+    table = calibrate_next_fov_novelty(
+        objects,
+        fovs,
+        feature_cols=["f"],
+        novelty=SupportNoveltyEstimator(0.5, 1, None, 3),
+        fov_counts=[6],
+        draws=5,
+        random_state=0,
+    )
+    small = table[table.condition == "b"]
+    assert len(small) == 1 and small.draws.iloc[0] == 0
+    assert "has 5 FOVs" in small.reason.iloc[0]
+    assert table[table.condition == "a"].reason.isna().all()
+
+
+def test_b4_calibration_does_not_depend_on_fov_table_row_order():
+    objects, fovs, settings = _novelty_tables()
+    table = calibrate_next_fov_novelty(objects, fovs, **settings)
+    reversed_rows = calibrate_next_fov_novelty(objects, fovs.iloc[::-1], **settings)
+    shuffled = calibrate_next_fov_novelty(objects.sample(frac=1, random_state=1), fovs, **settings)
+    pd.testing.assert_frame_equal(table, reversed_rows)
+    pd.testing.assert_frame_equal(table, shuffled)
+
+
+def test_b5_calibration_docstring_expects_prediction_above_actual_by_construction():
+    text = " ".join(calibration.__doc__.split())
+    assert "k - 1" in text and "by construction" in text
+    assert "The coverage check is ``bound_held``" in text
+    assert "close to the mean actual rate" not in text

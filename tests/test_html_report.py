@@ -1,24 +1,32 @@
 """The report as one HTML page (workflows.html_report) and its text conversion."""
 
+from __future__ import annotations
+
 import base64
 import json
 import os
 import re
 import time
+import warnings
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_embedding import MITOTIC, SEVERAL, _cells, _embedding_only, _several
 from _helpers_html import _tables
+from _helpers_workflows import _report, _scenario_report
 
+from morphocoverage import FixedFOVStrategy
 from morphocoverage._style import Status
 from morphocoverage.glossary import GLOSSARY, PHRASES, glossary_markdown, slug
-from morphocoverage.workflows import Setup, html_report, report, zip_results
-from morphocoverage.workflows._html_figures import COLOURS
-from morphocoverage.workflows._html_render import Terms, chip, text_html
-from morphocoverage.workflows._html_sections import heatmap, hidden, unnumbered
+from morphocoverage.workflows import Setup, _html_sections, html_report, report, zip_results
+from morphocoverage.workflows._html_data import json_island
+from morphocoverage.workflows._html_figures import COLOURS, file_stem
+from morphocoverage.workflows._html_render import Terms, adjusted_p, chip, text_html
+from morphocoverage.workflows._html_sections import heatmap, hidden, unnumbered, what_checked
 
 
 def test_text_becomes_paragraphs_status_lines_and_tables():
@@ -334,3 +342,278 @@ def test_the_zip_leaves_out_only_itself(tmp_path):
     (folder / "source_data.zip").write_bytes(b"zip")
     with zipfile.ZipFile(zip_results(folder)) as opened:
         assert opened.namelist() == ["results/source_data.zip"]
+
+
+def test_nothing_compared_is_said_never_no_consistent_difference() -> None:
+    # F12 note (e02): the chip read "⚠️ No consistent difference" when nothing was compared.
+    result = _scenario_report("e02_control_in_other_repeats")
+    status = result.document.statuses["conditions"]
+    headline = result.document.headlines["conditions"]
+    assert status is Status.NOT_ASSESSED
+    assert headline.startswith("nothing compared: no biological repeat holds both a condition")
+    assert "Nothing compared" in chip(status, "conditions", headline)
+    assert "No consistent difference" not in chip(status, "conditions", headline)
+
+
+CONFIG = re.compile(r"config [0-9a-f]{16}")
+
+
+@pytest.mark.slow
+def test_the_page_and_the_short_report_carry_no_provenance(tmp_path: Path) -> None:
+    loaded, result = _report("a06_expl_none_image_none_tol")
+    assert CONFIG.search(result.summary(detail="full"))
+    assert not CONFIG.search(result.summary())
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        page = html_report(
+            result, loaded.objects, loaded.fovs, tmp_path, feature_tables=loaded.feature_tables
+        )
+    html = page.read_text()
+    assert not CONFIG.search(html)
+    assert "_upper95" not in html
+
+
+def test_the_maps_have_raw_and_normalised_buttons_and_a_method_menu(tmp_path):
+    import warnings
+
+    from _helpers_embedding import _embedding_only
+
+    from morphocoverage.workflows import html_report
+
+    objects, fovs, table, result = _embedding_only(normalize="control_mean")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        page = html_report(result, objects, fovs, tmp_path, feature_tables={"DINO": table})
+    text = page.read_text()
+    assert 'data-value="@corrected"' in text and 'data-value="raw"' in text
+    assert "Divided by the control mean" in text or "Minus the repeat median" in text
+    assert 'aria-label="Values"' in text
+
+
+def _visible(page: str) -> str:
+    text = re.sub(r"<script.*?</script>", "", page, flags=re.DOTALL)
+    return " ".join(re.sub(r"<[^>]+>", " ", text).split())
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [{"normalize": "control_mean"}, {"rare": MITOTIC, "rare_label": "mitotic"}],
+    ids=["normalize", "rare_label"],
+)
+def test_b1_b2_an_embedding_only_page_is_built_with_normalize_or_a_rare_label(fields, tmp_path):
+    objects, fovs, table, result = _embedding_only(**fields)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        page = html_report(result, objects, fovs, tmp_path, feature_tables={"DINO": table})
+    visible = _visible(page.read_text())
+    assert "The whole tables" in visible and "Plan the next experiment" in visible
+    if "normalize" in fields:  # the populations counted the centred values: said on them
+        assert (tmp_path / "figures" / "separation.csv").exists()
+
+
+def test_b7_the_csvs_name_each_features_table(tmp_path):
+    objects, fovs, tables = _several()
+    setup = Setup(
+        readout="area",
+        features=("area", "fib_len", "fib_w"),
+        control=SEVERAL,
+        master_control="cA",
+        observation_unit="cell",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup, feature_tables=tables)
+        html_report(result, objects, fovs, tmp_path, feature_tables=tables)
+    figures = tmp_path / "figures"
+    across = pd.read_csv(figures / "tests_across_experiments.csv")
+    assert list(across.columns[2:4]) == ["feature", "table"]
+    assert set(across.loc[across["feature"] == "fib_len", "table"]) == {"fiber"}
+    pairs = sorted(figures.glob("*_pairs.csv"))
+    assert pairs and all(pd.read_csv(p).columns[0] == "table" for p in pairs)
+    loadings = pd.read_csv(next(figures.glob("pca_loadings_raw_Combined.csv")))
+    assert dict(zip(loadings["feature"], loadings["table"], strict=True))["d0"] == "DINO"
+    assert dict(zip(loadings["feature"], loadings["table"], strict=True))["fib_w"] == "fiber"
+
+
+def test_the_page_says_the_repeats_are_scored_on_raw_values_and_the_one_well_line(tmp_path):
+    objects, fovs, table = _cells()
+    setup = Setup(control={"condition": "ctrl"}, observation_unit="cell", normalize="control_mean")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup, feature_tables={"DINO": table})
+        page = html_report(result, objects, fovs, tmp_path, feature_tables={"DINO": table})
+    visible = _visible(page.read_text())
+    assert "Within a condition, the same with the repeat, always on the raw values" in visible
+    assert "The wells are not given, so a difference between the wells" in visible
+
+
+def test_340_the_rules_line_names_an_other_rule_and_raises_on_a_broken_label(monkeypatch):
+    class Counted:
+        name = "my own rule"
+
+    setup = Setup(readout="x", observation_unit="cell", rules=(FixedFOVStrategy(4), Counted()))
+    assert "Stopping rules checked: fixed 4 fields and my own rule." in what_checked(setup)
+
+    def broken(*args, **kwargs):
+        raise ValueError("a broken label")
+
+    monkeypatch.setattr(_html_sections, "rule_label", broken)
+    with pytest.raises(ValueError, match="a broken label"):
+        what_checked(setup)
+
+
+def test_the_chip_words_the_answers_decide():
+    beyond = chip(Status.OK, "conditions", "beyond the mean: spread higher")
+    assert beyond == (
+        '<span class="chip ok"><span aria-hidden="true">✅</span> Differs beyond the mean</span>'
+    )
+    nothing = chip(Status.CAUTION, "conditions", "nothing compared: one condition")
+    assert nothing.endswith("> Nothing compared</span>")
+    assert chip(Status.CAUTION, "populations", "a (exploratory; q 0.01)").endswith(
+        "> More common (exploratory)</span>"
+    )
+    assert chip(Status.CAUTION, "populations", "mostly a1: not a subpopulation").endswith(
+        "> A condition's shift</span>"
+    )
+    assert chip(Status.CAUTION, "populations", "higher in every repeat").endswith(
+        "> Trend only</span>"
+    )
+    assert chip(Status.CAUTION, "conditions", "differs in 1 repeat").endswith(
+        "> No consistent difference</span>"
+    )
+    assert chip(Status.OK, "conditions", "n = 2, higher").endswith("> No conclusion (n = 2)</span>")
+    assert chip(Status.CAUTION, "enough", "shown in 0 of 4").endswith("> Not yet</span>")
+    assert chip(None, "conditions", "anything") == ""
+
+
+def test_the_page_refuses_anything_but_a_report(tmp_path):
+    with pytest.raises(TypeError, match="^result must be the Report that report\\(\\) returned$"):
+        html_report(object(), pd.DataFrame(), pd.DataFrame(), tmp_path)
+
+
+def test_a_field_flagged_only_for_new_states_is_not_a_field_to_check():
+    from morphocoverage.workflows._html_cards import flagged_fields
+
+    inspection = SimpleNamespace(
+        group_cols=[],
+        settings={"fov_key": ["field"]},
+        fovs=pd.DataFrame(
+            {
+                "field": ["f1", "f2", "f2"],
+                "reason": ["new state", "influence", "new state"],
+                "detail": ["a new state", "moves the mean", "another state"],
+            }
+        ),
+    )
+    result = SimpleNamespace(results={"inspection": inspection})
+    assert flagged_fields(result) == ([("f2", "moves the mean")], [("f2",)], ["field"])
+
+
+def test_text_html_joins_a_wrapped_sentence_and_makes_a_table():
+    from morphocoverage.workflows._html_render import text_html
+
+    text = (
+        "Readings:\n"
+        "  condition  d      p\n"
+        "  drugA      +0.50  0.010\n"
+        "  drugB      -0.20  0.300\n"
+        "A sentence that is wrapped\n"
+        "  onto a second line.\n"
+        "  - an item\n"
+        "✅ Fine: nothing to say."
+    )
+    assert text_html(text) == (
+        "<p>Readings:</p>\n"
+        '<div class="table-wrap"><table class="sortable"><thead><tr><th>condition</th>'
+        '<th>d</th><th>p</th></tr></thead><tbody><tr><td class="">drugA</td>'
+        '<td class="num">+0.50</td><td class="num">0.010</td></tr><tr><td class="">drugB</td>'
+        '<td class="num">-0.20</td><td class="num">0.300</td></tr></tbody></table></div>\n'
+        "<p>A sentence that is wrapped onto a second line.</p>\n"
+        '<p class="item" style="margin-left:1.1em">an item</p>\n'
+        '<p class="status-line"><span class="mark ok" role="img" aria-label="Answered">✅'
+        "</span> Fine: nothing to say.</p>"
+    )
+
+
+def test_no_declared_target_judged_is_said_among_the_targets():
+    from morphocoverage.workflows._html_enough import _targets
+
+    precision = pd.DataFrame(
+        {
+            "criterion": ["covariance", "covariance"],
+            "met": [np.nan, np.nan],
+            "not_assessable": ["too few fields for its components", np.nan],
+        }
+    )
+    setup = SimpleNamespace(rare=None, mean_target=False, unit_word="cell")
+    result = SimpleNamespace(setup=setup, results={"fingerprint_precision": precision})
+    lines, tabs = _targets(result, "well", "field")
+    assert lines == [
+        "The fingerprint is not assessable: too few fields for its components.",
+        "No declared target can be judged on these data.",
+    ]
+    assert [(name, mark) for name, mark, _ in tabs] == [("fingerprint", "➖")]
+
+
+@pytest.fixture(scope="module")
+def screened():
+    import warnings
+
+    from _helpers_rare_fingerprint import _screen, _setup
+
+    from morphocoverage.workflows import report
+
+    objects, fovs = _screen()
+    setup = _setup(fingerprint=(), rare=None, rare_label=None)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup)
+    return objects, fovs, setup, result
+
+
+def test_a_trend_in_six_repeats_and_an_unpaired_condition_in_question_10(screened):
+    from dataclasses import replace
+
+    from morphocoverage.workflows._populations import populations_text
+
+    _, _, setup, result = screened
+    found = result.results["populations"]
+    enrichment = found.enrichment.copy()
+    enrichment.loc[1, ["repeats", "higher", "lower", "q_paired"]] = [6, 6, 0, 0.2]
+    enrichment.attrs["unpaired"] = ["late"]
+    status, headline, text = populations_text(replace(found, enrichment=enrichment), setup)
+    assert status is Status.CAUTION
+    assert headline == (
+        "1 group of cells to validate on the images; G1 (4.7% of cells; high dna): higher in "
+        "arrest in every repeat, not significant (11% vs 1.5%, q 0.20)"
+    )
+    flat = " ".join(text.split())
+    assert "Not compared: late (no biological repeat shared with the control)." in flat
+
+
+def test_the_page_refuses_tables_of_other_sizes_than_the_reports(screened, tmp_path):
+    objects, fovs, _, result = screened
+    with pytest.raises(ValueError) as raised:
+        html_report(result, objects.iloc[:-1], fovs, tmp_path, check_source=False)
+    assert str(raised.value) == (
+        "objects and fovs must be the tables the report was run on (4320 observations, "
+        "108 fields), not 4319 rows and 108"
+    )
+
+
+def test_two_features_of_one_file_name_get_two_files():
+    taken: set[str] = set()
+    assert [file_stem(name, taken) for name in ("a b", "a_b", "a/b")] == ["a_b", "a_b_2", "a_b_3"]
+
+
+def test_names_cannot_close_the_data_script():
+    text = json_island({"feature": "x<!--<script></script>&"})
+    assert "<" not in text and ">" not in text and "&" not in text
+    assert json.loads(text) == {"feature": "x<!--<script></script>&"}
+
+
+def test_the_adjusted_p_wording_leaves_the_figures_data_alone():
+    markup = '<p>q 0.04</p><script type="application/json">{"name":"raw q 1"}</script>'
+    assert adjusted_p(markup) == (
+        '<p>adjusted p 0.04</p><script type="application/json">{"name":"raw q 1"}</script>'
+    )

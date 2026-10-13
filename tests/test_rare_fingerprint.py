@@ -3,6 +3,8 @@ synthetic screen with both declared): the labelled share is compared like a feat
 distributions are compared beyond the mean, both targets are answered in "Did I image
 enough?", and the label checks the features."""
 
+from __future__ import annotations
+
 import warnings
 from dataclasses import replace
 
@@ -10,14 +12,19 @@ import numpy as np
 import pandas as pd
 import pytest
 from _helpers_rare_fingerprint import FEATURES, _screen, _setup
+from _helpers_sampling_unit import _three
+from _helpers_tables import _labelled_tables
 
 from morphocoverage import RareTarget
 from morphocoverage._style import Status
+from morphocoverage.embedding import robust_scale
+from morphocoverage.feature_tables import mfa_weights
 from morphocoverage.multivariate_outcomes import QuantileError
 from morphocoverage.retrospective import OutcomeCriterion
 from morphocoverage.sampling_unit.distribution import distribution_contrast
 from morphocoverage.workflows import Setup, html_report, report
-from morphocoverage.workflows._label_control import label_answer, label_control
+from morphocoverage.workflows._label_control import _robust, label_answer, label_control
+from morphocoverage.workflows._rare_share import share_by_field, with_share
 
 
 @pytest.fixture(scope="module")
@@ -363,3 +370,42 @@ def test_the_label_check_reads_within_each_condition():
     _, _, text = label_answer(check)
     assert "nearest cell of another field and the same condition" in text
     assert "labelled within their conditions" in text
+
+
+def test_a_user_column_named_like_the_derived_share_is_refused_not_trusted():
+    objects, _ = _labelled_tables(lambda n: [0] * n)
+    rare = RareTarget(
+        detection_probability=0.9, min_fov_occurrences=2, phenotype="state", object_prevalence=0.05
+    )
+    setup = Setup(readout="x", rare=rare, rare_label="state", observation_unit="cell")
+    assert "state share" in with_share(objects, setup)
+    with pytest.raises(ValueError, match="rename your column"):
+        with_share(objects.assign(**{"state share": 99.0}), setup)
+
+
+def test_the_label_check_reads_the_robust_scale_and_mfa_of_the_other_explainable_spaces():
+    rng = np.random.default_rng(3)
+    spread = rng.normal(0, 5, 400)
+    spread[:190] = 0.0  # a mostly-zero column: its MAD is far under a quarter of its SD
+    matrix = np.column_stack([rng.normal(size=400), spread, rng.normal(size=400)])
+    one = Setup(readout="a", features=("a", "b", "c"))
+    centre, scale = robust_scale(matrix)
+    np.testing.assert_allclose(_robust(matrix, one), (matrix - centre) / scale)
+    assert scale[1] == pytest.approx(matrix[:, 1].std(ddof=1))  # the MAD floor (seed 14)
+    two = Setup(readout="a", features=("a", "b", "c"), explainable_tables={"T": ("c",)})
+    z = (matrix - centre) / scale
+    weights = mfa_weights(z, ["a", "b", "c"], {"observation table": ("a", "b"), "T": ("c",)})
+    np.testing.assert_allclose(_robust(matrix, two), z * weights)
+
+
+def test_the_labelled_share_is_plotted_per_field():
+    objects, fovs = _three()
+    objects["mitotic"] = np.random.default_rng(1).random(len(objects)) < 0.2
+    rare = RareTarget(
+        detection_probability=0.9, min_fov_occurrences=2, phenotype="mitotic", fov_incidence=0.2
+    )
+    setup = Setup(readout="x", rare=rare, rare_label="mitotic", observation_unit="cell")
+    shared = with_share(objects, setup)
+    table = share_by_field(shared, fovs, setup)
+    assert len(table) == len(fovs)
+    assert table["mitotic share"].between(0, 1).all() and table["mitotic share"].nunique() > 1

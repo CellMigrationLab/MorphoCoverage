@@ -106,3 +106,9 @@ def _cells(seed: int = 0, columns: int = 12):
     )
     objects["mitotic"] = (rng.random(len(objects)) < 0.2).astype(int)
     return objects, fovs, table
+
+
+EMPTY = {"condition": {"cA": {}, "cB": {}}}
+
+
+NOTHING_UNDER = "have no condition under them and no parent"

@@ -2,13 +2,27 @@
 as named blocks, weighted in the combined space (each table by its first singular value, owner
 2026-10-06); every failure has its message."""
 
+from __future__ import annotations
+
 import json
 import warnings
 
 import numpy as np
 import pandas as pd
 import pytest
-from _helpers_feature_tables import _tables
+from _helpers_embedding import KEY, SEVERAL, _cells, _several
+from _helpers_feature_tables import (
+    _batch,
+    _fingerprint_data,
+    _fingerprint_setup,
+    _setup,
+    _table,
+    _tables,
+    _two_tables,
+    _without,
+)
+from _helpers_feature_tables import _cells as _table_cells
+from _helpers_tables import _four_cell_tables
 
 from morphocoverage.feature_tables import (
     FeatureTables,
@@ -20,7 +34,20 @@ from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.retrospective.criteria import OutcomeCriterion
 from morphocoverage.separation import separation
 from morphocoverage.workflows import Setup, html_report, optimise, report, scan_design
-from morphocoverage.workflows._feature_space import attached, novelty_space, space
+from morphocoverage.workflows._feature_space import (
+    analysed_tables,
+    attached,
+    centred_tables,
+    centring_line,
+    features_words,
+    novelty_space,
+    separation_in_report,
+    space,
+    unusual_space,
+)
+from morphocoverage.workflows._fingerprint_space import fingerprint_space
+from morphocoverage.workflows._html_map_text import comparison_table
+from morphocoverage.workflows._html_maps import _tables as _map_tables
 from morphocoverage.workflows._shared import check_workflow_inputs
 from morphocoverage.workflows.setup import default_novelty
 
@@ -411,3 +438,204 @@ def test_a_workflow_without_the_tables_attached_says_how_to_attach_them(combined
     merged = attach_feature_tables(objects, fovs, {"sep": sep, "noise": noise}).objects
     checked, _, _ = check_workflow_inputs(merged, fovs, combined_report.setup)
     assert "n5" in checked
+
+
+def test_seed5_a_repeat_without_its_control_is_centred_on_the_conditions_in_every_repeat():
+    # Audit 8 (owner, 2026-10-06): no control decides the centre, so no repeat is left out.
+    objects, fovs, tables = _several()
+    names = tuple(f"d{j}" for j in range(4))
+    merged = objects.merge(tables["DINO"], on=KEY)
+    setup = Setup(control=SEVERAL, observation_unit="cell", feature_tables={"DINO": names})
+    assert centred_tables(merged, fovs, setup)[list(names)].notna().all().all()
+    line = centring_line(merged, fovs, setup)
+    assert "per-condition medians of cA, a1 and b1, the conditions in every repeat" in line
+    assert "uncentred" not in line
+
+
+def test_seed22_separation_only_on_spaces_with_a_map():
+    objects, fovs, tables = _several()
+    merged = objects.merge(tables["DINO"], on=KEY)
+    names = tuple(f"d{j}" for j in range(4))
+    two = Setup(readout="area", features=("area",), feature_tables={"DINO": names})
+    found = separation_in_report(merged, fovs, two)
+    assert set(found.table["space"]) == {"Combined", "DINO"}  # no one-column map
+    alone = Setup(readout="area", features=("area",))
+    assert separation_in_report(merged, fovs, alone) is None
+
+
+def test_the_repeats_separation_reads_the_raw_values_and_the_conditions_the_centred_ones():
+    merged, fovs, names = _batch()
+    setup = _setup(names)
+    centred = centred_tables(merged, fovs, setup)
+    raw = separation_in_report(merged, fovs, setup, ["DINO"]).spaces.iloc[0]
+    alone = separation_in_report(centred, fovs, setup, ["DINO"]).spaces.iloc[0]
+    both = separation_in_report(centred, fovs, setup, ["DINO"], raw=merged).spaces.iloc[0]
+    # A batch measured after the centring that removes it would be circular (audit 8 A2).
+    assert both["repeat_share"] == raw["repeat_share"]
+    assert both["repeat_share"] > alone["repeat_share"] + 0.3
+    assert both["share"] == alone["share"]
+
+
+def test_the_mfa_weights_do_not_depend_on_the_order_of_the_tables():
+    z, names = _two_tables()
+    first = mfa_weights(z, names, {"A": names[:4], "B": names[4:]})
+    second = mfa_weights(z, names, {"B": names[4:], "A": names[:4]})
+    np.testing.assert_allclose(first, second)
+    # Each table's first axis has variance 1 (audit 8 A1).
+    for columns in (slice(0, 4), slice(4, 6)):
+        part = (z * first)[:, columns]
+        top = np.linalg.svd(part - part.mean(axis=0), compute_uv=False)[0]
+        assert top**2 / (len(z) - 1) == pytest.approx(1.0)
+    # One table: nothing weighted, as before.
+    np.testing.assert_allclose(mfa_weights(z, names, {"A": names}), np.ones(6))
+
+
+def test_a_readout_without_features_beside_a_table_reads_unusual_observations_on_it_alone():
+    objects, fovs, table = _cells()
+    objects["area"] = np.random.default_rng(1).normal(10, 1, len(objects))
+    setup = Setup(readout="area", control={"condition": "ctrl"}, observation_unit="cell")
+    merged, setup, _ = attached(objects, fovs, setup, {"DINO": table})
+    columns, weights, words = unusual_space(merged, fovs, setup)
+    assert (columns, weights, words) == (["area"], None, "the readout area alone")
+    line = next(line for line in setup.declaration() if line.startswith("Representation"))
+    assert line == (
+        "Representation: readout area; no feature columns declared, so new phenotypes are not "
+        "assessed; unusual cells on the readout alone, the other tables never entering them."
+    )
+
+
+def test_the_normalised_combined_map_reads_the_centred_tables_as_the_populations_do():
+    objects, fovs, table = _cells()
+    rng = np.random.default_rng(2)
+    objects["area"] = rng.lognormal(3, 0.2, len(objects))
+    objects["shape"] = rng.lognormal(0, 0.2, len(objects))
+    setup = Setup(
+        readout="area",
+        features=("area", "shape"),
+        control={"condition": "ctrl"},
+        normalize="control_mean",
+        observation_unit="cell",
+    )
+    merged, setup, _ = attached(objects, fovs, setup, {"DINO": table})
+    tables, _ = _map_tables(setup, merged, fovs)
+    read = analysed_tables(setup.prepared(merged, fovs), fovs, setup)
+    pd.testing.assert_frame_equal(tables["normalised"], read)
+    assert not np.allclose(tables["normalised"]["e0"], merged["e0"])  # centred, not raw
+
+
+def test_without_a_group_of_four_fields_a_tables_fingerprint_is_not_assessable_anywhere():
+    objects, fovs = _fingerprint_data(False, fields=3)
+    setup = _fingerprint_setup()
+    space = fingerprint_space(objects, fovs, setup)
+    assert not space.setup.fingerprint
+    reason = "no group holds 4 fields, so no group sets the number of its principal components"
+    assert list(space.not_assessable.values()) == [reason]
+    # optimise never judges the full width (seed 9): here it has nothing to judge.
+    with pytest.raises(ValueError, match="no group holds 4 fields"):
+        optimise(objects, fovs, setup, fov_counts=(1, 2), reservoir_fraction=0.35)
+
+
+def test_under_a_centred_map_the_repeat_line_says_it_reads_the_raw_values():
+    merged, fovs, names = _batch()
+    setup = _setup(names)
+    centred = centred_tables(merged, fovs, setup)
+    found = separation_in_report(centred, fovs, setup, ["DINO"], raw=merged)
+    line = found.line("DINO")
+    assert "Within a condition, on the raw values, " in line
+    # Raw repeats against centred conditions are not compared (audit 10, B15).
+    assert "separate more" not in line
+    plain = separation_in_report(merged, fovs, setup, ["DINO"]).line("DINO")
+    assert "on the raw values" not in plain and "Here the repeats separate more" in plain
+    assert "separate more than the conditions" not in comparison_table(found)
+
+
+def test_the_normalised_map_line_names_the_cells_without_their_own_control():
+    objects, fovs, tables = _several()
+    objects.loc[objects.index[:5], "area"] = np.nan  # a true missing value, counted as one
+    setup = Setup(
+        readout="area",
+        features=("area", "fib_len", "fib_w"),
+        control=SEVERAL,
+        normalize="control_mean",
+        observation_unit="cell",
+    )
+    merged, setup, _ = attached(objects, fovs, setup, {"fiber": tables["fiber"]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        prepared = setup.prepared(merged, fovs)
+    line = separation_in_report(prepared, fovs, setup, raw=merged).line("Explainable")
+    assert (
+        "5 cells with a missing value left out. 18 cells of b1 in R1 left out: no own control."
+        in line
+    )
+
+
+def test_the_centred_view_subtracts_the_median_of_the_condition_medians_in_every_repeat():
+    objects, fovs, rng = _table_cells(fields=2, cells=3)
+    # b not imaged in R1: ctrl and a, in every repeat, set the centre (owner, 2026-10-06,
+    # audit 8; test_feature_tables_batch).
+    objects, fovs = _without(objects, "b", "R1"), _without(fovs, "b", "R1")
+    values = rng.normal(size=(len(objects), 2))
+    table = _table(objects, values, "d")
+    merged = attach_feature_tables(objects, fovs, {"DINO": table}).objects
+    merged["x0"] = 1.0
+    setup = Setup(
+        readout="x0", control={"condition": "ctrl"}, feature_tables={"DINO": ("d0", "d1")}
+    )
+    centred = centred_tables(merged, fovs, setup)
+    for _, rows in merged.groupby("biological_repeat"):
+        medians = [rows.loc[rows["condition"] == c, "d0"].median() for c in ("ctrl", "a")]
+        np.testing.assert_allclose(centred.loc[rows.index, "d0"], rows["d0"] - np.median(medians))
+    assert (centred["x0"] == 1.0).all()  # the explainable features are left as they are
+    assert centred_tables(merged, fovs, Setup(readout="x0")) is None
+
+
+def test_a_column_without_a_value_is_refused_and_a_constant_one_listed():
+    objects, fovs, embedding = _tables()
+    with pytest.raises(ValueError, match="columns without a single value: e1"):
+        attach_feature_tables(objects, fovs, {"DINO": embedding.assign(e1=np.nan)})
+    tables = attach_feature_tables(objects, fovs, {"DINO": embedding.assign(e2=3.0)})
+    assert tables.constant == {"DINO": ("e2",)}
+    assert "1 column with one value everywhere (e2), which no analysis can use" in (
+        tables.summary()
+    )
+
+
+@pytest.mark.parametrize("which", ["table", "objects"])
+def test_a_label_written_as_a_decimal_matches_its_whole_number(which):
+    # Audit B, finding 11: a CSV column with one empty cell is read as 1.0, 2.0, ...
+    objects, fovs, embedding = _tables()
+    if which == "table":
+        embedding["label_id"] = embedding["label_id"].astype(float)
+    else:
+        objects["label_id"] = objects["label_id"].astype(float)
+    assert "e0" in attach_feature_tables(objects, fovs, {"DINO": embedding}).objects
+
+
+def test_the_columns_are_said_as_explainable_features_and_other_tables():
+    setup = Setup(
+        readout="a",
+        features=("a", "b"),
+        feature_tables={"DINOv2": ("d0", "d1", "d2"), "DINOv3": ("v0", "v1")},
+    )
+    assert features_words(setup) == "2 explainable features and 5 columns of 2 other tables"
+    one = Setup(readout="a", features=("a", "b"), feature_tables={"DINOv2": ("d0",)})
+    assert features_words(one) == "2 explainable features and 1 column of the other table DINOv2"
+
+
+def test_attach_feature_tables_refusals():
+    objects, fovs = _four_cell_tables()
+    with pytest.raises(TypeError) as error:
+        attach_feature_tables([1], fovs, {"t": objects})
+    assert str(error.value) == "objects must be a pandas DataFrame"
+    with pytest.raises(TypeError) as error:
+        attach_feature_tables(objects, fovs, {})
+    assert str(error.value) == (
+        "feature_tables must map each table's name to its DataFrame, or to (DataFrame, "
+        "'explainable' or 'non-explainable')"
+    )
+    with pytest.raises(ValueError) as error:
+        attach_feature_tables(objects, fovs, {"t": [1]})
+    assert str(error.value) == (
+        "the other feature tables cannot be used: the table 't' must be a pandas DataFrame"
+    )

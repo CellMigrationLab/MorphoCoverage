@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 
 from morphocoverage.sampling_unit import unusual_objects
-from morphocoverage.sampling_unit.acquisition import acquisition_anomalies
+from morphocoverage.sampling_unit.acquisition import AcquisitionAnomalies, acquisition_anomalies
 from morphocoverage.workflows import Setup, report
 from morphocoverage.workflows._shared import control_checks
 from morphocoverage.workflows._unusual_values import centred_on_own_control, ratio_scale
@@ -335,3 +335,15 @@ def test_the_glance_reads_each_scored_group_and_one_feature_says_nothing():
     one = unusual_objects(objects, fovs, feature_cols=["area"], reference=CTRL)
     assert unusual_alone(one) == ""
     assert "not informative beyond the mean shift" in states_lines(None, one, "cells")[0]
+
+
+def test_the_fields_not_judged_for_quality_control_are_counted_beside_those_judged_a18():
+    groups = pd.DataFrame(
+        {"condition": ["a", "b", "c"], "fields": [9, 5, 6], "judged": [9, 0, 0], "anomalies": 0}
+    )
+    anomalies = AcquisitionAnomalies(pd.DataFrame(), groups, ("condition",), {})
+    line = anomalies.line()
+    assert line.endswith(
+        "9 fields judged in 1 group; 11 fields in 2 groups of fewer than 8 fields counted, "
+        "not judged"
+    )

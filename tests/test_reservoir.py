@@ -1,8 +1,11 @@
 """Tests for fixed evaluation reservoirs and their use in the benchmark."""
 
+import inspect
+
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_benchmark import _novelty_tables, _two_groups
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import (
@@ -15,6 +18,7 @@ from morphocoverage import (
     SamplingStrategy,
     validate_input_tables,
 )
+from morphocoverage._parallel import check_n_jobs
 from morphocoverage.benchmark import (
     AcquisitionOrder,
     BenchmarkDataset,
@@ -22,9 +26,11 @@ from morphocoverage.benchmark import (
     records_to_frame,
     run_benchmark,
 )
+from morphocoverage.calibration import calibrate_next_fov_novelty
 from morphocoverage.evaluator import iter_analysis_groups
 from morphocoverage.outcomes import RelativeMeanError
 from morphocoverage.reservoir import ReservoirSplit, reference_error_floor, spatial_blocks
+from morphocoverage.strategies.support_novelty import SupportNoveltyEstimator
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 NEVER_STOPS = FixedFOVStrategy(10**6)
@@ -266,3 +272,90 @@ def test_the_reservoir_stream_is_a_thinned_acquisition():
     assert single_change > 1.2 * full_change.mean()
     # Blocks of 10 contiguous FOVs: most successive stream FOVs are still neighbours.
     assert np.mean([np.median(step) for step, _ in blocked]) == 1.0
+
+
+def test_b8_reservoir_split_and_floor_refuse_several_groups():
+    objects, fovs = _two_groups(10, 10)
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["f"])
+    with pytest.raises(ValueError, match="2 analysis groups"):
+        ReservoirSplit(0.5, 0, None).split({}, data)
+    with pytest.raises(ValueError, match="2 analysis groups"):
+        reference_error_floor(RelativeMeanError("f"), data, n_splits=2, seed=0, block_col=None)
+    for group, group_data in iter_analysis_groups(data):
+        stream, held = ReservoirSplit(0.5, 0, None).split(group, group_data)
+        assert set(stream.fovs.condition) == set(held.fovs.condition) == {group["condition"]}
+
+
+def test_b11_reservoir_size_is_rounded_before_the_ceiling():
+    fovs = pd.DataFrame({"position_id": [f"p{i:03d}" for i in range(100)]})
+    objects = pd.DataFrame({"position_id": fovs.position_id, "f": np.arange(100.0)})
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["f"])
+    assert 0.07 * 100 > 7  # floating point: 7.000000000000001
+    _, held = ReservoirSplit(0.07, 0, None).split({}, data)
+    assert len(held.fovs) == 7
+
+
+def test_b13_spatial_blocks_refuse_infinite_coordinates():
+    xy = pd.DataFrame({"x": [0.0, 150.0, np.inf], "y": [0.0, 0.0, 0.0]})
+    with pytest.raises(ValueError, match="infinite"):
+        spatial_blocks(xy, "x", "y", 100.0)
+
+
+def test_b14_numpy_integers_are_accepted():
+    assert check_n_jobs(np.int64(2)) == 2 and type(check_n_jobs(np.int64(2))) is int
+    assert ReservoirSplit(0.3, np.int64(1), None).seed == 1
+    assert AcquisitionOrder.permuted(np.int64(3)) == AcquisitionOrder.permuted(3)
+    objects, fovs = _two_groups(8, 8)
+    table = calibrate_next_fov_novelty(
+        objects,
+        fovs,
+        feature_cols=["f"],
+        novelty=SupportNoveltyEstimator(0.5, 1, None, 3),
+        fov_counts=[np.int64(4)],
+        draws=np.int64(3),
+        random_state=np.int64(0),
+    )
+    assert table.fovs_imaged.tolist() == [4, 4]
+    data = validate_input_tables(
+        objects[objects.condition == "a"], fovs=fovs[fovs.condition == "a"], feature_cols=["f"]
+    )
+    floors = reference_error_floor(
+        RelativeMeanError("f"), data, n_splits=np.int64(2), seed=np.int64(0), block_col=None
+    )
+    assert len(floors) == 2
+
+
+def test_b15_reference_error_floor_with_odd_blocks_says_which_side_is_larger():
+    doc = inspect.getdoc(reference_error_floor)
+    assert "odd number of blocks" in doc
+    fovs = pd.DataFrame({"position_id": ["p0", "p1", "p2"]})
+    objects = pd.DataFrame({"position_id": fovs.position_id, "f": [1.0, 2.0, 3.0]})
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["f"])
+    scored, reference = ReservoirSplit(0.5, 0, None).split({}, data)
+    assert (len(scored.fovs), len(reference.fovs)) == (1, 2)
+
+
+def test_b8_negative_seeds_are_refused_on_construction():
+    for make in (AcquisitionOrder.permuted, AcquisitionOrder.dispersed):
+        with pytest.raises(ValueError, match="non-negative"):
+            make(-1)
+        assert make(np.int64(3)).seed == 3
+    with pytest.raises(ValueError, match="non-negative"):
+        ReservoirSplit(0.3, -1, None)
+    assert type(ReservoirSplit(0.3, np.int64(2), None).seed) is int
+    objects, fovs, settings = _novelty_tables()
+    with pytest.raises(ValueError, match="non-negative"):
+        calibrate_next_fov_novelty(objects, fovs, **{**settings, "random_state": -1})
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["f"])
+    with pytest.raises(ValueError, match="non-negative"):
+        reference_error_floor(None, data, n_splits=2, seed=-1, block_col=None)
+
+
+def test_b10_a_tiny_reservoir_fraction_still_holds_out_one_block():
+    fovs = pd.DataFrame({"position_id": [f"p{i}" for i in range(10)]})
+    objects = pd.DataFrame({"position_id": fovs.position_id, "f": np.arange(10.0)})
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["f"])
+    stream, held = ReservoirSplit(1e-11, 0, None).split({}, data)
+    assert (len(stream.fovs), len(held.fovs)) == (9, 1)
+    stream, held = ReservoirSplit(0.07, 0, None).split({}, data)
+    assert len(held.fovs) == 1
