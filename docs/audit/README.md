@@ -1,6 +1,6 @@
 # Audits: a short history
 
-Six audits of the package were made between 2026-09-25 and 2026-09-28.
+The first six audits of the package were made between 2026-09-25 and 2026-09-28.
 Each read the code against what it claims and prints, reproduced every
 finding before fixing it, and pinned each fix with a regression test that
 fails on the old code. This page keeps what each one was, its most important
@@ -197,3 +197,127 @@ written canonically (D16). Benchmark protocol version 5 was locked for the
 changed rules (`e30b8a6`). Tests: `tests/test_audit4_a.py` to `_h` (one file
 per group; the test names carry the finding ids). Committed in `98f6006` to
 `e30b8a6`, whose messages summarise the fixes group by group.
+
+The later audits are numbered as the commit messages and the code name them. In that
+numbering, audits 2 to 4 are the second to fourth function audits above, and no audit 5 or
+9 is named. Their findings were not committed either; each paragraph below rests on the
+commit messages and the pull requests it names. Test files named for an audit or a date
+are being folded into the test files of the modules they test: the table at the end gives
+each new name.
+
+**2026-10-02: audit 6.** Adversarial audits of the five regenerated reports, four lab
+datasets and the synthetic one, reading the page, the short text and the full text; git
+names it in the branches `audit6-a` and `audit6-b`. The most important fixes:
+
+- two conditions of different sub-experiments are described by their d, not tested;
+- one correction family everywhere, so a feature never reads significant in one place
+  only;
+- no cell-level numbers as provided when the control comes from repeats the condition was
+  not imaged in;
+- the owner's decisions: the plan powers the paired t-test on the values it compares, log
+  ratios or differences; the influence check reads the result; unusual cells use each
+  sub-experiment's own control;
+- the Planning tab and its "limited by" verdict, which contradicted the rest of the report,
+  removed, and "Plan the next experiment" added at the end of the page.
+
+Fixes in `b4f3ca4` (PR #70), the decisions in `1d60c38` (PR #71), the page in PR #73.
+Tests: `tests/test_owner_decisions_1002.py` (see the table), `tests/test_html_conditions.py`,
+`tests/test_html_plan.py` and the modules' test files.
+
+**2026-10-05: the issue audit.** All 191 open issues read against main at `0f19a3e`; each
+of the 171 bug issues was reproduced or traced in the code before a verdict. 69 were fixed
+with the smallest local change and a regression test each, 73 were not bugs, 18 went to
+the owner's decision and 8 needed a broad refactor or a new contract. Among the fixes: the
+sign-flip floor counts only the non-zero differences (#98); the cell-level q is withheld
+when the control is pooled from repeats the condition does not share (#292); unassessed
+units stay in the denominators, so "1 of 2; 1 not assessed" replaces a green "1 of 1"; and
+SciPy 1.11 at least is declared (#101). Merged in PR #375; the owner's decisions in PR
+#376. Tests: in the modules' test files.
+
+**2026-10-05 and 2026-10-06: audit 7.** Two adversarial audits of new inputs before they
+were merged. 7A read several controls. Its fixes: one control declared in the new forms is
+reduced to one control, with the same output; with one control and normalisation, the
+contrast's raw columns had held normalised values and now hold raw ones; a condition given
+two own controls is refused; the rows across experiments are tested for every feature;
+pairwise panels compare only conditions normalised to the same control (`9048a03` to
+`2af8a46`). 7B, also called audit B, read the feature tables. With the owner's decisions
+(`b9f8aad`): novelty and unusual observations read the explainable features only, since
+the former radius called 99.6% of null cells new; the populations are searched in each
+space; the copy checks run per table; neighbours of the separation score never come from
+the same field or well; and a column whose MAD is under a quarter of its SD is scaled by
+the SD, where a column tied at 0 had carried 830,000 times the others' variance. Both
+merged in PR #378. Tests: `tests/test_comparisons.py`, `tests/test_plots_pairwise.py`,
+`tests/test_guided_controls.py`, `tests/test_acquisition_gap.py`,
+`tests/test_feature_tables.py` and `tests/test_feature_tables_1006.py` (see the table).
+
+**2026-10-06: audit 8.** An adversarial audit of the rules on seeded synthetic designs,
+with the owner's decisions:
+
+- the test scale, log ratio or difference, chosen once per feature from all its
+  observations;
+- "the same way in every repeat" only from 6 repeats, since with fewer it happens by
+  chance too often, `2^(1-n)`;
+- the whole-table test scaled on the residuals of each comparison's own two sides;
+- MFA weights that do not depend on the order of the tables, which had moved the share of
+  new cells from 2.3% to 8.6%;
+- one common k for a wide table's fingerprint, a group too small for it not assessable
+  instead of lowering k;
+- the separation of the repeats measured on raw values.
+
+Merged in PR #378. Tests: `tests/test_audit8_b.py`, `tests/test_audit8_f9a.py` and
+`tests/test_audit8_f9b.py` (see the table).
+
+**2026-10-06: audit 10.** Every dataset inventoried against every supported design option
+and every report regenerated, then three adversarial audits of the reports: the real
+datasets in the repository, the owner's ECM data outside it, and the 49 scenarios against
+their known truths. Every core number reproduced. The most important fixes, with the
+owner's decisions:
+
+- a per-repeat difference is "shown" only from 5 fields a side, since a percentile
+  bootstrap of 3 fields a side called a null difference shown in 22% of comparisons, and
+  the interval is the exact one with one image per field (`83ca990`);
+- novelty is judged against its own null rate, "not informative" above 20%;
+- acquisition anomalies are read on the test scale with one robust scale per feature;
+- `Setup(experiment=...)` names the correction families;
+- the populations are exploratory;
+- "Nothing compared" is said, never "No consistent difference";
+- the count-rule check needs 5 fields with objects.
+
+Merged in PR #380. Tests: `tests/test_audit10_g2.py`, `tests/test_audit10_merge.py` and
+`tests/test_audit10_wording.py` (see the table), and the modules' test files.
+
+**2026-10-09 and 2026-10-10: audit 11.** The package run on two fibre-feature
+acquisitions, THBS5/VEC with 3 repeats and Silencing with 6, each with an explainable
+table and a DINO embedding and one image per field, together with the issues the issue
+audit had left for a broader change, one pull request each. The most important fixes:
+
+- the conditions' chip and lead sentence agree when a whole table shifted (PR #382);
+- typed identity for FOVs, blocks, conditions and repeats, so `1` and `"1"` are two
+  values (#319, #283, #338);
+- results bound to the tables they were computed on, and assembled into one report only
+  from one acquisition (#359, #277);
+- frozen results own their mappings and tables (#108), and a hand-built `ValidatedInput`
+  is checked (#117);
+- one rare-label contract (#344);
+- question 2 gives no chance of a new state where the definition of new is not
+  informative (A2, PR #399).
+
+Pull requests #382 to #394 and #399. Tests: the `tests/test_audit11_*.py` files (see the
+table).
+
+**2026-10-12: audit 12.** An audit of the code tools: the function index, its ratchets,
+the duplicate finder and the import layers. The most important fixes: the index hashes
+bodies the same way on Python 3.11 to 3.13, where main had failed on 3.11; ratchets only
+tighten, a new entry needs a reason, and `--check-against` compares with the merge base;
+deliberate silent fallbacks carry their reason; identical function bodies fail the guard;
+the layer check finds no runtime import cycle; and the clear duplicates were merged with no
+change to any output, 0 of 199 regenerated files differing. The owner's decisions that
+followed: one robust SD helper with two named rules, a strict order check on the replay
+path, and one wording. Merged in PR #403, the decisions in PR #406. Tests:
+`tests/test_function_guards.py`, `tests/test_function_tools.py`,
+`tests/test_duplicates_tool.py` and `tests/test_robust_sd.py`.
+
+## Renamed test files
+
+Filled when roadmap ENG-3 lands: each test file this page names under its former name,
+beside the test file that now holds its tests.
