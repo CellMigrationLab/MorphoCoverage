@@ -13,7 +13,8 @@
   (``renames.json``), so its entry follows it; an unchanged body is followed by itself;
 - ``--check-against REF`` fails when a baseline holds an entry that is new or larger than at
   the merge base with ``REF`` and was not accepted, a new duplicate or layer entry has no
-  reason, or a limit changed (CI); it lists the reasons of what was admitted;
+  reason, a limit changed, or a tracked file is named after an audit, a review, a pull request,
+  a plan phase or a date (``naming.py``); it lists the reasons of what was admitted;
 - ``--fallbacks`` lists every silent fallback with its marked reason;
 - ``--find "query"`` searches the index (run it before writing a helper).
 """
@@ -32,6 +33,7 @@ import duplicates
 import fallbacks
 import function_index
 import layers
+import naming
 import ratchet
 import search
 
@@ -64,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.check_against:
         problems, admitted = ratchet.check_against(args.check_against)
+        problems = [*problems, *naming.violations()]
         print(*(f"admitted: {line}" for line in admitted), sep="\n")
         print("\n".join(problems) or f"baselines only tightened against {args.check_against}")
         return 1 if problems else 0
