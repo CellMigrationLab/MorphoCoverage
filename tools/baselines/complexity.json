@@ -1,17 +1,1 @@
-{
- "workflows._html_cards:flagged_fields": 22,
- "workflows._html_enough:_targets": 27,
- "workflows._html_figures:feature_figures": 25,
- "workflows._html_maps:_maps": 17,
- "workflows._html_maps:embeddings": 39,
- "workflows._html_plan:_difference_goal": 25,
- "workflows._html_plotly:_pairwise": 25,
- "workflows._html_render:chip": 27,
- "workflows._html_render:text_html": 16,
- "workflows._html_sections:heatmap": 23,
- "workflows._html_sections:what_checked": 16,
- "workflows._html_tests:_cells": 24,
- "workflows._population_tests:enrichment_tests": 22,
- "workflows._populations:populations_text": 43,
- "workflows.html_report:html_report": 34
-}
+{}

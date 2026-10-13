@@ -1,14 +1,1 @@
-{
- "workflows._html_across:across_frame": 65,
- "workflows._html_enough:_targets": 67,
- "workflows._html_figures:feature_figures": 117,
- "workflows._html_maps:_set": 67,
- "workflows._html_maps:embeddings": 195,
- "workflows._html_next:populations_next": 67,
- "workflows._html_plan:_difference_goal": 83,
- "workflows._html_sections:heatmap": 80,
- "workflows._html_tests:_cells": 102,
- "workflows._population_tests:enrichment_tests": 66,
- "workflows._populations:populations_text": 202,
- "workflows.html_report:html_report": 194
-}
+{}
