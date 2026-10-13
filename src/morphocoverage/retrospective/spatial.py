@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -88,6 +88,71 @@ def _time(
     return float(seconds)
 
 
+def _run_rows(
+    replay: ReplayResult,
+    realized: pd.DataFrame,
+    run_keys: list[str],
+    unjudged: pd.Series,
+    timing: tuple[float | None, float | None, float | None],
+) -> list[dict[str, Any]]:
+    """One row per replayed run: its adequacy points, stage travel and time (``timing``: the
+    seconds per field, per move and the stage speed)."""
+    travel = {
+        key: rows.set_index("fovs")["travel"]
+        for key, rows in replay.paths.groupby(run_keys, sort=False, dropna=False)
+    }
+    rows = []
+    for index, run in realized.iterrows():
+        key = tuple(run[k] for k in run_keys)
+        path = travel[key]
+        stream = int(run["stream_fovs"])
+        needed = run["sustained_realized"]
+        reached = not pd.isna(needed)
+        at = int(needed) if reached else stream
+        rows.append(
+            {
+                **{k: run[k] for k in run_keys},
+                "order": run["order"],
+                "first_realized": run["first_realized"],
+                "sustained_realized": needed,
+                "travel_to_sustained": float(path.loc[at]) if reached else None,
+                "travel_total": float(path.loc[stream]),
+                "time_to_sustained": (_time(at, float(path.loc[at]), *timing) if reached else None),
+                "stream_fovs": stream,
+                "judged": not bool(unjudged.loc[index]),
+            }
+        )
+    return rows
+
+
+def _order_rows(runs: pd.DataFrame, groups: list[str]) -> list[dict[str, Any]]:
+    """Per group and order kind: the medians over the judged runs."""
+    table_rows = []
+    for key, block in runs.groupby([*groups, "order"], sort=False, dropna=False):
+        key = key if isinstance(key, tuple) else (key,)
+        judged = block[block["judged"]]
+        needed = judged["sustained_realized"].astype("Float64")
+        table_rows.append(
+            {
+                **dict(zip([*groups, "order"], key, strict=True)),
+                "runs": len(block),
+                "unjudged": int((~block["judged"]).sum()),
+                "reached": float(needed.notna().mean()) if len(judged) else None,
+                # Not reached counts as beyond the run's own stream, whatever its
+                # length, so the median stays honest with unequal streams too.
+                "median_fovs": median_beyond(needed),
+                # Over the same runs as median_fovs: a run that never got there
+                # travelled and took longer than any that did.
+                "median_travel": median_beyond(judged["travel_to_sustained"]),
+                "median_travel_total": float(block["travel_total"].median()),
+                "median_time": median_beyond(judged["time_to_sustained"]),
+                "stream_fovs": int(block["stream_fovs"].min()),
+                "longest_stream_fovs": int(block["stream_fovs"].max()),
+            }
+        )
+    return table_rows
+
+
 def order_efficiency(
     replay: ReplayResult,
     adequacy: AdequacyResult | None = None,
@@ -129,59 +194,9 @@ def order_efficiency(
     run_keys = [*groups, "split", "order_id"]
     realized = adequacy.realized[adequacy.realized["criterion"] == ALL_CRITERIA]
     unjudged = _unjudged(realized)
-    travel = {
-        key: rows.set_index("fovs")["travel"]
-        for key, rows in replay.paths.groupby(run_keys, sort=False, dropna=False)
-    }
-    rows = []
-    for index, run in realized.iterrows():
-        key = tuple(run[k] for k in run_keys)
-        path = travel[key]
-        stream = int(run["stream_fovs"])
-        needed = run["sustained_realized"]
-        reached = not pd.isna(needed)
-        at = int(needed) if reached else stream
-        rows.append(
-            {
-                **{k: run[k] for k in run_keys},
-                "order": run["order"],
-                "first_realized": run["first_realized"],
-                "sustained_realized": needed,
-                "travel_to_sustained": float(path.loc[at]) if reached else None,
-                "travel_total": float(path.loc[stream]),
-                "time_to_sustained": (
-                    _time(at, float(path.loc[at]), per_fov_seconds, per_move_seconds, stage_speed)
-                    if reached
-                    else None
-                ),
-                "stream_fovs": stream,
-                "judged": not bool(unjudged.loc[index]),
-            }
-        )
-    runs = pd.DataFrame(rows)
-    table_rows = []
-    for key, block in runs.groupby([*groups, "order"], sort=False, dropna=False):
-        key = key if isinstance(key, tuple) else (key,)
-        judged = block[block["judged"]]
-        needed = judged["sustained_realized"].astype("Float64")
-        table_rows.append(
-            {
-                **dict(zip([*groups, "order"], key, strict=True)),
-                "runs": len(block),
-                "unjudged": int((~block["judged"]).sum()),
-                "reached": float(needed.notna().mean()) if len(judged) else None,
-                # Not reached counts as beyond the run's own stream, whatever its
-                # length, so the median stays honest with unequal streams too.
-                "median_fovs": median_beyond(needed),
-                # Over the same runs as median_fovs: a run that never got there
-                # travelled and took longer than any that did.
-                "median_travel": median_beyond(judged["travel_to_sustained"]),
-                "median_travel_total": float(block["travel_total"].median()),
-                "median_time": median_beyond(judged["time_to_sustained"]),
-                "stream_fovs": int(block["stream_fovs"].min()),
-                "longest_stream_fovs": int(block["stream_fovs"].max()),
-            }
-        )
+    timing = (per_fov_seconds, per_move_seconds, stage_speed)
+    runs = pd.DataFrame(_run_rows(replay, realized, run_keys, unjudged, timing))
+    table_rows = _order_rows(runs, groups)
     settings = {
         **dict(replay.settings),
         "per_fov_seconds": per_fov_seconds,
@@ -325,95 +340,123 @@ def redundancy_distance(
     )
     stage_cols = stage_names(stage_cols)
     stage_matrix(data.fovs, stage_cols, missing="keep")  # real numbers, none infinite
-    rows = []
-    for group, group_data in iter_analysis_groups(data):
-        row = {
-            **group,
-            "redundancy_distance": None,
-            "pairs_closer": None,
-            "smallest_lag": None,
-            "largest_lag": None,
-            "fov_mean_variance": None,
-            "null_share": None,
-            "beyond_chance": None,
-            "permutations": n_permutations,
-            "share": float(share),
-            "unit": stage_unit,
-            "reason": None,
-        }
-        rows.append(row)
-        missing = missing_values_reason(group_data.feature_matrix(), group_data.feature_cols)
-        if missing:
-            row["reason"] = (
-                f"{missing} in this group: its FOV means are undefined "
-                "(missing values are never imputed)"
-            )
-            continue
-        means, fov_rows = fov_means(group_data)
-        if len(means) < 2:
-            row["reason"] = (
-                f"only {fields_text(len(means))} with observations: the semivariogram needs "
-                "pairs of fields"
-            )
-            continue
-        gamma = fov_semivariogram(group_data, *stage_cols, bin_edges)
-        if gamma.empty:
-            row["reason"] = (
-                f"no pair of fields is between {bin_edges[0]:g} and {bin_edges[-1]:g} "
-                f"{stage_unit} apart: widen bin_edges"
-            )
-            continue
-        variance = float(np.mean(np.var(means, axis=0, ddof=1)))
-        if not np.ptp(means, axis=0).any():
-            # Every semivariance is 0 and reaches 90% of a variance of 0 at the
-            # first bin: that would read as the shortest redundancy distance.
-            row["fov_mean_variance"] = variance
-            row["reason"] = (
-                "the FOV means do not vary at all, so no distance at which fields become "
-                "alike can be measured"
-            )
-            continue
-        reached = gamma[gamma["gamma"] >= float(share) * variance]
-        distance = float(reached["mean_lag"].iloc[0]) if len(reached) else None
-        coords = stage_matrix(group_data.fovs, stage_cols, missing="keep")[fov_rows]
-        lags = _distances.pdist(coords)
-        ordered_means, ordered_coords = _canonical(group_data, fov_rows, means, coords)
-        null = _shuffled_distances(
-            ordered_means,
-            ordered_coords,
-            bin_edges,
-            float(share) * variance,
-            n_permutations,
-            group_rng(random_state, group),
-        )
-        observed = float("inf") if distance is None else distance
-        # The observed assignment is one of the arrangements: counted, so the share is > 0.
-        tolerance = 1e-9 * max(1.0, abs(observed) if np.isfinite(observed) else 1.0)
-        at_least = int(np.sum(null >= observed - tolerance))
-        null_share = (1 + at_least) / (1 + n_permutations)
-        row.update(
-            {
-                "null_share": float(null_share),
-                "beyond_chance": bool(null_share < CHANCE_LEVEL),
-            }
-        )
-        row.update(
-            {
-                "redundancy_distance": distance,
-                # The pairs of fields behind the point estimate: those closer than it.
-                # Counted pair by pair: the distance is a bin's mean lag, so its own bin
-                # holds closer pairs too.
-                "pairs_closer": (
-                    int(np.sum((lags >= bin_edges[0]) & (lags < distance)))
-                    if distance is not None
-                    else None
-                ),
-                "smallest_lag": float(gamma["mean_lag"].iloc[0]),
-                "largest_lag": float(gamma["mean_lag"].iloc[-1]),
-                "fov_mean_variance": variance,
-            }
-        )
+    settings = _Lags(stage_cols, bin_edges, share, stage_unit, n_permutations, random_state)
+    rows = [
+        _group_row(group, group_data, settings) for group, group_data in iter_analysis_groups(data)
+    ]
     return pd.DataFrame(rows)
+
+
+class _Lags(NamedTuple):
+    """The settings of ``redundancy_distance`` every group is measured with, as checked."""
+
+    stage_cols: tuple[str, str]
+    bin_edges: Sequence[float]
+    share: float
+    stage_unit: str
+    n_permutations: int
+    random_state: int
+
+
+def _group_row(group: dict[str, Any], group_data: ValidatedInput, settings: _Lags) -> dict:
+    """One group's row: its redundancy distance tested against chance, or why nothing was
+    measured (``reason``)."""
+    bin_edges = settings.bin_edges
+    row = {
+        **group,
+        "redundancy_distance": None,
+        "pairs_closer": None,
+        "smallest_lag": None,
+        "largest_lag": None,
+        "fov_mean_variance": None,
+        "null_share": None,
+        "beyond_chance": None,
+        "permutations": settings.n_permutations,
+        "share": float(settings.share),
+        "unit": settings.stage_unit,
+        "reason": None,
+    }
+    missing = missing_values_reason(group_data.feature_matrix(), group_data.feature_cols)
+    if missing:
+        row["reason"] = (
+            f"{missing} in this group: its FOV means are undefined "
+            "(missing values are never imputed)"
+        )
+        return row
+    means, fov_rows = fov_means(group_data)
+    if len(means) < 2:
+        row["reason"] = (
+            f"only {fields_text(len(means))} with observations: the semivariogram needs "
+            "pairs of fields"
+        )
+        return row
+    gamma = fov_semivariogram(group_data, *settings.stage_cols, bin_edges)
+    if gamma.empty:
+        row["reason"] = (
+            f"no pair of fields is between {bin_edges[0]:g} and {bin_edges[-1]:g} "
+            f"{settings.stage_unit} apart: widen bin_edges"
+        )
+        return row
+    variance = float(np.mean(np.var(means, axis=0, ddof=1)))
+    if not np.ptp(means, axis=0).any():
+        # Every semivariance is 0 and reaches 90% of a variance of 0 at the
+        # first bin: that would read as the shortest redundancy distance.
+        row["fov_mean_variance"] = variance
+        row["reason"] = (
+            "the FOV means do not vary at all, so no distance at which fields become "
+            "alike can be measured"
+        )
+        return row
+    row.update(_measured(group, group_data, settings, (means, fov_rows), gamma, variance))
+    return row
+
+
+def _measured(
+    group: dict[str, Any],
+    group_data: ValidatedInput,
+    settings: _Lags,
+    field_means: tuple[np.ndarray, np.ndarray],
+    gamma: pd.DataFrame,
+    variance: float,
+) -> dict[str, Any]:
+    """The redundancy distance of one group (``field_means``: its FOV means and their FOV
+    rows) with its share of shuffles at least as large, and the lags measured."""
+    means, fov_rows = field_means
+    share, bin_edges, n_permutations = settings.share, settings.bin_edges, settings.n_permutations
+    reached = gamma[gamma["gamma"] >= float(share) * variance]
+    distance = float(reached["mean_lag"].iloc[0]) if len(reached) else None
+    coords = stage_matrix(group_data.fovs, settings.stage_cols, missing="keep")[fov_rows]
+    lags = _distances.pdist(coords)
+    ordered_means, ordered_coords = _canonical(group_data, fov_rows, means, coords)
+    null = _shuffled_distances(
+        ordered_means,
+        ordered_coords,
+        bin_edges,
+        float(share) * variance,
+        n_permutations,
+        group_rng(settings.random_state, group),
+    )
+    observed = float("inf") if distance is None else distance
+    # The observed assignment is one of the arrangements: counted, so the share is > 0.
+    tolerance = 1e-9 * max(1.0, abs(observed) if np.isfinite(observed) else 1.0)
+    at_least = int(np.sum(null >= observed - tolerance))
+    null_share = (1 + at_least) / (1 + n_permutations)
+    return {
+        "null_share": float(null_share),
+        "beyond_chance": bool(null_share < CHANCE_LEVEL),
+        "redundancy_distance": distance,
+        # The pairs of fields behind the point estimate: those closer than it.
+        # Counted pair by pair: the distance is a bin's mean lag, so its own bin
+        # holds closer pairs too.
+        "pairs_closer": (
+            int(np.sum((lags >= bin_edges[0]) & (lags < distance)))
+            if distance is not None
+            else None
+        ),
+        "smallest_lag": float(gamma["mean_lag"].iloc[0]),
+        "largest_lag": float(gamma["mean_lag"].iloc[-1]),
+        "fov_mean_variance": variance,
+    }
 
 
 __all__ = [

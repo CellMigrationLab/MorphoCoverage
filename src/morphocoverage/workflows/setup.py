@@ -25,21 +25,18 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from .._former_repeat import read_fields
 from .._wording import count, rate
 from ..metadata import (
     CONDITION_COLUMN,
-    MORPHOBRICKS_GROUP_COLUMNS,
     REPEAT_COLUMN,
     TECHNICAL_REPEAT_COLUMN,
     column_has_values,
     drop_empty_optional_columns,
     resolve_fov_col,
 )
-from ..normalize import METHODS as NORMALIZATIONS
 from ..normalize import normalize_to_control, normalize_to_own
 from ..objectives import ObjectiveConfig, RareTarget
 from ..outcomes import RareStateDetected, RelativeMeanError
@@ -63,7 +60,14 @@ from ._contrasts import (
     single_control,
 )
 from ._declaration import declaration
-from ._feature_space import check_feature_tables, table_columns
+from ._feature_space import check_feature_tables
+from ._setup_checks import (
+    check_declared_columns,
+    check_declared_types,
+    check_normalize,
+    check_tolerances_and_control,
+    normalise_sequences,
+)
 from ._setup_parts import (
     PositiveControl,
     check_embedding_only,
@@ -230,57 +234,16 @@ class Setup:
     experiment: str | Mapping[Any, Any] | None = None
 
     def __post_init__(self) -> None:
-        if self.readout is not None and (not isinstance(self.readout, str) or not self.readout):
-            raise TypeError("readout must be one column name (None: no explainable features)")
-        for name in ("features", "tolerances", "effort_strata", "intensity_features"):
-            value = getattr(self, name)
-            if value is None and name == "effort_strata":
-                continue  # one stratum per condition (resolved_effort_strata)
-            if isinstance(value, str):
-                raise TypeError(f"{name} must be a sequence, not a string")
-            object.__setattr__(self, name, tuple(value))
-        if self.group_cols is not None:
-            if isinstance(self.group_cols, str):
-                raise TypeError("group_cols must be a sequence of column names")
-            object.__setattr__(self, "group_cols", tuple(self.group_cols))
+        normalise_sequences(self)
         read_fields(self, "control", "fov_col", "group_cols", "effort_strata")  # ``repeat``
-        if self.rules is not None:
-            object.__setattr__(self, "rules", tuple(self.rules))
-        if not isinstance(self.fields_independent, (bool, np.bool_)):
-            raise TypeError("fields_independent must be True or False")
-        object.__setattr__(self, "fields_independent", bool(self.fields_independent))
-        if isinstance(self.fingerprint, OutcomeCriterion):
-            raise TypeError("fingerprint must be a sequence of OutcomeCriterion, not one")
-        object.__setattr__(self, "fingerprint", tuple(self.fingerprint))
-        if any(not isinstance(c, OutcomeCriterion) for c in self.fingerprint):
-            raise TypeError("fingerprint must be a sequence of OutcomeCriterion")
-        if self.rare is not None and not isinstance(self.rare, RareTarget):
-            raise TypeError("rare must be a RareTarget")
-        if self.rare_label is not None:
-            if not isinstance(self.rare_label, str) or not self.rare_label:
-                raise TypeError("rare_label must be one object column name")
-            if self.rare is None:
-                raise ValueError("rare_label labels a declared rare target: declare rare too")
-        if any(not 0 < t < 1 for t in self.tolerances):
-            raise ValueError("tolerances must be fractions between 0 and 1, such as 0.05")
-        if not self.tolerances and not (self.fingerprint or self.rare is not None):
-            raise ValueError("tolerances=() declares no mean target: declare the fingerprint")
-        if self.control is not None and (not isinstance(self.control, Mapping) or not self.control):
-            raise TypeError("control must map FOV-table columns to values")
+        check_declared_types(self)
+        check_tolerances_and_control(self)
         check_controls(self)
         single = one_control(self)
         if single is not None:  # one control in the new forms is one control
             object.__setattr__(self, "control", single)
             object.__setattr__(self, "master_control", None)
-        if self.normalize is not None:
-            if self.normalize not in NORMALIZATIONS:
-                raise ValueError(f"normalize must be one of {list(NORMALIZATIONS)} or None")
-            chosen = self.figure_control
-            if chosen is None or MORPHOBRICKS_GROUP_COLUMNS[0] not in chosen:
-                raise ValueError(
-                    "normalize needs control to name the condition column, for example "
-                    "control={'condition': 'MOCK'}"
-                )
+        check_normalize(self)
         # A declaration the workflows could not use is refused, never silently skipped.
         if self.novelty is not None and not self.features:
             raise ValueError(
@@ -295,18 +258,7 @@ class Setup:
         check_feature_tables(self)
         check_scales(self)
         check_experiment(self)
-        if set(self.intensity_features) - set(self.columns):
-            raise ValueError("intensity_features must be declared columns (readout or features)")
-        undeclared = set(self.criterion_columns) - {*self.columns, *table_columns(self)}
-        if undeclared:
-            raise ValueError(
-                f"fingerprint criteria read feature columns {sorted(undeclared)[:3]} (of "
-                f"{len(undeclared)}) that are not declared: add them to features, or declare "
-                "them as another feature table, feature_tables={name: columns}"
-            )
-        names = [c.name for c in self.criteria()]
-        if len(set(names)) != len(names):
-            raise ValueError("the declared criteria must be distinct (same metric and features)")
+        check_declared_columns(self)
 
     def scale_of(self, feature: str | None) -> str | None:
         """The declared scale of ``feature`` (``scales``), ``None`` for the automatic rule."""

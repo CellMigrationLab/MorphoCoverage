@@ -34,15 +34,51 @@ def _rate(controls: Any, kind: str) -> float | None:
     return None if kind not in rates.index or pd.isna(rates[kind]) else float(rates[kind])
 
 
-def controls_status(controls: Any, minimum_detection: float = 0.9) -> tuple[Status, str]:
-    """1. Can these features detect what I care about? (see the module)."""
+def _not_judged(controls: Any) -> tuple[Status, str] | None:
+    """The answer without a control, or with one that could not be judged; else None."""
     if controls is None:
         return Status.NOT_ASSESSED, "no positive control declared"
-    if controls.status == "not assessed":
-        declared = controls.settings.get("reason") != "none"
-        if declared:
-            return Status.CAUTION, "a control was declared, but could not be judged"
-        return Status.NOT_ASSESSED, "no positive control declared"
+    if controls.status != "not assessed":
+        return None
+    declared = controls.settings.get("reason") != "none"
+    if declared:
+        return Status.CAUTION, "a control was declared, but could not be judged"
+    return Status.NOT_ASSESSED, "no positive control declared"
+
+
+def _recognized(
+    controls: Any, what: str, detection: float, false_alarm: float | None, pooled: str
+) -> tuple[Status, str]:
+    """The control recognized well enough: the headline leads with the positive control
+    itself, then the false alarms and the strata that could not be judged."""
+    over = f", {pooled}" if pooled else ""
+    control = controls.settings.get("control") or {}
+    # The headline leads with the positive control itself; the planted rate gates the status.
+    positive = _rate(controls, "positive")
+    name = selector_values(control.get("positive")) or "positive-control"
+    headline = (
+        f"{name} fields recognized in {percent(positive)} of checks"
+        if positive is not None
+        else f"{what} recognized in {percent(detection)} of checks"
+    )
+    status = Status.OK
+    if false_alarm is None:
+        status, headline = Status.CAUTION, f"{headline}{over}; false alarms not assessed"
+    else:
+        headline += f"; false alarms {percent(false_alarm)}{over and f', both {pooled}'}"
+        if false_alarm > FALSE_ALARM_CAUTION:
+            status = Status.CAUTION
+    if controls.settings.get("skipped_strata"):
+        status = Status.CAUTION
+        headline += f"; {skipped_strata(controls)}"
+    return status, headline
+
+
+def controls_status(controls: Any, minimum_detection: float = 0.9) -> tuple[Status, str]:
+    """1. Can these features detect what I care about? (see the module)."""
+    unjudged = _not_judged(controls)
+    if unjudged is not None:
+        return unjudged
     words = observation_words(controls.settings)[1]
     control = controls.settings.get("control") or {}
     planted = control.get("planted_objects")
@@ -65,25 +101,7 @@ def controls_status(controls: Any, minimum_detection: float = 0.9) -> tuple[Stat
             Status.PROBLEM,
             f"weak representation: {what} recognized in {percent(detection)} of checks{over}",
         )
-    # The headline leads with the positive control itself; the planted rate gates the status.
-    positive = _rate(controls, "positive")
-    name = selector_values(control.get("positive")) or "positive-control"
-    headline = (
-        f"{name} fields recognized in {percent(positive)} of checks"
-        if positive is not None
-        else f"{what} recognized in {percent(detection)} of checks"
-    )
-    status = Status.OK
-    if false_alarm is None:
-        status, headline = Status.CAUTION, f"{headline}{over}; false alarms not assessed"
-    else:
-        headline += f"; false alarms {percent(false_alarm)}{over and f', both {pooled}'}"
-        if false_alarm > FALSE_ALARM_CAUTION:
-            status = Status.CAUTION
-    if controls.settings.get("skipped_strata"):
-        status = Status.CAUTION
-        headline += f"; {skipped_strata(controls)}"
-    return status, headline
+    return _recognized(controls, what, detection, false_alarm, pooled)
 
 
 __all__ = ["FALSE_ALARM_CAUTION", "controls_status"]

@@ -42,7 +42,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -50,26 +50,22 @@ import pandas as pd
 from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import is_integer, is_number
 from .._frozen import owned
-from .._rare_label import check_rare_labels, known_flags
+from .._rare_label import check_rare_labels
 from .._stage_coordinates import stage_names
-from .._style import group_label
-from .._wording import count, ordinal, percent
+from .._wording import ordinal, percent
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..metadata import column_names
-from ..objectives import ObjectiveConfig, SamplingObjective
-from ..schema import ValidatedInput, fov_positions, observation_words
+from ..schema import ValidatedInput, fov_positions
 from ..statistics import MAD_TO_SD
-from ..strategies.novelty_null import not_informative
-from ..strategies.support_novelty import FOV_QUANTITY, SupportNoveltyEstimator
+from ..strategies.support_novelty import SupportNoveltyEstimator
 from ..sufficiency_text import novelty_definition
-from ._stage_neighbours import neighbour_rows, stage_skipped
+from ._field_reasons import _counts, _Gathered, _neighbour_found, _new_state_found
 from ._text import where
 from .inspection_text import inspection_summary
 
 REASONS = ("new state", "influence", "count", "neighbours")
 _TRACE = ("image_file", "position_id", "mask_file")
-_POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 # The influence scales with the group (owner, 2026-10-05; see stands_out): a field's change
 # must lie this many robust SDs from its group's median change, in a group of at least
 # INFLUENCE_MIN_FIELDS fields.
@@ -202,127 +198,72 @@ def _influence(
         return rows, checked
     for summary in summaries:
         values = data.feature_values(summary.feature)
-        why = None
-        if np.nanmin(values, initial=0.0) < 0:
-            why = "has negative values, so a relative change is undefined"
-        else:
-            # Each FOV weighs 1 over its non-missing values, so missing values
-            # never make a FOV count less.
-            present = ~np.isnan(values)
-            counts = np.bincount(positions[present], minlength=len(data.fovs)).astype(float)
-            weights = np.where(present, 1.0 / np.maximum(counts[positions], 1.0), 0.0)
-            full = _weighted(values, weights, summary.statistic)
-            if full is None:
-                why = "has no value here"
-            elif full == 0:
-                why = "is 0 here, so a relative change is undefined"
+        why, weights, full = _relative_base(values, positions, len(data.fovs), summary.statistic)
         if why is not None:
             skipped.append({"group": group, "summary": summary.label, "reason": why})
             continue
         checked = True
-        left_out, changes = [], []
-        for fov in np.unique(positions):
-            keep = positions != fov
-            without = _weighted(values[keep], weights[keep], summary.statistic)
-            if without is not None:
-                left_out.append(int(fov))
-                changes.append((without - full) / abs(full))
-        apart = stands_out(np.asarray(changes), spread)
-        for fov, change, alone in zip(left_out, changes, apart, strict=True):
-            if abs(change) < threshold or not alone:
-                continue
-            direction = "lowers" if change < 0 else "raises"
-            rows.append(
-                {
-                    "position": fov,
-                    "reason": "influence",
-                    "value": float(change),
-                    # Every FOV weighs one in the summary, however many objects it holds.
-                    "detail": (
-                        f"removing it {direction} the field-weighted {summary.label} by "
-                        f"{percent(abs(change))}"
-                    ),
-                }
-            )
+        rows += _influential(summary, values, positions, weights, full, threshold, spread)
     return rows, checked
 
 
-def _counts(data: ValidatedInput, ratio: float) -> list[dict]:
-    positions = fov_positions(data, data.fovs)
-    counts = np.bincount(positions, minlength=len(data.fovs))
-    median = float(np.median(counts))
-    unit, words = observation_words(data)
-    rows = []
-    for fov, held in enumerate(counts):
-        if held == 0 and median > 0:
-            detail = f"no {words}; the median is {median:g}"
-        elif median > 0 and (held >= ratio * median or held <= median / ratio):
-            detail = f"{count(int(held), unit, words)}; the median is {median:g}"
-        elif median == 0 and held > 0:
-            # Most fields are empty: the fields with observations are the unusual ones.
-            detail = f"{count(int(held), unit, words)}; most fields have none (the median is 0)"
-        else:
-            continue
-        rows.append({"position": fov, "reason": "count", "value": float(held), "detail": detail})
-    return rows
+def _relative_base(
+    values: np.ndarray, positions: np.ndarray, n_fovs: int, statistic: str | float
+) -> tuple[str | None, np.ndarray | None, float | None]:
+    """Why a relative change of the summary is undefined here (None when it is defined), the
+    weights of the observations and the summary of every field."""
+    if np.nanmin(values, initial=0.0) < 0:
+        return "has negative values, so a relative change is undefined", None, None
+    # Each FOV weighs 1 over its non-missing values, so missing values
+    # never make a FOV count less.
+    present = ~np.isnan(values)
+    counts = np.bincount(positions[present], minlength=n_fovs).astype(float)
+    weights = np.where(present, 1.0 / np.maximum(counts[positions], 1.0), 0.0)
+    full = _weighted(values, weights, statistic)
+    if full is None:
+        return "has no value here", weights, full
+    if full == 0:
+        return "is 0 here, so a relative change is undefined", weights, full
+    return None, weights, full
 
 
-def _novel(
-    data: ValidatedInput,
-    novelty: SupportNoveltyEstimator,
-    group: str,
-    skipped: list[dict],
-    label_col: str | None,
-    uninformative: list[dict],
-    null: list[dict],
+def _influential(
+    summary: Summary,
+    values: np.ndarray,
+    positions: np.ndarray,
+    weights: np.ndarray,
+    full: float,
+    threshold: float,
+    spread: float | None,
 ) -> list[dict]:
-    """FOVs holding a new state, with how many of its observations carry ``label_col``; when
-    novelty is not estimable, the reason goes in ``skipped``, and when the definition is not
-    informative at this group's size (its own null rate above 20%, ``novelty_null``; owner,
-    2026-10-06, audit 10) in ``uninformative``, no field listed. ``null`` gathers each
-    judged group's fields and null rate (the count chance alone would give)."""
-    sizes = np.bincount(fov_positions(data, data.fovs), minlength=len(data.fovs))
-    reason, rate = not_informative(novelty, sizes, data.feature_cols)
-    if reason is not None:
-        fields, features = int((sizes > 0).sum()), len(data.feature_cols)
-        entry = {"group": group, "reason": reason, "rate": rate, "fields": fields}
-        uninformative.append({**entry, "features": features})
-        return []
-    flags = novelty.novel_observation_flags(data, new_states_only=True)
-    if flags is None:
-        quantity = novelty.estimate(data, objective=_POPULATION).quantities[FOV_QUANTITY]
-        skipped.append({"group": group, "reason": quantity.reason or "novelty is not estimable"})
-        return []
-    null.append({"fields": int((sizes > 0).sum()), "rate": rate})
-    if not flags.any():
-        return []
-    positions = fov_positions(data, data.fovs)
-    counts = np.bincount(positions[flags], minlength=len(data.fovs))
-    labelled = None
-    if label_col is not None:  # present and valid: checked once, in inspect_fovs
-        marked = flags & known_flags(data.objects[label_col], f"label_col {label_col!r}")[1]
-        labelled = np.bincount(positions[marked], minlength=len(data.fovs))
-    unit, words = observation_words(data)
-
-    def detail(fov: int, held: int) -> str:
-        others = novelty.min_other_fovs  # more than 1 with one observation per field
-        shown = "no other field shows" if others == 1 else f"fewer than {others} other fields show"
-        text = f"{count(held, unit, words)} of a state {shown}"
-        if labelled is not None and labelled[fov]:
-            # The new state is the declared label: say so, it is what the user looks for.
-            text += f" ({'all' if labelled[fov] == held else labelled[fov]} labelled {label_col})"
-        return text
-
-    return [
-        {
-            "position": fov,
-            "reason": "new state",
-            "value": float(held),
-            "detail": detail(fov, int(held)),
-        }
-        for fov, held in enumerate(counts)
-        if held
-    ]
+    """The fields whose leaving out changes ``summary`` by at least ``threshold`` and whose
+    change stands out from the group's."""
+    left_out, changes = [], []
+    for fov in np.unique(positions):
+        keep = positions != fov
+        without = _weighted(values[keep], weights[keep], summary.statistic)
+        if without is not None:
+            left_out.append(int(fov))
+            changes.append((without - full) / abs(full))
+    apart = stands_out(np.asarray(changes), spread)
+    rows = []
+    for fov, change, alone in zip(left_out, changes, apart, strict=True):
+        if abs(change) < threshold or not alone:
+            continue
+        direction = "lowers" if change < 0 else "raises"
+        rows.append(
+            {
+                "position": fov,
+                "reason": "influence",
+                "value": float(change),
+                # Every FOV weighs one in the summary, however many objects it holds.
+                "detail": (
+                    f"removing it {direction} the field-weighted {summary.label} by "
+                    f"{percent(abs(change))}"
+                ),
+            }
+        )
+    return rows
 
 
 def _check(
@@ -338,6 +279,20 @@ def _check(
     summaries = [s if isinstance(s, Summary) else Summary(*s) for s in summaries]
     if novelty is not None and not isinstance(novelty, SupportNoveltyEstimator):
         raise TypeError("novelty must be a SupportNoveltyEstimator")
+    _check_numbers(influence_threshold, count_ratio, neighbour_threshold, spread, k)
+    if stage is not None:
+        stage_names(stage)
+    return summaries
+
+
+def _check_numbers(
+    influence_threshold: float,
+    count_ratio: float | None,
+    neighbour_threshold: float | None,
+    spread: float | None,
+    k: int,
+) -> None:
+    """Raise when a threshold, the spread or the number of neighbours is not usable."""
     if not is_number(influence_threshold) or not 0 < influence_threshold < np.inf:
         raise ValueError("influence_threshold must be a positive number")
     if count_ratio is not None and not (is_number(count_ratio) and 1 < count_ratio < np.inf):
@@ -348,9 +303,6 @@ def _check(
         raise ValueError("influence_spread must be a positive number, or None")
     if not is_integer(k) or k < 1:
         raise ValueError("n_neighbours must be a positive integer")
-    if stage is not None:
-        stage_names(stage)
-    return summaries
 
 
 def field_rows(
@@ -381,6 +333,38 @@ def field_rows(
             }
         )
     return rows
+
+
+class _Reasons(NamedTuple):
+    """The reasons ``inspect_fovs`` was asked for, with their settings as given (summaries
+    and columns checked)."""
+
+    feature_cols: list[str]
+    summaries: list[Summary]
+    novelty: SupportNoveltyEstimator | None
+    novelty_cols: list[str]
+    label_col: str | None
+    influence_threshold: float
+    influence_spread: float | None
+    count_ratio: float | None
+    stage_cols: tuple[str, str] | None
+    stage_unit: str
+    n_neighbours: int
+    neighbour_threshold: float
+
+
+def _check_columns(
+    data: ValidatedInput, label_col: str | None, stage_cols: tuple[str, str] | None
+) -> None:
+    """Raise when the label column or a stage column is missing or not usable."""
+    if label_col is not None:  # one contract for every label column (issue 344)
+        if label_col not in data.objects.columns:
+            raise ValueError(f"label_col {label_col!r} is not a column of the observations")
+        check_rare_labels(data.objects[label_col], f"label_col {label_col!r}")
+    if stage_cols is not None:
+        absent = [c for c in stage_cols if c not in data.fovs.columns]
+        if absent:
+            raise ValueError(f"stage columns missing from the FOV table: {absent}")
 
 
 def inspect_fovs(
@@ -443,97 +427,114 @@ def inspect_fovs(
         group_cols=group_cols,
         observation_unit=observation_unit,
     )
-    if label_col is not None:  # one contract for every label column (issue 344)
-        if label_col not in data.objects.columns:
-            raise ValueError(f"label_col {label_col!r} is not a column of the observations")
-        check_rare_labels(data.objects[label_col], f"label_col {label_col!r}")
-    if stage_cols is not None:
-        absent = [c for c in stage_cols if c not in data.fovs.columns]
-        if absent:
-            raise ValueError(f"stage columns missing from the FOV table: {absent}")
+    _check_columns(data, label_col, stage_cols)
     trace = [c for c in (*_TRACE, *(stage_cols or ())) if c in data.fovs.columns]
-    rows, skipped, neighbours_skipped, novelty_skipped, small = [], [], [], [], []
-    uninformative: list[dict] = []
-    null: list[dict] = []
-    checked: set[str] = set()
-    n_fovs = n_judged = 0
+    reasons = _Reasons(
+        feature_cols=feature_cols,
+        summaries=summaries,
+        novelty=novelty,
+        novelty_cols=novelty_cols,
+        label_col=label_col,
+        influence_threshold=influence_threshold,
+        influence_spread=influence_spread,
+        count_ratio=count_ratio,
+        stage_cols=stage_cols,
+        stage_unit=stage_unit,
+        n_neighbours=n_neighbours,
+        neighbour_threshold=neighbour_threshold,
+    )
+    gathered = _Gathered()
+    rows = []
     for group, both in iter_analysis_groups(data):
-        n_fovs += len(both.fovs)
+        gathered.n_fovs += len(both.fovs)
         group_data = both.with_tables(feature_cols=tuple(feature_cols))
-        found = []
-        if novelty is not None:
-            judged = both.with_tables(feature_cols=tuple(novelty_cols))
-            before = len(novelty_skipped) + len(uninformative)
-            found += _novel(
-                judged, novelty, where(group), novelty_skipped, label_col, uninformative, null
-            )
-            if len(novelty_skipped) + len(uninformative) == before:
-                checked.add("new state")
-                n_judged += len(both.fovs)
-        if summaries:
-            influential, any_checked = _influence(
-                group_data,
-                summaries,
-                float(influence_threshold),
-                where(group),
-                skipped,
-                small,
-                None if influence_spread is None else float(influence_spread),
-            )
-            found += influential
-            if any_checked:
-                checked.add("influence")
-        if count_ratio is not None:
-            found += _counts(group_data, float(count_ratio))
-            checked.add("count")
-        if stage_cols is not None:
-            why = stage_skipped(group_data.fovs, *stage_cols, n_neighbours)
-            if why is not None:
-                neighbours_skipped.append({"group": where(group), "reason": why})
-            else:
-                checked.add("neighbours")
-            found += neighbour_rows(
-                group_data,
-                *stage_cols,
-                n_neighbours,
-                float(neighbour_threshold),
-                stage_unit,
-            )
-        for entry in (*skipped, *neighbours_skipped, *novelty_skipped, *uninformative, *small):
-            entry.setdefault("label", group_label(group))  # the group as the summaries name it
+        found = _group_found(reasons, gathered, group, both, group_data)
+        gathered.label(group)
         rows += field_rows(group, group_data, found, trace)
-    settings = {
+    settings = _inspection_settings(reasons, data, trace, gathered)
+    return InspectionResult(pd.DataFrame(rows), tuple(data.group_cols), settings)
+
+
+def _group_found(
+    reasons: _Reasons,
+    gathered: _Gathered,
+    group: dict[str, Any],
+    both: ValidatedInput,
+    group_data: ValidatedInput,
+) -> list[dict]:
+    """Every reason asked for, in one group: ``both`` holds every column inspected,
+    ``group_data`` the ``feature_cols`` alone."""
+    found = []
+    if reasons.novelty is not None:
+        found += _new_state_found(
+            both, reasons.novelty, reasons.novelty_cols, reasons.label_col, where(group), gathered
+        )
+    if reasons.summaries:
+        spread = reasons.influence_spread
+        influential, any_checked = _influence(
+            group_data,
+            reasons.summaries,
+            float(reasons.influence_threshold),
+            where(group),
+            gathered.skipped,
+            gathered.small,
+            None if spread is None else float(spread),
+        )
+        found += influential
+        if any_checked:
+            gathered.checked.add("influence")
+    if reasons.count_ratio is not None:
+        found += _counts(group_data, float(reasons.count_ratio))
+        gathered.checked.add("count")
+    if reasons.stage_cols is not None:
+        found += _neighbour_found(
+            group_data,
+            reasons.stage_cols,
+            reasons.n_neighbours,
+            reasons.neighbour_threshold,
+            reasons.stage_unit,
+            where(group),
+            gathered,
+        )
+    return found
+
+
+def _inspection_settings(
+    reasons: _Reasons, data: ValidatedInput, trace: list[str], gathered: _Gathered
+) -> dict[str, Any]:
+    """The inspection's settings: the reasons asked for, and what the groups gathered."""
+    novelty, spread, ratio = reasons.novelty, reasons.influence_spread, reasons.count_ratio
+    return {
         ACQUISITION: acquisition_identity(data),
-        "summaries": [{"feature": s.feature, "statistic": s.statistic} for s in summaries],
+        "summaries": [{"feature": s.feature, "statistic": s.statistic} for s in reasons.summaries],
         "novelty": None if novelty is None else dict(novelty.parameters),
-        "novelty_cols": None if novelty is None else novelty_cols,
+        "novelty_cols": None if novelty is None else reasons.novelty_cols,
         "novelty_definition": None
         if novelty is None
-        else novelty_definition(novelty, novelty_cols),
-        "influence_threshold": float(influence_threshold),
-        "influence_spread": None if influence_spread is None else float(influence_spread),
-        "count_ratio": None if count_ratio is None else float(count_ratio),
-        "stage_cols": None if stage_cols is None else list(stage_cols),
-        "n_neighbours": n_neighbours,
-        "neighbour_threshold": float(neighbour_threshold),
+        else novelty_definition(novelty, reasons.novelty_cols),
+        "influence_threshold": float(reasons.influence_threshold),
+        "influence_spread": None if spread is None else float(spread),
+        "count_ratio": None if ratio is None else float(ratio),
+        "stage_cols": None if reasons.stage_cols is None else list(reasons.stage_cols),
+        "n_neighbours": reasons.n_neighbours,
+        "neighbour_threshold": float(reasons.neighbour_threshold),
         "fov_key": list(data.fov_key),
         "trace": trace,
-        "skipped_summaries": skipped,
-        "skipped_neighbours": neighbours_skipped,
-        "skipped_novelty": novelty_skipped,
+        "skipped_summaries": gathered.skipped,
+        "skipped_neighbours": gathered.neighbours_skipped,
+        "skipped_novelty": gathered.novelty_skipped,
         # Groups where the definition of new is not informative at their size, and each
         # judged group's fields and null rate (owner, 2026-10-06, audit 10).
-        "uninformative_novelty": uninformative,
-        "novelty_null": null,
+        "uninformative_novelty": gathered.uninformative,
+        "novelty_null": gathered.null,
         # The groups too small to judge a field's influence in (owner, 2026-10-05).
-        "skipped_small": small,
+        "skipped_small": gathered.small,
         # The reasons judged in at least one group, in the order of REASONS.
-        "checked": [reason for reason in REASONS if reason in checked],
-        "n_fovs": n_fovs,
+        "checked": [reason for reason in REASONS if reason in gathered.checked],
+        "n_fovs": gathered.n_fovs,
         # The fields of the groups where new states were looked for (None without novelty).
-        "n_fovs_judged": None if novelty is None else n_judged,
+        "n_fovs_judged": None if novelty is None else gathered.n_judged,
     }
-    return InspectionResult(pd.DataFrame(rows), tuple(data.group_cols), settings)
 
 
 __all__ = [

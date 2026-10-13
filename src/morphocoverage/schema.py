@@ -400,27 +400,9 @@ def _validate_input_tables(
     ``fovs`` the FOV table is rebuilt from the observations, with a warning
     (``MissingFovTableWarning``) and ``fovs_from_observations=True``.
     """
-    if not isinstance(objects, pd.DataFrame):
-        raise TypeError("objects must be a pandas DataFrame")
-    if fovs is not None and not isinstance(fovs, pd.DataFrame):
-        raise TypeError("fovs must be a pandas DataFrame when provided")
-    if feature_cols is None:
-        raise TypeError("feature_cols is required: name the phenotype columns explicitly")
-    # The former name of the biological repeat, read as the new one (``_former_repeat``).
-    former = Reader()
-    objects, fovs = former.table(objects, "objects"), former.table(fovs, "fovs")
-    group_cols = former.columns(group_cols, "group_cols")
-    fov_col = former.column(fov_col, "fov_col")
-    former.warn()
-    feature_cols = column_names(feature_cols, "feature_cols")
-    group_cols = column_names(group_cols, "group_cols")
-    for table_name, table in (("objects", objects), ("fovs", fovs)):
-        repeated = [] if table is None else table.columns[table.columns.duplicated()].unique()
-        if len(repeated):
-            raise ValueError(
-                f"{table_name} has more than one column named {list(repeated)}; "
-                "give every column its own name"
-            )
+    objects, fovs, feature_cols, group_cols, fov_col = _read_arguments(
+        objects, fovs, feature_cols, group_cols, fov_col
+    )
     observation_unit, unit_declared = resolve_observation_unit(observation_unit)
     objects = unambiguous_index(objects)
     fovs = None if fovs is None else unambiguous_index(fovs)
@@ -429,30 +411,10 @@ def _validate_input_tables(
     objects, fovs = drop_empty_optional_columns(objects, fovs, explicit_columns)
     check_canonical_spellings(objects, fovs, explicit_columns)
     resolved_fov_col = resolve_fov_col(objects, fovs, fov_col)
-    metadata_to_attach = list(MORPHOBRICKS_GROUP_COLUMNS)
-    if group_cols is not None:
-        metadata_to_attach.extend(
-            column for column in group_cols if column not in metadata_to_attach
-        )
-    _check_hashable_identity(objects, fovs, [resolved_fov_col, *metadata_to_attach])
-    objects = _attach_fov_metadata(objects, fovs, resolved_fov_col, metadata_to_attach)
-    resolved_group_cols = resolve_group_cols(objects, fovs, group_cols)
-    identity_cols = resolve_identity_cols(objects, fovs, resolved_group_cols, resolved_fov_col)
-    fov_key = (*identity_cols, resolved_fov_col)
-
-    _check_column_roles(feature_cols, identity_cols, resolved_fov_col)
-    _require_columns(objects, [*fov_key, *feature_cols], "objects")
-    # Missing identifiers first: the plane rule would otherwise name only their symptom.
-    _check_identity_values(objects, fov_key)
-    _check_within_fov_axes(
-        objects, fov_key, feature_cols, fov_col_was_chosen=fov_col is None, fovs=fovs
+    objects, resolved_group_cols, fov_key = _field_identity(
+        objects, fovs, group_cols, resolved_fov_col
     )
-    _check_positions_within_fields(
-        objects, fov_key, feature_cols, fov_col_was_chosen=fov_col is None
-    )
-    _check_planes_within_fields(objects, fov_key, feature_cols, observation_unit)
-    _check_feature_values(objects, feature_cols)
-    warn_invalid_rows(objects, [*fov_key, *feature_cols], caller_stacklevel() + 1)
+    _check_rows(objects, fovs, feature_cols, fov_key, fov_col is None, observation_unit)
     validated_fovs = _validated_fov_table(objects, fovs, fov_key)
     if fovs is None:
         warnings.warn(
@@ -476,6 +438,85 @@ def _validate_input_tables(
         observation_unit_declared=unit_declared,
         fovs_from_observations=fovs is None,
     )
+
+
+def _read_arguments(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    feature_cols: Sequence[str],
+    group_cols: Sequence[str] | None,
+    fov_col: str | None,
+) -> tuple[pd.DataFrame, pd.DataFrame | None, Any, Any, str | None]:
+    """The tables checked and read with the former name ``repeat`` as the new one, the column
+    names read once; ``TypeError``/``ValueError`` for tables or names that cannot be read."""
+    if not isinstance(objects, pd.DataFrame):
+        raise TypeError("objects must be a pandas DataFrame")
+    if fovs is not None and not isinstance(fovs, pd.DataFrame):
+        raise TypeError("fovs must be a pandas DataFrame when provided")
+    if feature_cols is None:
+        raise TypeError("feature_cols is required: name the phenotype columns explicitly")
+    # The former name of the biological repeat, read as the new one (``_former_repeat``).
+    former = Reader()
+    objects, fovs = former.table(objects, "objects"), former.table(fovs, "fovs")
+    group_cols = former.columns(group_cols, "group_cols")
+    fov_col = former.column(fov_col, "fov_col")
+    former.warn()
+    feature_cols = column_names(feature_cols, "feature_cols")
+    group_cols = column_names(group_cols, "group_cols")
+    for table_name, table in (("objects", objects), ("fovs", fovs)):
+        repeated = [] if table is None else table.columns[table.columns.duplicated()].unique()
+        if len(repeated):
+            raise ValueError(
+                f"{table_name} has more than one column named {list(repeated)}; "
+                "give every column its own name"
+            )
+    return objects, fovs, feature_cols, group_cols, fov_col
+
+
+def _field_identity(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    group_cols: Sequence[str] | None,
+    resolved_fov_col: str,
+) -> tuple[pd.DataFrame, Any, tuple[str, ...]]:
+    """The observations with the FOV table's group columns attached, the analysis groups and
+    the field key (the identity columns, then the field identifier)."""
+    metadata_to_attach = list(MORPHOBRICKS_GROUP_COLUMNS)
+    if group_cols is not None:
+        metadata_to_attach.extend(
+            column for column in group_cols if column not in metadata_to_attach
+        )
+    _check_hashable_identity(objects, fovs, [resolved_fov_col, *metadata_to_attach])
+    objects = _attach_fov_metadata(objects, fovs, resolved_fov_col, metadata_to_attach)
+    resolved_group_cols = resolve_group_cols(objects, fovs, group_cols)
+    identity_cols = resolve_identity_cols(objects, fovs, resolved_group_cols, resolved_fov_col)
+    return objects, resolved_group_cols, (*identity_cols, resolved_fov_col)
+
+
+def _check_rows(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    feature_cols: Any,
+    fov_key: tuple[str, ...],
+    fov_col_was_chosen: bool,
+    observation_unit: str,
+) -> None:
+    """Each column one role, every column present, the identity complete, planes neither
+    fields nor observations, real feature values; invalid rows warned about."""
+    identity_cols, resolved_fov_col = fov_key[:-1], fov_key[-1]
+    _check_column_roles(feature_cols, identity_cols, resolved_fov_col)
+    _require_columns(objects, [*fov_key, *feature_cols], "objects")
+    # Missing identifiers first: the plane rule would otherwise name only their symptom.
+    _check_identity_values(objects, fov_key)
+    _check_within_fov_axes(
+        objects, fov_key, feature_cols, fov_col_was_chosen=fov_col_was_chosen, fovs=fovs
+    )
+    _check_positions_within_fields(
+        objects, fov_key, feature_cols, fov_col_was_chosen=fov_col_was_chosen
+    )
+    _check_planes_within_fields(objects, fov_key, feature_cols, observation_unit)
+    _check_feature_values(objects, feature_cols)
+    warn_invalid_rows(objects, [*fov_key, *feature_cols], caller_stacklevel() + 1)
 
 
 class MissingFovTableWarning(UserWarning):

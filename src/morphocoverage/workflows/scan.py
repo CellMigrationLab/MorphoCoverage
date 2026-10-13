@@ -33,8 +33,8 @@ from __future__ import annotations
 import re
 import warnings
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
-from typing import Any, TypeVar
+from dataclasses import dataclass, field, replace
+from typing import Any, NamedTuple, TypeVar
 
 import pandas as pd
 
@@ -55,6 +55,7 @@ from ..metadata import (
     sorted_labels,
 )
 from ..sampling_unit.contrast_cells import IMBALANCE, sparse
+from ._scan_parts import declared_controls, observation_layout, planes, tagged_tables, targets
 from .setup import Setup
 
 T = TypeVar("T")
@@ -355,29 +356,10 @@ def _design(
     keys = [c for c, has in ((CONDITION_COLUMN, has_condition), (REPEAT_COLUMN, has_repeat)) if has]
     design["technical"] = _technical(objects, keys)
     design["repeat_sets"] = _repeat_sets(groups, conditions) if has_condition and has_repeat else []
-    planes = {}
-    for axis in WITHIN_FOV_METADATA_COLUMNS:
-        if column_has_values(objects, axis) and fov_key:
-            per = objects.groupby(fov_key, sort=False, dropna=False)[axis].nunique()
-            if int(per.max()) > 1:
-                planes[axis] = (int(per.min()), int(per.max()))
-    design["planes"] = planes
-    if column_has_values(objects, TARGET_COLUMN) and has_condition:
-        targets = objects.groupby(TARGET_COLUMN, sort=False)[CONDITION_COLUMN].agg(
-            lambda values: sorted_labels(values)
-        )
-        design["targets"] = {t: targets[t] for t in sorted_labels(targets.index)}
-    else:
-        design["targets"] = None
+    design["planes"] = planes(objects, fov_key)
+    design["targets"] = targets(objects, has_condition)
     design["reagent_groups"] = reagent_groups(conditions, design["control_guess"])
-    if has_condition and has_repeat:
-        layout = objects.groupby([CONDITION_COLUMN, REPEAT_COLUMN], sort=False).size().unstack()
-        layout = layout.reindex(index=conditions, columns=design["repeats"])
-    elif has_condition:
-        layout = objects.groupby(CONDITION_COLUMN, sort=False).size().reindex(conditions)
-        layout = layout.to_frame("observations")
-    else:
-        layout = pd.DataFrame()
+    layout = observation_layout(objects, conditions, design["repeats"], has_condition, has_repeat)
     if listed and not layout.empty:
         # A condition and repeat whose fields are all empty holds 0 observations, not none.
         layout = layout.where(_layout(fovs, layout).isna(), layout.fillna(0))
@@ -470,13 +452,67 @@ def scan_design(
     (control,) = read_former(control=control)
     objects = objects.copy()
     control_declared = control is not None
-    control_value = dict(control).get(CONDITION_COLUMN) if control else None
-    # Several controls in Setup's form (owner, 2026-10-05): checked as their pool, the first
-    # declared drawn first, as the report does (audit 8B).
-    controls = list(control_value) if isinstance(control_value, Mapping) else []
-    checked_control = {CONDITION_COLUMN: tuple(controls)} if controls else control
-    control_value = controls[0] if controls else control_value
+    controls, checked_control, control_value = declared_controls(control)
+    known = _fields(objects, fovs, fov_col)
+    fovs = known.fovs
+    features_declared = feature_cols is not None
+    taken = {*known.key, *known.groups}
+    features = list(feature_cols) if features_declared else _feature_candidates(objects, taken)
+    objects, tables, refused = with_tables(objects, fovs, feature_tables, known.column, known.added)
+    # An explainable table's columns are features (owner, 2026-10-06).
+    explainable, others = tagged_tables(tables)
+    features += [c for cols in explainable.values() for c in cols if c not in features]
+    # Without explainable features, the other tables' columns (owner, 2026-10-06).
+    checked = features or [c for cols in others.values() for c in cols]
+    data_check = _quiet(
+        check_tables,
+        objects,
+        fovs,
+        feature_cols=checked,
+        fov_col=known.column,
+        observation_unit=observation_unit,
+        control=checked_control,
+    )
+    integrity = None
+    if data_check.ok and checked:
+        # On each feature table apart, the union said (owner, 2026-10-06).
+        read = copy_tables(features, explainable, others)
+        integrity = _copy_checks(objects, fovs, read, known.column, observation_unit)
+    # A FOV table that passed the data check lists every field acquired, empty ones included.
+    listed = fovs if known.given and data_check.ok else None
+    design, layout = _design(objects, known.key, control_value, control_declared, listed)
+    design["controls"] = controls or ([control_value] if control_declared else [])
+    design["balance"] = _balance(layout, design["repeats"])
+    design["constant"] = _constant(objects, features) if data_check.ok and features_declared else []
+    design["stage"], design["order"] = _stage_and_order(objects, fovs)
+    settings = _settings(features, features_declared, known, observation_unit, control)
+    settings.update({"feature_tables": others or None, "explainable_tables": explainable or None})
+    design["feature_tables"] = tables.lines(tags=True) if tables else []  # with their tags
+    scan = DesignScan(design, layout, (), (), (), data_check, integrity, objects, fovs, settings)
+    return replace(
+        scan,
+        findings=(*findings(scan), *refused),
+        suggestions=tuple(suggestions(scan)),
+        questions=tuple(questions(scan)),
+    )
 
+
+class _Fields(NamedTuple):
+    """How the scan identifies the fields: the identifier ``column`` (``added`` when the
+    tables had none), the group columns, the field ``key`` (groups, then the identifier) and
+    the FOV table (``given``, or built from the objects)."""
+
+    column: str
+    added: bool
+    groups: list[str]
+    key: list[str]
+    fovs: pd.DataFrame
+    given: bool
+
+
+def _fields(objects: pd.DataFrame, fovs: pd.DataFrame | None, fov_col: str | None) -> _Fields:
+    """The fields of the tables; without an identifier, each row its own image
+    (``ADDED_FOV_COLUMN``, added to ``objects`` in place) and no FOV table given."""
     found_fov = _fov_column(objects, fovs, fov_col)
     added_fov = found_fov is None
     if added_fov:
@@ -492,86 +528,57 @@ def scan_design(
     fovs_given = fovs is not None
     if not fovs_given:
         fovs = objects[fov_key].drop_duplicates().reset_index(drop=True)
+    return _Fields(found_fov, added_fov, groups, fov_key, fovs, fovs_given)
 
-    features_declared = feature_cols is not None
-    taken = {*fov_key, *groups}
-    features = list(feature_cols) if features_declared else _feature_candidates(objects, taken)
-    objects, tables, refused = with_tables(objects, fovs, feature_tables, found_fov, added_fov)
-    # An explainable table's columns are features (owner, 2026-10-06).
-    explainable = tables.explainable if tables else {}
-    features += [c for cols in explainable.values() for c in cols if c not in features]
-    others = tables.other if tables else {}
-    # Without explainable features, the other tables' columns (owner, 2026-10-06).
-    checked = features or [c for cols in others.values() for c in cols]
-    data_check = _quiet(
-        check_tables,
+
+def _copy_checks(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    tables: dict[str, Any],
+    fov_col: str,
+    observation_unit: str | None,
+) -> IntegrityResult:
+    """The copy checks on each feature table apart, their warnings caught."""
+    return _quiet(
+        integrity_by_table,
         objects,
         fovs,
-        feature_cols=checked,
-        fov_col=found_fov,
+        tables=tables,
+        fov_col=fov_col,
         observation_unit=observation_unit,
-        control=checked_control,
     )
-    integrity = None
-    if data_check.ok and checked:
-        # On each feature table apart, the union said (owner, 2026-10-06).
-        integrity = _quiet(
-            integrity_by_table,
-            objects,
-            fovs,
-            tables=copy_tables(features, explainable, others),
-            fov_col=found_fov,
-            observation_unit=observation_unit,
-        )
-    # A FOV table that passed the data check lists every field acquired, empty ones included.
-    listed = fovs if fovs_given and data_check.ok else None
-    design, layout = _design(objects, fov_key, control_value, control_declared, listed)
-    design["controls"] = controls or ([control_value] if control_declared else [])
-    design["balance"] = _balance(layout, design["repeats"])
-    design["constant"] = _constant(objects, features) if data_check.ok and features_declared else []
+
+
+def _stage_and_order(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> tuple[list[str], bool]:
+    """The stage-coordinate columns of either table, and whether one records the order."""
     columns = [*objects.columns, *(fovs.columns if fovs is not None else ())]
-    design["stage"] = list(dict.fromkeys(str(c) for c in columns if _STAGE.search(str(c))))
-    design["order"] = "acquisition_order" in objects.columns or (
+    stage = list(dict.fromkeys(str(c) for c in columns if _STAGE.search(str(c))))
+    order = "acquisition_order" in objects.columns or (
         fovs is not None and "acquisition_order" in fovs.columns
     )
-    settings = {
+    return stage, order
+
+
+def _settings(
+    features: list[str],
+    features_declared: bool,
+    known: _Fields,
+    observation_unit: str | None,
+    control: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """The scan's settings: the features, the fields, the unit and the control, each with
+    whether it was declared (the feature tables are added by the caller)."""
+    return {
         "feature_cols": features,
         "features_declared": features_declared,
-        "fov_col": found_fov,
-        "fov_added": added_fov,
-        "fovs_given": fovs_given,
-        "group_cols": groups,
+        "fov_col": known.column,
+        "fov_added": known.added,
+        "fovs_given": known.given,
+        "group_cols": known.groups,
         "observation_unit": observation_unit,
         "control": dict(control) if control else None,
-        "control_declared": control_declared,
-        "feature_tables": others or None,
-        "explainable_tables": explainable or None,
+        "control_declared": control is not None,
     }
-    design["feature_tables"] = tables.lines(tags=True) if tables else []  # with their tags
-    scan = DesignScan(
-        design=design,
-        layout=layout,
-        findings=(),
-        suggestions=(),
-        questions=(),
-        data_check=data_check,
-        integrity=integrity,
-        objects=objects,
-        fovs=fovs,
-        settings=settings,
-    )
-    return DesignScan(
-        design=design,
-        layout=layout,
-        findings=(*findings(scan), *refused),
-        suggestions=tuple(suggestions(scan)),
-        questions=tuple(questions(scan)),
-        data_check=data_check,
-        integrity=integrity,
-        objects=objects,
-        fovs=fovs,
-        settings=settings,
-    )
 
 
 __all__ = ["DesignScan", "Finding", "Question", "reagent_groups", "scan_design"]

@@ -51,27 +51,24 @@ from .._checks import as_count, check_column, check_flag, check_seed, is_share
 from .._frozen import owned
 from .._parallel import check_n_jobs, map_units
 from .._seeds import group_identity
-from .._stage_coordinates import stage_matrix, stage_names
 from .._style import rule_label
 from ..benchmark import AcquisitionOrder, permuted_fovs
 from ..data_check import validate_input_tables
-from ..evaluator import iter_analysis_groups
 from ..metadata import column_names
 from ..objectives import ObjectiveConfig
 from ..schema import ValidatedInput
 from ..sequential import (
     _Acquisition,
-    _check_order_values,
     _in_acquisition_order,
     _interleave,
-    _replay_strategies,
     _strategy_units,
 )
 from ..strategies.base import SamplingStrategy
-from ._run_identity import RUN_FINGERPRINT, run_fingerprint
+from ._replay_parts import _check_tables, _decide, _replayable, _score
+from ._run_identity import RUN_FINGERPRINT
 from .criteria import OutcomeCriterion, checked_criteria
-from .reliability import _reservoir_split, _skip_reason
-from .stage import dispersed_order, stage_travel
+from .reliability import _reservoir_split
+from .stage import dispersed_order
 
 DEFAULT_PERMUTATIONS = 10
 
@@ -239,91 +236,6 @@ def _runs(
             yield where, stream, ordered, reservoir
 
 
-def _decide(
-    where: Mapping[str, Any],
-    group: Mapping[str, Any],
-    acquisition: _Acquisition | tuple,
-    strategies: Sequence[SamplingStrategy],
-    objective: ObjectiveConfig,
-    min_fovs: int,
-    incremental: bool,
-    keep_results: bool = False,
-) -> list[tuple[int, dict[str, Any]]]:
-    """``(step, row)`` of every strategy's decision after every prefix of one run.
-
-    With ``keep_results`` each row also holds the ``StrategyResult`` (without
-    timings), so thresholds can be swept afterwards with ``redecide``.
-    """
-    if not isinstance(acquisition, _Acquisition):
-        acquisition = _Acquisition(*acquisition)
-    rows = []
-    for step, result in _replay_strategies(
-        strategies,
-        group,
-        acquisition,
-        objective=objective,
-        min_fovs=min_fovs,
-        incremental=incremental,
-    ):
-        # What the rule itself said (its own components), not the objective's verdict.
-        decision = None if result.rule_decision is None else result.rule_decision.value
-        row = {
-            **where,
-            "strategy": result.strategy,
-            "config_id": result.config_id,
-            "fovs": step,
-            "decision": decision,
-        }
-        if keep_results:
-            row["result"] = result.without_timing()
-        rows.append((step, row))
-    return rows
-
-
-def _score(
-    where: Mapping[str, Any],
-    acquisition: _Acquisition | tuple,
-    reservoir: ValidatedInput,
-    criteria: Sequence[OutcomeCriterion],
-    stage_cols: Sequence[str] | None,
-) -> tuple[list[dict], list[dict], list[dict]]:
-    """Outcomes, stream sizes and stage path of one run; independent of every strategy."""
-    if not isinstance(acquisition, _Acquisition):
-        acquisition = _Acquisition(*acquisition)
-    ordered = acquisition.ordered
-    fingerprint = run_fingerprint(where, ordered, reservoir.fovs, acquisition.data.fov_key)
-    streams = [
-        {
-            **where,
-            "stream_fovs": acquisition.n_fovs,
-            "reservoir_fovs": len(reservoir.fovs),
-            RUN_FINGERPRINT: fingerprint,
-        }
-    ]
-    paths = []
-    if stage_cols is not None:
-        travel = stage_travel(ordered[list(stage_cols)].to_numpy(dtype=float))
-        paths = [{**where, "fovs": i + 1, "travel": float(t)} for i, t in enumerate(travel)]
-    outcomes = []
-    # A fitted outcome (a wide table's components) is fitted on the stream, never on the
-    # held-back fields that judge it (owner, 2026-10-06).
-    criteria = [criterion.trained(acquisition.data) for criterion in criteria]
-    for step in range(1, acquisition.n_fovs + 1):
-        prefix = acquisition.prefix(step)
-        for criterion in criteria:
-            status, value = criterion.assess(reservoir, prefix)
-            outcomes.append(
-                {
-                    **where,
-                    "fovs": step,
-                    "criterion": criterion.name,
-                    "value": value,
-                    "status": status.value,
-                }
-            )
-    return outcomes, streams, paths
-
-
 def _replay_group(
     group: Mapping[str, Any],
     group_data: ValidatedInput,
@@ -439,15 +351,7 @@ def replay_acquisitions(
         group_cols=group_cols,
         observation_unit=observation_unit,
     )
-    if acquisition_order_col is not None:
-        if acquisition_order_col not in data.fovs.columns:
-            raise ValueError(f"fovs is missing required columns: {[acquisition_order_col]}")
-        _check_order_values(data.fovs, acquisition_order_col)
-    if stage_cols is not None:
-        stage_cols = stage_names(stage_cols)
-        stage_matrix(data.fovs, stage_cols)  # real, finite, complete: before any order is made
-        if any(c in feature_cols for c in stage_cols):
-            raise ValueError("stage coordinates cannot also be phenotype features")
+    stage_cols = _check_tables(data, feature_cols, acquisition_order_col, stage_cols)
     split_settings = (float(reservoir_fraction), block_col, n_splits, random_state)
     # Units are as coarse as keeps every worker busy, since each sends its data
     # once: whole groups; else one unit per run (group, split and order) and
@@ -458,33 +362,82 @@ def replay_acquisitions(
     groups, skipped = _replayable(data, float(reservoir_fraction), block_col)
     settings_of_run = (orders, split_settings, acquisition_order_col, stage_cols)
     replay_settings = (objective, min_fovs, incremental, keep_results)
-    decisions, outcomes, streams, paths = [], [], [], []
     if len(groups) >= check_n_jobs(n_jobs):
-        jobs = [
-            ("group", group, group_data, *settings_of_run, strategies, criteria, *replay_settings)
-            for group, group_data in groups
-        ]
-        for part in map_units(_run_unit, jobs, n_jobs):
-            for collected, rows in zip((decisions, outcomes, streams, paths), part, strict=True):
-                collected += rows
+        tables = _by_group(groups, settings_of_run, strategies, criteria, replay_settings, n_jobs)
     else:
-        units = _strategy_units(strategies, n_jobs, len(groups) * n_splits * len(orders))
-        jobs, layout = [], []
-        for group, group_data in groups:
-            for where, stream, ordered, reservoir in _runs(group, group_data, *settings_of_run):
-                # A run sent to a worker is built there, from the stream and its order.
-                run = (stream, ordered)
-                jobs += [("decide", where, group, run, part, *replay_settings) for part in units]
-                jobs.append(("score", where, run, reservoir, criteria, stage_cols))
-                layout.append(len(units))
-        parts = iter(map_units(_run_unit, jobs, n_jobs))
-        for n_units in layout:
-            decided = [next(parts) for _ in range(n_units)]
-            decisions += [row for _, row in _interleave(decided)]
-            for collected, rows in zip((outcomes, streams, paths), next(parts), strict=True):
-                collected += rows
+        tables = _by_run(groups, settings_of_run, strategies, criteria, replay_settings, n_jobs)
     keys = list(data.group_cols)
-    settings = {
+    settings = _replay_settings(
+        data, criteria, strategies, objective, settings_of_run, min_fovs, stage_unit
+    )
+    return _replay_result(keys, tables, skipped, settings, keep_results)
+
+
+def _by_group(
+    groups: list[tuple[dict[str, Any], ValidatedInput]],
+    settings_of_run: tuple,
+    strategies: list[SamplingStrategy],
+    criteria: list[OutcomeCriterion],
+    replay_settings: tuple[ObjectiveConfig, int, bool, bool],
+    n_jobs: int,
+) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    """Decisions, outcomes, streams and stage paths, one unit of work per whole group."""
+    decisions, outcomes, streams, paths = [], [], [], []
+    jobs = [
+        ("group", group, group_data, *settings_of_run, strategies, criteria, *replay_settings)
+        for group, group_data in groups
+    ]
+    for part in map_units(_run_unit, jobs, n_jobs):
+        for collected, rows in zip((decisions, outcomes, streams, paths), part, strict=True):
+            collected += rows
+    return decisions, outcomes, streams, paths
+
+
+def _by_run(
+    groups: list[tuple[dict[str, Any], ValidatedInput]],
+    settings_of_run: tuple,
+    strategies: list[SamplingStrategy],
+    criteria: list[OutcomeCriterion],
+    replay_settings: tuple[ObjectiveConfig, int, bool, bool],
+    n_jobs: int,
+) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    """Decisions, outcomes, streams and stage paths, one unit of work per run (group, split
+    and order) and one scoring its outcomes, and every strategy apart when runs are fewer
+    than workers too; decisions put back in the order of one joint replay."""
+    orders, split_settings, _, stage_cols = settings_of_run
+    n_splits = split_settings[2]
+    decisions, outcomes, streams, paths = [], [], [], []
+    units = _strategy_units(strategies, n_jobs, len(groups) * n_splits * len(orders))
+    jobs, layout = [], []
+    for group, group_data in groups:
+        for where, stream, ordered, reservoir in _runs(group, group_data, *settings_of_run):
+            # A run sent to a worker is built there, from the stream and its order.
+            run = (stream, ordered)
+            jobs += [("decide", where, group, run, part, *replay_settings) for part in units]
+            jobs.append(("score", where, run, reservoir, criteria, stage_cols))
+            layout.append(len(units))
+    parts = iter(map_units(_run_unit, jobs, n_jobs))
+    for n_units in layout:
+        decided = [next(parts) for _ in range(n_units)]
+        decisions += [row for _, row in _interleave(decided)]
+        for collected, rows in zip((outcomes, streams, paths), next(parts), strict=True):
+            collected += rows
+    return decisions, outcomes, streams, paths
+
+
+def _replay_settings(
+    data: ValidatedInput,
+    criteria: list[OutcomeCriterion],
+    strategies: list[SamplingStrategy],
+    objective: ObjectiveConfig,
+    settings_of_run: tuple,
+    min_fovs: int,
+    stage_unit: str,
+) -> dict[str, Any]:
+    """The replay's settings, for provenance and the summaries."""
+    orders, split_settings, acquisition_order_col, stage_cols = settings_of_run
+    reservoir_fraction, block_col, n_splits, random_state = split_settings
+    return {
         ACQUISITION: acquisition_identity(data),
         "criteria": [c.parameters for c in criteria],
         "labels": {c.name: c.label for c in criteria},
@@ -506,6 +459,17 @@ def replay_acquisitions(
         "stage_cols": None if stage_cols is None else list(stage_cols),
         "stage_unit": stage_unit,
     }
+
+
+def _replay_result(
+    keys: list[str],
+    tables: tuple[list[dict], list[dict], list[dict], list[dict]],
+    skipped: list[dict],
+    settings: dict[str, Any],
+    keep_results: bool,
+) -> ReplayResult:
+    """The decisions, outcomes, streams and stage paths as tables, with explicit columns."""
+    decisions, outcomes, streams, paths = tables
     return ReplayResult(
         decisions=pd.DataFrame(
             decisions,
@@ -518,31 +482,6 @@ def replay_acquisitions(
         paths=pd.DataFrame(paths, columns=[*keys, *_RUN, "fovs", "travel"]),
         skipped=pd.DataFrame(skipped, columns=[*keys, "fovs", "reason"]),
     )
-
-
-def _replayable(
-    data: ValidatedInput, reservoir_fraction: float, block_col: str | None
-) -> tuple[list[tuple[dict[str, Any], ValidatedInput]], list[dict[str, Any]]]:
-    """The groups that can hold out a reservoir and keep a stream, and the others with why.
-
-    The skip rule of ``sampling_reliability`` (``reliability._skip_reason``):
-    a group with a single FOV (or block) cannot be split. It is skipped with
-    its reason rather than failing every other group; with no group left the
-    replay raises, since there would be nothing to report.
-    """
-    groups, skipped = [], []
-    for group, group_data in iter_analysis_groups(data):
-        reason = _skip_reason(group_data, reservoir_fraction, block_col)
-        if reason is None:
-            groups.append((group, group_data))
-        else:
-            skipped.append({**group, "fovs": len(group_data.fovs), "reason": reason})
-    if not groups:
-        raise ValueError(
-            f"no analysis group has two or more {'FOVs' if block_col is None else 'blocks'} "
-            f"to hold out a reservoir and keep a stream: {skipped[:3]}"
-        )
-    return groups, skipped
 
 
 __all__ = [

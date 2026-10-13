@@ -5,7 +5,8 @@ Each rule reads the tables, records problems on a ``Collector`` in plain words
 
 Shared-private: every ``_check_*`` rule, ``_attach``, ``_resolve_fov_col``,
 ``_resolve_groups``, ``_names`` and ``_tables``, used by ``data_check``; ``_loose``
-(labels that print alike) by ``retrospective.overview``.
+(labels that print alike) by ``retrospective.overview``. The feature-column rule is in
+``_feature_rules``.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ from ._data_problems import (  # noqa: F401  (re-exported)
     _names,
     _value,
 )
-from ._wording import count, percent
+from ._wording import count
 from .metadata import (
     EMPTY_MEANS_ABSENT,
     MORPHOBRICKS_FOV_CANDIDATES,
@@ -45,9 +46,6 @@ from .metadata import (
 )
 from .metadata import _tables as _linked_tables
 from .schema import (
-    PLANE_FEATURE_ADVICE,
-    feature_dtype_problem,
-    plane_features,
     unhashable_values,
 )
 
@@ -142,36 +140,46 @@ def _resolve_groups(
                 "Name each group column once.",
             )
     else:
-        groups = [
-            g
-            for g in MORPHOBRICKS_GROUP_COLUMNS
-            if g in objects.columns or (fovs is not None and g in fovs.columns)
-        ]
+        groups = [g for g in MORPHOBRICKS_GROUP_COLUMNS if _in_either(g, objects, fovs)]
     identity = list(groups) + [
         g
         for g in MORPHOBRICKS_GROUP_COLUMNS
-        if g not in groups
-        and g != fov_col
-        and (g in objects.columns or (fovs is not None and g in fovs.columns))
+        if g not in groups and g != fov_col and _in_either(g, objects, fovs)
     ]
     for column in identity:
-        in_objects = column in objects.columns
-        in_fovs = fovs is not None and column in fovs.columns
-        if not in_objects and not in_fovs:
-            c.error(
-                f"The group column {column!r} is in neither table.",
-                f"group_cols={list(group_cols or [])}.",
-                f"Add {column!r} to the FOV table, or leave it out of group_cols.",
-            )
-        elif in_objects and fovs is not None and not in_fovs:
-            # A named group column too: the validator requires every key column in the FOV table.
-            c.error(
-                f"{column!r} is in the observation table but not in the FOV table.",
-                f"observation table, column {column!r}.",
-                f"Add {column!r} to the FOV table too, so fields without observations keep their "
-                "group.",
-            )
+        _check_group_column(c, column, objects, fovs, group_cols)
     return groups, identity
+
+
+def _in_either(column: str, objects: pd.DataFrame, fovs: pd.DataFrame | None) -> bool:
+    """Whether the observation table or the FOV table holds ``column``."""
+    return column in objects.columns or (fovs is not None and column in fovs.columns)
+
+
+def _check_group_column(
+    c: Collector,
+    column: str,
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    group_cols: Sequence[str] | None,
+) -> None:
+    """A group column in some table, and in the FOV table when the observations hold it."""
+    in_objects = column in objects.columns
+    in_fovs = fovs is not None and column in fovs.columns
+    if not in_objects and not in_fovs:
+        c.error(
+            f"The group column {column!r} is in neither table.",
+            f"group_cols={list(group_cols or [])}.",
+            f"Add {column!r} to the FOV table, or leave it out of group_cols.",
+        )
+    elif in_objects and fovs is not None and not in_fovs:
+        # A named group column too: the validator requires every key column in the FOV table.
+        c.error(
+            f"{column!r} is in the observation table but not in the FOV table.",
+            f"observation table, column {column!r}.",
+            f"Add {column!r} to the FOV table too, so fields without observations keep their "
+            "group.",
+        )
 
 
 def _attach(
@@ -224,119 +232,6 @@ def _attach(
         enriched = enriched.merge(mapping, on=key, how="left").set_axis(enriched.index)
         enriched.attrs["attached"] = attached
     return enriched
-
-
-def _check_features(
-    c: Collector, objects: pd.DataFrame, feature_cols: Sequence[str], taken: set[str]
-) -> None:
-    """Feature columns: named, distinct, present, numeric, finite; missing values reported."""
-    if not feature_cols:
-        c.error(
-            "No feature column was named.",
-            "feature_cols names no column.",
-            "Name the numeric phenotype columns, e.g. feature_cols=['area'] (or Setup.readout).",
-        )
-        return
-    # Sorted as text: column names may mix strings and numbers.
-    duplicates = sorted(repeated_names(feature_cols), key=str)
-    if duplicates:
-        c.error(
-            "A feature column is named twice.",
-            f"feature_cols: {_names(duplicates)}.",
-            "Name each feature once.",
-        )
-    overlap = sorted(set(feature_cols) & taken, key=str)
-    if overlap:
-        c.error(
-            "A column is used both as a feature and as a group or field identifier.",
-            f"columns {_names(overlap)}.",
-            "Give each column one role: remove it from feature_cols or from group_cols/fov_col.",
-        )
-    planes = plane_features(feature_cols)
-    if planes:
-        c.error(
-            "A within-field coordinate is named as a feature.",
-            f"feature_cols: {_names(planes)}.",
-            PLANE_FEATURE_ADVICE[0].upper() + PLANE_FEATURE_ADVICE[1:] + ".",
-        )
-    missing = [f for f in dict.fromkeys(feature_cols) if f not in objects.columns]
-    if missing:
-        close = {f: _close_column(f, objects.columns) for f in missing}
-        hints = [f"{found!r} for {f!r}" for f, found in close.items() if found is not None]
-        c.error(
-            f"{count(len(missing), 'feature column')} named in feature_cols "
-            f"{'is' if len(missing) == 1 else 'are'} not in the observation table.",
-            f"missing: {_names(missing)}"
-            + (f"; the table has {', '.join(hints)}" if hints else "")
-            + ".",
-            "Check the spelling (spaces and case count), or add the columns to the observation "
-            "table.",
-        )
-    for feature in dict.fromkeys(feature_cols):
-        if feature not in objects.columns:
-            continue
-        values = objects[feature]
-        problem = feature_dtype_problem(values)
-        if problem == "complex":
-            c.error(
-                f"Feature {feature!r} holds complex numbers.",
-                f"observation table, column {feature!r}.",
-                "Keep one real number per feature: split it into its real and imaginary parts "
-                "(or its modulus and phase), each a feature of its own.",
-            )
-            continue
-        if problem is not None:
-            as_numbers = pd.to_numeric(values, errors="coerce")
-            bad = as_numbers.isna() & values.notna()
-            c.error(
-                f"Feature {feature!r} is not numeric.",
-                "observation table, "
-                + (
-                    _examples(objects, bad, [feature])
-                    if bad.any()
-                    else "column type (every value is a number, stored as text or objects)"
-                )
-                + ".",
-                "Convert the column to numbers (a decimal point, not a comma; empty cells for "
-                "missing values)"
-                + (
-                    "."
-                    if bad.any()
-                    else f", e.g. objects[{feature!r}] = pd.to_numeric(objects[{feature!r}])."
-                ),
-            )
-            continue
-        numbers = values.to_numpy(dtype=float, na_value=np.nan)
-        infinite = pd.Series(np.isinf(numbers), index=objects.index)
-        if infinite.any():
-            c.error(
-                f"Feature {feature!r} contains infinite values.",
-                f"observation table, {_examples(objects, infinite, [feature])}.",
-                "Replace infinite values by missing values (NaN) or fix their computation, for "
-                "example a division by zero.",
-            )
-        nan = pd.Series(np.isnan(numbers), index=objects.index)
-        if nan.any():
-            c.warning(
-                f"Feature {feature!r} is missing in {percent(nan.mean())} of observations.",
-                f"observation table, {_examples(objects, nan, [feature])}.",
-                "Missing values are kept and never imputed; check they are expected (for "
-                "example, a measurement that failed).",
-            )
-
-
-def _close_column(name: Any, columns: Sequence[Any]) -> Any | None:
-    """A column that differs from ``name`` only in case or surrounding whitespace.
-
-    ``None`` for a name that is not text (``7``): only text has case or spaces.
-    """
-    if not isinstance(name, str):
-        return None
-    target = name.strip().casefold()
-    for column in columns:
-        if isinstance(column, str) and column != name and column.strip().casefold() == target:
-            return column
-    return None
 
 
 def _loose(value: Any) -> str:

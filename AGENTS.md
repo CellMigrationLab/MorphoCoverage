@@ -220,8 +220,11 @@ src/morphocoverage/
     _integrity_match.py    # private: its matching at a stated precision, by sorting, with no loop over pairs of fields
     _integrity_text.py     # private: the integrity checks in words (IntegrityResult.summary), short and full
     _integrity_tables.py   # private: the integrity checks on each feature table apart, their union naming the table
+    _integrity_selection.py  # private: what the integrity checks compare (continuous features, informative rows, fields) and the log of their findings
     data_check.py          # check_tables: every data problem at once, where and how to fix it
+    _data_check_steps.py   # private: the steps of check_tables in order: tables, arguments, sizes, fields, the validator's own rules
     _data_rules.py         # private: the rules behind check_tables, one function per kind of problem
+    _feature_rules.py      # private: its feature-column rule: named once, one role, present, numeric, finite
     _copy_rules.py         # private: its copy rule: repeated rows, observations repeated within a field, labels twice in a field
     _data_problems.py      # private: the problems a data check reports (Problem, Collector) and their wording
     _input_traps.py        # private: tables that validate but are probably not meant: invalid rows, undeclared groups, unimaged wells
@@ -239,6 +242,7 @@ src/morphocoverage/
     distances.py           # pure two-sample distance primitives (energy, MMD, Fréchet, SW)
     transforms.py          # feature transforms fitted on the visible prefix only
     benchmark.py           # dataset roles, acquisition orders, one record per run
+    _benchmark_data.py     # private: a benchmark run's data: the dataset loaded and validated, its groups, streams and reservoirs, imaged area
     reservoir.py           # held-out evaluation reservoirs split by spatial block
     spatial.py             # spatial diagnostics: FOV semivariogram against stage distance
     bounds.py              # Clopper-Pearson bounds and intervals for probabilities from few FOVs
@@ -249,6 +253,7 @@ src/morphocoverage/
     _parallel.py           # private: worker pools behind n_jobs (map_units, worker_pool)
     _wording.py            # private: the one way to write percentages, rates, counts, fields, durations, groups
     _style.py              # private: the one text style: markers and Status, rule and group labels, tables, wrapping
+    _rule_names.py         # private: the readable names of the known stopping-rule families, for rule_label
     _fitted.py             # private: every summary fitted to 100 columns, a long line wrapped with its continuation lines
     _caveats.py            # private: the two kinds of caveat (cautions about these data, standing assumptions) and how a section states them
     _seeds.py              # private: per-group seeds (group_identity, group_seed, group_rng, split_seed) and group_key
@@ -261,6 +266,7 @@ src/morphocoverage/
     _checks.py             # private: integer and number checks that accept numpy types
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
+    _next_fov.py           # private: its question 2 per group: the chance of something new, the observations counted as new, the answers
     sufficiency_text.py    # the sentences of the sufficiency report (its answer columns)
     sufficiency_null.py    # question 2's guard: no chance of a new state where the definition of new is not informative at the group's size (audit A2)
     sufficiency_short.py   # its short summary: the rules in one table across groups, each caveat once
@@ -277,6 +283,7 @@ src/morphocoverage/
     plots_embedding.py     # the PCA biplot (the top features as arrows) and the UMAP, coloured by condition
     plots_pairwise.py      # every pair of conditions: signed d and the paired test, the panel under a plot
     _plots_text.py         # private: a plot's title (what is plotted, what the interval resamples), legend
+    _plots_clusters.py     # private: a plot's clusters: one drawn (points by technical repeat, summary, interval), their units
     _palette.py            # private: the colour per condition, technical-repeat shapes, axis style
     _figure_layout.py      # private: a static figure's lettered panels and its legend at the bottom
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
@@ -287,6 +294,7 @@ src/morphocoverage/
         reliability_text.py  # its sentences
         effect_preservation.py  # k fields a side against held-back fields: is each repeat's difference from the control kept?
         replay.py          # replayed orders against a fixed reservoir: decisions and outcomes
+        _replay_parts.py   # private: one run's decisions and scores, the groups that can be replayed, the checks of the tables
         calibration.py     # stopping-rule calibration: how often a rule's stop was premature
         adequacy.py        # first and sustained apparent and realized adequacy points
         adequacy_text.py   # its words: "what did the extra fields buy?", short and full
@@ -297,10 +305,12 @@ src/morphocoverage/
         frontier_text.py   # its sentences
         inspection.py      # inspect-these-fields: one traceable reason per FOV and line
         inspection_text.py # its words: the fields in a table (short), every reason per group (full)
+        _field_reasons.py  # private: its count and new-state reasons, and what its groups gather beside their fields
         _stage_neighbours.py  # private: its stage-neighbour reason (a field unlike its nearest fields on the stage)
         _run_identity.py   # private: the typed fingerprint of one replayed run (stream, reservoir, labels), required to score a frontier family
         controls.py        # representation controls: detection and false-alarm rates
         controls_text.py   # their sentences
+        _control_draws.py  # private: the controls' checks one stratum at a time: draws, leave one field out, planted objects
         effort.py          # nested variance components and projected SE at equal FOVs
         effort_design.py   # its standard errors and allocations: acquired and balanced designs
         effort_text.py     # the effort projection in words (technical repeats, samples, caveats)
@@ -308,6 +318,7 @@ src/morphocoverage/
         spatial.py         # acquisition-order efficiency and redundancy distance
         order_text.py      # its words: a table per order kind (short), per group and order (full)
         report.py          # the microscopist's report, question by question
+        _report_assembly.py  # private: its steps: each answer's text, the notes, the control's gate, the sections and statuses
         report_profile.py  # its sampling profile, one helper per source
         _control_rates.py  # private: the control's rates as other answers read them, and why a rate does not apply
         _new_states.py     # private: the fields holding new states beside the count chance alone gives
@@ -329,7 +340,9 @@ src/morphocoverage/
         __init__.py        # the subpackage's public names
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
         object_rules.py    # mean-precision rule and JCS descriptor spread with random objects and whole FOVs
+        _control_means.py  # private: the control means per repeat behind the rule's reference, and the caution when the repeats' means differ
         contrast.py        # each condition against the control: per repeat, across repeats, cell-level; question 9
+        _contrast_rows.py  # private: its per-repeat rows: each contrast's test, effect sizes and JCS draws, the sides the cell-level test pools
         contrast_text.py   # its words: the readings first, then a table per contrast and per draw size, each caveat once
         contrast_repeats.py  # across biological repeats: direction, per-repeat d, paired t raw and normalised, sign-flip
         contrast_across.py # the contrast table's secondary rows: each normalised to its own control, controls against the master raw
@@ -337,8 +350,10 @@ src/morphocoverage/
         repeats_text.py    # its words: the across-repeat table and its notes
         contrast_cells.py  # the Plot&Stats cell-level test, raw and normalised, its balance check and balanced version
         _balanced.py       # private: the balanced test's arithmetic, every labelling at once by matrix products, from the same random keys
+        _cell_chance.py    # private: the cell-level test's chance of p <= 0.05 without an effect, re-exported by contrast_cells
         cells_text.py      # its words: the balance line, the tables, the false-positive chance, the notes
         reading_text.py    # one verdict per condition, read from every test (confirmed, same direction, not significant, not tested, mixed, one repeat)
+        _reading_cells.py  # private: the cell-level screen in a reading: the version trusted most, its chance without an effect, in words
         reagents_text.py   # whether independent reagents for one target agree (with a `target` column)
         repeat_plan.py     # planning the next experiment at the design the user ran: fields a side per repeat
         repeat_plan_text.py  # its words
@@ -348,6 +363,7 @@ src/morphocoverage/
         _reach.py          # private: run a test only when the design lets its smallest p reach 0.05 after Bonferroni
         ranking.py         # which features separate the conditions: BH-gated |d| ranking over whole technical repeats
         discovery.py       # the same question by the cell-level gate (BH), the paired t on repeat means beside it
+        _discovery_gate.py  # private: its cell-level gate refined where the family needs more shuffles, then corrected per sub-experiment
         _discovery_tests.py  # private: its tests per feature and condition, the features in worker processes (n_jobs)
         distribution.py    # beyond the mean: spread and 10/50/90% quantiles per repeat on field-balanced subsamples, tested across repeats
         whole_table.py     # the whole-table test: a table's centre shifted the same way in every repeat (leave-one-repeat-out projections, paired t corrected), a field-level permutation beside it
@@ -367,6 +383,7 @@ src/morphocoverage/
         __init__.py        # the subpackage's public names
         setup.py           # Setup: every scientific choice of the workflows, declared once
         _setup_parts.py    # private: the positive control, the default definition of new and the presets' checks, re-exported by setup
+        _setup_checks.py   # private: the checks Setup.__post_init__ runs, in its order, with the messages the user reads
         _feature_space.py  # private: the Setup's feature tables: explainable ones by table, the weighted combined space, the centred view, the tables attached, the space of unusual observations
         _fingerprint_space.py  # private: a wide table's fingerprint on its first k principal components (k at most a fifth of the median judged group), or not assessable
         _whole_table.py    # private: the whole-table test in the report: the comparisons, the words in question 9, the page's block and CSV
@@ -380,12 +397,15 @@ src/morphocoverage/
         _one_per_field.py    # private: one observation per field: the field questions on the rows, new judged across fields
         scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
+        _scan_parts.py     # private: parts of the scan: the controls as declared, the feature tables by tag, planes, targets, observations per condition and repeat
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)
         html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
+        _html_page.py      # private: the page's frame: the tables checked against the report's counts, the sections shown, the sidebar and At a glance, the texts carried, the page around the cards and its scripts
         _html_render.py    # private: the report's text as HTML, glossary term links, status chips
         _html_sections.py  # private: the page's order, titles, plain answers, heatmap, no numbers
         _html_figures.py   # private: the feature figures as PNG/PDF, palette
         _html_maps.py      # private: the PCA/UMAP data and markup, a map per feature table and the combined one, with the neighbours line under each
+        _html_map_sets.py  # private: one map's data: its points in drawing order, caption, axis titles, arrows and what rides on each point
         _html_map_controls.py  # private: the maps' controls: colour by, search, the Normalised / Raw buttons and the method menu
         _html_map_text.py  # private: the words around the maps: the comparison of the tables, the neighbours and centred notes, each table's share of an axis
         _html_plotly.py    # private: plotly.js (assets/) and the feature figures' data for it
@@ -398,6 +418,7 @@ src/morphocoverage/
         _html_next.py      # private: "What to do next" after the answers that call for a look at the images, with its code
         _html_fields.py    # private: the fields to check (quality control) and the new states apart, two cards
         _html_plan.py      # private: "Plan the next experiment": what to optimise or watch for live, with the code filled in
+        _html_plan_repeats.py  # private: its difference from the control: the repeats each condition would need, as rows and a table
         _html_data.py      # private: each figure's and table's data as CSV, and the download links
         _html_tests.py     # private: "The tests behind the reading": the tests explained, then one table per test (p, adjusted p)
         _html_across.py    # private: its table across repeats (with exactly 3 repeats, each repeat's change and the 95% t interval) and tests_across_repeats.csv
@@ -411,6 +432,7 @@ src/morphocoverage/
         _declaration.py    # private: the Setup's declaration in sentences, every preset printed
         _declaration_rare.py  # private: the rare phenotype's sentences of the declaration (split out of _declaration)
         retrospective.py   # report, optimise, document: the analyses in question order
+        _report_steps.py   # private: steps of report and optimise: the overview, the positive control, the questions between conditions, the document, the replay's analyses
         benchmarks.py      # benchmark, Family, default_families: the rule families at matched risk
         _document.py       # private: the assembled report of the workflows, its parts and settings
         _enough_features.py  # private: "Did I image enough?" for every feature alike (light contrasts, precision)
@@ -422,6 +444,7 @@ src/morphocoverage/
         _populations.py    # private: question 10, the populations and each condition's enrichment across repeats
         _population_spaces.py # private: question 10's groups found in each feature space and merged by Jaccard index
         _population_tests.py  # private: question 10's enrichment tests across repeats
+        _population_text_parts.py  # private: parts of question 10's text: how the groups were searched, the answer without a group, the conditions not compared, the assumptions
         _population_context.py  # private: question 10's groups against the conditions: mostly one condition, against the compared control, normalised values with several controls, rules on few values, ranking
         _population_rule_words.py  # private: a group's feature rule in words (fitted on all cells; its procedure checked on held-out fields)
         _result_influence.py  # private: the fields whose removal moves the result (the repeat means the paired test compares)
@@ -429,8 +452,10 @@ src/morphocoverage/
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
         _manifest.py       # private: the live folder's files (write_fov, the manifest reader), re-exported by live
         _live_order.py     # private: the live session that runs the order check of each group's fields so far
+        _live_watch.py     # private: when LiveFolder.watch stops: its arguments checked, a field's results ending its group
         _live_text.py      # private: the text of one live update (LiveUpdate.summary)
         _shared.py         # private: input checks, orders, rule replays on raw values, outcomes on normalised ones
+        _shared_parts.py   # private: steps of the analyses in _shared: unusual observations and their clustering, the feature discovery and ranking
     strategies/
         __init__.py        # the exported strategies, estimators and policies
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
@@ -438,6 +463,7 @@ src/morphocoverage/
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
         _scalar_precision_state.py  # private: its incremental path, per-FOV sufficient statistics for live sessions
         _averaging_cv.py   # private: its averaging-CV arithmetic (object and FOV units)
+        _precision_steps.py  # private: its estimate's steps: why no estimate yet, the FOV unit's estimate, the cautions
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
         _descriptor_resamples.py  # private: the resample arithmetic of the descriptor spread
         jcb_planning.py    # JCB multi-sample planning from disjoint pilot samples

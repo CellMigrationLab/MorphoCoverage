@@ -12,53 +12,38 @@ data were loaded. The format itself is described in ``docs/common/data_format.md
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
 
+from ._data_check_steps import (
+    _check_as_validator,
+    _check_fields,
+    _check_repeated_columns,
+    _not_tables,
+    _read_arguments,
+    _report_former_repeat,
+    _understand_empty_columns,
+    _understand_sizes,
+)
 from ._data_rules import (
     ERROR,
     WARNING,
     Collector,
     Problem,
-    _attach,
     _check_control,
-    _check_copies,
-    _check_features,
-    _check_fov_table,
-    _check_key_values,
-    _check_label_variants,
     _check_spellings,
-    _examples,
     _names,
     _resolve_fov_col,
-    _resolve_groups,
 )
-from ._former_repeat import FORMER_REPEAT_COLUMN, Reader, one_warning
-from ._input_traps import (
-    InvalidRowsWarning,
-    _check_container_files,
-    _check_undeclared_groups,
-    _check_unimaged_technical_repeats,
-    _check_well_names,
-)
+from ._feature_rules import _check_features
+from ._former_repeat import Reader, one_warning
 from ._style import CAUTION, PROBLEM, Status, check_detail, headline, wrap
 from ._wording import count
-from .metadata import (
-    column_names,
-    drop_empty_optional_columns,
-    empty_optional_columns,
-)
-from .schema import (
-    MissingFovTableWarning,
-    ValidatedInput,
-    _validate_input_tables,
-    normalize_observation_unit,
-    unhashable_values,
-)
+from .metadata import drop_empty_optional_columns
+from .schema import ValidatedInput, _validate_input_tables
 
 FORMAT_DOC = "docs/common/data_format.md"
 
@@ -166,140 +151,33 @@ def check_tables(
     ``DeprecationWarning``; a table with both, different, is an error.
     """
     c = Collector()
-    if not isinstance(objects, pd.DataFrame):
-        c.error(
-            "The observation table is not a table.",
-            f"objects is a {type(objects).__name__}.",
-            "Pass a pandas DataFrame, e.g. pd.read_csv('cells.csv').",
-        )
-        return DataCheck(tuple(c.problems), tuple(c.understood))
-    if fovs is not None and not isinstance(fovs, pd.DataFrame):
-        c.error(
-            "The FOV table is not a table.",
-            f"fovs is a {type(fovs).__name__}.",
-            "Pass a pandas DataFrame with one row per acquired field.",
-        )
-        return DataCheck(tuple(c.problems), tuple(c.understood))
+    if _not_tables(c, objects, fovs):
+        return _found(c)
     try:
         objects, fovs, group_cols, fov_col, control = _read_former_repeat(
             objects, fovs, group_cols, fov_col, control
         )
     except ValueError as error:  # fallback: reported as a problem of the check
-        c.error(
-            f"The former name {FORMER_REPEAT_COLUMN!r} and the biological repeat's column "
-            "hold different values.",
-            f"{error}.",
-            "Keep only 'biological_repeat', the biological repeat, and rename or remove the "
-            f"{FORMER_REPEAT_COLUMN!r} column (or control key).",
-        )
-        return DataCheck(tuple(c.problems), tuple(c.understood))
-    for name, table in (("observation table", objects), ("FOV table", fovs)):
-        repeated = [] if table is None else list(table.columns[table.columns.duplicated()].unique())
-        if repeated:
-            c.error(
-                f"The {name} has more than one column with the same name.",
-                f"{name}, columns {_names(repeated)}.",
-                "Give every column its own name (a table joined side by side, e.g. with "
-                "pd.concat(axis=1), can repeat one).",
-            )
+        _report_former_repeat(c, error)
+        return _found(c)
+    _check_repeated_columns(c, objects, fovs)
     if c.has_errors():
         # Every other rule reads columns by name, which is ambiguous here.
-        return DataCheck(tuple(c.problems), tuple(c.understood))
-    # Read once (a generator is consumed by reading); None when absent or already reported.
-    features = _column_list(c, feature_cols, "feature_cols")
-    features_readable = features is not None or feature_cols is None
-    feature_cols = list(features or ())
-    group_cols = _column_list(c, group_cols, "group_cols")
-    unit_given = observation_unit is not None
-    if unit_given:
-        try:
-            normalize_observation_unit(observation_unit)
-        except ValueError:  # fallback: reported as a problem of the check
-            c.error(
-                "The observation unit is not a word.",
-                f"observation_unit={observation_unit!r}.",
-                "Say what one row is in words, e.g. observation_unit='cell', 'nucleus' or 'patch'.",
-            )
-            observation_unit = None
-    fov_col_usable = fov_col is None or isinstance(fov_col, str)
-    if not fov_col_usable:
-        c.error(
-            "fov_col is not a column name.",
-            f"fov_col={fov_col!r}.",
-            "Name the one column that identifies each acquired field, e.g. fov_col='position_id'.",
-        )
-    explicit = [*(group_cols or ()), *([fov_col] if fov_col_usable and fov_col else [])]
+        return _found(c)
+    arguments = _read_arguments(c, feature_cols, group_cols, observation_unit, fov_col)
+    feature_cols = arguments.feature_cols
+    explicit = arguments.explicit
 
     _understand_empty_columns(c, objects, fovs, explicit)
     objects, fovs = drop_empty_optional_columns(objects, fovs, explicit)
     _check_spellings(c, objects, fovs, explicit)
+    _understand_sizes(c, objects, fovs, arguments)
 
-    unit = (
-        normalize_observation_unit(observation_unit)
-        if observation_unit is not None
-        else "objects, unit not declared"
-    )
-    c.understood.insert(
-        0,
-        f"{count(len(objects), 'observation')} ({unit})"
-        + (
-            f"; {count(len(fovs), 'row')} in the FOV table."
-            if fovs is not None
-            else "; no FOV table."
-        ),
-    )
-    if fovs is None:
-        c.warning(
-            "No FOV table was given.",
-            "fovs=None.",
-            "Pass the list of every acquired field, including fields with no observation; "
-            "without it, empty fields are missing and every sampling answer is optimistic. "
-            "The workflows (report, optimise, benchmark, plots) need it; "
-            "schema.fov_table_from_observations rebuilds one, without the empty fields.",
-        )
-    if objects.empty:
-        c.warning(
-            "The observation table has no rows.",
-            "0 observations.",
-            "Nothing was measured, so no feature can be analysed; check that the right file was "
-            "read (a live session may start empty).",
-        )
-    if not unit_given:
-        c.warning(
-            "The observation unit is not declared.",
-            "observation_unit=None.",
-            "Say what one row is, e.g. observation_unit='cell', 'nucleus' or 'patch'; the report "
-            "otherwise says 'object' and records that the unit was assumed.",
-        )
-
-    resolved = _resolve_fov_col(c, objects, fovs, fov_col) if fov_col_usable else None
+    resolved = _resolve_fov_col(c, objects, fovs, fov_col) if arguments.fov_col_usable else None
     taken: set[str] = set()
     if resolved is not None:
-        groups, identity = _resolve_groups(c, objects, fovs, group_cols, resolved)
-        taken = {resolved, *identity}
-        key = [*identity, resolved]
-        c.understood.append(
-            f"A field is identified by {resolved!r}"
-            + (f" within {', '.join(identity)}." if identity else ".")
-        )
-        c.understood.append(
-            "Analysis groups: "
-            + (", ".join(groups) if groups else "none (all fields pooled)")
-            + "."
-        )
-        if _identity_hashable(c, objects, fovs, key):
-            objects = _attach(c, objects, fovs, resolved, identity)
-            # After the group columns are attached, so the same label in two wells is not a copy.
-            _check_copies(c, objects, key, feature_cols)
-            _check_key_values(c, objects, fovs, key)
-            _check_label_variants(c, objects, fovs, identity)
-            _check_well_names(c, objects, fovs, identity)
-            _check_undeclared_groups(c, objects, fovs, key, groups, feature_cols)
-            _check_container_files(c, objects, key)
-            if fovs is not None:
-                _check_fov_table(c, objects, fovs, key)
-                _check_unimaged_technical_repeats(c, objects, fovs, key)
-    if features_readable:
+        objects, taken = _check_fields(c, objects, fovs, arguments, resolved)
+    if arguments.features_readable:
         _check_features(c, objects, feature_cols, taken)
     c.understood.append(
         f"{count(len(feature_cols), 'feature column')}: {_names(feature_cols)}."
@@ -310,59 +188,12 @@ def check_tables(
         # Without a FOV table, the fields seen in the observations are all that is known.
         _check_control(c, objects if fovs is None else fovs, control, fovs is None)
     if not c.has_errors():
-        # The remaining rules (planes, channels or frames counted as fields) run as the
-        # validator runs them; its warnings become warnings of this check.
-        try:
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                _validate_input_tables(
-                    objects,
-                    feature_cols=feature_cols,
-                    fov_col=fov_col,
-                    fovs=fovs,
-                    group_cols=group_cols,
-                    observation_unit=observation_unit,
-                )
-            for warning in caught:
-                if issubclass(warning.category, MissingFovTableWarning):
-                    continue  # said above in this report's words ("No FOV table was given.")
-                if not issubclass(warning.category, UserWarning):
-                    warnings.warn(warning.message, warning.category, stacklevel=2)
-                    continue
-                message = str(warning.message)
-                if issubclass(warning.category, InvalidRowsWarning):
-                    c.warning(
-                        message[0].upper() + message[1:],
-                        "observation table, column 'valid'.",
-                        "Keep only the valid rows, or rename the column if it means something "
-                        "else.",
-                    )
-                    continue
-                # The validator's other warnings: planes that may be counted as fields.
-                c.warning(
-                    message[0].upper() + message[1:],
-                    "the within-field coordinates (z, c, t) and the field identifier.",
-                    "Give every plane, channel or frame of one stage position the same "
-                    "'position_id'; if each row really is one stage position, pass fov_col "
-                    "explicitly.",
-                )
-        except (ValueError, TypeError) as exc:  # fallback: reported as a problem of the check
-            message = str(exc).split("\n\n")[0].rstrip(".")
-            planes = any(w in message for w in ("plane", "z/c/t", "channel"))
-            within = "planes_as_features" in message  # planes of one field as observations
-            c.error(
-                message[0].upper() + message[1:] + ".",
-                "the within-field coordinates (z, c, t) and the field identifier."
-                if planes
-                else "found by validate_input_tables.",
-                "Keep one row per object: pivot the planes with planes_as_features, or keep one "
-                "plane; declare observation_unit='slice' if each row measures a whole plane."
-                if within
-                else "Give every plane, channel or frame of one stage position the same "
-                "'position_id', and a z/c/t value that tells its files apart."
-                if planes
-                else "Correct what the message names; every rule is in docs/common/data_format.md.",
-            )
+        _check_as_validator(c, objects, fovs, arguments, fov_col)
+    return _found(c)
+
+
+def _found(c: Collector) -> DataCheck:
+    """The check's result: the problems and what was understood, as collected."""
     return DataCheck(tuple(c.problems), tuple(c.understood))
 
 
@@ -381,75 +212,6 @@ def _read_former_repeat(
     fov_col, control = former.column(fov_col, "fov_col"), former.mapping(control, "control")
     former.warn()
     return objects, fovs, group_cols, fov_col, control
-
-
-def _understand_empty_columns(
-    c: Collector, objects: pd.DataFrame, fovs: pd.DataFrame | None, explicit: Sequence[str]
-) -> None:
-    """Say which optional shared columns are read as absent, and where (as the validator)."""
-    for column, where in empty_optional_columns(objects, fovs, explicit).items():
-        in_both = fovs is not None and column in objects.columns and column in fovs.columns
-        if len(where) == 2 or not in_both:
-            c.understood.append(f"{column!r} is empty in every row, so it is read as absent.")
-        elif where == ["objects"]:
-            c.understood.append(
-                f"{column!r} is empty in every row of the observation table, so the FOV "
-                "table's values are used."
-            )
-        else:
-            c.understood.append(
-                f"{column!r} is empty in every row of the FOV table, so it is read as absent there."
-            )
-
-
-def _identity_hashable(
-    c: Collector, objects: pd.DataFrame, fovs: pd.DataFrame | None, key: Sequence[str]
-) -> bool:
-    """Whether the identity columns hold labels; lists or arrays are reported, and the
-    rules that match fields are then skipped, since they cannot compare such values."""
-    usable = True
-    for name, table in (("observation table", objects), ("FOV table", fovs)):
-        if table is None:
-            continue
-        for column in key:
-            if column not in table.columns:
-                continue
-            bad = unhashable_values(table[column])
-            if bad.any():
-                usable = False
-                c.error(
-                    f"{column!r} holds values such as lists, which cannot identify a field or "
-                    "group.",
-                    f"{name}, {_examples(table, bad, [column])}.",
-                    "Store one text or number per row (for example the file name, not a list "
-                    "of files).",
-                )
-    return usable
-
-
-def _column_list(c: Collector, columns: object, name: str) -> list | None:
-    """``columns`` as a list of names, read once, or ``None`` (not given, or unreadable).
-
-    A single string is reported and then read as one name, so the other rules
-    still run; anything else that is not a collection of names is reported.
-    """
-    if isinstance(columns, str):
-        c.error(
-            f"{name} is a single string, not a list of column names.",
-            f"{name}={columns!r}.",
-            f"Pass a list: {name}=[{columns!r}].",
-        )
-        return [columns]
-    try:
-        names = column_names(columns, name)
-    except TypeError as error:  # fallback: reported as a problem of the check
-        c.error(
-            f"{name} is not a list of column names.",
-            f"{name}={columns!r}: {error}.",
-            f"Pass a list of column names, e.g. {name}=['area'].",
-        )
-        return None
-    return None if names is None else list(names)
 
 
 @one_warning

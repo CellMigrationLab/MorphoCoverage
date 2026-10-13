@@ -162,62 +162,101 @@ def across_repeats(
     if repeat_col is None or table.empty or "mean" not in table:
         return pd.DataFrame(columns=REPEAT_COLUMNS)
     paired = table[table["mean"].notna() & table["control_mean"].notna()]
-    rows = []
-    for (condition, control), block in paired.groupby(
-        ["condition", "control_condition"], sort=False
-    ):
-        differences = (block["mean"] - block["control_mean"]).to_numpy(float)
-        # The verdict's scale: each repeat's contrast and the t interval (plan v2).
-        values, compared, _ = repeat_values(block["mean"], block["control_mean"], log)
-        effect = repeat_effect(values, compared)
-        named = next((c for c in (REPEAT, repeat_col) if c in block), None)
-        repeats = list(block[named]) if named else list(range(1, len(block) + 1))
-        d = block["d_objects"].to_numpy(float)
-        d = d[np.isfinite(d)]
-        row: dict[str, Any] = {
-            "condition": condition,
-            "control_condition": control,
-            "repeats": len(differences),
-            "lower": int((differences < 0).sum()),
-            "higher": int((differences > 0).sum()),
-            "mean_difference": float(differences.mean()),
-            "fold_change": float(np.exp(np.mean(_log_ratios(block, log)))),
-            "d_mean": float(d.mean()) if len(d) else np.nan,
-            "d_min": float(d.min()) if len(d) else np.nan,
-            "d_max": float(d.max()) if len(d) else np.nan,
-            "p_sign_flip": np.nan,
-            "q_sign_flip": np.nan,
-            "p_sign_flip_floor": np.nan,
-            "p_sign_flip_exact": False,
-            "p_paired_t": np.nan,
-            "q_paired_t": np.nan,
-            "p_paired_t_normalised": np.nan,
-            "q_paired_t_normalised": np.nan,
-            "experiment": 0,
-            "status": "ok",
-            "repeat_contrasts": contrasts_text(repeats, effect["contrasts"]),
-            "ci_low": effect["ci_low"],
-            "ci_high": effect["ci_high"],
-        }
-        if len(differences) < MIN_REPEATS:
-            row["status"] = FEW_REPEATS
-        else:
-            rng = group_rng(random_state, {"condition": condition, "control": control})
-            p, floor, exact = sign_flip_test(differences, rng)
-            row.update(
-                p_sign_flip=p,
-                p_sign_flip_floor=floor,
-                p_sign_flip_exact=exact,
-                p_paired_t=paired_t(differences),
-                p_paired_t_normalised=paired_t(_log_ratios(block, log)),
-            )
-            shown = row["p_paired_t_normalised"]
-            shown = shown if np.isfinite(shown) else row["p_paired_t"]
-            row["status"] = untested_reason(len(differences), shown) or "ok"
-        rows.append(row)
+    rows = [
+        _condition_row(condition, control, block, repeat_col, random_state, log)
+        for (condition, control), block in paired.groupby(
+            ["condition", "control_condition"], sort=False
+        )
+    ]
     result = pd.DataFrame(rows, columns=REPEAT_COLUMNS)
     if result.empty or result["repeats"].max() < 2:
         return pd.DataFrame(columns=REPEAT_COLUMNS)
+    return _corrected(result, paired, repeat_col, families)
+
+
+def _condition_row(
+    condition: Any,
+    control: Any,
+    block: pd.DataFrame,
+    repeat_col: str,
+    random_state: int,
+    log: bool | None,
+) -> dict[str, Any]:
+    """One condition and control across the repeats of ``block``: the description, then the
+    tests when at least ``MIN_REPEATS`` repeats hold both sides."""
+    differences = (block["mean"] - block["control_mean"]).to_numpy(float)
+    row = _described(condition, control, block, differences, repeat_col, log)
+    if len(differences) < MIN_REPEATS:
+        row["status"] = FEW_REPEATS
+        return row
+    rng = group_rng(random_state, {"condition": condition, "control": control})
+    p, floor, exact = sign_flip_test(differences, rng)
+    row.update(
+        p_sign_flip=p,
+        p_sign_flip_floor=floor,
+        p_sign_flip_exact=exact,
+        p_paired_t=paired_t(differences),
+        p_paired_t_normalised=paired_t(_log_ratios(block, log)),
+    )
+    shown = row["p_paired_t_normalised"]
+    shown = shown if np.isfinite(shown) else row["p_paired_t"]
+    row["status"] = untested_reason(len(differences), shown) or "ok"
+    return row
+
+
+def _described(
+    condition: Any,
+    control: Any,
+    block: pd.DataFrame,
+    differences: np.ndarray,
+    repeat_col: str,
+    log: bool | None,
+) -> dict[str, Any]:
+    """A row of ``across_repeats`` before its tests: the direction per repeat, the mean
+    difference and fold change, the per-repeat d, and each repeat's contrast with the t
+    interval; the p-values missing."""
+    # The verdict's scale: each repeat's contrast and the t interval (plan v2).
+    values, compared, _ = repeat_values(block["mean"], block["control_mean"], log)
+    effect = repeat_effect(values, compared)
+    named = next((c for c in (REPEAT, repeat_col) if c in block), None)
+    repeats = list(block[named]) if named else list(range(1, len(block) + 1))
+    d = block["d_objects"].to_numpy(float)
+    d = d[np.isfinite(d)]
+    return {
+        "condition": condition,
+        "control_condition": control,
+        "repeats": len(differences),
+        "lower": int((differences < 0).sum()),
+        "higher": int((differences > 0).sum()),
+        "mean_difference": float(differences.mean()),
+        "fold_change": float(np.exp(np.mean(_log_ratios(block, log)))),
+        "d_mean": float(d.mean()) if len(d) else np.nan,
+        "d_min": float(d.min()) if len(d) else np.nan,
+        "d_max": float(d.max()) if len(d) else np.nan,
+        "p_sign_flip": np.nan,
+        "q_sign_flip": np.nan,
+        "p_sign_flip_floor": np.nan,
+        "p_sign_flip_exact": False,
+        "p_paired_t": np.nan,
+        "q_paired_t": np.nan,
+        "p_paired_t_normalised": np.nan,
+        "q_paired_t_normalised": np.nan,
+        "experiment": 0,
+        "status": "ok",
+        "repeat_contrasts": contrasts_text(repeats, effect["contrasts"]),
+        "ci_low": effect["ci_low"],
+        "ci_high": effect["ci_high"],
+    }
+
+
+def _corrected(
+    result: pd.DataFrame,
+    paired: pd.DataFrame,
+    repeat_col: str,
+    families: Mapping[Any, Any] | None,
+) -> pd.DataFrame:
+    """``result`` with each condition's sub-experiment, the sign-flip tests that cannot reach
+    0.05 in it left out, and the q-values within it and screen-wide."""
     # The repeats each condition is compared in; a table without them is one experiment.
     named = next((c for c in (REPEAT, repeat_col) if c in paired), None)
     held = {

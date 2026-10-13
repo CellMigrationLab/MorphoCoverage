@@ -327,24 +327,7 @@ def full_summary(report: Any, target: float | None = None) -> str:
     tallies = rule_tallies(report)
     shared = _shared_undefined(report) if tallies else {}
     blocks = []
-    head = [f"Analysis groups: {group_columns(keys)}."] if keys else []
-    if tallies:
-        head += _rules_table(report, tallies, 0)
-        head.append(_rule_names(report))
-        head += [
-            wrap(f"{label} is undefined in every group: {reason}.", 0, hang=2)
-            for label, reason in shared.items()
-        ]
-        head.append(
-            wrap(
-                "Per group below: whether each rule was met by its own threshold, where it was "
-                "first met, and the fields imaged beyond that point (beyond: a median over the "
-                "random orders, or the recorded one without them; only where the acquired "
-                "fields are enough).",
-                0,
-                hang=2,
-            )
-        )
+    head = _head(report, keys, tallies, shared)
     if head:
         blocks.append("\n".join(head))
     tables = [t[keys] for t in (report.enough, report.next_fov) if not t.empty]
@@ -353,19 +336,7 @@ def full_summary(report: Any, target: float | None = None) -> str:
     varying = _varying(report) if len(report.final) else {}
     for values in rows:
         group = dict(zip(keys, values, strict=True))
-        acquired = rows_of(report.enough, group) if len(report.enough) and keys else report.enough
-        fields = int(acquired["fovs_acquired"].iloc[0]) if len(acquired) else None
-        title = group_label(group) + (f" — {count(fields, 'field')} acquired" if fields else "")
-        lines = [f"{title}:", *_group_table(report, group, 2)]
-        notes = _group_notes(report, group, varying, shared)
-        if notes:
-            lines.append(wrap(f"Cautions here: {'; '.join(notes)}.", 2, hang=4))
-        outlook = rows_of(report.next_fov, group) if len(report.next_fov) and keys else None
-        outlook = report.next_fov if outlook is None else outlook
-        if len(outlook):
-            answers = _next_field_lines(outlook.iloc[0], target) + _check_line(report, group)
-            lines += [wrap(line, 2, hang=4) for line in answers]
-        blocks.append("\n".join(lines))
+        blocks.append(_group_block(report, group, varying, shared, target))
     if report.novelty_definition and not report.next_fov.empty:
         blocks.append(wrap(f"'New' means {report.novelty_definition}.", 0, hang=2))
     _, novelty_cautions = _novelty_lines(report, target)
@@ -376,6 +347,58 @@ def full_summary(report: Any, target: float | None = None) -> str:
     ]
     blocks.append("\n".join(caveat_lines(cautions, indent=0, detail="full")))
     return "\n\n".join(block for block in blocks if block)
+
+
+def _head(
+    report: Any, keys: list[str], tallies: list[dict[str, Any]], shared: dict[str, str]
+) -> list[str]:
+    """The lines before the groups: the analysis groups, and with rules their table, their
+    names, the rules undefined everywhere and how to read the groups' tables."""
+    head = [f"Analysis groups: {group_columns(keys)}."] if keys else []
+    if not tallies:
+        return head
+    head += _rules_table(report, tallies, 0)
+    head.append(_rule_names(report))
+    head += [
+        wrap(f"{label} is undefined in every group: {reason}.", 0, hang=2)
+        for label, reason in shared.items()
+    ]
+    head.append(
+        wrap(
+            "Per group below: whether each rule was met by its own threshold, where it was "
+            "first met, and the fields imaged beyond that point (beyond: a median over the "
+            "random orders, or the recorded one without them; only where the acquired "
+            "fields are enough).",
+            0,
+            hang=2,
+        )
+    )
+    return head
+
+
+def _group_block(
+    report: Any,
+    group: dict[str, Any],
+    varying: dict[tuple, str],
+    shared: dict[str, str],
+    target: float | None,
+) -> str:
+    """One analysis group: its fields acquired, its rules' table, its cautions and its
+    next-field answer."""
+    keys = list(report.group_cols)
+    acquired = rows_of(report.enough, group) if len(report.enough) and keys else report.enough
+    fields = int(acquired["fovs_acquired"].iloc[0]) if len(acquired) else None
+    title = group_label(group) + (f" — {count(fields, 'field')} acquired" if fields else "")
+    lines = [f"{title}:", *_group_table(report, group, 2)]
+    notes = _group_notes(report, group, varying, shared)
+    if notes:
+        lines.append(wrap(f"Cautions here: {'; '.join(notes)}.", 2, hang=4))
+    outlook = rows_of(report.next_fov, group) if len(report.next_fov) and keys else None
+    outlook = report.next_fov if outlook is None else outlook
+    if len(outlook):
+        answers = _next_field_lines(outlook.iloc[0], target) + _check_line(report, group)
+        lines += [wrap(line, 2, hang=4) for line in answers]
+    return "\n".join(lines)
 
 
 __all__ = ["full_summary"]

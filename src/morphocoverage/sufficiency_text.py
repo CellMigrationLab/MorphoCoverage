@@ -205,8 +205,32 @@ def _next_fov_answer(
     if is_uninformative(row):
         return f"Not informative: {row['uninformative']}."
     confidence = percent(row["confidence"])
+    lines = [
+        _chance_line(row, confidence, min_other_fovs),
+        _unseen_line(row, confidence),
+        *_technical_repeats_line(row, confidence),
+    ]
+    lines += _few_fovs_lines(row, confidence)
+    if target is not None:
+        lines += _target_lines(row, target, confidence)
+    if calibrated is not None:
+        predicted, actual = percent(calibrated["predicted"]), percent(calibrated["actual"])
+        held = percent(calibrated["bound_held"])
+        lines.append(
+            f"Check on this dataset: predicting from {int(calibrated['fovs_imaged'])} random FOVs, "
+            f"predicted {predicted}, actual {actual}; "
+            f"the bound held in {held} of {int(calibrated['draws'])} draws (random subsets "
+            "break the acquisition order and the neighbours, so this check cannot reveal "
+            "neighbour correlation)."
+        )
+    return "\n".join(lines)
+
+
+def _chance_line(row: Mapping[str, Any], confidence: str, min_other_fovs: int) -> str:
+    """The chance of a new state in the next FOV, its bound and what it assumes, and the
+    FOVs that showed one."""
     shows = "shows" if min_other_fovs == 1 else "show"
-    chance = (
+    return (
         f"Chance: {percent(row['chance_new'])} (nominal {confidence} upper bound "
         f"{percent(row['chance_new_at_most'])}, approximate: the leave-one-FOV-out outcomes "
         f"share their reference FOVs, and it treats FOVs as independent, representative "
@@ -214,6 +238,11 @@ def _next_fov_answer(
         f"low); {row['fovs_with_new']} of {row['fovs_imaged']} FOVs "
         f"showed a state that {_other_fovs(min_other_fovs)} {shows}."
     )
+
+
+def _unseen_line(row: Mapping[str, Any], confidence: str) -> str:
+    """The bound on a state no FOV has shown, with the states never counted (too few
+    similar observations) and the FOVs without observations."""
     empty = int(row.get("fovs_without_observations", 0) or 0)
     counted = (
         f" The count includes {count(empty, 'FOV')} without observations, "
@@ -230,84 +259,84 @@ def _next_fov_answer(
     )
     # The zero-success bound is about -ln(1 - confidence) / k: 3 / k at 95%.
     successes = -math.log(1 - row["confidence"])
-    unseen = (
+    return (
         f"Not yet seen: a state this definition detects but no FOV has shown is in at most "
         f"{percent(row['unseen_state_max_frequency'])} of FOVs ({confidence} confidence, about "
         f"{successes:.2g} / {row['fovs_imaged']}), if FOVs are independent, representative "
         f"draws. Rarer states can remain.{sparse}{counted}"
     )
-    lines = [chance, unseen, *_technical_repeats_line(row, confidence)]
+
+
+def _few_fovs_lines(row: Mapping[str, Any], confidence: str) -> list[str]:
+    """With ``few_fovs``: the FOVs holding a state seen in only a few other FOVs, and how
+    many FOVs it takes to see such a state again; none without."""
     few = row.get("few_fovs")
-    if few is not None and not pd.isna(few):
-        seen_in_few = row["fovs_with_state_in_few"]
-        if pd.isna(seen_in_few):
-            lines.append(f"Seen in few FOVs: not estimable ({row['few_reason']}).")
-        else:
-            fewest = int(row["fewest_recurrent_fovs"])
-            span = f"{fewest} FOVs" if fewest == int(few) else f"{fewest} to {int(few)} FOVs"
-            lines.append(
-                f"Seen in few FOVs: {int(seen_in_few)} of {row['fovs_imaged']} FOVs hold a "
-                f"state that other FOVs show too, but fewer than {int(few)} of them (a state "
-                f"seen in {span}; FOVs counted as new above are not included). Such a state "
-                "is not new to the next FOV but is not established either; it counts as "
-                "recurrent above, so look at those FOVs before calling the sample settled."
-            )
-            if int(seen_in_few):
-                lines.append(
-                    f"Planning for such a state: these FOVs together are "
-                    f"{percent(row['few_state_incidence'])} of FOVs ({confidence} interval "
-                    f"{percent(row['few_state_incidence_low'])}-"
-                    f"{percent(row['few_state_incidence_high'])}); to see a state that "
-                    f"common at least once with {confidence} probability, image about "
-                    f"{int(row['fovs_to_see_again'])} independent representative FOVs, up "
-                    f"to {int(row['fovs_to_see_again_low_end'])} at the low end of the "
-                    f"interval.{_several_states(row, fewest)} Fields that cluster the state "
-                    "need more."
-                )
-    if target is not None:
-        extra = row["extra_fovs_to_rule_out_target"]
-        rule_out = f"To rule out unseen states in more than {percent(target)} of FOVs"
-        lines.append(
-            f"{rule_out}: more than {_more_fovs(EXTRA_TRIALS_LIMIT)} with nothing new."
-            if pd.isna(extra)
-            else f"{rule_out}: already reached."
-            if extra == 0
-            else f"{rule_out}: at least {_more_fovs(extra)} with nothing new."
+    if few is None or pd.isna(few):
+        return []
+    seen_in_few = row["fovs_with_state_in_few"]
+    if pd.isna(seen_in_few):
+        return [f"Seen in few FOVs: not estimable ({row['few_reason']})."]
+    fewest = int(row["fewest_recurrent_fovs"])
+    span = f"{fewest} FOVs" if fewest == int(few) else f"{fewest} to {int(few)} FOVs"
+    lines = [
+        (
+            f"Seen in few FOVs: {int(seen_in_few)} of {row['fovs_imaged']} FOVs hold a "
+            f"state that other FOVs show too, but fewer than {int(few)} of them (a state "
+            f"seen in {span}; FOVs counted as new above are not included). Such a state "
+            "is not new to the next FOV but is not established either; it counts as "
+            "recurrent above, so look at those FOVs before calling the sample settled."
         )
-    if target is not None:
-        goal = f"To bring the nominal {confidence} bound for the next FOV below {percent(target)}"
-        if row["chance_new_at_most"] <= target:
-            lines.append(f"{goal}: already reached.")
-        else:
-            best = row["extra_fovs_if_nothing_new"]
-            rate = row["extra_fovs_at_current_rate"]
-            at_rate = (
-                "never at the current rate of new FOVs"
-                if pd.isna(rate)
-                else f"{_more_fovs(rate)} if new FOVs keep appearing at the current rate"
-            )
-            least = (
-                f"more than {_more_fovs(EXTRA_TRIALS_LIMIT)}"
-                if pd.isna(best)
-                else f"at least {_more_fovs(best)}"
-            )
-            lines.append(f"{goal}: {least} if none shows anything new; {at_rate}.")
+    ]
+    if int(seen_in_few):
         lines.append(
-            f"The bound holds at a number of FOVs fixed in advance, not at the first FOV where "
-            f"it passes: stopping there is premature more often than "
-            f"{percent(1 - row['confidence'])} of the time."
+            f"Planning for such a state: these FOVs together are "
+            f"{percent(row['few_state_incidence'])} of FOVs ({confidence} interval "
+            f"{percent(row['few_state_incidence_low'])}-"
+            f"{percent(row['few_state_incidence_high'])}); to see a state that "
+            f"common at least once with {confidence} probability, image about "
+            f"{int(row['fovs_to_see_again'])} independent representative FOVs, up "
+            f"to {int(row['fovs_to_see_again_low_end'])} at the low end of the "
+            f"interval.{_several_states(row, fewest)} Fields that cluster the state "
+            "need more."
         )
-    if calibrated is not None:
-        predicted, actual = percent(calibrated["predicted"]), percent(calibrated["actual"])
-        held = percent(calibrated["bound_held"])
-        lines.append(
-            f"Check on this dataset: predicting from {int(calibrated['fovs_imaged'])} random FOVs, "
-            f"predicted {predicted}, actual {actual}; "
-            f"the bound held in {held} of {int(calibrated['draws'])} draws (random subsets "
-            "break the acquisition order and the neighbours, so this check cannot reveal "
-            "neighbour correlation)."
+    return lines
+
+
+def _target_lines(row: Mapping[str, Any], target: float, confidence: str) -> list[str]:
+    """With a target: the FOVs to rule out unseen states above it, the FOVs to bring the
+    next FOV's bound below it, and when such a bound holds."""
+    extra = row["extra_fovs_to_rule_out_target"]
+    rule_out = f"To rule out unseen states in more than {percent(target)} of FOVs"
+    lines = [
+        f"{rule_out}: more than {_more_fovs(EXTRA_TRIALS_LIMIT)} with nothing new."
+        if pd.isna(extra)
+        else f"{rule_out}: already reached."
+        if extra == 0
+        else f"{rule_out}: at least {_more_fovs(extra)} with nothing new."
+    ]
+    goal = f"To bring the nominal {confidence} bound for the next FOV below {percent(target)}"
+    if row["chance_new_at_most"] <= target:
+        lines.append(f"{goal}: already reached.")
+    else:
+        best = row["extra_fovs_if_nothing_new"]
+        rate = row["extra_fovs_at_current_rate"]
+        at_rate = (
+            "never at the current rate of new FOVs"
+            if pd.isna(rate)
+            else f"{_more_fovs(rate)} if new FOVs keep appearing at the current rate"
         )
-    return "\n".join(lines)
+        least = (
+            f"more than {_more_fovs(EXTRA_TRIALS_LIMIT)}"
+            if pd.isna(best)
+            else f"at least {_more_fovs(best)}"
+        )
+        lines.append(f"{goal}: {least} if none shows anything new; {at_rate}.")
+    lines.append(
+        f"The bound holds at a number of FOVs fixed in advance, not at the first FOV where "
+        f"it passes: stopping there is premature more often than "
+        f"{percent(1 - row['confidence'])} of the time."
+    )
+    return lines
 
 
 def _technical_repeats_line(row: Mapping[str, Any], confidence: str) -> list[str]:

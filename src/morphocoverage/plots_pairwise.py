@@ -223,44 +223,55 @@ def pairwise_contrasts(
         if references is not None and references.get(first) != references.get(second):
             rows.append(_apart(feature, first, second, a, b))
             continue
-        repeats_a = {r: g.to_numpy() for r, g in a.groupby("repeat", sort=False)["value"]}
-        repeats_b = {r: g.to_numpy() for r, g in b.groupby("repeat", sort=False)["value"]}
-        p_paired, paired_values, shared = _paired(repeats_a, repeats_b, log)
-        # Compared on the repeats that imaged both (each condition against the control of
-        # its own repeats): pooling repeats one side was not imaged in reads a batch as an
-        # effect. Two conditions with no repeat in common (two sub-experiments) get their d,
-        # described (†), and no test: the batch between their repeats would be in it.
-        common = set(repeats_a) & set(repeats_b)
-        if common:
-            a = a[a["repeat"].isin(common)]
-            b = b[b["repeat"].isin(common)]
-            rng = group_rng(random_state, {"feature": feature, "first": first, "second": second})
-            d, p = cell_randomization(
-                a["value"].to_numpy(), b["value"].to_numpy(), n_permutations, rng
-            )
-            status = "ok" if np.isfinite(p) else "one value everywhere"
-        else:
-            d, p = cohen_d(a["value"].to_numpy(), b["value"].to_numpy()), np.nan
-            status = "imaged in different repeats"
-        rows.append(
-            {
-                "feature": feature,
-                "first": first,
-                "second": second,
-                "d": d,
-                "observations": len(a),
-                "second_observations": len(b),
-                "shared_repeats": shared,
-                "p": p,
-                "p_paired": p_paired,
-                "paired_values": paired_values,
-                "status": status,
-            }
-        )
+        rows.append(_pair(feature, (first, second), a, b, log, n_permutations, random_state))
     table = pd.DataFrame(rows, columns=[c for c in PAIR_COLUMNS if c not in ("q", "q_paired")])
     for p_column, q_column in (("p", "q"), ("p_paired", "q_paired")):
         table[q_column] = benjamini_hochberg(table[p_column].to_numpy(float)) if len(table) else []
     return table[PAIR_COLUMNS]
+
+
+def _pair(
+    feature: str,
+    pair: tuple[Any, Any],
+    a: pd.DataFrame,
+    b: pd.DataFrame,
+    log: bool,
+    n_permutations: int,
+    random_state: int,
+) -> dict:
+    """One pair of conditions compared: d and the cell-level test on the repeats that imaged
+    both, the paired test on the repeat means."""
+    first, second = pair
+    repeats_a = {r: g.to_numpy() for r, g in a.groupby("repeat", sort=False)["value"]}
+    repeats_b = {r: g.to_numpy() for r, g in b.groupby("repeat", sort=False)["value"]}
+    p_paired, paired_values, shared = _paired(repeats_a, repeats_b, log)
+    # Compared on the repeats that imaged both (each condition against the control of
+    # its own repeats): pooling repeats one side was not imaged in reads a batch as an
+    # effect. Two conditions with no repeat in common (two sub-experiments) get their d,
+    # described (†), and no test: the batch between their repeats would be in it.
+    common = set(repeats_a) & set(repeats_b)
+    if common:
+        a = a[a["repeat"].isin(common)]
+        b = b[b["repeat"].isin(common)]
+        rng = group_rng(random_state, {"feature": feature, "first": first, "second": second})
+        d, p = cell_randomization(a["value"].to_numpy(), b["value"].to_numpy(), n_permutations, rng)
+        status = "ok" if np.isfinite(p) else "one value everywhere"
+    else:
+        d, p = cohen_d(a["value"].to_numpy(), b["value"].to_numpy()), np.nan
+        status = "imaged in different repeats"
+    return {
+        "feature": feature,
+        "first": first,
+        "second": second,
+        "d": d,
+        "observations": len(a),
+        "second_observations": len(b),
+        "shared_repeats": shared,
+        "p": p,
+        "p_paired": p_paired,
+        "paired_values": paired_values,
+        "status": status,
+    }
 
 
 def _apart(feature: str, first: Any, second: Any, a: pd.DataFrame, b: pd.DataFrame) -> dict:

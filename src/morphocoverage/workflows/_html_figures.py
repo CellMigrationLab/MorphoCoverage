@@ -122,6 +122,7 @@ def feature_figures(
     prepared = {key: with_share(view.prepared(checked, checked_fovs), view) for key, view in views}
     blocks, names, explained = [], {}, False
     pair_note = PAIR_NOTE if setup.own_references is None else PAIR_NOTE_SEVERAL
+    switch = _switch(views)
     taken: set[str] = set()
     for feature, parts in drawn.items():
         stem = file_stem(feature, taken)
@@ -138,83 +139,133 @@ def feature_figures(
         for index, figure in enumerate(parts, start=1):
             name = file_stem(f"{stem}_{index}", taken) if len(parts) > 1 else stem
             names[f"{feature}#{index}"] = name
-            rank = f"best-ranked feature {top.index(feature) + 1}" if feature in top else ""
-            role = rank or "a declared feature"
-            if feature == result.setup.readout:
-                role = f"{rank}, the readout" if rank else "the readout"
-            if len(parts) > 1:
-                role += f", part {index} of {len(parts)}"
+            role = _role(feature, top, result.setup.readout, index, len(parts))
             uri = save(figure, folder, name)
             label = f"{feature}: {role}"
             pairs = getattr(figure, "pairwise", None)
             paired = pairs is not None and len(pairs) > 0
-            pair = (
-                '<div class="pair-row">'
-                + "".join(
-                    f'<div class="panel"><p class="panel-title"><b>{letter}</b> {title}'
-                    f'<span class="panel-key">{html.escape(PANEL_KEYS[letter])}</span></p>'
-                    f'<div class="pl-pair" data-panel="{letter.lower()}"></div></div>'
-                    for letter, title in PANEL_TITLES.items()
-                )
-                + "</div>"
-                if paired
-                else ""
-            )
-            letter_a = '<p class="panel-title"><b>A</b></p>' if paired else ""
-            caption = f'<span class="caption">{html.escape(interactive_caption(figure))}</span>'
-            # Panels B and C read the same in every figure: explained under the first.
-            legend = (
-                f"<p>(A) {caption}</p>"
-                + (
-                    "<p>(B) and (C): as in the first figure above.</p>"
-                    if explained
-                    else f"<p>(B) {html.escape(pair_note)}</p><p>(C) {html.escape(PAIRED_NOTE)}</p>"
-                )
-                + _verdict_paragraph(figure)
-                if paired
-                else f"<p>{caption}</p>"
-            )
+            legend = _legend(figure, paired, explained, pair_note)
             explained = explained or paired
-            switch = "".join(
-                f'<button type="button" data-key="values" data-value="{key}" '
-                f'aria-pressed="{str(key == views[0][0]).lower()}">{key.capitalize()}</button>'
-                for key, _ in views
-            )
-            switch = (
-                f'<span class="seg" role="group" aria-label="Values">{switch}</span>'
-                if len(views) > 1
-                else ""
-            )
-            blocks.append(
-                f'<div class="feature" data-spec="{html.escape(name)}">'
-                f'<div class="feature-head"><h4>{html.escape(label)}</h4><span class="tools">'
-                f'{switch}<button type="button" class="dl full">Enlarge</button></span></div>'
-                f'<div class="panel">{letter_a}'
-                f'<div class="pl-plot" id="pl-{html.escape(name)}"></div></div>{pair}'
-                f'<div class="figure-legend"><p><strong>Legend:</strong></p>{legend}</div>'
-                + (
-                    "<details><summary>For a figure legend</summary>"
-                    f'<p class="legend-box">{legends[feature]}</p></details>'
-                    if feature in legends and index == 1
-                    else ""
-                )
-                + f'<p class="note sampled"></p><p class="tools">'
-                f"{download(f'figures/{name}.pdf', 'PDF')} {download(f'figures/{name}.png', 'PNG')}"
-                f" {data_buttons(data)}"
-                "</p><details><summary>The static figure (as in the PDF)</summary>"
-                f'<figure><img src="{uri}" data-file="{uri}" alt="{html.escape(label)}" '
-                'loading="lazy"></figure>'
-                "</details></div>"
-            )
+            box = legends[feature] if feature in legends and index == 1 else None
+            blocks.append(_feature_block(name, label, switch, paired, legend, box, uri, data))
     control = (setup.figure_control or {}).get(CONDITION_COLUMN)
     colours = condition_colours(objects, fovs, control, highlighted(result.discovery)[0])
+    specs = _specs(figures_by_view, prepared, checked_fovs, views, colours, names)
+    return blocks, specs
+
+
+def _role(feature: str, top: list[str], readout: Any, index: int, parts: int) -> str:
+    """What a figure shows: the feature's rank, the readout, or a declared feature, and its
+    part of a split figure."""
+    rank = f"best-ranked feature {top.index(feature) + 1}" if feature in top else ""
+    role = rank or "a declared feature"
+    if feature == readout:
+        role = f"{rank}, the readout" if rank else "the readout"
+    if parts > 1:
+        role += f", part {index} of {parts}"
+    return role
+
+
+def _legend(figure: Any, paired: bool, explained: bool, pair_note: str) -> str:
+    """A figure's legend: panel A's caption, and panels B and C's when it has them, which
+    read the same in every figure: explained under the first (``explained``)."""
+    caption = f'<span class="caption">{html.escape(interactive_caption(figure))}</span>'
+    if not paired:
+        return f"<p>{caption}</p>"
+    return (
+        f"<p>(A) {caption}</p>"
+        + (
+            "<p>(B) and (C): as in the first figure above.</p>"
+            if explained
+            else f"<p>(B) {html.escape(pair_note)}</p><p>(C) {html.escape(PAIRED_NOTE)}</p>"
+        )
+        + _verdict_paragraph(figure)
+    )
+
+
+def _switch(views: list[tuple[str, Any]]) -> str:
+    """The buttons switching a figure between its values (raw, normalised), when it has
+    several."""
+    switch = "".join(
+        f'<button type="button" data-key="values" data-value="{key}" '
+        f'aria-pressed="{str(key == views[0][0]).lower()}">{key.capitalize()}</button>'
+        for key, _ in views
+    )
+    return (
+        f'<span class="seg" role="group" aria-label="Values">{switch}</span>'
+        if len(views) > 1
+        else ""
+    )
+
+
+def _pair_row(paired: bool) -> str:
+    """The pairwise panels B and C under a figure that has them."""
+    if not paired:
+        return ""
+    return (
+        '<div class="pair-row">'
+        + "".join(
+            f'<div class="panel"><p class="panel-title"><b>{letter}</b> {title}'
+            f'<span class="panel-key">{html.escape(PANEL_KEYS[letter])}</span></p>'
+            f'<div class="pl-pair" data-panel="{letter.lower()}"></div></div>'
+            for letter, title in PANEL_TITLES.items()
+        )
+        + "</div>"
+    )
+
+
+def _feature_block(
+    name: str,
+    label: str,
+    switch: str,
+    paired: bool,
+    legend: str,
+    box: str | None,
+    uri: str,
+    data: Any,
+) -> str:
+    """One figure's block: its interactive panels, its legend (and the text for a figure
+    legend, ``box``, folded), its downloads and its static figure folded."""
+    letter_a = '<p class="panel-title"><b>A</b></p>' if paired else ""
+    return (
+        f'<div class="feature" data-spec="{html.escape(name)}">'
+        f'<div class="feature-head"><h4>{html.escape(label)}</h4><span class="tools">'
+        f'{switch}<button type="button" class="dl full">Enlarge</button></span></div>'
+        f'<div class="panel">{letter_a}'
+        f'<div class="pl-plot" id="pl-{html.escape(name)}"></div></div>{_pair_row(paired)}'
+        f'<div class="figure-legend"><p><strong>Legend:</strong></p>{legend}</div>'
+        + (
+            "<details><summary>For a figure legend</summary>"
+            f'<p class="legend-box">{box}</p></details>'
+            if box is not None
+            else ""
+        )
+        + f'<p class="note sampled"></p><p class="tools">'
+        f"{download(f'figures/{name}.pdf', 'PDF')} {download(f'figures/{name}.png', 'PNG')}"
+        f" {data_buttons(data)}"
+        "</p><details><summary>The static figure (as in the PDF)</summary>"
+        f'<figure><img src="{uri}" data-file="{uri}" alt="{html.escape(label)}" '
+        'loading="lazy"></figure>'
+        "</details></div>"
+    )
+
+
+def _specs(
+    figures_by_view: dict[str, Any],
+    prepared: dict[str, Any],
+    fovs: pd.DataFrame,
+    views: list[tuple[str, Any]],
+    colours: dict,
+    names: dict[str, str],
+) -> list[dict[str, Any]]:
+    """The specs the page's script draws, one per figure, with its data in every view."""
     by_view = {}
     for key, view in views:
         by_view[key] = feature_specs(
-            figures_by_view[key], prepared[key], checked_fovs, view, colours, names
+            figures_by_view[key], prepared[key], fovs, view, colours, names
         )
     first = views[0][0]
-    specs = [
+    return [
         {
             "id": spec["id"],
             "feature": spec["feature"],
@@ -223,7 +274,6 @@ def feature_figures(
         }
         for i, spec in enumerate(by_view[first])
     ]
-    return blocks, specs
 
 
 def _views(setup: Any, objects: pd.DataFrame, fovs: pd.DataFrame) -> list[tuple[str, Any]]:

@@ -195,16 +195,8 @@ def run_decisions(
     return found
 
 
-def adequacy_points(replay: ReplayResult) -> AdequacyResult:
-    """The four adequacy points of every replayed acquisition in ``replay``."""
-    if not isinstance(replay, ReplayResult):
-        raise TypeError("replay must be a ReplayResult")
-    groups = list(replay.group_cols)
-    runs = [*groups, *_RUN_KEYS]
-    streams = {
-        tuple(row[k] for k in runs): (int(row["stream_fovs"]), row["order"])
-        for _, row in replay.streams.iterrows()
-    }
+def _apparent_rows(replay: ReplayResult) -> list[dict[str, Any]]:
+    """One row per replayed run and strategy: its first and sustained apparent points."""
     apparent = []
     for values, stream, rows in run_decisions(replay):
         steps, decisions = rows["fovs"].tolist(), rows["decision"].tolist()
@@ -217,6 +209,14 @@ def adequacy_points(replay: ReplayResult) -> AdequacyResult:
                 "stream_fovs": int(stream["stream_fovs"]),
             }
         )
+    return apparent
+
+
+def _realized_rows(
+    replay: ReplayResult, runs: list[str], streams: dict[tuple, tuple[int, Any]]
+) -> list[dict[str, Any]]:
+    """One row per replayed run and criterion, all criteria combined first: its first and
+    sustained realized points; ``streams`` maps a run to its stream length and order."""
     realized = []
     for key, rows in _keyed(replay.outcomes, runs):
         values = dict(zip(runs, key, strict=True))
@@ -239,6 +239,21 @@ def adequacy_points(replay: ReplayResult) -> AdequacyResult:
                     "stream_fovs": stream,
                 }
             )
+    return realized
+
+
+def adequacy_points(replay: ReplayResult) -> AdequacyResult:
+    """The four adequacy points of every replayed acquisition in ``replay``."""
+    if not isinstance(replay, ReplayResult):
+        raise TypeError("replay must be a ReplayResult")
+    groups = list(replay.group_cols)
+    runs = [*groups, *_RUN_KEYS]
+    streams = {
+        tuple(row[k] for k in runs): (int(row["stream_fovs"]), row["order"])
+        for _, row in replay.streams.iterrows()
+    }
+    apparent = _apparent_rows(replay)
+    realized = _realized_rows(replay, runs, streams)
     point_columns = ("first_apparent", "sustained_apparent")
     apparent_table = pd.DataFrame(
         apparent,

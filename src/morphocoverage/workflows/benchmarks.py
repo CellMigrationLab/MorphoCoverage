@@ -279,6 +279,51 @@ def _benchmark_settings(settings: dict[str, Any]) -> str:
     )
 
 
+def _chosen_families(setup: Setup, families: Sequence[Family] | None) -> list[Family]:
+    """The families to benchmark: ``families``, or the default ones seeded from
+    ``Setup.random_state``; anything else than a non-empty sequence of ``Family`` refused."""
+    chosen = list(
+        default_families(setup.readout, random_state=setup.random_state)
+        if families is None
+        else families
+    )
+    if not chosen or any(not isinstance(f, Family) for f in chosen):
+        raise TypeError("families must be a non-empty sequence of Family")
+    return chosen
+
+
+def _frontiers(
+    replay: Any,
+    swept: list[Any],
+    criteria: Sequence[Any],
+    alphas: Sequence[float],
+    units: list[str],
+    n_boot: int,
+    random_state: int,
+) -> dict[str, Any]:
+    """The frontier of each criterion, keyed by its label."""
+    labels = [criterion.label for criterion in criteria]
+    # Frontiers are keyed by label; two criteria with one label (tolerances 5% and
+    # 5.02% both print as 5.0%) keep both, the second named by its criterion.
+    keys = [
+        label if labels.count(label) == 1 or labels.index(label) == i else f"{label} ({c.name})"
+        for i, (label, c) in enumerate(zip(labels, criteria, strict=True))
+    ]
+    return {
+        key: frontier(
+            replay,
+            swept,
+            criterion=criterion.name,
+            alphas=list(alphas),
+            unit_cols=units,
+            n_boot=n_boot,
+            random_state=random_state,
+            label=criterion.label,
+        )
+        for key, criterion in zip(keys, criteria, strict=True)
+    }
+
+
 def benchmark(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -310,13 +355,7 @@ def benchmark(
     """
     objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     default = families is None
-    families = list(
-        default_families(setup.readout, random_state=setup.random_state)
-        if families is None
-        else families
-    )
-    if not families or any(not isinstance(f, Family) for f in families):
-        raise TypeError("families must be a non-empty sequence of Family")
+    families = _chosen_families(setup, families)
     criteria = setup.criteria()
     # The rules on the raw values, as live; the criteria on the normalised ones.
     replay = replay_rules(
@@ -346,26 +385,7 @@ def benchmark(
         for f in families
     ]
     units = list(replay.group_cols) if unit_cols is None else list(unit_cols)
-    labels = [criterion.label for criterion in criteria]
-    # Frontiers are keyed by label; two criteria with one label (tolerances 5% and
-    # 5.02% both print as 5.0%) keep both, the second named by its criterion.
-    keys = [
-        label if labels.count(label) == 1 or labels.index(label) == i else f"{label} ({c.name})"
-        for i, (label, c) in enumerate(zip(labels, criteria, strict=True))
-    ]
-    frontiers = {
-        key: frontier(
-            replay,
-            swept,
-            criterion=criterion.name,
-            alphas=list(alphas),
-            unit_cols=units,
-            n_boot=n_boot,
-            random_state=setup.random_state,
-            label=criterion.label,
-        )
-        for key, criterion in zip(keys, criteria, strict=True)
-    }
+    frontiers = _frontiers(replay, swept, criteria, alphas, units, n_boot, setup.random_state)
     settings = {
         "readout": setup.readout,
         "reservoir_fraction": reservoir_fraction,

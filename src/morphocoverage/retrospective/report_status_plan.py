@@ -76,6 +76,26 @@ def _reliability_status(reliability: Any) -> Answer:
     return Status.CAUTION, f"{text}{apart}; not checked across samples"
 
 
+def _served_targets(
+    by_criterion: dict[str, list[dict[str, Any]]],
+) -> tuple[list[int], list[str], list[str], list[str]]:
+    """The count that served every sample of each target that has one, and the targets not
+    shown (capped by the held-back fields), not judged and not reached."""
+    reached, shown, unjudged, short = [], [], [], []
+    for label, own in by_criterion.items():
+        served = [answer["served"] for answer in own]
+        cells = {served_cell(a) for a in own if a["served"] is None}
+        if all(point is not None for point in served):
+            reached.append(max(served))
+        elif "not reached" in cells:
+            short.append(label)
+        elif "not shown" in cells:
+            shown.append(label)  # capped by the held-back fields, never short of fields
+        else:
+            unjudged.append(label)
+    return reached, shown, unjudged, short
+
+
 def next_time_status(reliability: Any, protocol: Any) -> Answer:
     """4. How many fields should I image next time? (see the module)."""
     if protocol is None:
@@ -91,18 +111,7 @@ def next_time_status(reliability: Any, protocol: Any) -> Answer:
     by_criterion: dict[str, list[dict[str, Any]]] = {}
     for answer in answers:
         by_criterion.setdefault(answer["label"], []).append(answer)
-    reached, shown, unjudged, short = [], [], [], []
-    for label, own in by_criterion.items():
-        served = [answer["served"] for answer in own]
-        cells = {served_cell(a) for a in own if a["served"] is None}
-        if all(point is not None for point in served):
-            reached.append(max(served))
-        elif "not reached" in cells:
-            short.append(label)
-        elif "not shown" in cells:
-            shown.append(label)  # capped by the held-back fields, never short of fields
-        else:
-            unjudged.append(label)
+    reached, shown, unjudged, short = _served_targets(by_criterion)
     units = min(answer["units"] for answer in answers)
     total = len(by_criterion)
     if not reached and short:

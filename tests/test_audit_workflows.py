@@ -14,6 +14,7 @@ import pytest
 from scenarios import FEATURE_COLS
 from test_workflows import READOUT, _acquisition, _setup
 
+import morphocoverage._plots_clusters as intervals_module  # where the intervals are drawn
 import morphocoverage.plots as plots_module
 import morphocoverage.workflows._shared as shared_module
 import morphocoverage.workflows.figures as figures_module
@@ -62,13 +63,13 @@ def _pooled_wells():
 
 def test_h1_pooled_repeats_keep_each_well_within_its_repeat(monkeypatch):
     captured = []
-    original = plots_module.bootstrap_nested
+    original = intervals_module.bootstrap_nested
 
     def spy(units, *args, **kwargs):
         captured.append([len(unit) for unit in units])
         return original(units, *args, **kwargs)
 
-    monkeypatch.setattr(plots_module, "bootstrap_nested", spy)
+    monkeypatch.setattr(intervals_module, "bootstrap_nested", spy)
     plots_of_data(*_pooled_wells(), features=["x"], n_boot=50)
     # 9 repeats, each with the 6 fields of its 2 wells (the repeats alone resampled: audit
     # 3, H-2), never 2 wells of 27 fields

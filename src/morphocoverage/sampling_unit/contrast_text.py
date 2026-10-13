@@ -451,6 +451,31 @@ def _test_sentence(contrast: Any, row: dict[str, Any], n_contrasts: int) -> str:
     )
 
 
+def _draw_cells(
+    row: dict[str, Any], size: Any, block: pd.DataFrame, repeat_col: Any, resampled: bool
+) -> list[str]:
+    """One contrast's table row at one draw size: each sampling's median (IQR) and
+    same-sign share, the fields taken and, when any draw resampled, the unit resampled."""
+    by = block.set_index("sampling")
+    cells = [_name(row, repeat_col), str(int(size))]
+    for sampling in (RANDOM_OBJECTS, WHOLE_FOVS):
+        if sampling not in by.index:
+            cells.append("–")
+            continue
+        r = by.loc[sampling]
+        cell = f"{r['median']:.2f} ({r['q25']:.2f} to {r['q75']:.2f})"
+        if not pd.isna(r["same_sign"]):
+            cell += f", {percent(r['same_sign'])}"
+        cells.append(cell)
+    whole = by.loc[WHOLE_FOVS] if WHOLE_FOVS in by.index else None
+    taken = None if whole is None else whole["fields_treated"]
+    cells.append("–" if taken is None or pd.isna(taken) else f"about {number(taken)}")
+    if resampled:
+        unit = None if whole is None else whole["resampled"]
+        cells.append(unit if isinstance(unit, str) else "fields only")
+    return cells
+
+
 def _draw_rows(contrast: Any) -> tuple[list[list[str]], list[str]]:
     """Per contrast and draw size: the median (IQR) and same-sign share of each sampling."""
     words = observation_words(contrast.settings)[1]
@@ -466,24 +491,7 @@ def _draw_rows(contrast: Any) -> tuple[list[list[str]], list[str]]:
         )
         own = effects[same & (effects["condition"] == row["condition"])]
         for size, block in own.groupby("n_objects", sort=True):
-            by = block.set_index("sampling")
-            cells = [_name(row, repeat_col), str(int(size))]
-            for sampling in (RANDOM_OBJECTS, WHOLE_FOVS):
-                if sampling not in by.index:
-                    cells.append("–")
-                    continue
-                r = by.loc[sampling]
-                cell = f"{r['median']:.2f} ({r['q25']:.2f} to {r['q75']:.2f})"
-                if not pd.isna(r["same_sign"]):
-                    cell += f", {percent(r['same_sign'])}"
-                cells.append(cell)
-            whole = by.loc[WHOLE_FOVS] if WHOLE_FOVS in by.index else None
-            taken = None if whole is None else whole["fields_treated"]
-            cells.append("–" if taken is None or pd.isna(taken) else f"about {number(taken)}")
-            if resampled:
-                unit = None if whole is None else whole["resampled"]
-                cells.append(unit if isinstance(unit, str) else "fields only")
-            rows.append(cells)
+            rows.append(_draw_cells(row, size, block, repeat_col, resampled))
     columns = ["contrast", words, f"random {words}", "whole fields", "fields"]
     return rows, [*columns, *(["resampled"] if resampled else [])]
 

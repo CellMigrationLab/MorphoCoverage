@@ -236,8 +236,9 @@ class Answers:
             object_prevalence=float(labels.mean()),
         )
 
-    def lines(self) -> list[str]:
-        """The answers in sentences."""
+    def _control_words(self) -> Any:
+        """The control in words: ``none``, its value, or several with their conditions,
+        parents and master."""
         control = "none" if self.control is None else self.control["condition"]
         if isinstance(control, dict):  # several controls, each with its conditions
             control = "; ".join(
@@ -249,8 +250,12 @@ class Answers:
                 for c, p in (self.control_parents or {}).items()
             )
             control += f"; master {self.master_control}" if self.master_control else ""
+        return control
+
+    def lines(self) -> list[str]:
+        """The answers in sentences."""
         lines = [
-            f"Control: {control}.",
+            f"Control: {self._control_words()}.",
             f"Aim: {q.AIM_TEXT[self.aim]}.",
             (
                 f"Features ({len(self.features)}): {', '.join(self.features)}".rstrip(".") + "."
@@ -535,6 +540,13 @@ def guide(
         run_report = False
     if not run_report:
         return GuidedResult(folder, scan, answers, setup, None)
+    result = _run_report(folder, scan, setup, say)
+    return GuidedResult(folder, scan, answers, setup, result)
+
+
+def _run_report(folder: Path, scan: DesignScan, setup: Setup, say: Callable[[str], None]) -> Report:
+    """Run the report of the session, save its text, page and archive in ``folder``, and say
+    where."""
     fields = scan.fovs
     conditions = int(fields[CONDITION_COLUMN].nunique()) if CONDITION_COLUMN in fields else 1
     cores = setup.n_jobs if setup.n_jobs > 0 else os.cpu_count() or 1
@@ -562,7 +574,7 @@ def guide(
         f"report_full.txt, {ANSWERS_FILE}, the figures in figures/ as PNG and PDF; and all of "
         f"it in {archive.name}, to archive or send as one file."
     )
-    return GuidedResult(folder, scan, answers, setup, result)
+    return result
 
 
 __all__ = [

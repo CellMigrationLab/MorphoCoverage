@@ -94,30 +94,23 @@ from ..metadata import (
     TARGET_COLUMN,
     TECHNICAL_REPEAT_COLUMN,
 )
-from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size, log_scale
+from ..schema import ValidatedInput
+from ..statistics import log_scale
 from ._common import groups, validated
+from ._contrast_rows import _contrast_rows, _ContrastRun
 from ._reach import reachable
 from ._units import (
-    FIELD,
     check_arguments,
     contrasts_of,
-    control_label,
     describe_groups,
-    randomization_test,
-    reference_of,
     resolve_columns,
     resolve_unit,
-    separation_d,
-    side_units,
-    sides,
-    unit_means,
 )
 from .contrast_across import ACROSS_COLUMNS, across_table
 from .contrast_cells import CELL_COLUMNS, cell_table
 from .contrast_repeats import REPEAT_COLUMNS, TARGET_COLUMNS, across_repeats, reagent_agreement
-from .contrast_sampling import NOT_SAMPLED, SAMPLING_COLUMNS, sampling_row
-from .contrast_text import FEW_UNITS_D, NO_CONTROL, contrast_summary
-from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
+from .contrast_sampling import SAMPLING_COLUMNS
+from .contrast_text import contrast_summary
 from .repeat_plan import PLAN_COLUMNS, repeat_plan
 
 DEFAULT_OBJECT_COUNTS = (50, 100, 200, 500)
@@ -205,98 +198,6 @@ class ConditionContrast:
         return contrast_summary(self, detail)
 
 
-def _unit_sample(
-    units: list[list[np.ndarray]], n: int, rng: np.random.Generator
-) -> tuple[np.ndarray, int]:
-    """``n`` objects from whole technical repeats drawn with replacement, and the fields taken.
-
-    A unit is drawn at random (with replacement, as from a population of wells
-    like these), its fields are taken whole in random order, with a random
-    part of the last one, until ``n`` objects; fields without observations
-    count as acquired.
-    """
-    filled = [u for u in units if sum(len(f) for f in u)]
-    taken, total, fields = [], 0, 0
-    while total < n:
-        unit = filled[int(rng.integers(len(filled)))]
-        for i in rng.permutation(len(unit)):
-            field, need = unit[i], n - total
-            fields += 1
-            if len(field) >= need:
-                taken.append(rng.choice(field, size=need, replace=False))
-                total = n
-                break
-            taken.append(field)
-            total += len(field)
-    return np.concatenate(taken), fields
-
-
-def _effect_rows(
-    base: dict[str, Any],
-    t_units: list[list[np.ndarray]],
-    c_units: list[list[np.ndarray]],
-    resampled: str | None,
-    counts: list[int],
-    n_draws: int,
-    full: float,
-    rng: np.random.Generator,
-) -> list[dict[str, Any]]:
-    """The JCS effect size at each sample size, with random objects and with whole fields.
-
-    Whole fields are drawn from every acquired field, those without
-    observations included, as a microscope stopping at ``n`` objects acquires
-    them too; so ``fields_treated`` counts acquired fields. With
-    ``resampled`` (the technical-repeat column, when both sides hold at least
-    two) the whole-field draws take the fields of technical repeats drawn with
-    replacement (``_unit_sample``), so their spread includes the well-to-well
-    variation.
-    """
-    t_fields = [f for u in t_units for f in u]
-    c_fields = [f for u in c_units for f in u]
-    t_objects, c_objects = np.concatenate(t_fields), np.concatenate(c_fields)
-    n_max = min(len(t_objects), len(c_objects))
-    rows = []
-    for n in [n for n in counts if n <= n_max]:
-        for sampling in (RANDOM_OBJECTS, WHOLE_FOVS):
-            draws, used = np.empty(n_draws), np.empty(n_draws)
-            for i in range(n_draws):
-                if sampling == RANDOM_OBJECTS:
-                    t = rng.choice(t_objects, size=n, replace=False)
-                    c = rng.choice(c_objects, size=n, replace=False)
-                elif resampled:
-                    t, used[i] = _unit_sample(t_units, n, rng)
-                    c, _ = _unit_sample(c_units, n, rng)
-                else:
-                    t = field_sample(t_fields, n, rng)
-                    c = field_sample(c_fields, n, rng)
-                draws[i] = jcs_effect_size(t, c)
-            defined = draws[np.isfinite(draws)]
-            fields_treated = np.nan
-            if sampling == WHOLE_FOVS:
-                fields_treated = (
-                    float(used.mean()) if resampled else fields_holding(t_fields, n, rng)
-                )
-            rows.append(
-                {
-                    **base,
-                    "sampling": sampling,
-                    "resampled": resampled if sampling == WHOLE_FOVS else None,
-                    "n_objects": n,
-                    "median": float(np.median(defined)) if len(defined) else np.nan,
-                    "q25": float(np.percentile(defined, 25)) if len(defined) else np.nan,
-                    "q75": float(np.percentile(defined, 75)) if len(defined) else np.nan,
-                    "same_sign": (
-                        float(np.mean(np.sign(defined) == np.sign(full)))
-                        if len(defined) and np.isfinite(full) and full != 0
-                        else np.nan
-                    ),
-                    "fields_treated": fields_treated,
-                    "draws": len(defined),
-                }
-            )
-    return rows
-
-
 @one_warning
 def condition_contrast(
     objects: pd.DataFrame,
@@ -369,137 +270,105 @@ def condition_contrast(
     all_groups = groups(data)
     described = describe_groups(all_groups, condition_col, repeat_col, control, comparisons)
     unit, unit_note = resolve_unit(data, described, condition_col, repeat_col, technical_col)
-    settings = {
-        ACQUISITION: acquisition_identity(data),
-        "feature": feature,
-        "control": dict(control or {}),
-        "comparisons": list(comparisons or []),
-        "condition_col": condition_col,
-        "repeat_col": repeat_col,
-        "technical_col": technical_col,
-        "unit": unit,
-        "unit_note": unit_note,
-        "fields_independent": bool(fields_independent),
-        "object_counts": counts,
-        "n_permutations": n_permutations,
-        "n_draws": n_draws,
-        "random_state": random_state,
-        "observation_unit": data.observation_unit,
-        "observation_unit_declared": data.observation_unit_declared,
-        "log_scale": log_scale(data.feature_values(feature), scale, repr(feature)),
-        "scale": scale,  # declared in the Setup, else None (the automatic rule)
-        "declared_experiments": bool(families),  # Setup.experiment (audit 10)
-    }
-    contrasts = contrasts_of(described)
-    # Repeats holding only the control: in no comparison, so not in the pooled control.
-    compared = {d["repeat"] for d in described if not d["is_control"]}
-    settings["control_only_repeats"] = (
-        sorted({d["repeat"] for d in described if d["is_control"]} - compared, key=str)
-        if repeat_col is not None
-        else []
+    run = _ContrastRun(
+        all_groups=all_groups,
+        described=described,
+        feature=feature,
+        control=control,
+        comparisons=comparisons,
+        condition_col=condition_col,
+        repeat_col=repeat_col,
+        technical_col=technical_col,
+        unit=unit,
+        fields_independent=bool(fields_independent),
+        counts=counts,
+        n_permutations=n_permutations,
+        n_draws=n_draws,
+        random_state=random_state,
     )
+    settings = _settings(run, data, unit_note, scale, families)
+    contrasts = contrasts_of(described)
     if not contrasts:
         settings["reason"] = (
             f"Every analysis group is the control, {control_name(control)}: no other condition "
             "to compare."
         )
         return ConditionContrast(pd.DataFrame(), pd.DataFrame(), settings)
+    return _compared(run, contrasts, settings, fovs, declared, target_col, cell_test, families)
 
-    rows, effect_rows = [], []
-    # The cell-level test pools every repeat as provided: each condition's observations, and
-    # every control observation once per repeat.
-    pooled: dict[Any, dict[str, Any]] = {}
-    # Each reference's observations by repeat (one reference with a single control).
-    control_cells: dict[Any, dict[Any, np.ndarray]] = {}
-    for repeat, condition in contrasts:
-        treated, controls = sides(described, repeat, condition)
-        base = {
-            REPEAT_COLUMN: repeat,
-            "condition": condition,
-            "control_condition": control_label(described, controls)
-            or reference_of(described, condition, control, condition_col),
-        }
-        if not controls:
-            rows.append({**base, **_NO_TEST, "status": f"{NO_CONTROL} {repeat_col}={repeat}"})
-            continue
-        t_units, t_acquired = side_units(all_groups, feature, treated, technical_col)
-        c_units, c_acquired = side_units(all_groups, feature, controls, technical_col)
-        t_fields = [f for u in t_units for f in u]
-        c_fields = [f for u in c_units for f in u]
-        t_objects, c_objects = np.concatenate(t_fields), np.concatenate(c_fields)
-        rng = group_rng(random_state, base)
-        test = randomization_test(
-            t_units, c_units, unit, n_permutations, rng, bool(fields_independent)
-        )
-        units = min(test["technical"], test["control_technical"])
-        by_unit = units >= 2
-        row = {
-            **base,
-            "fields": t_acquired,
-            "observations": len(t_objects),
-            "control_fields": c_acquired,
-            "control_observations": len(c_objects),
-            **test,
-            "mean": float(t_objects.mean()) if len(t_objects) else np.nan,
-            "control_mean": float(c_objects.mean()) if len(c_objects) else np.nan,
-            "d_objects": cohen_d(t_objects, c_objects),
-            "d_technical": (
-                separation_d(unit_means(t_units), unit_means(c_units))
-                if units > FEW_UNITS_D
-                else np.nan
-            ),
-            "p_bonferroni": np.nan,
-            "effect_full": jcs_effect_size(t_objects, c_objects),
-        }
-        reference = reference_of(described, condition, control, condition_col)
-        control_cells.setdefault(reference, {}).setdefault(repeat, c_objects)
-        side = pooled.setdefault(
-            condition,
-            {
-                "treated_by_repeat": {},
-                "control_by_repeat": {},
-                "control_condition": base["control_condition"],
-                "reference": reference,
-            },
-        )
-        side["treated_by_repeat"][repeat] = t_objects
-        side["control_by_repeat"][repeat] = c_objects
-        # Question 2 with a control: do the fields acquired resolve this difference? Its own
-        # generator, so the draws below are unchanged.
-        own = group_rng(random_state, {**base, "question": "enough"})
-        row.update(sampling_row(t_units, c_units, row["d_objects"], own))
-        rows.append(row)
-        # The effect sizes do not depend on the test: computed for every contrast.
-        resampled = unit if by_unit else None
-        effect_rows += _effect_rows(
-            base, t_units, c_units, resampled, counts, n_draws, row["effect_full"], rng
-        )
+
+def _settings(
+    run: _ContrastRun,
+    data: ValidatedInput,
+    unit_note: str | None,
+    scale: str | None,
+    families: Mapping[Any, Any] | None,
+) -> dict[str, Any]:
+    """The settings of a ``condition_contrast`` call: its arguments, the unit and the scale."""
+    settings = {
+        ACQUISITION: acquisition_identity(data),
+        "feature": run.feature,
+        "control": dict(run.control or {}),
+        "comparisons": list(run.comparisons or []),
+        "condition_col": run.condition_col,
+        "repeat_col": run.repeat_col,
+        "technical_col": run.technical_col,
+        "unit": run.unit,
+        "unit_note": unit_note,
+        "fields_independent": run.fields_independent,
+        "object_counts": run.counts,
+        "n_permutations": run.n_permutations,
+        "n_draws": run.n_draws,
+        "random_state": run.random_state,
+        "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
+        "log_scale": log_scale(data.feature_values(run.feature), scale, repr(run.feature)),
+        "scale": scale,  # declared in the Setup, else None (the automatic rule)
+        "declared_experiments": bool(families),  # Setup.experiment (audit 10)
+    }
+    # Repeats holding only the control: in no comparison, so not in the pooled control.
+    described = run.described
+    compared = {d["repeat"] for d in described if not d["is_control"]}
+    settings["control_only_repeats"] = (
+        sorted({d["repeat"] for d in described if d["is_control"]} - compared, key=str)
+        if run.repeat_col is not None
+        else []
+    )
+    return settings
+
+
+def _compared(
+    run: _ContrastRun,
+    contrasts: list[tuple[Any, Any]],
+    settings: dict[str, Any],
+    fovs: pd.DataFrame,
+    declared: pd.DataFrame | None,
+    target_col: str | None,
+    cell_test: bool,
+    families: Mapping[Any, Any] | None,
+) -> ConditionContrast:
+    """Every contrast compared: the per-repeat table, then across the repeats, across
+    experiments, the plan, the reagents and the cell-level test, in that order."""
+    rows, effect_rows, pooled = _contrast_rows(run, contrasts)
     table = _without_unreachable(pd.DataFrame(rows)[_COLUMNS])
     tested = table["p_value"].notna()
     table["p_bonferroni"] = np.where(
         tested, np.minimum(1.0, table["p_value"] * int(tested.sum())), np.nan
     )
-    log = settings["log_scale"]
-    repeats = across_repeats(table, repeat_col, random_state, log, families)
-    held = (all_groups, described, feature, technical_col)
+    log, random_state = settings["log_scale"], run.random_state
+    repeats = across_repeats(table, run.repeat_col, random_state, log, families)
+    held = (run.all_groups, run.described, run.feature, run.technical_col)
     between = across_table(held, declared, random_state, log)
     settings.update(between.attrs)  # the contrast table and the master's repeats
-    plan = repeat_plan(table, log=log) if repeat_col else pd.DataFrame(columns=PLAN_COLUMNS)
-    targets = _targets(fovs, condition_col, target_col)
-    if comparisons is not None:  # a comparison's target is its condition's
-        targets = {
-            label: targets[pair[0]]
-            for label, pair in comparison_pairs(comparisons).items()
-            if pair[0] in targets
-        }
-    agreement = reagent_agreement(table, targets)
-    for side in pooled.values():
-        side["control_all"] = control_cells[side["reference"]]
+    plan = repeat_plan(table, log=log) if run.repeat_col else pd.DataFrame(columns=PLAN_COLUMNS)
+    agreement = reagent_agreement(
+        table, _comparison_targets(fovs, run.condition_col, target_col, run.comparisons)
+    )
     cells = (
         cell_table(
             pooled,
             plan,
-            n_permutations,
+            run.n_permutations,
             lambda condition, values: group_rng(
                 random_state, {"condition": condition, "test": "cells", "values": values}
             ),
@@ -512,6 +381,25 @@ def condition_contrast(
     return ConditionContrast(
         table, pd.DataFrame(effect_rows), settings, repeats, plan, agreement, cells, between
     )
+
+
+def _comparison_targets(
+    fovs: pd.DataFrame,
+    condition_col: str,
+    target_col: str | None,
+    comparisons: Sequence[tuple[Any, Any]] | None,
+) -> dict:
+    """Each condition's target (``_targets``); with comparisons, each comparison's label
+    with its condition's target."""
+    targets = _targets(fovs, condition_col, target_col)
+    if comparisons is None:
+        return targets
+    # A comparison's target is its condition's.
+    return {
+        label: targets[pair[0]]
+        for label, pair in comparison_pairs(comparisons).items()
+        if pair[0] in targets
+    }
 
 
 def _targets(fovs: pd.DataFrame, condition_col: str, target_col: str | None) -> dict:
@@ -573,27 +461,4 @@ _COLUMNS = [
     *SAMPLING_COLUMNS,
     "status",
 ]
-_NO_TEST = {
-    "fields": 0,
-    "observations": 0,
-    "control_fields": 0,
-    "control_observations": 0,
-    "technical": 0,
-    "control_technical": 0,
-    "mean": np.nan,
-    "control_mean": np.nan,
-    "d_objects": np.nan,
-    "d_fields": np.nan,
-    "d_technical": np.nan,
-    "permutation_unit": FIELD,
-    "distinct_assignments": np.nan,
-    "p_value": np.nan,
-    "p_bonferroni": np.nan,
-    "p_exact": False,
-    "p_floor": np.nan,
-    "effect_full": np.nan,
-    **NOT_SAMPLED,
-}
-
-
 __all__ = ["UNREACHABLE", "ConditionContrast", "condition_contrast"]

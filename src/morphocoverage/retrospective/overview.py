@@ -40,7 +40,7 @@ from ..metadata import (
     sorted_labels,
 )
 from ..sampling_unit._experiments import experiments
-from ..schema import fov_positions, observation_words
+from ..schema import ValidatedInput, fov_positions, observation_words
 from ._value_checks import value_checks
 from .report_status import data_check_status
 
@@ -273,82 +273,109 @@ class DatasetOverview:
                 else NO_FEATURES
             ),
         ]
-        condition_col, repeat_col = self.settings["condition_col"], self.settings["repeat_col"]
         technical_col = self.settings["technical_col"]
         if technical_col is not None:
-            per = self.layout["technical_repeats"] if len(self.layout) else pd.Series(dtype=int)
-            spread = (
-                f", {int(per.min())} to {int(per.max())} per condition and repeat"
-                if len(per) and per.min() != per.max()
-                else (f", {int(per.iloc[0])} per condition and repeat" if len(per) else "")
-            )
-            lines.append(
-                f"{count(c['technical_repeats'], 'technical repeat')} ({technical_col}, a well "
-                f"or a dish within a repeat{spread})."
-            )
+            lines.append(self._technical_line(technical_col))
         for axis, (low, high) in self.settings.get("planes", {}).items():
             lines.append(
                 f"{axis!r} takes {low} to {high} values per field: {words} of several planes, "
                 "channels or frames of one field (declared as plane-level rows)."
             )
+        lines += self._grouping_lines(words)
+        lines += self._closing_lines()
+        return "\n".join(lines)
+
+    def _technical_line(self, technical_col: str) -> str:
+        """The technical repeats: how many, and how many per condition and repeat."""
+        per = self.layout["technical_repeats"] if len(self.layout) else pd.Series(dtype=int)
+        spread = (
+            f", {int(per.min())} to {int(per.max())} per condition and repeat"
+            if len(per) and per.min() != per.max()
+            else (f", {int(per.iloc[0])} per condition and repeat" if len(per) else "")
+        )
+        return (
+            f"{count(self.counts['technical_repeats'], 'technical repeat')} ({technical_col}, "
+            f"a well or a dish within a repeat{spread})."
+        )
+
+    def _grouping_lines(self, words: str) -> list[str]:
+        """How the fields are grouped: the analysis groups, or the conditions and repeats with
+        their arrangement and a fields-by-condition-and-repeat table."""
+        c = self.counts
+        condition_col, repeat_col = self.settings["condition_col"], self.settings["repeat_col"]
         group_cols = self.settings.get("group_cols", ())
         if condition_col is None and repeat_col is None and group_cols:
-            lines.append(
+            text = (
                 f"No condition or repeat column; the analysis groups are {', '.join(group_cols)} "
                 f"({count(c['groups'], 'group')}), each analysed apart."
             )
-        elif condition_col is None and repeat_col is None:
-            lines.append(
-                "No condition or repeat column: every field is one group (all fields pooled)."
+            return [text]
+        if condition_col is None and repeat_col is None:
+            return ["No condition or repeat column: every field is one group (all fields pooled)."]
+        lines = [self._columns_line()]
+        arrangement = self.arrangement()
+        if arrangement:
+            lines.append(f"{arrangement}.")  # it may start with a label: never capitalised
+        lines.append(self._layout_table(words))
+        return lines
+
+    def _columns_line(self) -> str:
+        """``3 conditions (condition: ...); 2 repeats (repeat: ...).``"""
+        c = self.counts
+        condition_col, repeat_col = self.settings["condition_col"], self.settings["repeat_col"]
+        parts = []
+        if condition_col is not None:
+            names = self.layout[condition_col].drop_duplicates().tolist()
+            parts.append(
+                f"{count(c['conditions'], 'condition')} "
+                f"({condition_col}: {_listed(names, MAX_VALUES_LISTED)})"
             )
         else:
-            parts = []
-            if condition_col is not None:
-                names = self.layout[condition_col].drop_duplicates().tolist()
-                parts.append(
-                    f"{count(c['conditions'], 'condition')} "
-                    f"({condition_col}: {_listed(names, MAX_VALUES_LISTED)})"
-                )
-            else:
-                parts.append("no condition column")
-            if repeat_col is not None:
-                names = self.layout[repeat_col].drop_duplicates().tolist()
-                parts.append(
-                    f"{count(c['repeats'], 'repeat')} "
-                    f"({repeat_col}: {_listed(names, MAX_VALUES_LISTED)})"
-                )
-            else:
-                parts.append("no repeat column (one implicit repeat)")
-            lines.append("; ".join(parts) + ".")
-            arrangement = self.arrangement()
-            if arrangement:
-                lines.append(f"{arrangement}.")  # it may start with a label: never capitalised
-            table = self.layout.copy()
-            if len(table) <= 40:
-                header = [col for col in (condition_col, repeat_col) if col is not None]
-                columns = ["fields", "empty", words]
-                keys = ["fields", "empty_fields", "objects"]
-                if technical_col is not None:
-                    columns.append("technical repeats")
-                    keys.append("technical_repeats")
-                for col in header:
-                    table[col] = _shown(table[col].tolist())
-                rows = [
-                    [row[col] for col in header] + [row[key] for key in keys]
-                    for row in (r._asdict() for r in table.itertuples(index=False))
-                ]
-                align = "l" * len(header) + "r" * len(keys)
-                lines.append(style_table(rows, [*header, *columns], indent=2, align=align))
-            else:
-                lines.append(
-                    f"  ({len(table)} condition-and-repeat combinations: too many to list; "
-                    "DatasetOverview.layout holds them)"
-                )
+            parts.append("no condition column")
+        if repeat_col is not None:
+            names = self.layout[repeat_col].drop_duplicates().tolist()
+            parts.append(
+                f"{count(c['repeats'], 'repeat')} "
+                f"({repeat_col}: {_listed(names, MAX_VALUES_LISTED)})"
+            )
+        else:
+            parts.append("no repeat column (one implicit repeat)")
+        return "; ".join(parts) + "."
+
+    def _layout_table(self, words: str) -> str:
+        """The fields, empty fields and observations per condition and repeat (and technical
+        repeats), or why there are too many combinations to list."""
+        condition_col, repeat_col = self.settings["condition_col"], self.settings["repeat_col"]
+        technical_col = self.settings["technical_col"]
+        table = self.layout.copy()
+        if len(table) > 40:
+            return (
+                f"  ({len(table)} condition-and-repeat combinations: too many to list; "
+                "DatasetOverview.layout holds them)"
+            )
+        header = [col for col in (condition_col, repeat_col) if col is not None]
+        columns = ["fields", "empty", words]
+        keys = ["fields", "empty_fields", "objects"]
+        if technical_col is not None:
+            columns.append("technical repeats")
+            keys.append("technical_repeats")
+        for col in header:
+            table[col] = _shown(table[col].tolist())
+        rows = [
+            [row[col] for col in header] + [row[key] for key in keys]
+            for row in (r._asdict() for r in table.itertuples(index=False))
+        ]
+        align = "l" * len(header) + "r" * len(keys)
+        return style_table(rows, [*header, *columns], indent=2, align=align)
+
+    def _closing_lines(self) -> list[str]:
+        """How the values were normalised, the other feature tables, the data check's
+        warnings (or its status) and the checks of the values."""
         normalized = self.settings.get("normalized")
         if normalized:
-            lines.append(f"Values: {normalized}.")
+            lines = [f"Values: {normalized}."]
         else:
-            lines.append("Values: as given (not normalised).")
+            lines = ["Values: as given (not normalised)."]
         lines += list(self.settings.get("feature_tables", ()))
         status, text = data_check_status(self)
         if self.warnings:
@@ -360,7 +387,7 @@ class DatasetOverview:
         else:
             lines.append(f"{status.marker} {text[:1].upper()}{text[1:]}.")
         lines += [f"{Status.CAUTION.marker} {check}" for check in self.value_checks]
-        return "\n".join(lines)
+        return lines
 
 
 def _within_field_values(data: Any) -> dict[str, tuple[int, int]]:
@@ -374,6 +401,58 @@ def _within_field_values(data: Any) -> dict[str, tuple[int, int]]:
         if len(per_field) and int(per_field.max()) > 1:
             planes[axis] = (int(per_field.min()), int(per_field.max()))
     return planes
+
+
+def _layout(
+    table: pd.DataFrame, keys: list[str], technical_col: str | None, first: Any
+) -> pd.DataFrame:
+    """The fields, empty fields, observations (and technical repeats) per condition and
+    repeat (``keys``), the control ``first``, then sorted labels."""
+    aggregations = {
+        "fields": ("objects", "size"),
+        "empty_fields": ("empty_fields", "sum"),
+        "objects": ("objects", "sum"),
+    }
+    if technical_col is not None:
+        aggregations["technical_repeats"] = (technical_col, "nunique")
+    if not keys:
+        return pd.DataFrame(columns=list(aggregations))
+    layout = table.groupby(keys, sort=False, dropna=False).agg(**aggregations).reset_index()
+    layout["empty_fields"] = layout["empty_fields"].astype(int)
+    # The control first, then sorted labels: the row order of the tables is not data.
+    ranks = [
+        layout[col].map({v: i for i, v in enumerate(sorted_labels(layout[col], first))})
+        for col in keys
+    ]
+    order = sorted(range(len(layout)), key=lambda i: tuple(int(r.iloc[i]) for r in ranks))
+    return layout.iloc[order].reset_index(drop=True)
+
+
+def _overview_counts(
+    data: ValidatedInput,
+    table: pd.DataFrame,
+    keys: list[str],
+    columns: tuple[str | None, str | None, str | None],
+) -> dict[str, int]:
+    """The counts of the overview; ``columns`` are the condition, repeat and technical-repeat
+    columns found (None when absent)."""
+    condition_col, repeat_col, technical_col = columns
+    if technical_col is None:
+        technical_repeats = 0
+    else:
+        technical_repeats = len(table[[*keys, technical_col]].drop_duplicates())
+    return {
+        "objects": len(data.objects),
+        "fields": len(data.fovs),
+        "empty_fields": int(table["empty_fields"].sum()),
+        "features": len(data.feature_cols),
+        "conditions": int(table[condition_col].nunique(dropna=False)) if condition_col else 0,
+        "repeats": int(table[repeat_col].nunique(dropna=False)) if repeat_col else 0,
+        "technical_repeats": technical_repeats,
+        "groups": len(data.fovs.loc[:, list(data.group_cols)].drop_duplicates())
+        if data.group_cols
+        else 1,
+    }
 
 
 @one_warning
@@ -422,42 +501,8 @@ def dataset_overview(
     table["objects"] = [int(per_field.get(i, 0)) for i in range(len(table))]
     table["empty_fields"] = table["objects"] == 0
     keys = [col for col in (condition_col, repeat_col) if col is not None]
-    aggregations = {
-        "fields": ("objects", "size"),
-        "empty_fields": ("empty_fields", "sum"),
-        "objects": ("objects", "sum"),
-    }
-    if technical_col is not None:
-        aggregations["technical_repeats"] = (technical_col, "nunique")
-    if keys:
-        layout = table.groupby(keys, sort=False, dropna=False).agg(**aggregations).reset_index()
-        layout["empty_fields"] = layout["empty_fields"].astype(int)
-        # The control first, then sorted labels: the row order of the tables is not data.
-        first = dict(control or {}).get(condition_col)
-        ranks = [
-            layout[col].map({v: i for i, v in enumerate(sorted_labels(layout[col], first))})
-            for col in keys
-        ]
-        order = sorted(range(len(layout)), key=lambda i: tuple(int(r.iloc[i]) for r in ranks))
-        layout = layout.iloc[order].reset_index(drop=True)
-    else:
-        layout = pd.DataFrame(columns=list(aggregations))
-    if technical_col is None:
-        technical_repeats = 0
-    else:
-        technical_repeats = len(table[[*keys, technical_col]].drop_duplicates())
-    counts = {
-        "objects": len(data.objects),
-        "fields": len(data.fovs),
-        "empty_fields": int(table["empty_fields"].sum()),
-        "features": len(data.feature_cols),
-        "conditions": int(table[condition_col].nunique(dropna=False)) if condition_col else 0,
-        "repeats": int(table[repeat_col].nunique(dropna=False)) if repeat_col else 0,
-        "technical_repeats": technical_repeats,
-        "groups": len(data.fovs.loc[:, list(data.group_cols)].drop_duplicates())
-        if data.group_cols
-        else 1,
-    }
+    layout = _layout(table, keys, technical_col, dict(control or {}).get(condition_col))
+    counts = _overview_counts(data, table, keys, (condition_col, repeat_col, technical_col))
     settings: dict[str, Any] = {
         ACQUISITION: acquisition_identity(data),
         "observation_unit": data.observation_unit,

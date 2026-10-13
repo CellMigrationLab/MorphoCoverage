@@ -174,32 +174,53 @@ def chip(status: Status | None, key: str = "", answer: str = "", word: str | Non
     if status is None:
         return ""
     kind, default = STATUS_WORDS[status]
-    if word is not None:
-        icon = f'<span aria-hidden="true">{status.marker}</span>'
-        return f'<span class="chip {kind}">{icon} {word}</span>'
+    if word is None:
+        word = _found_word(status, key, answer, default)
+    icon = f'<span aria-hidden="true">{status.marker}</span>'
+    return f'<span class="chip {kind}">{icon} {word}</span>'
+
+
+def _found_word(status: Status, key: str, answer: str, default: str) -> str:
+    """The chip's word for what the answer to question ``key`` found: the question's word for
+    the status, or the answer's own (``_answer_word``)."""
     word = RESULT_WORDS.get((key, status), default)
     if key == "enough" and status is Status.CAUTION and "shown in 0 of" in answer:
         word = "Not yet"
     few = re.search(r"\bn = ([12])\b", answer) if key in ("conditions", "populations") else None
     if few:
-        word = f"No conclusion (n = {few.group(1)})"
-    elif key == "conditions" and answer.startswith("nothing compared"):
-        word = "Nothing compared"
-    elif key == "populations" and answer.startswith("no group:"):
-        word = "No group"
-    elif key == "conditions" and answer.startswith("nothing compared"):
-        word = "Nothing compared"  # audit 10 (F12): never "No consistent difference"
-    elif key == "conditions" and status is Status.OK and answer.startswith("beyond the mean"):
-        word = "Differs beyond the mean"
-    elif key == "populations" and status is Status.CAUTION and "(exploratory;" in answer:
-        word = "More common (exploratory)"  # never "Enriched" (owner, 2026-10-06, audit 10)
-    elif key == "populations" and status is Status.CAUTION and "not a subpopulation" in answer:
-        word = "A condition's shift"
-    elif key in ("conditions", "populations") and status is Status.CAUTION:
-        consistent = "same direction" in answer or "in every repeat" in answer
-        word = "Trend only" if consistent else "No consistent difference"
-    icon = f'<span aria-hidden="true">{status.marker}</span>'
-    return f'<span class="chip {kind}">{icon} {word}</span>'
+        return f"No conclusion (n = {few.group(1)})"
+    return _answer_word(status, key, answer) or word
+
+
+def _answer_word(status: Status, key: str, answer: str) -> str | None:
+    """The word the answer itself decides for the conditions and the populations, or None
+    when the question's word stands."""
+    if key == "conditions" and answer.startswith("nothing compared"):
+        return "Nothing compared"  # audit 10 (F12): never "No consistent difference"
+    if key == "populations" and answer.startswith("no group:"):
+        return "No group"
+    if key == "conditions" and status is Status.OK and answer.startswith("beyond the mean"):
+        return "Differs beyond the mean"
+    if key == "populations" and status is Status.CAUTION:
+        return _population_caution(answer)
+    if key == "conditions" and status is Status.CAUTION:
+        return _trend(answer)
+    return None
+
+
+def _population_caution(answer: str) -> str:
+    """The word for a population answer with a caution."""
+    if "(exploratory;" in answer:
+        return "More common (exploratory)"  # never "Enriched" (owner, 2026-10-06, audit 10)
+    if "not a subpopulation" in answer:
+        return "A condition's shift"
+    return _trend(answer)
+
+
+def _trend(answer: str) -> str:
+    """A difference with a caution: a trend when it keeps one direction, else none."""
+    consistent = "same direction" in answer or "in every repeat" in answer
+    return "Trend only" if consistent else "No consistent difference"
 
 
 def _table(rows: list[str]) -> str:
@@ -263,36 +284,52 @@ def text_html(text: str) -> str:
             i += 1
             continue
         if _COLUMNS.search(line.strip()):
-            block = [line]
-            while (
-                i + 1 < len(lines)
-                and lines[i + 1].strip()
-                and _COLUMNS.search(lines[i + 1].strip())
-            ):
-                i += 1
-                block.append(lines[i])
+            block = _column_block(lines, i)
             if len(block) >= 2:
                 out.append(_table(block))
-                i += 1
+                i += len(block)
                 continue
-        first = indent_width(line)
-        parts = [line.strip()]
-        hang = None
-        while (
-            i + 1 < len(lines)
-            and lines[i + 1].strip()
-            and indent_width(lines[i + 1]) > first
-            and not _MARKER_LINE.match(lines[i + 1].strip())
-            and not lines[i + 1].strip().startswith("- ")
-            and not _COLUMNS.search(lines[i + 1].strip())
-            and not _starts_own(lines, i + 1, hang)
-        ):
-            i += 1
-            hang = indent_width(lines[i]) if hang is None else hang
-            parts.append(lines[i].strip())
-        out.append(_paragraph(" ".join(parts), (first - base) // 2))
+        parts, i = _joined(lines, i)
+        out.append(_paragraph(" ".join(parts), (indent_width(line) - base) // 2))
         i += 1
     return "\n".join(out)
+
+
+def _column_block(lines: list[str], start: int) -> list[str]:
+    """The line at ``start`` and the non-blank lines after it whose columns are aligned."""
+    end = start + 1
+    while end < len(lines) and lines[end].strip() and _COLUMNS.search(lines[end].strip()):
+        end += 1
+    return lines[start:end]
+
+
+def _joined(lines: list[str], i: int) -> tuple[list[str], int]:
+    """The paragraph starting at line ``i``: its stripped lines (a wrapped sentence's
+    continuation lines with it) and the index of its last line."""
+    first = indent_width(lines[i])
+    parts = [lines[i].strip()]
+    hang = None
+    while _continues(lines, i + 1, first, hang):
+        i += 1
+        hang = indent_width(lines[i]) if hang is None else hang
+        parts.append(lines[i].strip())
+    return parts, i
+
+
+def _continues(lines: list[str], index: int, first: int, hang: int | None) -> bool:
+    """Whether the line at ``index`` continues the paragraph whose first line is indented by
+    ``first``: deeper, and not a status line, an item, a table row or an item of its own."""
+    if index >= len(lines):
+        return False
+    stripped = lines[index].strip()
+    return (
+        bool(stripped)
+        and indent_width(lines[index]) > first
+        and not _MARKER_LINE.match(stripped)
+        and not stripped.startswith("- ")
+        and not _COLUMNS.search(stripped)
+        and not _starts_own(lines, index, hang)
+    )
 
 
 def first_sentence(text: str) -> str:
