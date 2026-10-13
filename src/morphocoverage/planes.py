@@ -161,6 +161,20 @@ def _check_arguments(objects: pd.DataFrame, features: list, axes: list, object_c
     unknown = [a for a in axes if a not in (*PLANE_AXES, "z0")]
     if unknown:
         raise ValueError(f"axes must be among {list(PLANE_AXES)} (or 'z0'), not {unknown}")
+    _check_object_col(objects, object_col)
+    for axis in axes:
+        _check_axis(objects, axis)
+    for feature in features:
+        if feature not in objects.columns:
+            raise ValueError(f"feature {feature!r} is not a column of objects")
+        if feature_dtype_problem(objects[feature]) is not None:
+            raise TypeError(f"feature {feature!r} must be real numbers")
+        if feature in axes or feature == object_col:
+            raise ValueError(f"feature {feature!r} is also an axis or the object identifier")
+
+
+def _check_object_col(objects: pd.DataFrame, object_col: object) -> None:
+    """The column naming each object within its field: a name, present, never missing."""
     if not isinstance(object_col, str):
         raise TypeError("object_col must be the name of the column identifying each object")
     if object_col not in objects.columns:
@@ -173,33 +187,28 @@ def _check_arguments(objects: pd.DataFrame, features: list, axes: list, object_c
             f"objects[{object_col!r}] is missing in some rows, so those objects cannot be "
             "matched across planes"
         )
-    for axis in axes:
-        if axis not in objects.columns:
-            raise ValueError(f"objects has no {axis!r} column to split the features along")
-        if objects[axis].isna().any():
-            raise ValueError(
-                f"objects[{axis!r}] is missing in some rows, so their plane is unknown"
-            )
-        # A number written as text beside numbers ('0' against 0) names one plane twice; a
-        # label such as 'max' (a projection) beside numbers is a plane of its own.
-        is_text = objects[axis].map(lambda value: isinstance(value, str)).astype(bool)
-        as_number = pd.to_numeric(objects[axis].where(is_text), errors="coerce")
-        numeric_text = is_text & as_number.notna()
-        if numeric_text.any() and not is_text.all():
-            written = objects.loc[numeric_text, axis].iloc[0]
-            number = objects.loc[~is_text, axis].iloc[0]
-            raise ValueError(
-                f"objects[{axis!r}] is text in some rows and a number in others ({written!r} "
-                f"against {_label(number)}), so one plane would have two names; read the "
-                "column as numbers in every file"
-            )
-    for feature in features:
-        if feature not in objects.columns:
-            raise ValueError(f"feature {feature!r} is not a column of objects")
-        if feature_dtype_problem(objects[feature]) is not None:
-            raise TypeError(f"feature {feature!r} must be real numbers")
-        if feature in axes or feature == object_col:
-            raise ValueError(f"feature {feature!r} is also an axis or the object identifier")
+
+
+def _check_axis(objects: pd.DataFrame, axis: str) -> None:
+    """An axis column: present, never missing, and no plane written both as a number and
+    as text."""
+    if axis not in objects.columns:
+        raise ValueError(f"objects has no {axis!r} column to split the features along")
+    if objects[axis].isna().any():
+        raise ValueError(f"objects[{axis!r}] is missing in some rows, so their plane is unknown")
+    # A number written as text beside numbers ('0' against 0) names one plane twice; a
+    # label such as 'max' (a projection) beside numbers is a plane of its own.
+    is_text = objects[axis].map(lambda value: isinstance(value, str)).astype(bool)
+    as_number = pd.to_numeric(objects[axis].where(is_text), errors="coerce")
+    numeric_text = is_text & as_number.notna()
+    if numeric_text.any() and not is_text.all():
+        written = objects.loc[numeric_text, axis].iloc[0]
+        number = objects.loc[~is_text, axis].iloc[0]
+        raise ValueError(
+            f"objects[{axis!r}] is text in some rows and a number in others ({written!r} "
+            f"against {_label(number)}), so one plane would have two names; read the "
+            "column as numbers in every file"
+        )
 
 
 def _planes(table: pd.DataFrame, axes: list) -> list[tuple]:

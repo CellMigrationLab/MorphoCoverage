@@ -1,4 +1,5 @@
 {
+ "_plots_clusters:_draw_cluster": 12,
  "benchmark:run_benchmark": 12,
  "calibration:calibrate_next_fov_novelty": 10,
  "embedding:embed": 16,
@@ -9,7 +10,6 @@
  "normalize:control_means": 10,
  "normalize:normalize_to_control": 10,
  "normalize:normalize_to_own": 9,
- "plots:_draw_cluster": 12,
  "plots:plots_of_data": 20,
  "plots_pairwise:pairwise_contrasts": 12,
  "retrospective.controls:_draws": 10,

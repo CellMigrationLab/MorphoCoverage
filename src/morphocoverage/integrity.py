@@ -75,9 +75,10 @@ import pandas as pd
 from . import _integrity_match as match
 from ._checks import as_count, is_number
 from ._frozen import owned
+from ._integrity_selection import _Log, _Selection, _selection
 from ._integrity_text import PRECISION, integrity_status, integrity_summary
 from ._style import Status, group_label
-from ._wording import listing, percent, plural, where
+from ._wording import listing, plural, where
 from .data_check import validate_input_tables
 from .metadata import column_names
 from .schema import ValidatedInput, fov_positions
@@ -190,17 +191,6 @@ def _labels(
     }
 
 
-def _distinct_shares(rows: match.Rows, informative: np.ndarray) -> list[float]:
-    """Each feature's distinct values as a share of the distinct rows kept (0 with none)."""
-    first = np.unique(rows.ids, return_index=True)[1]
-    kept = rows.exact[first[informative[rows.ids[first]]]]
-    shares = []
-    for j in range(kept.shape[1]):
-        values = kept[:, j][np.isfinite(kept[:, j])]
-        shares.append(len(np.unique(values)) / len(values) if len(values) else 0.0)
-    return shares
-
-
 def _threshold(smaller: int, min_objects: int, block_length: int) -> int:
     """The shared or repeated observations a finding needs: ``block_length``, or half the smaller
     field, and never fewer than ``min_objects``."""
@@ -245,105 +235,71 @@ def integrity_checks(
         observation_unit=observation_unit,
     )
     rows, names, groups, labels = _fields(data)
-    n_fields = len(rows.sizes)
-    recurring = rows.recurrence >= match.RECURRING
-    shares = _distinct_shares(rows, ~recurring)
-    continuous = [j for j, value in enumerate(shares) if value and value >= min_distinct_share]
-    findings: list[dict[str, Any]] = []
-    checks: list[dict[str, Any]] = []
-    paired: set[tuple[int, int]] = set()
-
-    def found(check: str, i: int, j: int, n: int, detail: str) -> None:
-        paired.add((min(i, j), max(i, j)))
-        findings.append(
-            {
-                "check": check,
-                "field": names[i],
-                "other_field": names[j],
-                "observations": int(n),
-                "detail": detail,
-                "group": groups[i],
-                "other_group": groups[j],
-            }
-        )
-
-    def record(check: str, compared: int, why: str | None = None) -> None:
-        status = "checked" if why is None else "not applicable"
-        checks.append({"check": check, "status": status, "reason": why, "compared": compared})
-
-    # Informative rows: not recurring, with a value in a continuous feature.
-    has_value = np.isfinite(rows.exact[:, continuous]).any(axis=1) if continuous else None
-    informative = (
-        ~recurring[rows.ids] & has_value if has_value is not None else np.zeros(len(rows.ids), bool)
-    )
-    distinct = np.zeros(n_fields, dtype=np.int64)
-    for j in continuous:
-        distinct = np.maximum(
-            distinct, match.distinct_per_field(rows.exact[:, j], rows.field, n_fields)
-        )
-    large = rows.sizes >= min_objects
-    eligible = large & (distinct >= min_objects)
-    reason = None
-    if not continuous:
-        why = "quantized or integer features repeat by themselves"
-        if len(rows.ids) and recurring[rows.ids].all():
-            why += f"; every observation recurs in {match.RECURRING} or more fields"
-        reason = (
-            "no observation to compare"
-            if not len(rows.ids)
-            else "no feature has distinct values for at least "
-            f"{percent(min_distinct_share)} of the distinct observations, so a copy cannot be "
-            f"told from a coincidence ({why})"
-        )
-        eligible[:] = False
-    whole = [int(i) for i in np.flatnonzero(eligible)]
-    _whole_field_checks(rows, whole, found)
+    chosen = _selection(rows, min_objects, min_distinct_share)
+    log = _Log(names, groups)
+    whole = [int(i) for i in np.flatnonzero(chosen.eligible)]
+    _whole_field_checks(rows, whole, log.found)
     for check in ("copied field", "reordered copy", "scaled copy"):
-        record(check, len(whole), reason)
-    kept = int(informative.sum())
-    distinctive = np.zeros(len(rows.ids), bool)
-    if continuous:
-        present = np.isfinite(rows.exact[:, continuous]).sum(axis=1)
-        distinctive = informative & (present >= DISTINCTIVE_FEATURES)
-    _identical_small(rows, eligible, distinctive, found)
-    _shared_rows(rows, informative, distinctive, paired, found, min_objects, block_length)
-    record("repeated block", kept, reason)
-    record("shared observations", kept, reason)
-    small_reason = reason
-    if reason is None and len(continuous) < DISTINCTIVE_FEATURES:
-        small_reason = (
-            f"fewer than {DISTINCTIVE_FEATURES} continuous features "
-            f"({len(continuous)}), so one shared observation can be a coincidence"
-        )
-    record("copied small field", int(distinctive.sum()), small_reason)
-    _within_field(rows, informative, names, groups, findings, min_objects, block_length)
-    record("repeated within a field", kept, reason)
-    summaries = _summaries(rows, whole, paired, found)
-    record("repeated field summary", summaries, reason)
+        log.record(check, len(whole), chosen.reason)
+    _observation_checks(rows, chosen, log, min_objects, block_length)
+    summaries = _summaries(rows, whole, log.paired, log.found)
+    log.record("repeated field summary", summaries, chosen.reason)
     settings = {
         "feature_cols": list(data.feature_cols),
         "min_objects": min_objects,
         "block_length": block_length,
         "min_distinct_share": float(min_distinct_share),
-        "continuous_features": [data.feature_cols[j] for j in continuous],
-        "distinct_share": float(max(shares, default=0.0)),
+        "continuous_features": [data.feature_cols[j] for j in chosen.continuous],
+        "distinct_share": float(max(chosen.shares, default=0.0)),
         "digits": match.DIGITS,
         "n_fovs": len(data.fovs),
         "n_observations": data.n_observations,
         "fields_compared": len(whole),
-        "fields_too_small": int((~large).sum()) if continuous else 0,
-        "fields_too_uniform": int((large & ~eligible).sum()) if continuous else 0,
-        "recurring_observations": int(recurring[rows.ids].sum()),
+        "fields_too_small": int((~chosen.large).sum()) if chosen.continuous else 0,
+        "fields_too_uniform": (
+            int((chosen.large & ~chosen.eligible).sum()) if chosen.continuous else 0
+        ),
+        "recurring_observations": int(chosen.recurring[rows.ids].sum()),
         "observation_words": plural(data.observation_unit),
         "features_compared": listing(list(data.feature_cols)),
         "field_columns": list(data.fov_key),
-        **_labels(findings, names, groups, labels),
+        **_labels(log.findings, names, groups, labels),
     }
     return IntegrityResult(
-        pd.DataFrame(findings, columns=list(FINDING_COLUMNS)),
-        pd.DataFrame(checks, columns=list(CHECK_COLUMNS)),
+        pd.DataFrame(log.findings, columns=list(FINDING_COLUMNS)),
+        pd.DataFrame(log.checks, columns=list(CHECK_COLUMNS)),
         settings,
     )
+
+
+def _observation_checks(
+    rows: match.Rows, chosen: _Selection, log: _Log, min_objects: int, block_length: int
+) -> None:
+    """The checks of observations: identical small fields, shared observations and repeated
+    blocks, observations repeated within a field."""
+    reason = chosen.reason
+    kept = int(chosen.informative.sum())
+    distinctive = np.zeros(len(rows.ids), bool)
+    if chosen.continuous:
+        present = np.isfinite(rows.exact[:, chosen.continuous]).sum(axis=1)
+        distinctive = chosen.informative & (present >= DISTINCTIVE_FEATURES)
+    _identical_small(rows, chosen.eligible, distinctive, log.found)
+    _shared_rows(
+        rows, chosen.informative, distinctive, log.paired, log.found, min_objects, block_length
+    )
+    log.record("repeated block", kept, reason)
+    log.record("shared observations", kept, reason)
+    small_reason = reason
+    if reason is None and len(chosen.continuous) < DISTINCTIVE_FEATURES:
+        small_reason = (
+            f"fewer than {DISTINCTIVE_FEATURES} continuous features "
+            f"({len(chosen.continuous)}), so one shared observation can be a coincidence"
+        )
+    log.record("copied small field", int(distinctive.sum()), small_reason)
+    _within_field(
+        rows, chosen.informative, log.names, log.groups, log.findings, min_objects, block_length
+    )
+    log.record("repeated within a field", kept, reason)
 
 
 def _whole_field_checks(rows: match.Rows, whole: list[int], found: Any) -> None:

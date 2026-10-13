@@ -38,7 +38,8 @@ from typing import Any
 
 import pandas as pd
 
-from ._wording import column_word, count, number, percent, plural, rate
+from ._rule_names import _named
+from ._wording import column_word, number, percent, plural
 from .metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN
 
 OK = "✅"
@@ -156,33 +157,6 @@ def span(values: Iterable[float], kind: str = "number") -> str:
 # --- Rule names ---------------------------------------------------------------
 
 _THRESHOLD = re.compile(r"([\w:.]+) (<=|>=) (-?[0-9.]+(?:e-?[0-9]+)?)")
-_BOOTSTRAP = {
-    "centroid": "mean",
-    "quantiles": "quantiles",
-    "covariance": "covariance",
-    "eigenspectrum": "eigenspectrum",
-    "subspace": "subspace",
-}
-# The support-novelty quantities (strategies.support_novelty.QUANTITIES), by name here so
-# that this module imports no strategy; tests/test_style_foundation.py checks they agree.
-_NOVELTY = {
-    "lofo_novel_fov_upper": "nothing new ({})",
-    "lofo_novel_fov_fraction": "new fields ({}, point estimate)",
-    "lofo_novel_fraction": "new {units} ({})",
-    "lofo_mean_fov_novel_fraction": "new {units} per field ({})",
-}
-# The incidence-coverage quantities (strategies.incidence_coverage.QUANTITIES): the
-# strategy's name is its quantity.
-_INCIDENCE = {
-    "incidence_coverage": "state coverage ({})",
-    "chao2_completeness": "Chao2 completeness ({})",
-    "expected_new_states_next_fov": "expected new states ({})",
-    "prob_new_state_next_fov": "new state in the next field ({})",
-    "good_turing_new_state_estimate": "Good-Turing new state ({})",
-    "lofo_new_state_fov_fraction": "fields with a new state ({})",
-    "new_state_fov_upper": "no new labelled state ({})",
-}
-_PROBABILITY_KINDS = {*_NOVELTY, *(k for k in _INCIDENCE if k != "expected_new_states_next_fov")}
 
 
 def _policy_thresholds(policies: Iterable[Mapping[str, Any]]) -> dict[str, tuple[str, float]]:
@@ -226,112 +200,6 @@ def _rule_parts(rule: Any) -> tuple[str, dict[str, tuple[str, float]], dict[str,
         for quantity, operator, value in _THRESHOLD.findall(str(settings))
     }
     return str(name), thresholds, parameters
-
-
-def _threshold(
-    thresholds: Mapping[str, tuple[str, float]], parameters: Mapping[str, Any], *keys: str
-) -> float | None:
-    """The first of ``keys`` among the thresholds, then among the parameters."""
-    for key in keys:
-        if key in thresholds:
-            return thresholds[key][1]
-    for key in keys:
-        value = parameters.get(key)
-        if isinstance(value, int | float) and not isinstance(value, bool):
-            return float(value)
-    return None
-
-
-def _bound(value: float | None, probability: bool, below: bool = True) -> str:
-    """``≤5%`` (a probability), ``≥95%``, ``≤0.3`` (a number in the readout's units)."""
-    if value is None:
-        return "its threshold"
-    sign = "≤" if below else "≥"
-    return f"{sign}{rate(value) if probability else f'{value:g}'}"
-
-
-def _per(unit_name: str, words: str) -> str:
-    """``per nucleus`` for the object unit, ``per field`` for the FOV unit."""
-    return "per field" if unit_name == "fov" else f"per {words}"
-
-
-def _named(name: str, thresholds: Mapping, parameters: Mapping, unit: str) -> str | None:
-    """The readable name of a known rule family, or ``None``."""
-    units = plural(unit)
-    if name == "fixed_fov":
-        target = _threshold(thresholds, parameters, "n_fovs", "target_fovs")
-        return None if target is None else f"fixed {count(target, 'field')}"
-    if name in ("fixed_objects", "fixed_observations"):
-        keys = ("n_objects", "target_objects", "n_observations", "target_observations")
-        target = _threshold(thresholds, parameters, *keys)
-        return None if target is None else f"fixed {count(target, unit, units)}"
-    if name == "fixed_area":
-        target = _threshold(thresholds, parameters, "imaged_area", "target_area")
-        return None if target is None else f"fixed imaged area {target:g}"
-    if name.startswith("scalar_precision_planned"):
-        plan = parameters.get("plan") or {}
-        needed = plan.get("required_objects") if isinstance(plan, Mapping) else None
-        return (
-            f"mean-precision plan, {count(needed, unit, units)}"
-            if needed
-            else "mean-precision planned count"
-        )
-    if name.startswith("scalar_precision_"):
-        parts = name.split("_")[2:]
-        if not parts or parts[0] not in ("object", "fov"):
-            return None
-        target = _threshold(
-            thresholds, parameters, "averaging_cv", "pilot_projected_averaging_cv", "target_cv"
-        )
-        shown = "?" if target is None else rate(target)
-        label = f"mean-precision rule, {_per(parts[0], unit)}, {shown}"
-        if "upper95" not in parts:
-            label += ", point SD"
-        if "pilot" in parts:
-            pilot = parameters.get("pilot_fovs")
-            label += f", pilot of {count(pilot, 'field')}" if pilot else ", from a pilot"
-        return label
-    if name.startswith("descriptor_spread_"):
-        resampling = name.removeprefix("descriptor_spread_")
-        if resampling not in ("object", "fov"):
-            return None
-        tolerance = _threshold(
-            thresholds, parameters, "max_location_spread", "max_scale_spread", "tolerance"
-        )
-        return f"JCS spread, {_per(resampling, unit)}, {_bound(tolerance, False)}"
-    if name == "descriptor_plateau":
-        tolerance = _threshold(
-            thresholds, parameters, "max_location_range", "max_scale_range", "tolerance"
-        )
-        window = parameters.get("window")
-        over = f" over {count(window, 'field')}" if window else ""
-        return f"JCS plateau, {_bound(tolerance, False)}{over}"
-    if name.startswith("fov_bootstrap_"):
-        summary = name.removeprefix("fov_bootstrap_")
-        if summary not in _BOOTSTRAP:
-            return None
-        keys = [q for q in thresholds if q.startswith("fov_bootstrap_")]
-        tolerance = _threshold(thresholds, parameters, *keys, "tolerance")
-        measure = "angle" if summary == "subspace" else "SE"
-        return f"field bootstrap of the {_BOOTSTRAP[summary]}, {measure} {_bound(tolerance, False)}"
-    if name == "support_novelty":
-        quantity = parameters.get("quantity") or next(
-            (q for q in thresholds if q in _NOVELTY), None
-        )
-        if quantity not in _NOVELTY:
-            return None
-        bound = _bound(_threshold(thresholds, parameters, quantity, "tolerance"), True)
-        return _NOVELTY[quantity].format(bound, units=units)
-    if name == "rare_incidence":
-        risk = _threshold(thresholds, parameters, "rare_incidence_risk", "max_risk")
-        return f"rare-state risk {_bound(risk, True)}"
-    if name == "fov_incidence_plan":
-        return "rare-state field plan"
-    if name in _INCIDENCE:
-        higher = name in ("incidence_coverage", "chao2_completeness")
-        target = _threshold(thresholds, parameters, name, "target")
-        return _INCIDENCE[name].format(_bound(target, name in _PROBABILITY_KINDS, not higher))
-    return None
 
 
 def rule_label(rule: Any, unit: str | None = None, *, detail: str = "short") -> str:

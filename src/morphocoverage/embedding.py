@@ -46,7 +46,7 @@ from ._checks import as_count, check_seed
 from ._frozen import owned
 from .feature_tables import mfa_weights, table_shares
 from .metadata import CONDITION_COLUMN, REPEAT_COLUMN
-from .schema import fov_positions, validate_input_tables
+from .schema import ValidatedInput, fov_positions, validate_input_tables
 from .statistics import MAD_TO_SD_ROUNDED
 
 MIN_FEATURES = 3
@@ -222,38 +222,10 @@ def embed(
             f"{len(kept_features)} of {len(features)} do"
         )
     scores, loadings, explained = _pca(z)
-    meta = data.fovs.iloc[positions[complete]].reset_index(drop=True)
-    columns = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN) if c in meta]
-    # Every column at once: inserted one by one, hundreds of features fragment the frame.
-    built: dict[str, Any] = {c: meta[c].to_numpy() for c in columns}
-    if data.fov_col in meta and data.fov_col not in columns:
-        built["field"] = meta[data.fov_col].to_numpy()
-    kept_rows = data.objects.loc[complete]
-    # Where each point came from, to find the observation again (#74).
-    built["observation"] = kept_rows.index.to_numpy()
-    if LABEL_COLUMN in kept_rows:
-        built[LABEL_COLUMN] = kept_rows[LABEL_COLUMN].to_numpy()
-    for column in carry:
-        if column in kept_rows:
-            built[column] = kept_rows[column].to_numpy()
-    carried = set(kept_features if standardised is None else standardised)
-    for i, feature in enumerate(kept_features):
-        if feature in carried:
-            built[f"z:{feature}"] = z[:, i]
-    built["pc1"], built["pc2"] = scores[:, 0], scores[:, 1]
-    built["umap1"], built["umap2"] = np.full(len(z), np.nan), np.full(len(z), np.nan)
-    points = pd.DataFrame(built, index=pd.RangeIndex(len(z)))
+    points = _points(data, positions, complete, kept_features, z, scores, carry, standardised)
     sampled = 0
     if umap:
-        conditions = (
-            points[CONDITION_COLUMN].to_numpy()
-            if CONDITION_COLUMN in points
-            else np.zeros(len(points))
-        )
-        rng = np.random.default_rng(random_state)
-        index = _sample(conditions, max_points, rng)
-        sampled = len(index)
-        points.loc[index, ["umap1", "umap2"]] = _umap(z[index], n_neighbors, min_dist, random_state)
+        sampled = _add_umap(points, z, max_points, n_neighbors, min_dist, random_state)
     table = pd.DataFrame(
         {
             "feature": kept_features,
@@ -283,6 +255,61 @@ def embed(
         ),
     }
     return Embedding(points, table, explained, settings)
+
+
+def _points(
+    data: ValidatedInput,
+    positions: np.ndarray,
+    complete: np.ndarray,
+    kept_features: list[str],
+    z: np.ndarray,
+    scores: np.ndarray,
+    carry: Sequence[str],
+    standardised: Sequence[str] | None,
+) -> pd.DataFrame:
+    """One row per complete observation: its condition, repeat and field, where it came
+    from, the ``carry`` columns, the standardised features, the PCA scores and UMAP columns
+    still empty."""
+    meta = data.fovs.iloc[positions[complete]].reset_index(drop=True)
+    columns = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN) if c in meta]
+    # Every column at once: inserted one by one, hundreds of features fragment the frame.
+    built: dict[str, Any] = {c: meta[c].to_numpy() for c in columns}
+    if data.fov_col in meta and data.fov_col not in columns:
+        built["field"] = meta[data.fov_col].to_numpy()
+    kept_rows = data.objects.loc[complete]
+    # Where each point came from, to find the observation again (#74).
+    built["observation"] = kept_rows.index.to_numpy()
+    if LABEL_COLUMN in kept_rows:
+        built[LABEL_COLUMN] = kept_rows[LABEL_COLUMN].to_numpy()
+    for column in carry:
+        if column in kept_rows:
+            built[column] = kept_rows[column].to_numpy()
+    carried = set(kept_features if standardised is None else standardised)
+    for i, feature in enumerate(kept_features):
+        if feature in carried:
+            built[f"z:{feature}"] = z[:, i]
+    built["pc1"], built["pc2"] = scores[:, 0], scores[:, 1]
+    built["umap1"], built["umap2"] = np.full(len(z), np.nan), np.full(len(z), np.nan)
+    return pd.DataFrame(built, index=pd.RangeIndex(len(z)))
+
+
+def _add_umap(
+    points: pd.DataFrame,
+    z: np.ndarray,
+    max_points: int,
+    n_neighbors: int,
+    min_dist: float,
+    random_state: int,
+) -> int:
+    """Fill the UMAP columns of a sample of ``points`` of the same share of every
+    condition; the number of points sampled."""
+    conditions = (
+        points[CONDITION_COLUMN].to_numpy() if CONDITION_COLUMN in points else np.zeros(len(points))
+    )
+    rng = np.random.default_rng(random_state)
+    index = _sample(conditions, max_points, rng)
+    points.loc[index, ["umap1", "umap2"]] = _umap(z[index], n_neighbors, min_dist, random_state)
+    return len(index)
 
 
 def _umap(

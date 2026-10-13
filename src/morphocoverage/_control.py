@@ -168,54 +168,47 @@ def _blank(value: Any) -> bool:
     return value is None or (pd.api.types.is_scalar(value) and pd.isna(value))
 
 
-def check_contrast_table(table: Any) -> pd.DataFrame:
-    """A contrast table as the engine reads it: the columns of ``CONTRAST_COLUMNS`` (a
-    missing ``family`` is the row's kind, a missing ``label`` made from the row), every row
-    a known kind naming two different conditions, the two normalising controls on an
-    ``across_normalised`` row, one ``own_control`` row per condition; ``TypeError``/
-    ``ValueError`` otherwise."""
-    if not isinstance(table, pd.DataFrame):
-        raise TypeError("the contrast table must be a pandas DataFrame (CONTRAST_COLUMNS)")
-    missing = [c for c in ("kind", "condition", "reference") if c not in table.columns]
-    if missing:
-        raise ValueError(f"the contrast table needs the columns {missing}")
-    if table.empty:
-        raise ValueError("the contrast table holds no row")
-    rows = []
-    for row in table.to_dict("records"):
-        kind = row["kind"]
-        if kind not in KINDS:
-            raise ValueError(f"contrast kind {kind!r} is not one of {list(KINDS)}")
-        if row["condition"] == row["reference"]:
-            raise ValueError(f"a contrast compares {row['condition']!r} with itself")
-        controls = (row.get("condition_control"), row.get("reference_control"))
-        if kind == ACROSS and any(_blank(c) for c in controls):
-            raise ValueError(
-                f"the across_normalised contrast of {row['condition']!r} and "
-                f"{row['reference']!r} needs condition_control and reference_control"
-            )
-        if kind != ACROSS:
-            controls = (None, None)
-        if kind == OWN:
-            label = comparison_label(row["condition"], row["reference"])
-        elif kind == MASTER_RAW:
-            label = raw_label(row["condition"], row["reference"])
-        else:
-            label = across_label(row["condition"], controls[0], row["reference"], controls[1], None)
-        given = row.get("label")
-        family = row.get("family")
-        rows.append(
-            {
-                "kind": kind,
-                "condition": row["condition"],
-                "reference": row["reference"],
-                "condition_control": controls[0],
-                "reference_control": controls[1],
-                "family": kind if _blank(family) else family,
-                "label": label if _blank(given) else given,
-            }
+def _row_label(kind: Any, row: dict[str, Any], controls: tuple[Any, Any]) -> str:
+    """The label made from a contrast row of a known kind."""
+    if kind == OWN:
+        return comparison_label(row["condition"], row["reference"])
+    if kind == MASTER_RAW:
+        return raw_label(row["condition"], row["reference"])
+    return across_label(row["condition"], controls[0], row["reference"], controls[1], None)
+
+
+def _checked_row(row: dict[str, Any]) -> dict[str, Any]:
+    """One contrast row checked and completed: a known kind, two different conditions, the
+    two controls of an ``across_normalised`` row, the family and label filled in."""
+    kind = row["kind"]
+    if kind not in KINDS:
+        raise ValueError(f"contrast kind {kind!r} is not one of {list(KINDS)}")
+    if row["condition"] == row["reference"]:
+        raise ValueError(f"a contrast compares {row['condition']!r} with itself")
+    controls = (row.get("condition_control"), row.get("reference_control"))
+    if kind == ACROSS and any(_blank(c) for c in controls):
+        raise ValueError(
+            f"the across_normalised contrast of {row['condition']!r} and "
+            f"{row['reference']!r} needs condition_control and reference_control"
         )
-    checked = pd.DataFrame(rows, columns=CONTRAST_COLUMNS)
+    if kind != ACROSS:
+        controls = (None, None)
+    label = _row_label(kind, row, controls)
+    given = row.get("label")
+    family = row.get("family")
+    return {
+        "kind": kind,
+        "condition": row["condition"],
+        "reference": row["reference"],
+        "condition_control": controls[0],
+        "reference_control": controls[1],
+        "family": kind if _blank(family) else family,
+        "label": label if _blank(given) else given,
+    }
+
+
+def _check_unique(checked: pd.DataFrame) -> None:
+    """Every label once, and one ``own_control`` row per condition."""
     twice = checked.loc[checked["label"].duplicated(), "label"]
     if len(twice):
         raise ValueError(f"the contrast table holds {twice.iloc[0]!r} twice")
@@ -229,6 +222,24 @@ def check_contrast_table(table: Any) -> pd.DataFrame:
             "has one own_control row; compare it with another condition in an "
             "across_normalised or vs_master_raw row"
         )
+
+
+def check_contrast_table(table: Any) -> pd.DataFrame:
+    """A contrast table as the engine reads it: the columns of ``CONTRAST_COLUMNS`` (a
+    missing ``family`` is the row's kind, a missing ``label`` made from the row), every row
+    a known kind naming two different conditions, the two normalising controls on an
+    ``across_normalised`` row, one ``own_control`` row per condition; ``TypeError``/
+    ``ValueError`` otherwise."""
+    if not isinstance(table, pd.DataFrame):
+        raise TypeError("the contrast table must be a pandas DataFrame (CONTRAST_COLUMNS)")
+    missing = [c for c in ("kind", "condition", "reference") if c not in table.columns]
+    if missing:
+        raise ValueError(f"the contrast table needs the columns {missing}")
+    if table.empty:
+        raise ValueError("the contrast table holds no row")
+    rows = [_checked_row(row) for row in table.to_dict("records")]
+    checked = pd.DataFrame(rows, columns=CONTRAST_COLUMNS)
+    _check_unique(checked)
     return checked
 
 

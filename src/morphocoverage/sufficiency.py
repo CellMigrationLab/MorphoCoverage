@@ -66,9 +66,9 @@ Reading it:
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, replace
-from typing import Any
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -77,39 +77,30 @@ from ._acquisition import acquisition_identity
 from ._checks import is_integer
 from ._former_repeat import one_warning
 from ._frozen import owned
+from ._next_fov import _next_fov_part, _NoveltyQuestion
 from ._parallel import check_n_jobs
 from ._style import check_detail
-from ._wording import rows_of
 from .benchmark import (
     AcquisitionOrder,
 )
-from .bounds import extra_trials_for_bound, interval, upper_bound
-from .calibration import calibrate_next_fov_novelty
 from .data_check import validate_input_tables
-from .evaluator import iter_analysis_groups
-from .evidence import Availability
 from .metadata import column_names
-from .objectives import ObjectiveConfig, SamplingObjective
-from .schema import ValidatedInput, fov_positions, technical_repeat_columns
-from .statistics import fovs_to_detect
+from .objectives import ObjectiveConfig
+from .schema import ValidatedInput
 from .strategies.base import SamplingStrategy
 from .strategies.support_novelty import (
-    FOV_QUANTITY,
     UPPER_QUANTITY,
     SupportNoveltyEstimator,
     SupportNoveltyStrategy,
 )
 from .sufficiency_full import full_summary
-from .sufficiency_null import mark_uninformative
 from .sufficiency_short import short_summary
 from .sufficiency_tables import criteria_tables, enough_table, group_major
 from .sufficiency_text import (
-    _next_fov_answer,
     novelty_definition,
 )
 
 _ROW_ORDER = "_report_row_order"
-_POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
 
 @dataclass(frozen=True)
@@ -163,171 +154,6 @@ class SufficiencyReport:
         if check_detail(detail) == "short":
             return short_summary(self)
         return full_summary(self)
-
-
-def _seen_in_few(
-    novelty: SupportNoveltyEstimator, group_data: ValidatedInput, few_fovs: int | None
-) -> dict[str, Any]:
-    """FOVs holding a state that some, but fewer than ``few_fovs``, other FOVs show; or why not.
-
-    Only states that are not new: an observation counts when it belongs to a
-    state new under ``min_other_fovs=few_fovs`` but is itself not new under the
-    novelty definition, so the FOVs already reported as new (a state in one
-    FOV) are not counted again here, nor pooled into the planning incidence.
-    """
-    if few_fovs is None:
-        return {}
-    looser = replace(novelty, min_other_fovs=few_fovs)
-    evidence = looser.estimate(group_data, objective=_POPULATION)
-    quantity = evidence.quantities[FOV_QUANTITY]
-    if quantity.availability is not Availability.AVAILABLE:
-        return {"few_fovs": few_fovs, "fovs_with_state_in_few": None, "few_reason": quantity.reason}
-    in_few = looser.novel_observation_flags(group_data, new_states_only=True)
-    new = novelty.novel_observation_flags(group_data)
-    if in_few is None or new is None:
-        reason = "the leave-one-FOV-out flags of the observations are not available"
-        return {"few_fovs": few_fovs, "fovs_with_state_in_few": None, "few_reason": reason}
-    positions = fov_positions(group_data, group_data.fovs)
-    seen = int(np.unique(positions[in_few & ~new]).size)
-    k = len(group_data.fovs)
-    # The fewest FOVs a state can be in and still count as recurrent (not new).
-    fewest = novelty.min_other_fovs + 1
-    row = {
-        "few_fovs": few_fovs,
-        "fovs_with_state_in_few": seen,
-        "few_reason": None,
-        "fewest_recurrent_fovs": fewest,
-    }
-    if seen:
-        # Planning for a state seen in ``seen`` of ``k`` independent, representative
-        # FOVs: its incidence with a two-sided Clopper-Pearson interval, and the
-        # binomial number of FOVs to see it at least once with probability
-        # ``confidence`` at the observed incidence and at the interval's low end.
-        # The model was checked against the planted-state control
-        # (docs/preliminary_findings.md, entry 3; tests/test_crick_idr.py).
-        low, high = interval(seen, k, novelty.confidence)
-        row.update(
-            {
-                "few_state_incidence": seen / k,
-                "few_state_incidence_low": low,
-                "few_state_incidence_high": high,
-                "fovs_to_see_again": fovs_to_detect(seen / k, novelty.confidence, 1)
-                if seen < k
-                else 1,
-                "fovs_to_see_again_low_end": fovs_to_detect(low, novelty.confidence, 1),
-                # These FOVs may hold several different states, each rarer than all of
-                # them together; one seen in only ``fewest`` FOVs needs this many.
-                "fovs_to_see_fewest": fovs_to_detect(min(fewest, k) / k, novelty.confidence, 1)
-                if fewest < k
-                else 1,
-            }
-        )
-    return row
-
-
-def _technical_repeats(group_data: ValidatedInput) -> int | None:
-    """The technical repeats (each with its condition and repeat) of the group's fields."""
-    columns = technical_repeat_columns(group_data.fovs)
-    return None if columns is None else len(group_data.fovs[columns].drop_duplicates())
-
-
-def _next_fov_tables(
-    data: ValidatedInput,
-    novelty: SupportNoveltyEstimator,
-    target: float | None,
-    few_fovs: int | None = None,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Question 2 per group, and the observations counted as new."""
-    rows, flagged = [], []
-    features = set(data.feature_cols)
-    for group, group_data in iter_analysis_groups(data):
-        evidence = novelty.estimate(group_data, objective=_POPULATION)
-        chance, upper = evidence.quantities[FOV_QUANTITY], evidence.quantities[UPPER_QUANTITY]
-        k = len(group_data.fovs)
-        # The estimator's own count when it ran; otherwise counted here, so fields
-        # without observations are reported even when novelty is not estimable.
-        with_observations = evidence.diagnostics.get("fovs_with_observations")
-        if with_observations is None:
-            positions = fov_positions(group_data, group_data.fovs)
-            with_observations = len(np.unique(positions[positions >= 0]))
-        with_observations = int(with_observations)
-        row = {
-            **group,
-            "fovs_imaged": k,
-            "fovs_without_observations": k - with_observations,
-            "confidence": novelty.confidence,
-            "min_novel_observations": novelty.min_novel_observations,
-            "min_other_fovs": novelty.min_other_fovs,
-            "technical_repeats": _technical_repeats(group_data),
-        }
-        if chance.availability is not Availability.AVAILABLE:
-            row.update(
-                dict.fromkeys(("fovs_with_new", "chance_new", "chance_new_at_most"), None),
-                extra_fovs_if_nothing_new=None,
-                extra_fovs_at_current_rate=None,
-                unseen_state_max_frequency=None,
-                extra_fovs_to_rule_out_target=None,
-                reason=chance.reason,
-            )
-            rows.append(row)
-            continue
-        new_fovs = int(evidence.diagnostics["novel_fovs"])
-        row.update(
-            {
-                "fovs_with_new": new_fovs,
-                "chance_new": chance.value,
-                "chance_new_at_most": upper.value,
-                "reason": None,
-            }
-        )
-        for column, keep_rate in (
-            ("extra_fovs_if_nothing_new", False),
-            ("extra_fovs_at_current_rate", True),
-        ):
-            row[column] = (
-                None
-                if target is None
-                else extra_trials_for_bound(
-                    new_fovs, k, target, novelty.confidence, keep_rate=keep_rate
-                )
-            )
-        # A state absent from all k FOVs has a per-FOV frequency below the
-        # zero-success bound 1 - (1 - confidence) ** (1 / k), about
-        # -ln(1 - confidence) / k (3 / k at 95%, the rule of three), whatever
-        # else was new.
-        row["unseen_state_max_frequency"] = upper_bound(0, k, novelty.confidence)
-        # Pooled technical repeats cluster a state in their fields (P3-8): they are
-        # the independent draws, and none of them showed the state.
-        technical = row["technical_repeats"]
-        many = technical is not None and technical > 1
-        row["unseen_state_max_technical_share"] = (
-            upper_bound(0, technical, novelty.confidence) if many else None
-        )
-        row["extra_fovs_to_rule_out_target"] = (
-            None
-            if target is None
-            else extra_trials_for_bound(0, k, target, novelty.confidence, keep_rate=False)
-        )
-        row.update(_seen_in_few(novelty, group_data, few_fovs))
-        rows.append(row)
-        # Only the objects of new states, so scattered outliers stay out when
-        # several similar new objects are required.
-        counted = novelty.novel_observation_flags(group_data, new_states_only=True)
-        if counted is not None and counted.any():
-            keep = [c for c in group_data.objects.columns if c not in features]
-            flagged.append(group_data.objects.loc[counted, keep])
-    new_observations = pd.concat(flagged, ignore_index=True) if flagged else pd.DataFrame()
-    table = pd.DataFrame(rows)
-    counts = (
-        "fovs_with_new",
-        "extra_fovs_if_nothing_new",
-        "extra_fovs_at_current_rate",
-        "extra_fovs_to_rule_out_target",
-        "technical_repeats",
-    )
-    for column in counts:
-        table[column] = table[column].astype("Int64")  # counts, missing as <NA>
-    return table, new_observations
 
 
 def _check_distinct(strategies: Sequence[SamplingStrategy], added: bool) -> None:
@@ -433,129 +259,37 @@ def sufficiency_report(
     check_n_jobs(n_jobs)
     strategies, orders = list(strategies), list(orders)
     _check_report_inputs(strategies, orders, novelty, novelty_target, calibration)
-    feature_cols = column_names(feature_cols, "feature_cols")  # read once: may be a generator
-    group_cols = column_names(group_cols, "group_cols")
-    novelty_cols = column_names(novelty_cols, "novelty_cols")
-    if novelty_cols is not None:
-        if not novelty_cols:
-            raise TypeError("novelty_cols must be a non-empty sequence of column names")
-        outside = [c for c in novelty_cols if c not in feature_cols]
-        if outside or novelty is None:
-            raise ValueError(
-                "novelty_cols must be columns of feature_cols, with a novelty definition; "
-                f"not in feature_cols: {outside}"
-            )
-    if few_fovs is not None:
-        if novelty is None:
-            raise ValueError("few_fovs needs a novelty definition")
-        if not is_integer(few_fovs):  # numpy integers too; bool is refused
-            raise TypeError("few_fovs must be an integer number of FOVs")
-        if few_fovs <= novelty.min_other_fovs:
-            raise ValueError("few_fovs must exceed the novelty definition's min_other_fovs")
-        few_fovs = int(few_fovs)
-    novelty_rules: list[SamplingStrategy] = []
-    if novelty is not None and novelty_target is not None:
-        novelty_rules.append(
-            SupportNoveltyStrategy(
-                novelty.epsilon,
-                novelty_target,
-                novelty.min_other_fovs,
-                novelty.transform,
-                novelty.min_fovs,
-                novelty.min_novel_observations,
-                UPPER_QUANTITY,
-                novelty.confidence,
-            )
-        )
+    feature_cols, group_cols, novelty_cols = _read_columns(
+        feature_cols, group_cols, novelty_cols, novelty
+    )
+    few_fovs = _checked_few_fovs(few_fovs, novelty)
+    novelty_rules = _novelty_rules(novelty, novelty_target)
     _check_distinct([*strategies, *novelty_rules], added=bool(novelty_rules))
     declared_order = acquisition_order_col
-    if acquisition_order_col is None:
-        if any(order.kind == "recorded" for order in orders):
-            raise ValueError("the recorded order needs acquisition_order_col")
-        if _ROW_ORDER in fovs.columns:
-            raise ValueError(f"the FOV table already has a column {_ROW_ORDER!r}")
-        # Only a tie-breaking base for permutations, never replayed as recorded.
-        fovs = fovs.assign(**{_ROW_ORDER: np.arange(len(fovs))})
-        acquisition_order_col = _ROW_ORDER
-
+    fovs, acquisition_order_col = _with_order_base(fovs, acquisition_order_col, orders)
     columns = {
         "feature_cols": list(feature_cols),
         "fov_col": fov_col,
         "group_cols": None if group_cols is None else list(group_cols),
         "observation_unit": observation_unit,
     }
-    data = validate_input_tables(objects, fovs=fovs, **columns)
-    if data.fovs.empty:
-        raise ValueError("the FOV table has no rows: the report needs at least one acquired FOV")
+    data, novelty_data, novelty_columns = _validated(objects, fovs, columns, novelty_cols)
     resolved_groups = list(data.group_cols)
-    # Novelty reads only its own columns; the rules read all of feature_cols.
-    novelty_columns = (
-        columns if novelty_cols is None else {**columns, "feature_cols": list(novelty_cols)}
-    )
-    novelty_data = (
-        data
-        if novelty_cols is None
-        else validate_input_tables(objects, fovs=fovs, **novelty_columns)
-    )
     if novelty_cols is None:
         strategies += novelty_rules
         runs = [(strategies, columns)]
     else:
         runs = [(strategies, columns), (novelty_rules, novelty_columns)]
-
-    final, stops, enough = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-    parts = [
-        criteria_tables(
-            objects,
-            fovs,
-            rules,
-            objective,
-            orders,
-            acquisition_order_col,
-            run_columns,
-            resolved_groups,
-            readout=readout,
-            order_col=declared_order,
-            stage_cols=stage_cols,
-            n_jobs=n_jobs,
-        )
-        for rules, run_columns in runs
-        if rules
-    ]
-    if parts:
-        # The order and dtypes of a single run: final group by group, stops strategy
-        # by strategy (a block of undefined stops alone would read as objects).
-        final = group_major(
-            pd.concat([part[0] for part in parts], ignore_index=True), resolved_groups
-        ).infer_objects()
-        stops = pd.concat([part[1] for part in parts], ignore_index=True).infer_objects()
-        enough = enough_table(final, stops, resolved_groups)
-
+    replay = _Replay(
+        objective, orders, acquisition_order_col, readout, declared_order, stage_cols, n_jobs
+    )
+    final, stops, enough = _enough_tables(objects, fovs, runs, replay, resolved_groups)
     next_fov, new_observations, calibrated = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     if novelty is not None:
-        next_fov, new_observations = _next_fov_tables(
-            novelty_data, novelty, novelty_target, few_fovs
+        question = _NoveltyQuestion(novelty, novelty_target, few_fovs, calibration)
+        next_fov, new_observations, calibrated = _next_fov_part(
+            objects, fovs, novelty_data, question, novelty_columns, resolved_groups
         )
-        next_fov = mark_uninformative(next_fov, novelty_data, novelty)
-        if calibration is not None:
-            calibrated = calibrate_next_fov_novelty(
-                objects,
-                fovs,
-                novelty=novelty,
-                fov_counts=calibration.fov_counts,
-                draws=calibration.draws,
-                random_state=calibration.random_state,
-                **novelty_columns,
-            )
-        next_fov["answer"] = [
-            _next_fov_answer(
-                row,
-                novelty_target,
-                _largest_calibrated(calibrated, row, resolved_groups),
-                novelty.min_other_fovs,
-            )
-            for _, row in next_fov.iterrows()
-        ]
     return SufficiencyReport(
         enough=enough,
         next_fov=next_fov,
@@ -576,15 +310,148 @@ def sufficiency_report(
     )
 
 
-def _largest_calibrated(
-    calibrated: pd.DataFrame, row: Mapping[str, Any], group_cols: list[str]
-) -> pd.Series | None:
-    """The group's calibration row with the most FOVs and usable draws, or None."""
-    if calibrated.empty:
+def _validated(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    columns: dict[str, Any],
+    novelty_cols: Sequence[str] | None,
+) -> tuple[ValidatedInput, ValidatedInput, dict[str, Any]]:
+    """The tables validated for the rules and for novelty, and novelty's column arguments;
+    ``ValueError`` for a FOV table without rows."""
+    data = validate_input_tables(objects, fovs=fovs, **columns)
+    if data.fovs.empty:
+        raise ValueError("the FOV table has no rows: the report needs at least one acquired FOV")
+    # Novelty reads only its own columns; the rules read all of feature_cols.
+    novelty_columns = (
+        columns if novelty_cols is None else {**columns, "feature_cols": list(novelty_cols)}
+    )
+    novelty_data = (
+        data
+        if novelty_cols is None
+        else validate_input_tables(objects, fovs=fovs, **novelty_columns)
+    )
+    return data, novelty_data, novelty_columns
+
+
+def _read_columns(
+    feature_cols: Any, group_cols: Any, novelty_cols: Any, novelty: Any
+) -> tuple[Any, Any, Any]:
+    """The column arguments read once (each may be a generator); ``novelty_cols`` checked
+    to be columns of ``feature_cols``, with a novelty definition."""
+    feature_cols = column_names(feature_cols, "feature_cols")  # read once: may be a generator
+    group_cols = column_names(group_cols, "group_cols")
+    novelty_cols = column_names(novelty_cols, "novelty_cols")
+    if novelty_cols is not None:
+        if not novelty_cols:
+            raise TypeError("novelty_cols must be a non-empty sequence of column names")
+        outside = [c for c in novelty_cols if c not in feature_cols]
+        if outside or novelty is None:
+            raise ValueError(
+                "novelty_cols must be columns of feature_cols, with a novelty definition; "
+                f"not in feature_cols: {outside}"
+            )
+    return feature_cols, group_cols, novelty_cols
+
+
+def _checked_few_fovs(few_fovs: Any, novelty: SupportNoveltyEstimator | None) -> int | None:
+    """``few_fovs`` as an integer above the novelty definition's ``min_other_fovs``."""
+    if few_fovs is None:
         return None
-    rows = rows_of(calibrated, {c: row[c] for c in group_cols})
-    rows = rows[rows["draws"] > 0]
-    return None if rows.empty else rows.sort_values("fovs_imaged").iloc[-1]
+    if novelty is None:
+        raise ValueError("few_fovs needs a novelty definition")
+    if not is_integer(few_fovs):  # numpy integers too; bool is refused
+        raise TypeError("few_fovs must be an integer number of FOVs")
+    if few_fovs <= novelty.min_other_fovs:
+        raise ValueError("few_fovs must exceed the novelty definition's min_other_fovs")
+    return int(few_fovs)
+
+
+def _novelty_rules(
+    novelty: SupportNoveltyEstimator | None, target: float | None
+) -> list[SamplingStrategy]:
+    """The claim "nothing new below the target" as a criterion for "enough", with a novelty
+    definition and a target; none otherwise."""
+    if novelty is None or target is None:
+        return []
+    return [
+        SupportNoveltyStrategy(
+            novelty.epsilon,
+            target,
+            novelty.min_other_fovs,
+            novelty.transform,
+            novelty.min_fovs,
+            novelty.min_novel_observations,
+            UPPER_QUANTITY,
+            novelty.confidence,
+        )
+    ]
+
+
+def _with_order_base(
+    fovs: pd.DataFrame, acquisition_order_col: str | None, orders: Sequence[AcquisitionOrder]
+) -> tuple[pd.DataFrame, str]:
+    """The FOV table and the order column the replays read: without a declared order, the
+    table's row order as a tie-breaking base for permutations (never the recorded order)."""
+    if acquisition_order_col is not None:
+        return fovs, acquisition_order_col
+    if any(order.kind == "recorded" for order in orders):
+        raise ValueError("the recorded order needs acquisition_order_col")
+    if _ROW_ORDER in fovs.columns:
+        raise ValueError(f"the FOV table already has a column {_ROW_ORDER!r}")
+    # Only a tie-breaking base for permutations, never replayed as recorded.
+    return fovs.assign(**{_ROW_ORDER: np.arange(len(fovs))}), _ROW_ORDER
+
+
+class _Replay(NamedTuple):
+    """How the rules are replayed: the objective, the orders and their column, and the
+    order check's readout, declared order column and stage columns; the worker count."""
+
+    objective: ObjectiveConfig
+    orders: list[AcquisitionOrder]
+    acquisition_order_col: str
+    readout: str | None
+    order_col: str | None
+    stage_cols: Sequence[str] | None
+    n_jobs: int
+
+
+def _enough_tables(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    runs: list[tuple[list[SamplingStrategy], dict[str, Any]]],
+    replay: _Replay,
+    resolved_groups: list[str],
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Question 1: every rule on the full acquisition (``final``), its stops over the
+    orders and the "enough" table; empty without a rule."""
+    final, stops, enough = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    parts = [
+        criteria_tables(
+            objects,
+            fovs,
+            rules,
+            replay.objective,
+            replay.orders,
+            replay.acquisition_order_col,
+            run_columns,
+            resolved_groups,
+            readout=replay.readout,
+            order_col=replay.order_col,
+            stage_cols=replay.stage_cols,
+            n_jobs=replay.n_jobs,
+        )
+        for rules, run_columns in runs
+        if rules
+    ]
+    if parts:
+        # The order and dtypes of a single run: final group by group, stops strategy
+        # by strategy (a block of undefined stops alone would read as objects).
+        final = group_major(
+            pd.concat([part[0] for part in parts], ignore_index=True), resolved_groups
+        ).infer_objects()
+        stops = pd.concat([part[1] for part in parts], ignore_index=True).infer_objects()
+        enough = enough_table(final, stops, resolved_groups)
+    return final, stops, enough
 
 
 __all__ = [

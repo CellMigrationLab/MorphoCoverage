@@ -58,7 +58,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -326,6 +326,77 @@ def _space(
     return data, complete, meta, positions, z
 
 
+class _Inputs(NamedTuple):
+    """What every space of one ``separation`` call reads: the tables, the raw values the
+    score by repeat reads, the validator's column arguments and ``(k, max_points,
+    random_state)``."""
+
+    objects: pd.DataFrame
+    fovs: pd.DataFrame
+    repeat_values: pd.DataFrame | None
+    common: dict[str, Any]
+    settings: tuple[int, int, int]
+
+
+def _score_space(
+    name: str,
+    features: Sequence[str],
+    combine: tuple[Mapping[str, float] | None, Mapping[str, Sequence[str]] | None],
+    inputs: _Inputs,
+) -> tuple[list[dict[str, Any]], dict[str, Any], str, Any]:
+    """One space scored by condition and by repeat: its rows, its summary, the observation
+    unit's word and the wells."""
+    objects, fovs = inputs.objects, inputs.fovs
+    data, complete, meta, positions, z = _space(objects, fovs, features, combine, inputs.common)
+    unit = unit_words(data.observation_unit, data.observation_unit_declared)[0]
+    wells = _wells(data.fovs)
+    found: list[dict[str, Any]] = []
+    single = 0
+    if z.size:
+        here = meta.loc[complete].reset_index(drop=True)
+        own = _blocks(here, positions[complete])
+        found, single = _group_rows(name, "condition", z, here, own, inputs.settings)
+    left_out, dropped, where = int((~complete).sum()), 0, []
+    # By repeat, always on the raw values (owner, 2026-10-06, audit 8).
+    if inputs.repeat_values is not None and inputs.repeat_values is not objects:
+        view = pd.Series(complete, index=data.objects.index)
+        raw, complete, meta_raw, positions, z = _space(
+            inputs.repeat_values, fovs, features, combine, inputs.common
+        )
+        given = pd.Series(complete, index=raw.objects.index).reindex(view.index)
+        lost = (given.fillna(False).astype(bool) & ~view).to_numpy()
+        dropped, left_out = int(lost.sum()), left_out - int(lost.sum())
+        where = repeat_conditions(meta.loc[lost])
+        meta = meta_raw
+    if z.size and REPEAT_COLUMN in meta:
+        here = meta.loc[complete].reset_index(drop=True)
+        own = _blocks(here, positions[complete])
+        found += _group_rows(name, "repeat", z, here, own, inputs.settings)[0]
+    counts = {"left_out": left_out, "dropped": dropped, "dropped_where": where, "single": single}
+    return found, _space_summary(name, data, found, counts), unit, wells
+
+
+def _space_summary(
+    name: str, data: Any, found: list[dict[str, Any]], counts: dict[str, Any]
+) -> dict[str, Any]:
+    """A space's row of the summary: the median share and chance by condition and by
+    repeat, and the observations left out (``counts``)."""
+    scored = pd.DataFrame(found, columns=_COLUMNS)
+    by_condition = scored[scored["score"] == "condition"]
+    by_repeat = scored[scored["score"] == "repeat"]
+    return {
+        "space": name,
+        "features": len(data.feature_cols),
+        "share": _median(by_condition, "share"),
+        "chance": _median(by_condition, "chance"),
+        "repeats": len(by_condition),
+        "repeat_share": _median(by_repeat, "share"),
+        "repeat_chance": _median(by_repeat, "chance"),
+        "conditions": len(by_repeat),
+        **counts,
+    }
+
+
 def separation(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -358,54 +429,12 @@ def separation(
         "observation_unit": observation_unit,
     }
     rows, summaries, unit, wells = [], [], "observation", "unknown"
-    settings = (k, max_points, random_state)
+    inputs = _Inputs(objects, fovs, repeat_values, common, (k, max_points, random_state))
     for name, features in spaces.items():
         combine = ((weights or {}).get(name), (blocks or {}).get(name))
-        data, complete, meta, positions, z = _space(objects, fovs, features, combine, common)
-        unit = unit_words(data.observation_unit, data.observation_unit_declared)[0]
-        wells = _wells(data.fovs)
-        found: list[dict[str, Any]] = []
-        single = 0
-        if z.size:
-            here = meta.loc[complete].reset_index(drop=True)
-            own = _blocks(here, positions[complete])
-            found, single = _group_rows(name, "condition", z, here, own, settings)
-        left_out, dropped, where = int((~complete).sum()), 0, []
-        # By repeat, always on the raw values (owner, 2026-10-06, audit 8).
-        if repeat_values is not None and repeat_values is not objects:
-            view = pd.Series(complete, index=data.objects.index)
-            raw, complete, meta_raw, positions, z = _space(
-                repeat_values, fovs, features, combine, common
-            )
-            given = pd.Series(complete, index=raw.objects.index).reindex(view.index)
-            lost = (given.fillna(False).astype(bool) & ~view).to_numpy()
-            dropped, left_out = int(lost.sum()), left_out - int(lost.sum())
-            where = repeat_conditions(meta.loc[lost])
-            meta = meta_raw
-        if z.size and REPEAT_COLUMN in meta:
-            here = meta.loc[complete].reset_index(drop=True)
-            own = _blocks(here, positions[complete])
-            found += _group_rows(name, "repeat", z, here, own, settings)[0]
+        found, summary, unit, wells = _score_space(name, features, combine, inputs)
         rows += found
-        scored = pd.DataFrame(found, columns=_COLUMNS)
-        by_condition = scored[scored["score"] == "condition"]
-        by_repeat = scored[scored["score"] == "repeat"]
-        summaries.append(
-            {
-                "space": name,
-                "features": len(data.feature_cols),
-                "share": _median(by_condition, "share"),
-                "chance": _median(by_condition, "chance"),
-                "repeats": len(by_condition),
-                "repeat_share": _median(by_repeat, "share"),
-                "repeat_chance": _median(by_repeat, "chance"),
-                "conditions": len(by_repeat),
-                "left_out": left_out,
-                "dropped": dropped,
-                "dropped_where": where,
-                "single": single,
-            }
-        )
+        summaries.append(summary)
     described = {
         "k": k,
         "max_points": max_points,

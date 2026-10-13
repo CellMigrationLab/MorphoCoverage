@@ -1,0 +1,8 @@
+[
+ {
+  "from": "plots:_draw_cluster",
+  "to": "_plots_clusters:_draw_cluster",
+  "reason": "moved unchanged to the private _plots_clusters.py (refactor R1); layout annotated Any to avoid an import cycle",
+  "date": "2026-10-13"
+ }
+]

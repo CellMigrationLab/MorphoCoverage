@@ -220,8 +220,11 @@ src/morphocoverage/
     _integrity_match.py    # private: its matching at a stated precision, by sorting, with no loop over pairs of fields
     _integrity_text.py     # private: the integrity checks in words (IntegrityResult.summary), short and full
     _integrity_tables.py   # private: the integrity checks on each feature table apart, their union naming the table
+    _integrity_selection.py  # private: what the integrity checks compare (continuous features, informative rows, fields) and the log of their findings
     data_check.py          # check_tables: every data problem at once, where and how to fix it
+    _data_check_steps.py   # private: the steps of check_tables in order: tables, arguments, sizes, fields, the validator's own rules
     _data_rules.py         # private: the rules behind check_tables, one function per kind of problem
+    _feature_rules.py      # private: its feature-column rule: named once, one role, present, numeric, finite
     _copy_rules.py         # private: its copy rule: repeated rows, observations repeated within a field, labels twice in a field
     _data_problems.py      # private: the problems a data check reports (Problem, Collector) and their wording
     _input_traps.py        # private: tables that validate but are probably not meant: invalid rows, undeclared groups, unimaged wells
@@ -239,6 +242,7 @@ src/morphocoverage/
     distances.py           # pure two-sample distance primitives (energy, MMD, Fréchet, SW)
     transforms.py          # feature transforms fitted on the visible prefix only
     benchmark.py           # dataset roles, acquisition orders, one record per run
+    _benchmark_data.py     # private: a benchmark run's data: the dataset loaded and validated, its groups, streams and reservoirs, imaged area
     reservoir.py           # held-out evaluation reservoirs split by spatial block
     spatial.py             # spatial diagnostics: FOV semivariogram against stage distance
     bounds.py              # Clopper-Pearson bounds and intervals for probabilities from few FOVs
@@ -249,6 +253,7 @@ src/morphocoverage/
     _parallel.py           # private: worker pools behind n_jobs (map_units, worker_pool)
     _wording.py            # private: the one way to write percentages, rates, counts, fields, durations, groups
     _style.py              # private: the one text style: markers and Status, rule and group labels, tables, wrapping
+    _rule_names.py         # private: the readable names of the known stopping-rule families, for rule_label
     _fitted.py             # private: every summary fitted to 100 columns, a long line wrapped with its continuation lines
     _caveats.py            # private: the two kinds of caveat (cautions about these data, standing assumptions) and how a section states them
     _seeds.py              # private: per-group seeds (group_identity, group_seed, group_rng, split_seed) and group_key
@@ -261,6 +266,7 @@ src/morphocoverage/
     _checks.py             # private: integer and number checks that accept numpy types
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
+    _next_fov.py           # private: its question 2 per group: the chance of something new, the observations counted as new, the answers
     sufficiency_text.py    # the sentences of the sufficiency report (its answer columns)
     sufficiency_null.py    # question 2's guard: no chance of a new state where the definition of new is not informative at the group's size (audit A2)
     sufficiency_short.py   # its short summary: the rules in one table across groups, each caveat once
@@ -277,6 +283,7 @@ src/morphocoverage/
     plots_embedding.py     # the PCA biplot (the top features as arrows) and the UMAP, coloured by condition
     plots_pairwise.py      # every pair of conditions: signed d and the paired test, the panel under a plot
     _plots_text.py         # private: a plot's title (what is plotted, what the interval resamples), legend
+    _plots_clusters.py     # private: a plot's clusters: one drawn (points by technical repeat, summary, interval), their units
     _palette.py            # private: the colour per condition, technical-repeat shapes, axis style
     _figure_layout.py      # private: a static figure's lettered panels and its legend at the bottom
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
@@ -438,6 +445,7 @@ src/morphocoverage/
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
         _scalar_precision_state.py  # private: its incremental path, per-FOV sufficient statistics for live sessions
         _averaging_cv.py   # private: its averaging-CV arithmetic (object and FOV units)
+        _precision_steps.py  # private: its estimate's steps: why no estimate yet, the FOV unit's estimate, the cautions
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
         _descriptor_resamples.py  # private: the resample arithmetic of the descriptor spread
         jcb_planning.py    # JCB multi-sample planning from disjoint pilot samples

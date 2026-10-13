@@ -58,7 +58,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -405,6 +405,47 @@ def attach_feature_tables(
             "'explainable' or 'non-explainable')"
         )
     problems: list[str] = []
+    given = _given_tables(feature_tables, problems)
+    reader = Reader()
+    objects = reader.table(objects, "objects")
+    fovs = reader.table(fovs, "fovs")
+    tables = {
+        name: reader.table(table, f"feature table {name!r}") for name, (table, _) in given.items()
+    }
+    reader.warn()
+    identity = observation_identity(objects, fovs, fov_col=fov_col, group_cols=group_cols)
+    observed = _observed_keys(objects, identity)
+    usable = _usable_tables(tables, identity, problems)
+    finals = _final_names(objects, {name: features for name, (_, features) in usable.items()})
+    found = _blocks(usable, finals, identity, observed, objects, problems)
+    if problems:
+        raise ValueError("the other feature tables cannot be used: " + "; ".join(problems))
+    merged = pd.concat([objects, *found.blocks], axis=1)
+    tags = {str(name): tag for name, (_, tag) in given.items()}
+    columns = found.columns
+    renamed = {name: {str(c): f for c, f in finals[name].items() if f != c} for name in columns}
+    renamed = {name: pairs for name, pairs in renamed.items() if pairs}
+    return FeatureTables(
+        merged, columns, found.missing, found.incomplete, identity, found.constant, tags, renamed
+    )
+
+
+class _Blocks(NamedTuple):
+    """The usable tables' columns as blocks of the observation table, and per table its
+    final column names, missing values, incomplete rows and constant columns."""
+
+    blocks: list[pd.DataFrame]
+    columns: dict[str, tuple[str, ...]]
+    missing: dict[str, int]
+    incomplete: dict[str, int]
+    constant: dict[str, tuple[str, ...]]
+
+
+def _given_tables(
+    feature_tables: Mapping[Any, Any], problems: list[str]
+) -> dict[Any, tuple[Any, str]]:
+    """Each table and its tag (non-explainable when none); an unknown tag added to
+    ``problems``."""
     given: dict[Any, tuple[Any, str]] = {}
     for name, value in feature_tables.items():
         table, tag = _tagged(value)
@@ -415,14 +456,11 @@ def attach_feature_tables(
                 "read only as a whole)"
             )
         given[name] = (table, tag or NON_EXPLAINABLE_TAG)
-    reader = Reader()
-    objects = reader.table(objects, "objects")
-    fovs = reader.table(fovs, "fovs")
-    tables = {
-        name: reader.table(table, f"feature table {name!r}") for name, (table, _) in given.items()
-    }
-    reader.warn()
-    identity = observation_identity(objects, fovs, fov_col=fov_col, group_cols=group_cols)
+    return given
+
+
+def _observed_keys(objects: pd.DataFrame, identity: Sequence[str]) -> pd.Series:
+    """Each observation's identity key; ``ValueError`` when two observations share one."""
     observed = _keys(objects, identity)
     if observed.duplicated().any():
         twice = observed[observed.duplicated(keep=False)]
@@ -431,8 +469,15 @@ def attach_feature_tables(
             f"{count(twice.nunique(), 'observation')} of the observation table share theirs "
             f"({_shown(twice)}): add a label_id column naming each observation in its field"
         )
+    return observed
+
+
+def _usable_tables(
+    tables: Mapping[Any, Any], identity: Sequence[str], problems: list[str]
+) -> dict[str, tuple[pd.DataFrame, list[Any]]]:
+    """The tables with a usable name, that are DataFrames holding the identity columns, and
+    their feature columns; the others' problems added to ``problems``."""
     seen: list[str] = []
-    taken: dict[str, str] = {}
     usable: dict[str, tuple[pd.DataFrame, list[Any]]] = {}
     for name, table in tables.items():
         named = _name_problems(name, seen)
@@ -451,35 +496,38 @@ def attach_feature_tables(
             continue
         if not named:
             usable[label] = (table, [c for c in table.columns if c not in identity])
-    finals = _final_names(objects, {name: features for name, (_, features) in usable.items()})
-    columns: dict[str, tuple[str, ...]] = {}
-    blocks = []
-    missing: dict[str, int] = {}
-    incomplete: dict[str, int] = {}
-    constant: dict[str, tuple[str, ...]] = {}
+    return usable
+
+
+def _blocks(
+    usable: Mapping[str, tuple[pd.DataFrame, list[Any]]],
+    finals: Mapping[str, Mapping[Any, str]],
+    identity: Sequence[str],
+    observed: pd.Series,
+    objects: pd.DataFrame,
+    problems: list[str],
+) -> _Blocks:
+    """Each usable table matched to the observations and checked; its columns, by their
+    final names, as a block in the observations' order. The problems added to ``problems``."""
+    taken: dict[str, str] = {}
+    found = _Blocks([], {}, {}, {}, {})
     for label, (table, features) in usable.items():
         final = finals[label]
-        found = _match_problems(label, table, identity, observed)
-        found += _column_problems(label, table, features, final, objects, taken)
+        wrong = _match_problems(label, table, identity, observed)
+        wrong += _column_problems(label, table, features, final, objects, taken)
         taken.update({final[c]: label for c in features})
-        problems += found
-        if found:
+        problems += wrong
+        if wrong:
             continue
         values = table[features].set_axis(_keys(table, identity).to_numpy(), axis=0)
         block = values.reindex(observed.to_numpy()).set_axis(objects.index, axis=0)
         block = block.set_axis([final[c] for c in features], axis=1)
-        blocks.append(block)
-        columns[label] = tuple(block.columns)
-        missing[label] = int(block.isna().to_numpy().sum())
-        incomplete[label] = int(block.isna().any(axis=1).sum())
-        constant[label] = _constant(block)
-    if problems:
-        raise ValueError("the other feature tables cannot be used: " + "; ".join(problems))
-    merged = pd.concat([objects, *blocks], axis=1)
-    tags = {str(name): tag for name, (_, tag) in given.items()}
-    renamed = {name: {str(c): f for c, f in finals[name].items() if f != c} for name in columns}
-    renamed = {name: pairs for name, pairs in renamed.items() if pairs}
-    return FeatureTables(merged, columns, missing, incomplete, identity, constant, tags, renamed)
+        found.blocks.append(block)
+        found.columns[label] = tuple(block.columns)
+        found.missing[label] = int(block.isna().to_numpy().sum())
+        found.incomplete[label] = int(block.isna().any(axis=1).sum())
+        found.constant[label] = _constant(block)
+    return found
 
 
 def mfa_weights(
