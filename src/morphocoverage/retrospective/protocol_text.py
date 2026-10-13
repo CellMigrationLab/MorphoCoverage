@@ -357,6 +357,14 @@ def protocol_short_parts(result: ProtocolResult, indent: int = 2) -> tuple[list[
             hang=indent + 2,
         )
     )
+    lines += _short_notes(blocks, bool(strata), indent)
+    lines += [wrap(text, indent, hang=indent + 2) for text in _short_reasons(blocks, w)]
+    return lines, _few(blocks, w)
+
+
+def _short_notes(blocks: Sequence[Mapping[str, Any]], strata: bool, indent: int) -> list[str]:
+    """Each stratum and target's notes, or the same note for every one said once."""
+    lines = []
     noted = [block for block in blocks if block["short_notes"]]
     shared = {"; ".join(block["short_notes"]) for block in noted}
     if len(noted) == len(blocks) > 1 and len(shared) == 1:
@@ -368,6 +376,12 @@ def protocol_short_parts(result: ProtocolResult, indent: int = 2) -> tuple[list[
         where = group_label(block["stratum"]) + ", " if strata else ""
         text = f"{where}{block['label']}: {'; '.join(block['short_notes'])}."
         lines.append(wrap(text[:1].upper() + text[1:], indent, hang=indent + 2))
+    return lines
+
+
+def _short_reasons(blocks: Sequence[Mapping[str, Any]], w: Mapping[str, str]) -> list[str]:
+    """Why some samples are not counted as needing more fields, and why a check was not
+    made, each once under the table."""
     reasons = []
     if any(block.get("capped") for block in blocks):
         reasons.append(
@@ -380,8 +394,7 @@ def protocol_short_parts(result: ProtocolResult, indent: int = 2) -> tuple[list[
             f"Not checked: on the other {w['units']} no number of fields served enough "
             f"{w['samples']} to be tried on the one left out."
         )
-    lines += [wrap(text, indent, hang=indent + 2) for text in reasons]
-    return lines, _few(blocks, w)
+    return reasons
 
 
 def protocol_full_parts(result: ProtocolResult, indent: int = 0) -> tuple[list[str], list[str]]:
