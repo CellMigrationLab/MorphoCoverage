@@ -5,16 +5,23 @@ and no version of the cell-level screen whose control comes from other repeats."
 import html
 import re
 import warnings
+from dataclasses import dataclass
+from types import SimpleNamespace
+from typing import ClassVar
 
 import numpy as np
 import pandas as pd
 import pytest
-from test_rare_fingerprint import _screen, _setup
+from _helpers_rare_fingerprint import _screen, _setup
+from _helpers_sampling_unit import _tables as _discovery_tables
 
+from morphocoverage.sampling_unit.discovery import feature_discovery
+from morphocoverage.sampling_unit.reading_text import LIMITED_REPLICATION
 from morphocoverage.workflows import html_report, report
-from morphocoverage.workflows._families import _CELL_VERSIONS
+from morphocoverage.workflows._families import _CELL_VERSIONS, shared_family
+from morphocoverage.workflows._html_across import _across, across_frame
 from morphocoverage.workflows._html_render import adjusted_p
-from morphocoverage.workflows._html_tests import _other_versions
+from morphocoverage.workflows._html_tests import _cells, _other_versions
 
 # A q left on the page: before a number or comparison, in brackets, before a colon, or
 # corrected / uncorrected (docs/report/conditions.md: the adjusted p throughout).
@@ -103,3 +110,82 @@ def test_the_page_calls_the_q_value_the_adjusted_p():
         "<p>adjusted p: the version the reading uses; p uncorrected, the adjusted p corrected</p>"
     )
     assert not _Q.search(fixed) and _Q.search("p uncorrected, q corrected")
+
+
+def test_the_page_table_and_its_csv_carry_each_repeats_change_and_the_interval(tmp_path):
+    objects, fovs = _discovery_tables(n_repeats=3)
+    discovery = feature_discovery(
+        objects,
+        fovs,
+        features=["area", "noise"],
+        control={"condition": "ctrl"},
+        n_permutations=999,
+        observation_unit="cell",
+    )
+    result = SimpleNamespace(
+        discovery=discovery,
+        results={"contrast": None},
+        setup=SimpleNamespace(readout="area", unit_word="cell"),
+    )
+    frame = across_frame(result)
+    assert {"repeat_contrasts", "ci_low", "ci_high"} <= set(frame.columns)
+    markup, _ = _across(result, tmp_path)
+    assert "<th>change in each repeat</th><th>95% t interval</th>" in markup
+    assert html.escape(LIMITED_REPLICATION) in markup
+    saved = pd.read_csv(tmp_path / "tests_across_repeats.csv")
+    assert {"repeat_contrasts", "ci_low", "ci_high"} <= set(saved.columns)
+
+
+def test_the_cell_level_screen_is_empty_without_tests_or_cells():
+    result = SimpleNamespace(
+        discovery=None, results={"contrast": None}, setup=SimpleNamespace(readout="area")
+    )
+    assert _cells(result, None) == ""
+
+
+@dataclass(frozen=True)
+class _Contrast:
+    repeats: pd.DataFrame
+    cells: pd.DataFrame
+    settings: dict
+
+
+class _Discovery:
+    tests = pd.DataFrame(
+        {
+            "feature": ["area"],
+            "condition": ["A"],
+            "p_paired": [0.01],
+            "q_paired": [0.02],
+            "paired_values": ["raw"],
+            "p_cells": [0.03],
+            "q_cells": [0.04],
+            "d": [0.5],
+            "normalised": [False],
+            "balanced": [False],
+        }
+    )
+    settings: ClassVar[dict] = {}
+
+
+def test_shared_family_leaves_conditions_the_discovery_did_not_test():
+    contrast = _Contrast(
+        pd.DataFrame({"condition": ["A", "B"], "p_paired_t": [0.5, 0.6], "q_paired_t": [0.5, 0.6]}),
+        pd.DataFrame(
+            {
+                "condition": ["A", "B"],
+                "d_cells": [0.0, 0.0],
+                "p_cells": [1.0, 1.0],
+                "q_cells": [1.0, 1.0],
+            }
+        ),
+        {"x": 1},
+    )
+    shared = shared_family(contrast, _Discovery(), "area")
+    assert shared.repeats.to_csv(index=False) == (
+        "condition,p_paired_t,q_paired_t\nA,0.01,0.02\nB,0.6,0.6\n"
+    )
+    assert shared.cells.to_csv(index=False) == (
+        "condition,d_cells,p_cells,q_cells\nA,0.5,0.03,0.04\nB,0.0,1.0,1.0\n"
+    )
+    assert shared.settings == {"x": 1, "family_features": 1, "family_share": None}

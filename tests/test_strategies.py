@@ -1,5 +1,11 @@
+from __future__ import annotations
+
+import numpy as np
 import pandas as pd
 import pytest
+from _helpers_benchmark import POPULATION
+from _helpers_strategies import _report_both_orders
+from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import (
     Component,
@@ -10,6 +16,7 @@ from morphocoverage import (
     FixedObjectStrategy,
     FixedObservationStrategy,
     ObjectiveConfig,
+    OnlineSession,
     Quantity,
     RareTarget,
     SamplingObjective,
@@ -18,6 +25,9 @@ from morphocoverage import (
     evaluate_acquisition_prefixes,
     run_strategies,
 )
+from morphocoverage.policies import EffortPolicy
+from morphocoverage.strategies.base import EstimatorState
+from morphocoverage.workflows import LiveFolder, Setup, live_session, write_fov
 
 
 def _tables():
@@ -212,3 +222,140 @@ def test_results_record_whether_the_observation_unit_was_declared(unit, declared
     )
     assert result.observation_unit_declared is declared
     assert result.observation_unit == ("object" if unit in (None, "object") else "cell")
+
+
+_SEEN: list = []
+
+
+class _Spy(Estimator):
+    """Records what the framework hands an estimator."""
+
+    name = "spy"
+
+    @property
+    def parameters(self):
+        return {}
+
+    def estimate(self, data, *, objective):
+        column = data.objects["image_file"]
+        _SEEN.append(("estimate", data.objects.index.tolist(), list(column.cat.categories)))
+        return Evidence({}, {})
+
+
+class _SpyState(EstimatorState):
+    def update(self, new):
+        column = new.objects["image_file"]
+        _SEEN.append(("update", new.objects.index.tolist(), list(column.cat.categories)))
+        return Evidence({}, {})
+
+
+class _IncrementalSpy(_Spy):
+    name = "incremental_spy"
+
+    def start(self, template, *, objective):
+        return _SpyState()
+
+
+@pytest.mark.parametrize("estimator", [_Spy(), _IncrementalSpy()], ids=["prefix", "update"])
+def test_b3_live_estimator_inputs_expose_only_visible_rows(estimator):
+    built = SCENARIOS["homogeneous"]()
+    objects = built.objects.assign(image_file=pd.Categorical(built.objects.image_file))
+    fovs = built.fovs.assign(image_file=pd.Categorical(built.fovs.image_file))
+    strategy = SamplingStrategy([estimator], [], name="spy")
+    kwargs = {"strategies": [strategy], "feature_cols": list(FEATURE_COLS), "objective": POPULATION}
+    _SEEN.clear()
+    evaluate_acquisition_prefixes(
+        objects, fovs, acquisition_order_col=ORDER_COL, incremental=True, **kwargs
+    )
+    replayed = _SEEN[:3]
+    _SEEN.clear()
+    session = OnlineSession(**kwargs)
+    for _, meta in fovs.sort_values(ORDER_COL).head(3).iterrows():
+        session.add_fov(objects[objects.image_file == meta.image_file], meta.to_dict())
+    assert _SEEN == replayed
+    step, index, categories = _SEEN[-1]
+    assert index[0] == 0 and len(categories) == (3 if step == "estimate" else 1)
+
+
+def test_e8_one_fov_is_singular():
+    answer = _report_both_orders("homogeneous", [FixedFOVStrategy(1)]).enough["answer"].iloc[0]
+    assert "first met after 1 FOV;" in answer and "1 FOVs" not in answer
+
+
+SETUP = Setup(readout="x", observation_unit="cell")
+
+
+def _fields(folder, n: int = 6, condition: str = "MOCK") -> None:
+    """``n`` fields of one well, deterministic."""
+    for index in range(n):
+        values = pd.DataFrame({"x": 100.0 + np.arange(5, dtype=float) + index})
+        metadata = {
+            "condition": condition,
+            "biological_repeat": "R1",
+            "technical_repeat": "A01",
+            "image_file": f"A01_f{index:03d}.tif",
+        }
+        write_fov(folder, values, metadata)
+
+
+def _fingerprint_rule(fovs: int) -> SamplingStrategy:
+    """A rule that decides the fingerprint only, after ``fovs`` fields."""
+    policy = EffortPolicy("n_fovs", fovs, Component.DISTRIBUTION)
+    return SamplingStrategy([], [policy], name=f"fingerprint_{fovs}")
+
+
+def _watch(folder, rules, objective: str = "population", **kwargs) -> int:
+    session = live_session(SETUP, rules=rules, objective=ObjectiveConfig(objective))
+    seen = LiveFolder(folder, session).watch(
+        interval=0.01, timeout=2, until_stop=True, on_update=None, **kwargs
+    )
+    return len(seen)
+
+
+def test_85_one_target_one_rule_stops_as_before(tmp_path):
+    _fields(tmp_path)
+    assert _watch(tmp_path, (FixedFOVStrategy(2),)) == 2
+    assert _watch(tmp_path, (FixedFOVStrategy(2),), stop_on="rule") == 2
+
+
+def test_85_two_targets_stop_when_both_stop(tmp_path):
+    # Each rule alone is unsupported for the phenotype objective; together they decide it.
+    _fields(tmp_path)
+    rules = (FixedFOVStrategy(2), _fingerprint_rule(3))
+    assert _watch(tmp_path, rules, "phenotype") == 3
+
+
+def test_85_a_target_no_rule_decides_never_stops_the_watch(tmp_path):
+    _fields(tmp_path)
+    rules = (FixedFOVStrategy(2),)
+    assert _watch(tmp_path, rules, "phenotype") == 6  # every field, no stop
+    assert _watch(tmp_path, rules, "phenotype", stop_on="rule") == 2
+
+
+def test_85_one_target_still_continuing_keeps_the_watch_going(tmp_path):
+    _fields(tmp_path)
+    rules = (FixedFOVStrategy(2), _fingerprint_rule(5))
+    assert _watch(tmp_path, rules, "phenotype") == 5
+    three = (FixedFOVStrategy(2), FixedFOVStrategy(3), FixedFOVStrategy(4))
+    assert _watch(tmp_path, three) == 4
+
+
+def test_85_a_rule_on_a_target_not_required_does_not_hold_the_stop(tmp_path):
+    # The live view's overall ignores a fingerprint rule under the population objective.
+    _fields(tmp_path)
+    rules = (FixedFOVStrategy(2), _fingerprint_rule(5))
+    assert _watch(tmp_path, rules) == 2
+    assert _watch(tmp_path, rules, stop_on="rule") == 5
+
+
+def test_85_the_condition_label_does_not_change_the_stop(tmp_path):
+    for condition in ("MOCK", "drug"):
+        folder = tmp_path / condition
+        _fields(folder, condition=condition)
+        assert _watch(folder, (FixedFOVStrategy(2), _fingerprint_rule(3)), "phenotype") == 3
+
+
+def test_85_stop_on_is_checked(tmp_path):
+    _fields(tmp_path, 1)
+    with pytest.raises(ValueError, match="stop_on"):
+        _watch(tmp_path, (FixedFOVStrategy(2),), stop_on="every_rule")

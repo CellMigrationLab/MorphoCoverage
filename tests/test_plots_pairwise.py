@@ -1,12 +1,30 @@
 """Every pair of conditions for one feature (plots_pairwise), and the panel under a figure."""
 
+from __future__ import annotations
+
+import sys
+import warnings
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_tables import _four_cell_tables
+from _helpers_workflows import _scenario_report
 
-from morphocoverage.plots_pairwise import add_pairwise, format_p, pairwise_contrasts
+from morphocoverage.plots_pairwise import (
+    PAIR_COLUMNS,
+    PANEL_KEYS,
+    add_pairwise,
+    format_p,
+    pairwise_contrasts,
+    verdict_note,
+)
 from morphocoverage.statistics import benjamini_hochberg
 from morphocoverage.workflows import Setup, plots
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "scenarios"))
+import make_scenarios
 
 
 def _tables(seed=0):
@@ -184,3 +202,46 @@ def test_pairs_normalised_to_different_controls_are_not_compared():
     assert f"{APART_MARK}: in the normalised values" in PAIR_NOTE_SEVERAL
     raw = plots(objects, fovs, Setup(readout="area", control=CONTROLS, observation_unit="cell"))
     assert APART not in set(raw["area"][0].pairwise["status"])
+
+
+def test_panel_c_says_its_q_is_the_figures_and_gives_the_verdicts_q() -> None:
+    # A3: panel C's q, adjusted over the figure's pairs, was green where the verdict's q,
+    # adjusted over the feature family, was not significant (and the other way round).
+    name = "a15_expl_one_cells_tech_rare"
+    loaded, result = make_scenarios.load(name), _scenario_report(name)
+    discovery = result.discovery
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        drawn = plots(loaded.objects, loaded.fovs, result.setup, ranking=discovery)
+    tests = discovery.tests
+    checked = 0
+    for feature, parts in drawn.items():
+        for figure in parts:
+            mine = tests[tests["feature"].eq(feature) & tests["q_paired"].notna()]
+            expected = dict(zip(mine["condition"], mine["q_paired"], strict=True))
+            assert figure.pairwise_verdicts == pytest.approx(expected)
+            legend = " ".join(figure.legend_artist.get_text().split())
+            assert "adjusted over the pairs of this figure only" in legend
+            if expected:
+                checked += 1
+                assert verdict_note(expected) in legend
+                assert "Verdict q (the feature's family): " in legend
+    assert checked
+    assert PANEL_KEYS["C"].endswith("adjusted over this figure only")
+
+
+def test_pairwise_contrasts_without_conditions_and_with_a_condition_not_imaged():
+    objects, fovs = _four_cell_tables()
+    empty = pairwise_contrasts(
+        objects.drop(columns="condition"), fovs.drop(columns="condition"), feature="area"
+    )
+    assert empty.empty and list(empty.columns) == PAIR_COLUMNS
+    table = pairwise_contrasts(objects, fovs, feature="area", conditions=["A", "C", "B"])
+    assert table.iloc[:, :6].to_dict("list") == {
+        "feature": ["area"],
+        "first": ["A"],
+        "second": ["B"],
+        "d": [-2.4961508830135313],
+        "observations": [2],
+        "second_observations": [2],
+    }

@@ -1,21 +1,49 @@
 """Tests for the Marcotti et al.-style descriptor-stabilization baselines."""
 
+import json
+import tracemalloc
+
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_strategies import (
+    DISTRIBUTION,
+    _acquisition,
+    _area_run,
+    _area_tables,
+    _joined_words,
+    _ordered_acquisition,
+    _quantity,
+    _run,
+    _summary,
+    _well,
+    _words,
+    _x_replay,
+    _x_run,
+)
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import (
     DescriptorPlateauStrategy,
     DescriptorSpreadStrategy,
     ObjectiveConfig,
+    OnlineSession,
     RareTarget,
     SamplingObjective,
     ScalarPrecisionStrategy,
     evaluate_acquisition_prefixes,
     run_strategies,
+    validate_input_tables,
+)
+from morphocoverage.benchmark import AcquisitionOrder
+from morphocoverage.strategies import (
+    DescriptorSpreadEstimator,
+    FOVBootstrapStrategy,
+    _descriptor_resamples,
+    stabilization,
 )
 from morphocoverage.strategies.stabilization import describe
+from morphocoverage.sufficiency import sufficiency_report
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
@@ -373,3 +401,258 @@ def test_fov_spread_variant_applies_to_any_observation_unit():
     ]
     assert [r.rule_decision for r in results] == ["stop", "stop"]
     assert results[0].evidence == results[1].evidence
+
+
+def test_b2_replay_prefixes_equal_the_live_arrival_order():
+    # Object-drawing estimators see the same rows in a replay (full
+    # recomputation) and live, also when the table is not sorted by FOV.
+    strategy = DescriptorSpreadStrategy("feature_a", 0.3, "object", 20, 0)
+    built = SCENARIOS["duplicated_objects"]()
+    assert not built.objects.image_file.is_monotonic_increasing
+    replayed = evaluate_acquisition_prefixes(
+        built.objects,
+        built.fovs,
+        strategies=[strategy],
+        feature_cols=list(FEATURE_COLS),
+        acquisition_order_col=ORDER_COL,
+        objective=POPULATION,
+    )
+    by_step = {(tuple(i.result.group.items()), i.step): i.result for i in replayed}
+    session = OnlineSession(
+        strategies=[strategy], feature_cols=list(FEATURE_COLS), objective=POPULATION
+    )
+    key = ["condition", "biological_repeat", "image_file"]
+    for _, meta in built.fovs.sort_values(ORDER_COL).iterrows():
+        mask = (built.objects[key] == meta[key]).all(axis=1)
+        (live,) = session.add_fov(built.objects[mask], meta.to_dict())
+        reference = by_step[(tuple(live.group.items()), live.n_fovs)]
+        assert live.without_timing().evidence == reference.without_timing().evidence
+        assert live.rule_decision == reference.rule_decision
+
+
+def test_c5_descriptor_plateau_refuses_a_missing_order_value():
+    objects, fovs = _area_tables([[1.0, 2.0], [10.0, 11.0], [3.0, 2.5], [2.0, 1.5]])
+    fovs["acq"] = [1.0, np.nan, 2.0, 3.0]
+    strategy = DescriptorPlateauStrategy("area", 100.0, 1, "acq", descriptors=("mean",))
+    with pytest.raises(ValueError, match="'acq' has missing values; the descriptor-plateau"):
+        _run(objects, fovs, strategy)
+
+
+def test_c17_object_resampling_is_chunked_and_gives_the_same_spreads(monkeypatch):
+    rng = np.random.default_rng(0)
+    objects = pd.DataFrame(
+        {
+            "image_file": rng.integers(0, 50, 5000).astype(str),
+            "area": rng.gamma(4, 50, 5000),
+        }
+    )
+    data = validate_input_tables(
+        objects, fovs=pd.DataFrame({"image_file": np.arange(50).astype(str)}), feature_cols=["area"]
+    )
+    estimator = DescriptorSpreadEstimator("area", "object", 100, 0)
+    whole = estimator.estimate(data, objective=POPULATION)
+    monkeypatch.setattr(_descriptor_resamples, "_MAX_RESAMPLED_VALUES", 12_000)
+    tracemalloc.start()
+    chunked = estimator.estimate(data, objective=POPULATION)
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert chunked.diagnostics["resample_spreads"] == whole.diagnostics["resample_spreads"]
+    # 100 resamples of 5000 values would hold 4 MB of values and 4 MB of indices at once.
+    assert peak < 3_000_000
+
+
+PHENOTYPE = ObjectiveConfig(SamplingObjective.PHENOTYPE)
+
+
+def test_c3_the_object_unit_jcs_rule_states_its_random_object_assumption():
+    rng = np.random.default_rng(1)
+    objects, fovs = _acquisition([list(rng.normal(10, 2, 15)) for _ in range(8)])
+    text = _summary(
+        objects,
+        fovs,
+        [
+            DescriptorSpreadStrategy("area", 5.0, "object", 50, 0),
+            DescriptorSpreadStrategy("area", 5.0, "fov", 50, 0),
+        ],
+        objective=DISTRIBUTION,
+    )
+    lines = {line.split(" (")[0].strip(" -"): line for line in text.splitlines() if "(" in line}
+    clause = "assumes a spatially uniform sample"
+    assert clause in lines["JCS spread, per object, ≤5"]
+    assert clause not in lines["JCS spread, per field, ≤5"]
+    # Stated once in the short summary, for the object-unit rule only.
+    assert "JCS spread, per object, ≤5 treats objects as independent draws: it assumes" in text
+    assert "JCS spread, per field, ≤5 treats" not in text
+
+
+def test_c10_numpy_integers_are_accepted_and_stored_as_python_ints():
+    strategies = [
+        DescriptorPlateauStrategy("area", 0.1, np.int64(3), "acq"),
+        DescriptorSpreadStrategy("area", 0.1, "fov", np.int64(100), np.int64(0)),
+        FOVBootstrapStrategy("centroid", 0.1, None, np.int32(100), np.int64(0), np.int64(3)),
+        FOVBootstrapStrategy("subspace", 0.1, None, 100, 0, 3, None, np.int64(1)),
+    ]
+    for strategy in strategies:
+        text = json.dumps(strategy.parameters)  # provenance is JSON: no numpy integer left
+        assert "int64" not in text
+        for estimator in strategy.estimators:
+            json.dumps(estimator.parameters)
+    assert type(strategies[0].window) is int and type(strategies[2].min_fovs) is int
+    with pytest.raises(ValueError, match="random_state"):
+        DescriptorSpreadStrategy("area", 0.1, "fov", 100, -1)
+    with pytest.raises(TypeError, match="n_resamples"):
+        DescriptorSpreadStrategy("area", 0.1, "fov", True, 0)
+
+
+def test_c14_marcotti_rules_answer_population_and_distribution_with_two_quantities():
+    rng = np.random.default_rng(1)
+    objects, fovs = _acquisition([list(np.abs(rng.normal(10, 2, 15))) for _ in range(12)])
+    rules = [
+        DescriptorPlateauStrategy("area", 5.0, 2, "acq"),
+        DescriptorSpreadStrategy("area", 5.0, "fov", 50, 0),
+        DescriptorSpreadStrategy("area", 5.0, "object", 50, 0),
+    ]
+    for objective in (POPULATION, DISTRIBUTION, PHENOTYPE):
+        for result in _area_run(objects, fovs, rules, objective=objective):
+            assert result.decision in ("stop", "continue"), (objective, result.strategy)
+    [plateau, spread, _] = _area_run(objects, fovs, rules)
+    for result, measure in ((plateau, "range"), (spread, "spread")):
+        quantities = result.evidence.quantities
+        assert quantities[f"max_location_{measure}"].component == "population"
+        assert quantities[f"max_scale_{measure}"].component == "distribution"
+        # The earlier quantity keeps its meaning: the largest over every descriptor.
+        combined = quantities[f"max_descriptor_{measure}"]
+        assert combined.component == "distribution"
+        assert combined.value == max(
+            quantities[f"max_location_{measure}"].value, quantities[f"max_scale_{measure}"].value
+        )
+    # The rule's own verdict is unchanged: stop when every descriptor is within tolerance.
+    for tolerance in (0.01, 0.2, 0.5, 1.0, 5.0):
+        rule = DescriptorSpreadStrategy("area", tolerance, "fov", 50, 0)
+        [result] = _area_run(objects, fovs, [rule])
+        expected = result.evidence.value("max_descriptor_spread") <= tolerance
+        assert (result.rule_decision == "stop") == expected
+    # Location descriptors alone answer the population summary only, as before.
+    location = DescriptorSpreadStrategy("area", 5.0, "fov", 50, 0, ("mean", "median"))
+    [result] = _area_run(objects, fovs, [location], objective=DISTRIBUTION)
+    assert result.decision == "unsupported"
+    assert set(result.evidence.quantities) == {"max_descriptor_spread", "max_location_spread"}
+
+
+def test_c16_the_plateau_window_counts_fovs_with_objects_and_missing_values_are_stated():
+    rng = np.random.default_rng(1)
+    values = [list(rng.normal(10, 2, 8)) if j % 2 == 0 else [] for j in range(10)]
+    objects, fovs = _acquisition(values)
+    [result] = _area_run(objects, fovs, [DescriptorPlateauStrategy("area", 100.0, 2, "acq")])
+    assert result.evidence.diagnostics["fovs_in_window"] == [5, 7, 9]
+    assert "``window`` counts FOVs that added objects" in _words(
+        stabilization.DescriptorPlateauStrategy.__doc__
+    )
+    objects.loc[objects.index[3], "area"] = np.nan
+    rules = [
+        DescriptorPlateauStrategy("area", 1.0, 2, "acq"),
+        DescriptorSpreadStrategy("area", 1.0, "fov", 20, 0),
+    ]
+    for result, estimator in zip(
+        _area_run(objects, fovs, rules), (r.estimators[0] for r in rules), strict=True
+    ):
+        assert all(q.availability == "not_applicable" for q in result.evidence.quantities.values())
+        assert "Missing values in the feature" in _words(type(estimator).__doc__)
+
+
+def test_p4_1_a_readout_constant_so_far_is_not_enough_data_for_the_jcs_rules_and_bootstrap():
+    rng = np.random.default_rng(1)
+    saturated = [[4095.0] * 12 for _ in range(5)]
+    varied = [list(np.minimum(4095.0, rng.normal(3000, 600, 12))) for _ in range(3)]
+    objects, fovs = _ordered_acquisition(saturated + varied)
+    rules = [
+        DescriptorSpreadStrategy("x", 50.0, "object", 50, 0),
+        DescriptorSpreadStrategy("x", 50.0, "fov", 50, 0),
+        DescriptorPlateauStrategy("x", 50.0, 2, "acq"),
+        FOVBootstrapStrategy("centroid", 50.0, None, 100, 0, 2, features=("x",)),
+        FOVBootstrapStrategy("quantiles", 50.0, None, 100, 0, 2, (0.5,), features=("x",)),
+    ]
+    results = _x_replay(objects, fovs, rules)
+    for item in results:
+        if item.step <= 5:
+            assert item.result.rule_decision == "continue", (item.step, item.result.strategy)
+            for quantity in item.result.evidence.quantities.values():
+                assert quantity.availability == "insufficient_data"
+    constant = {
+        r.result.strategy: _quantity(r.result, next(iter(r.result.evidence.quantities))).reason
+        for r in results
+        if r.step == 5
+    }
+    assert constant == {
+        "descriptor_spread_object": "no spread among the objects so far",
+        "descriptor_spread_fov": "no spread among the objects so far",
+        "descriptor_plateau": "no spread among the objects so far",
+        "fov_bootstrap_centroid": "no spread between the FOV means of x so far",
+        "fov_bootstrap_quantiles": "no spread among the values of x so far",
+    }
+    # Once a field differs every rule has a value again.
+    last = [r for r in results if r.step == len(fovs)]
+    assert all(
+        q.availability == "available" for r in last for q in r.result.evidence.quantities.values()
+    )
+
+
+def test_p4_5_a_plateau_stop_is_worded_as_change_over_the_window():
+    rng = np.random.default_rng(3)
+    objects, fovs = _ordered_acquisition([list(rng.normal(10, 1, 30)) for _ in range(6)])
+    rule = DescriptorPlateauStrategy("x", 5.0, 2, "acq")
+    [result] = _x_run(objects, fovs, [rule])
+    assert result.rule_decision == "stop"
+    caution = result.evidence.diagnostics["warning"]
+    assert caution.startswith(
+        "the tolerance bounds how much the descriptors changed over the last 2 FOVs with "
+        "objects, not their error against the well"
+    )
+    report = sufficiency_report(
+        objects,
+        fovs,
+        feature_cols=["x"],
+        strategies=[rule],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.recorded()],
+        acquisition_order_col="acq",
+        fov_col="position_id",
+    )
+    answer = report.enough["answer"].iloc[0]
+    assert "yes, its threshold was met by the 6 acquired FOVs; " in answer
+    # A standing assumption (#139): stated in the answer, never as a caution.
+    assert f"{caution[0].upper()}{caution[1:]}" in answer and "Caution" not in answer
+    # Stated once in both summaries (their lines are wrapped, so compare the words).
+    for detail in ("short", "full"):
+        assert caution in " ".join(report.summary(detail=detail).split())
+    assert "not that they are within ``tolerance`` of the well's" in _joined_words(
+        DescriptorPlateauStrategy.__doc__
+    )
+    assert "40% of stops in homogeneous wells" in _joined_words(stabilization.__doc__)
+
+
+def test_p4_6_the_per_field_spread_needs_five_fields_with_objects():
+    rng = np.random.default_rng(4)
+    objects, fovs = _ordered_acquisition([list(rng.normal(10, 1, 10)) for _ in range(6)] + [[]])
+    results = _x_replay(objects, fovs, [DescriptorSpreadStrategy("x", 1.0, "fov", 50, 0)])
+    reasons = {r.step: _quantity(r.result, "max_location_spread").reason for r in results}
+    for step in (2, 3, 4):
+        assert reasons[step].startswith("fewer than 5 acquired FOVs with objects")
+    assert all(reasons[step] is None for step in (5, 6, 7))
+    assert stabilization.MIN_SPREAD_FOVS == 5
+
+
+def test_p9_4_object_row_order_within_fields_does_not_change_the_live_stop():
+    objects, fovs = _well(6, n_fovs=10, per_fov=15)
+    rule = DescriptorSpreadStrategy("x", 0.6, "object", 100, 0)
+    base = _x_replay(objects, fovs, [rule])
+    reordered = (
+        objects.assign(_key=np.random.default_rng(0).random(len(objects)))
+        .sort_values(["position_id", "_key"])
+        .drop(columns="_key")
+    )
+    again = _x_replay(reordered, fovs, [rule])
+    assert [r.result.evidence.quantities for r in base] == [
+        r.result.evidence.quantities for r in again
+    ]
+    assert [r.result.rule_decision for r in base] == [r.result.rule_decision for r in again]

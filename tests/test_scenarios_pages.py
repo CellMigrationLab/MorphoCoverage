@@ -11,12 +11,16 @@ is marked ``slow``: it runs in the whole suite, and a focused run can leave it o
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
-from test_scenarios_matrix import NAMES, _page, _report, make_scenarios
+from _helpers_scenarios import NAMES, _page, _report
 
 from morphocoverage.workflows import Setup
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "scenarios"))
+import make_scenarios
 
 
 def _paged_here(name: str) -> bool:

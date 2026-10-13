@@ -1,21 +1,53 @@
 """Tests for the retrospective sufficiency report."""
 
+from __future__ import annotations
+
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_retrospective import _two_group_tables
+from _helpers_strategies import (
+    PERMUTED_NINE,
+    READOUT,
+    _flat,
+    _named_scenario_report,
+    _raster_well,
+    _report_both_orders,
+)
+from _helpers_sufficiency import _novel_acquisition
+from _helpers_tables import _four_cell_tables
+from _helpers_workflows import _scenario_report
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
+import morphocoverage.sufficiency as sufficiency_module
 from morphocoverage import (
     FixedFOVStrategy,
+    FixedObjectStrategy,
     ObjectiveConfig,
     SamplingObjective,
     ScalarPrecisionStrategy,
     run_strategies,
+    sufficiency_text,
 )
+from morphocoverage._caveats import is_assumption
+from morphocoverage._style import CAUTION
+from morphocoverage._wording import fields as fields_text
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.bounds import upper_bound
-from morphocoverage.strategies import SupportNoveltyEstimator
+from morphocoverage.order_check import RANDOM_SAMPLE_ASSUMPTION
+from morphocoverage.policies import EffortPolicy, ThresholdPolicy
+from morphocoverage.retrospective import microscopist_report
+from morphocoverage.strategies import DescriptorPlateauStrategy, SupportNoveltyEstimator
+from morphocoverage.strategies.base import SamplingStrategy
+from morphocoverage.strategies.baselines import FixedAreaStrategy, ImagedAreaEstimator
+from morphocoverage.strategies.rare_planning import fovs_to_detect
 from morphocoverage.sufficiency import CalibrationSettings, sufficiency_report
+from morphocoverage.sufficiency_short import _novelty_lines, met_count, rule_tallies
+from morphocoverage.sufficiency_tables import _quantile, is_effort_rule
+from morphocoverage.sufficiency_text import _next_fov_answer, novelty_definition
+from morphocoverage.transforms import Standardize
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 PERMUTED = [AcquisitionOrder.permuted(seed) for seed in range(5)]
@@ -136,23 +168,6 @@ def test_a_rules_standing_assumption_is_not_called_a_caution():
         "warning_list": ("measured here", assumption("true of every dataset")),
     }
     assert _enough_answer(row, []).endswith(" Caution: measured here. True of every dataset.")
-
-
-def _novel_acquisition(n_fovs=12, state_fovs=(3, 7), outlier_fovs=(5,)):
-    """Common cells everywhere; its own 3-cell state in ``state_fovs``, one odd cell elsewhere."""
-    rng = np.random.default_rng(0)
-    rows = []
-    for j in range(n_fovs):
-        cells = rng.normal(10, 0.1, size=(20, 2))
-        if j in state_fovs:
-            cells = np.vstack([cells, rng.normal(20 + 5 * j, 0.05, size=(3, 2))])
-        if j in outlier_fovs:
-            cells = np.vstack([cells, [[50.0, 50.0]]])
-        rows += [
-            {"image_file": f"f{j}", "label_id": i, "a": a, "b": b} for i, (a, b) in enumerate(cells)
-        ]
-    fovs = pd.DataFrame({"image_file": [f"f{j}" for j in range(n_fovs + 1)]})  # one empty
-    return pd.DataFrame(rows), fovs
 
 
 NOVELTY = SupportNoveltyEstimator(0.5, 1, None, 2, 3)
@@ -360,3 +375,552 @@ def test_novelty_cols_keep_the_definition_of_new_apart_from_the_readout():
             strategies=[rule],
             **common,
         )
+
+
+def test_the_rule_counts_say_how_many_groups_were_judged() -> None:
+    # B19: "0 of 40 (1 not defined)" hid 12 groups with too few fields to judge.
+    tally = {"met": 0, "groups": 40, "undefined": 1, "waiting": 12}
+    assert met_count(tally) == "0 of 27 judged; 12 too few fields; 1 undefined"
+    assert met_count({"met": 3, "groups": 4, "undefined": 0, "waiting": 0}) == "3 of 4"
+    assert met_count({"met": 0, "groups": 4, "undefined": 0, "waiting": 4}, "group") == (
+        "none judged; 4 too few fields"
+    )
+    # e01: three fields per group, too few for the per-field bootstrap bound in every group.
+    text = _scenario_report("e01_two_repeats").summary("full")
+    row = next(line for line in text.splitlines() if "mean-precision rule, per field, 5%  " in line)
+    assert "none judged; 4 too few fields" in row
+    assert " 0 of 4 " not in row
+
+
+def test_e9_one_replayed_order_is_singular():
+    objects, fovs = _two_group_tables()
+    report = sufficiency_report(
+        objects,
+        fovs,
+        feature_cols=["a"],
+        strategies=[FixedFOVStrategy(3)],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(0)],
+    )
+    answers = " ".join(report.enough["answer"])
+    assert "in the random order, first met after" in answers and "1 orders" not in answers
+    for detail in ("short", "full"):
+        assert "1 orders" not in report.summary(detail=detail)
+    assert "1 random order: median" in report.summary(detail="full")
+
+
+def test_e5_effort_rules_are_recognised_by_their_structure():
+    area = FixedAreaStrategy(50_000.0, "area_um2")
+    assert is_effort_rule(area) and is_effort_rule(FixedObjectStrategy(10))
+    assert is_effort_rule(FixedFOVStrategy(3))
+    # An effort policy under any name is an effort rule; a threshold on a quantity
+    # whose settings read like one is not.
+    assert is_effort_rule(SamplingStrategy([], [EffortPolicy("n_fovs", 3)], name="my_rule"))
+    lookalike = SamplingStrategy(
+        [ImagedAreaEstimator("area_um2")], [ThresholdPolicy("imaged_area", 3.0)], name="n_area"
+    )
+    assert not is_effort_rule(lookalike)
+    report = _report_both_orders("unequal_fov_area", [area])
+    answer = report.enough["answer"].iloc[0]
+    assert answer.startswith("fixed imaged area 50000 (fixed_area: imaged_area >= 50000; config ")
+    assert "): its target was reached" in answer
+    short = " ".join(report.summary().split())  # the short form wraps its lines
+    assert "Fixed imaged area 50000: a fixed amount of effort reaching its target" in short
+
+
+def test_e9_new_fovs_are_worded_by_the_support_that_makes_them_new():
+    one = SupportNoveltyEstimator(1.0, 1, None, 3, 1)
+    two = SupportNoveltyEstimator(1.0, 2, None, 3, 1)
+    assert "with no other FOV within distance 1" in novelty_definition(one)
+    assert "fewer than 1 other" not in novelty_definition(one)
+    assert "with fewer than 2 other FOVs within distance 1" in novelty_definition(two)
+    row = {
+        "chance_new": 0.1,
+        "chance_new_at_most": 0.3,
+        "confidence": 0.95,
+        "fovs_with_new": 3,
+        "fovs_imaged": 30,
+        "unseen_state_max_frequency": 0.1,
+    }
+    assert "3 of 30 FOVs showed a state that no other FOV shows." in _next_fov_answer(
+        row, None, None, 1
+    )
+    assert "3 of 30 FOVs showed a state that fewer than 2 other FOVs show." in (
+        _next_fov_answer(row, None, None, 2)
+    )
+
+
+def test_e17_the_docstring_gives_the_stop_as_a_median_and_range():
+    assert "a median of 11 FOVs, up to 23" in sufficiency_module.__doc__
+
+
+def test_e18_a_rule_that_cannot_be_judged_yet_says_why():
+    built = SCENARIOS["condition_repeat_groups"]()
+    fovs = built.fovs
+    small = fovs[(fovs.condition == "control") & (fovs.biological_repeat == "R1")].image_file.iloc[
+        2:
+    ]
+    fovs = fovs[~fovs.image_file.isin(small)]
+    objects = built.objects[built.objects.image_file.isin(fovs.image_file)]
+    report = sufficiency_report(
+        objects,
+        fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[FixedFOVStrategy(3)],
+        objective=POPULATION,
+        orders=PERMUTED_NINE[:1],
+        novelty=SupportNoveltyEstimator(3.0, 1, None, 3, 3),
+        novelty_target=0.3,
+    )
+    answers = report.enough.set_index("criterion")["answer"]
+    novelty = answers["support_novelty"].iloc[0]
+    assert "no, not met by the 2 acquired FOVs (it cannot be judged yet: fewer than 3" in novelty
+    assert "cannot be judged" not in answers["fixed_fov"].iloc[0]
+
+
+def test_j12_sufficiency_text_names_its_shared_private_names():
+    assert "Shared-private: ``_policies``" in sufficiency_text.__doc__
+
+
+def test_j8_the_pooled_group_label_and_feature_list_use_the_shared_wording():
+    novelty = SupportNoveltyEstimator(1.0, 1, None, 3, 1)
+    text = novelty_definition(novelty, ["a", "b", "c", "d", "e"])
+    assert "on 5 features (a, b, c and 2 more)" in text
+    report = _report_both_orders("homogeneous", [FixedFOVStrategy(3)], group_cols=[])
+    # The pooled group is named once, by the shared style (``_style.group_label``).
+    assert "\n\nall fields (pooled) — 20 fields acquired:\n" in report.summary(detail="full")
+
+
+def test_p4_2_report_stop_lines_carry_the_order_check():
+    objects, fovs = _raster_well(drift=0.01)
+    rules = [ScalarPrecisionStrategy(READOUT, 0.05, "fov", "upper_95")]
+    common = {
+        "feature_cols": [READOUT],
+        "strategies": rules,
+        "objective": ObjectiveConfig(SamplingObjective.POPULATION),
+        "orders": [AcquisitionOrder.recorded()],
+        "acquisition_order_col": "order",
+    }
+    checked = sufficiency_report(objects, fovs, readout=READOUT, **common)
+    answer = checked.enough["answer"].iloc[0]
+    assert checked.enough["sampled_enough"].iloc[0] == "yes"  # flagged, not vetoed
+    assert "Caution: the field means of intensity trend with acquisition order" in answer
+    plain = sufficiency_report(objects, fovs, **common).enough["answer"].iloc[0]
+    assert f"The stop {RANDOM_SAMPLE_ASSUMPTION}." in plain
+
+
+def _row(**extra):
+    row = {
+        "chance_new": 0.02,
+        "chance_new_at_most": 0.12,
+        "confidence": 0.95,
+        "fovs_with_new": 0,
+        "fovs_imaged": 24,
+        "unseen_state_max_frequency": upper_bound(0, 24, 0.95),
+        "fovs_without_observations": 0,
+        "extra_fovs_if_nothing_new": 34,
+        "extra_fovs_at_current_rate": 40,
+        "extra_fovs_to_rule_out_target": 34,
+        "min_novel_observations": 3,
+    }
+    return pd.Series({**row, **extra})
+
+
+def test_p6_6_states_below_m_objects_per_field_are_said_never_to_count():
+    text = _next_fov_answer(_row(), None, None)
+    assert (
+        "A state carried by fewer than 3 similar observations per FOV is never counted, "
+        "however many FOVs hold it." in text
+    )
+    assert "never counted" not in _next_fov_answer(_row(min_novel_observations=1), None, None)
+
+
+def _wells_table():
+    rng = np.random.default_rng(4)
+    rows, fields = [], []
+    for well in ("A", "B", "C"):
+        for j in range(8):
+            name = f"{well}{j}"
+            fields.append(
+                {
+                    "condition": "c",
+                    "biological_repeat": "R1",
+                    "technical_repeat": well,
+                    "position_id": name,
+                }
+            )
+            for x, y in rng.normal(size=(15, 2)):
+                rows.append(
+                    {"condition": "c", "biological_repeat": "R1", "technical_repeat": well}
+                    | {"position_id": name, "a": x, "b": y}
+                )
+    return pd.DataFrame(rows), pd.DataFrame(fields)
+
+
+def test_p3_8_a_group_pooling_technical_repeats_bounds_their_share():
+    objects, fovs = _wells_table()
+    report = sufficiency_report(
+        objects,
+        fovs,
+        feature_cols=["a", "b"],
+        strategies=[],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(0)],
+        novelty=SupportNoveltyEstimator(3.0, 1, None, 5, 3),
+        group_cols=["condition", "biological_repeat"],
+    )
+    row = report.next_fov.iloc[0]
+    assert row["technical_repeats"] == 3
+    assert row["unseen_state_max_technical_share"] == pytest.approx(upper_bound(0, 3, 0.95))
+    assert "Fields of one technical repeat are not independent draws" in row["answer"]
+    per_well = sufficiency_report(
+        objects,
+        fovs,
+        feature_cols=["a", "b"],
+        strategies=[],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(0)],
+        novelty=SupportNoveltyEstimator(3.0, 1, None, 5, 3),
+    )
+    assert "technical repeat are not" not in " ".join(per_well.next_fov["answer"])
+
+
+def test_p3_4_p4_9_the_next_field_answer_names_its_assumptions():
+    calibrated = {"predicted": 0.04, "actual": 0.05, "bound_held": 0.95, "fovs_imaged": 10}
+    text = _next_fov_answer(_row(), 0.05, {**calibrated, "draws": 20})
+    assert "it treats FOVs as independent, representative draws" in text
+    assert "neighbouring fields acquired in a raster" in text
+    assert "The bound holds at a number of FOVs fixed in advance, not at the first FOV" in text
+    assert "this check cannot reveal neighbour correlation" in text
+
+
+def test_p9_8_sufficiency_report_runs_its_replays_on_n_jobs_with_identical_answers():
+    built = SCENARIOS["homogeneous"]()
+    arguments = {
+        "feature_cols": list(FEATURE_COLS),
+        "strategies": [ScalarPrecisionStrategy("feature_a", 0.05, "fov", "upper_95")],
+        "objective": ObjectiveConfig(SamplingObjective.POPULATION),
+        "orders": [AcquisitionOrder.permuted(s) for s in range(3)],
+    }
+    serial = sufficiency_report(built.objects, built.fovs, **arguments)
+    parallel = sufficiency_report(built.objects, built.fovs, n_jobs=2, **arguments)
+    pd.testing.assert_frame_equal(serial.stops, parallel.stops)
+    assert serial.summary() == parallel.summary()
+    assert "stop_fov_median_mc_se" in serial.stops.columns
+
+
+DISTRIBUTION = ObjectiveConfig(SamplingObjective.DISTRIBUTION)
+
+
+def test_e9_stop_counts_are_never_interpolated_or_rounded_away():
+    assert _quantile(np.array([2.0, 3.0]), 0.9) == 3.0
+    assert _quantile(np.array([]), 0.9) is None
+    assert fields_text(2.5) == "2.5 fields" and fields_text(6.0) == "6 fields"
+
+
+def _few_report(confidence, min_other_fovs):
+    objects, fovs = _novel_acquisition(n_fovs=40, state_fovs=(3, 4, 20, 21), outlier_fovs=())
+    # Two states, each shared by two neighbouring FOVs (3 and 4, 20 and 21): recurrent,
+    # not new, under min_other_fovs=1 (a state in one FOV only is new, not "seen in few").
+    shifted = objects["image_file"].isin(["f4", "f21"]) & (objects["a"] > 15)
+    objects.loc[shifted, ["a", "b"]] -= 5.0
+    return sufficiency_report(
+        objects,
+        fovs,
+        feature_cols=["a", "b"],
+        strategies=[],
+        objective=DISTRIBUTION,
+        orders=[AcquisitionOrder.permuted(0)],
+        novelty=SupportNoveltyEstimator(0.5, min_other_fovs, None, 2, 3, confidence=confidence),
+        few_fovs=3,
+    )
+
+
+def test_e3_e6_e7_rare_state_sentences_follow_the_settings():
+    report = _few_report(0.8, 1)
+    row, answer = report.next_fov.iloc[0], report.next_fov["answer"].iloc[0]
+    # E6: the zero-success bound at 80% is about 1.6 / k, not 3 / k.
+    assert "about 1.6 / 41" in answer and "3 / 41" not in answer
+    # E7: with min_other_fovs=1 a recurrent state is in 2 or more FOVs.
+    assert "(a state seen in 2 to 3 FOVs;" in answer
+    # E3: the pooled incidence is not the incidence of each state.
+    assert row["fovs_to_see_fewest"] == fovs_to_detect(2 / 41, 0.8, 1)
+    assert row["fovs_to_see_fewest"] > row["fovs_to_see_again"]
+    assert f"one seen in only 2 FOVs needs about {row['fovs_to_see_fewest']}" in answer
+    answer = _few_report(0.95, 2).next_fov["answer"].iloc[0]
+    assert "about 3 / 41" in answer and "(a state seen in 3 FOVs;" in answer
+
+
+def test_e8_fields_without_observations_are_counted_when_novelty_is_not_estimable():
+    objects, fovs = _novel_acquisition()
+    objects.loc[0, "a"] = np.nan
+    report = sufficiency_report(
+        objects,
+        fovs,
+        feature_cols=["a", "b"],
+        strategies=[],
+        objective=POPULATION,
+        orders=PERMUTED,
+        novelty=SupportNoveltyEstimator(0.5, 1, None, 2, 3),
+    )
+    row = report.next_fov.iloc[0]
+    assert pd.isna(row["chance_new"])
+    assert row["fovs_without_observations"] == 1
+
+
+def test_sufficiency_summary_works_without_a_novelty_definition():
+    # With group columns and no novelty, the next-FOV table is empty and has no
+    # group columns; summary() raised KeyError('condition').
+    built = SCENARIOS["homogeneous"]()
+    report = sufficiency_report(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[FixedFOVStrategy(5)],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(0)],
+    )
+    text = report.summary(detail="full")
+    assert "control · repeat R1 — " in text
+    assert "Analysis groups: condition · biological repeat." in text
+    assert "Each rule by its own threshold" in text and "One more field" not in text
+    assert "One more field" not in report.summary()
+
+
+def test_the_unseen_state_bound_names_the_fovs_without_observations():
+    # 3 fields with cells and 10 empty ones: the "about 3 / 13" count is right
+    # for representative draws, but the reader must see that 10 could not
+    # have shown anything.
+    built = SCENARIOS["homogeneous"]()
+    fovs = built.fovs.iloc[:13].copy()
+    objects = built.objects[built.objects["image_file"].isin(fovs["image_file"].iloc[:3])]
+    report = sufficiency_report(
+        objects,
+        fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(0)],
+        novelty=SupportNoveltyEstimator(np.sqrt(2), 1, Standardize(), 2, 3),
+    )
+    assert report.next_fov["fovs_without_observations"].iloc[0] == 10
+    answer = report.next_fov["answer"].iloc[0]
+    assert "about 3 / 13" in answer
+    assert "The count includes 10 FOVs without observations, which cannot show a state." in answer
+    full = " ".join(report.summary(detail="full").split())  # both forms wrap their lines
+    assert "about 3 / 13" in full and "13 fields (10 fields without observations)" in full
+    short = " ".join(report.summary().split())
+    assert "include fields without observations, which cannot show a state" in short
+
+
+def test_a_fixed_rule_reports_a_reached_target_and_a_threshold_rule_a_met_threshold():
+    from morphocoverage import ScalarPrecisionStrategy
+
+    built = SCENARIOS["homogeneous"]()
+    report = sufficiency_report(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[
+            FixedFOVStrategy(5),
+            ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"),
+        ],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(0)],
+    )
+    answers = report.enough.set_index("criterion")["answer"]
+    assert "its target was reached by the 20 acquired FOVs" in answers["fixed_fov"]
+    assert "yes, its threshold was met by the 20 acquired FOVs" in answers["scalar_precision_fov"]
+    assert "yes, met by" not in report.summary()
+
+
+def test_a_state_seen_in_two_neighbouring_fovs_is_reported_as_seen_in_few():
+    # rare_clustered: 10 rare cells in each of two adjacent FOVs of 40. With one
+    # supporting FOV they cover each other, so the next-FOV chance is 0 and the
+    # state went unmentioned; few_fovs=3 names the two fields.
+    built = SCENARIOS["rare_clustered"]()
+    novelty = SupportNoveltyEstimator(np.sqrt(2), 1, Standardize(), 2, 3)
+    report = sufficiency_report(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(0)],
+        novelty=novelty,
+        few_fovs=3,
+    )
+    row = report.next_fov.iloc[0]
+    assert row["fovs_with_new"] == 0 and row["fovs_with_state_in_few"] == 2
+    assert (
+        "Seen in few FOVs: 2 of 40 FOVs hold a state that other FOVs show too, but fewer "
+        "than 3 of them" in row["answer"]
+    )
+    full = " ".join(report.summary(detail="full").split())  # both forms wrap their lines
+    assert "Seen in few fields: 2 of 40 fields hold a state seen in 2 to 3 fields" in full
+    short = " ".join(report.summary().split())
+    assert "look at those fields before calling the sample settled" in short
+    with pytest.raises(ValueError, match="few_fovs must exceed"):
+        sufficiency_report(
+            built.objects,
+            built.fovs,
+            feature_cols=list(FEATURE_COLS),
+            strategies=[],
+            objective=POPULATION,
+            orders=[AcquisitionOrder.permuted(0)],
+            novelty=novelty,
+            few_fovs=1,
+        )
+
+
+def test_a_state_seen_in_few_fovs_gets_a_planning_line_from_its_incidence():
+    from morphocoverage.strategies.rare_planning import fovs_to_detect
+
+    built = SCENARIOS["rare_clustered"]()
+    novelty = SupportNoveltyEstimator(np.sqrt(2), 1, Standardize(), 2, 3)
+    report = sufficiency_report(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(0)],
+        novelty=novelty,
+        few_fovs=3,
+    )
+    row = report.next_fov.iloc[0]
+    assert row["few_state_incidence"] == pytest.approx(2 / 40)
+    assert 0 < row["few_state_incidence_low"] < 0.05 < row["few_state_incidence_high"] < 0.2
+    assert row["fovs_to_see_again"] == fovs_to_detect(0.05, 0.95, 1) == 59
+    assert row["fovs_to_see_again_low_end"] == fovs_to_detect(
+        row["few_state_incidence_low"], 0.95, 1
+    )
+    answer = row["answer"]
+    assert "Planning for such a state: these FOVs together are 5% of FOVs (95% interval" in answer
+    assert "image about 59 independent representative FOVs, up to" in answer
+    assert "Fields that cluster the state need more." in answer
+    full = " ".join(report.summary(detail="full").split())  # both forms wrap their lines
+    assert "together 5% of fields (95% interval" in full
+    assert "about 59 independent representative fields, up to" in full
+    assert "Fields that cluster a state need more fields than the planning numbers." in full
+    short = " ".join(report.summary().split())
+    # The recurrence projection is in the full form; the short form keeps the actionable line.
+    assert "takes about 59 independent representative fields" not in short
+    assert "look at those fields before calling the sample settled" in short
+
+
+def test_sufficiency_report_refusals():
+    objects, fovs = _four_cell_tables()
+    asked = {
+        "feature_cols": ["area"],
+        "strategies": [FixedFOVStrategy(2)],
+        "objective": POPULATION,
+        "orders": [AcquisitionOrder.permuted(0)],
+    }
+    with pytest.raises(TypeError) as error:
+        sufficiency_report(objects, fovs, **asked, novelty_cols=[])
+    assert str(error.value) == "novelty_cols must be a non-empty sequence of column names"
+    with pytest.raises(ValueError) as error:
+        sufficiency_report(objects, fovs, **asked, few_fovs=3)
+    assert str(error.value) == "few_fovs needs a novelty definition"
+    with pytest.raises(ValueError) as error:
+        sufficiency_report(objects, fovs.assign(_report_row_order=0), **asked)
+    assert str(error.value) == "the FOV table already has a column '_report_row_order'"
+
+
+def test_short_novelty_lines_with_pooled_technical_repeats():
+    frame = pd.DataFrame(
+        {
+            "chance_new": [0.1, 0.2],
+            "reason": [None, None],
+            "confidence": [0.95, 0.95],
+            "chance_new_at_most": [0.3, 0.4],
+            "fovs_with_new": [0, 0],
+            "unseen_state_max_frequency": [0.2, 0.25],
+            "unseen_state_max_technical_share": [0.5, np.nan],
+            "min_novel_observations": [1, 1],
+            "fovs_without_observations": [0, 0],
+            "condition": ["A", "B"],
+        }
+    )
+    report = SimpleNamespace(
+        next_fov=frame,
+        group_cols=("condition",),
+        observation_unit="cell",
+        observation_unit_declared=True,
+    )
+    lines, cautions = _novelty_lines(report, None)
+    assert lines == [
+        (
+            "One more field: no field showed a state counted as new, in both groups; nominal 95% "
+            "bound for the next field 30 to 40%."
+        ),
+        (
+            "Not yet seen: a state no field has shown is in at most 20 to 25% of fields (95% "
+            "confidence); rarer states can remain."
+        ),
+        (
+            "Pooled technical repeats (1 of 2 groups): a state none of them showed is in at most "
+            "50% of technical repeats (95% confidence)."
+        ),
+    ]
+    assert cautions == [
+        (
+            "the next-field bound is approximate: the leave-one-field-out outcomes share their "
+            "reference fields"
+        ),
+        (
+            "the novelty bounds treat fields as independent, representative draws: neighbouring "
+            "fields acquired in a raster over patchy states make them too low"
+        ),
+        (
+            "fields of one technical repeat are not independent draws: where a group pools "
+            "technical repeats, the field bound is optimistic"
+        ),
+    ]
+    assert [is_assumption(c) for c in cautions] == [True, True, False]
+
+
+def test_next_fov_answer_when_states_in_few_fields_are_not_estimable():
+    row = {
+        "chance_new": 0.1,
+        "reason": None,
+        "confidence": 0.95,
+        "chance_new_at_most": 0.3,
+        "fovs_with_new": 1,
+        "fovs_imaged": 10,
+        "fovs_without_observations": 0,
+        "min_novel_observations": 1,
+        "unseen_state_max_frequency": 0.26,
+        "few_fovs": 3,
+        "fovs_with_state_in_few": np.nan,
+        "few_reason": "too few fields",
+        "technical_repeats": None,
+    }
+    assert _next_fov_answer(row, None, None) == (
+        "Chance: 10% (nominal 95% upper bound 30%, approximate: the leave-one-FOV-out outcomes "
+        "share their reference FOVs, and it treats FOVs as independent, representative draws, "
+        "so neighbouring fields acquired in a raster over patchy states make it too low); 1 of "
+        "10 FOVs showed a state that no other FOV shows.\nNot yet seen: a state this definition "
+        "detects but no FOV has shown is in at most 26% of FOVs (95% confidence, about 3 / 10), "
+        "if FOVs are independent, representative draws. Rarer states can remain.\nSeen in few "
+        "FOVs: not estimable (too few fields)."
+    )
+
+
+def test_a_rules_standing_warning_does_not_count_as_a_caution_about_the_data():
+    report = _named_scenario_report(
+        "homogeneous",
+        [DescriptorPlateauStrategy("feature_a", 50.0, 3, "acquisition_order")],
+        readout="feature_a",
+        stage_cols=("stage_x", "stage_y"),
+    )
+    warnings = [w for texts in report.final["warning_list"] for w in texts]
+    assert warnings and all(is_assumption(w) for w in warnings)
+    assert all(t["warned"] == 0 for t in rule_tallies(report))
+    section = microscopist_report(sufficiency=report).short["enough"]
+    tolerance = "the tolerance bounds how much the descriptors changed"
+    assert _flat(section).count(tolerance.capitalize()[:30]) + _flat(section).count(tolerance) == 1
+    assert tolerance not in "\n".join(
+        line for line in section.splitlines() if line.lstrip().startswith(CAUTION)
+    )

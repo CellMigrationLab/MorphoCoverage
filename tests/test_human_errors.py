@@ -20,7 +20,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 import pytest
-from test_end_to_end import FEATURES, FIELD_KEY, load
+from _helpers_synthetic import FEATURES, FIELD_KEY, load
 
 from morphocoverage import check_tables, validate_input_tables
 from morphocoverage.sampling_unit import fov_variability

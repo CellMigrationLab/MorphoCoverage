@@ -488,14 +488,14 @@ tests/
     test_function_tools.py   # the audit tools themselves (tools/) on planted sources
     test_duplicates_tool.py  # tools/duplicates.py, jscpd_review.py and layers.py on planted code in a temporary tree
     test_<module>.py       # unit tests per module or strategy family
-    test_audit*.py, test_microscopist_audit.py  # regression tests of the audits' findings (docs/audit/README.md)
+    _helpers_*.py          # builders shared by several test modules; a test module never imports another
     test_human_errors.py   # the mistakes people make with the tables, and the message each gives
     test_crick_idr.py      # real-data integrity and end-to-end tests
     test_morphobricks_tables.py  # a fiberfeatures table as written: read as it is, geometry not offered, typos refused
     test_parallel.py       # n_jobs > 1 gives the results of n_jobs = 1
     test_docs.py           # the documentation's examples run and print what they say
     test_notebooks.py      # example notebooks compile, import existing names, carry no outputs
-    conftest.py            # one BLAS thread per test process
+    conftest.py            # one BLAS thread per test process; the module fixtures several test modules share
 
 tools/                     # the code audits: ast only, import nothing from the package, same result on every Python version
     audit.py               # the command line: regenerates the index and the duplicate list; --tighten, --accept, --rename, --check-against, --fallbacks, --find

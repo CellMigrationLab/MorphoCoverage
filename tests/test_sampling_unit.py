@@ -16,6 +16,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_sampling_unit import CONTRAST_GROUPS, _technical, _two_conditions
 from scipy import stats
 
 from morphocoverage.sampling_unit import (
@@ -592,46 +593,6 @@ def test_the_report_states_the_design_effect_once():
 # -- condition contrast ------------------------------------------------------------------
 
 
-def _two_conditions(
-    shift: float, field_sd: float, seed: int = 3, n_fields: int = 12, n_wells: int = 2
-):
-    """Control and treated wells in two repeats; ``shift`` moves the treated condition's ``x``.
-
-    ``y`` never differs between the conditions.
-    """
-    rng = np.random.default_rng(seed)
-    objects, fovs = [], []
-    for repeat in ("R1", "R2"):
-        for condition, well_shift in (("control", 0.0), ("treated", shift)):
-            for well in [f"w{i + 1}" for i in range(n_wells)]:
-                for j in range(n_fields):
-                    name = f"{repeat}_{condition}_{well}_f{j}"
-                    fovs.append(
-                        {
-                            "condition": condition,
-                            "biological_repeat": repeat,
-                            "well": well,
-                            "image_file": name,
-                        }
-                    )
-                    offset = well_shift + rng.normal(0, field_sd)
-                    for _ in range(25):
-                        objects.append(
-                            {
-                                "condition": condition,
-                                "biological_repeat": repeat,
-                                "well": well,
-                                "image_file": name,
-                                "x": 10 + offset + rng.normal(),
-                                "y": rng.normal(),
-                            }
-                        )
-    return pd.DataFrame(objects), pd.DataFrame(fovs)
-
-
-CONTRAST_GROUPS = ["condition", "biological_repeat", "well"]
-
-
 def test_cohen_d_is_the_pooled_sd_effect_size():
     from morphocoverage.statistics import cohen_d
 
@@ -754,12 +715,6 @@ def test_the_report_places_the_contrast_last():
     assert text.index("8. Could I have sampled") < text.index("9. Do the conditions differ")
     assert "user's inference" not in " ".join(text.split())
     assert "Not assessed" in microscopist_report().sections["conditions"]
-
-
-def _technical(objects, fovs):
-    """The same tables with the well named as the MorphoBricks technical repeat."""
-    rename = {"well": "technical_repeat"}
-    return objects.rename(columns=rename), fovs.rename(columns=rename)
 
 
 def test_technical_repeats_are_the_unit_when_each_side_holds_two():

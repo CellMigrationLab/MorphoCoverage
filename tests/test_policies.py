@@ -1,11 +1,22 @@
 """Tests for evidence, decision policies, their combination per objective, and config ids."""
 
-import math
-from dataclasses import replace
+from __future__ import annotations
 
+import hashlib
+import json
+import math
+import sys
+from dataclasses import replace
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
 import pytest
+from _helpers_results import _available_quantity, _strategy_result
+from _helpers_tables import _six_cell_tables
+from _helpers_workflows import _scenario_report
 
+import morphocoverage as mc
 from morphocoverage import (
     Availability,
     Component,
@@ -25,11 +36,18 @@ from morphocoverage import (
     ScalarPrecisionEstimator,
     ScalarPrecisionStrategy,
     ThresholdPolicy,
+    check_tables,
     evaluate_acquisition_prefixes,
     redecide,
     run_strategies,
 )
+from morphocoverage._frozen import own
 from morphocoverage.policies import decide
+from morphocoverage.provenance import config_hash
+from morphocoverage.workflows import Setup
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "scenarios"))
+import make_scenarios
 
 _RARE = RareTarget(
     fov_incidence=0.1, detection_probability=0.9, min_fov_occurrences=2, phenotype="label"
@@ -438,3 +456,162 @@ def test_redecide_refuses_a_result_without_recorded_configuration():
 def test_legacy_object_effort_is_the_same_rule_as_observation_effort():
     legacy, canonical = EffortPolicy("n_objects", 5), EffortPolicy("n_observations", 5)
     assert legacy == canonical and legacy.config_id == canonical.config_id
+
+
+@pytest.mark.parametrize(
+    "name", ["a10_embed2_several_norm_cells_none_tol", "a21_embed1_one_norm_cells_none_tol"]
+)
+def test_a_setup_with_no_target_has_no_component_and_nothing_decides_a_stop(name: str) -> None:
+    # C12: "a stop needs every declared target (phenotypic fingerprint)" with none declared.
+    setup = Setup(**make_scenarios.load(name).setup)
+    objective = setup.objective()
+    assert objective.objective is SamplingObjective.NO_TARGET
+    assert objective.required_components == frozenset()
+    said = [line for line in setup.declaration() if line.startswith("Live decision")]
+    assert said == ["Live decision: no target: nothing decides a stop."]
+    for detail in ("short", "full"):
+        text = " ".join(_scenario_report(name).summary(detail).split())
+        assert "a stop needs every declared target" not in text
+    assert "Live decision: no target: nothing decides a stop." in text
+    # Whatever a rule says, no target means no stop.
+    stop = EffortPolicy("n_fovs", 1, Component.DISTRIBUTION)
+    overall, per_component = decide(Evidence(), Effort(n_fovs=10, n_objects=100), [stop], objective)
+    assert per_component == {"distribution": Decision.STOP}
+    assert overall is Decision.UNSUPPORTED
+
+
+def test_evidence_owns_its_quantities_and_diagnostics():
+    quantities = {"score": _available_quantity()}
+    diagnostics = {"note": ["a"], "inner": {"k": 1}}
+    evidence = Evidence(quantities, diagnostics)
+    quantities["n_fovs"] = "not a Quantity"  # a reserved name and a wrong type, added later
+    quantities["other"] = _available_quantity()
+    diagnostics["note"].append("b")
+    assert set(evidence.quantities) == {"score"}
+    assert evidence.diagnostics["note"] == ["a"]
+    with pytest.raises(TypeError, match="read-only"):
+        evidence.quantities["n_fovs"] = "x"
+    with pytest.raises(TypeError, match="read-only"):
+        evidence.diagnostics["inner"]["k"] = 2
+    assert evidence.value("score") == 0.1  # ordinary reads are unchanged
+
+
+def test_evidence_still_validates_what_it_is_given():
+    with pytest.raises(ValueError, match="framework-owned"):
+        Evidence({"n_fovs": _available_quantity()})
+    with pytest.raises(TypeError, match="must be a Quantity"):
+        Evidence({"x": 1.0})
+
+
+def test_redecide_builds_an_independent_snapshot():
+    result = _strategy_result()
+    again = redecide(result, [ThresholdPolicy("score", 0.2)], name="t")
+    assert again.configuration["estimators"] == result.configuration["estimators"]
+    assert again.configuration is not result.configuration
+    assert again.parameters is not again.configuration
+    assert own({}) == {}
+
+
+def test_a16_numpy_numbers_configure_targets_and_policies_like_python_ones():
+    rare = mc.RareTarget(
+        detection_probability=np.float64(0.95),
+        min_fov_occurrences=np.int64(2),
+        phenotype="label",
+        object_prevalence=np.float32(0.5),
+    )
+    assert type(rare.min_fov_occurrences) is int and type(rare.object_prevalence) is float
+    assert rare == mc.RareTarget(
+        detection_probability=0.95, min_fov_occurrences=2, phenotype="label", object_prevalence=0.5
+    )
+    policy = mc.EffortPolicy("n_fovs", np.int64(10))
+    assert type(policy.target) is int
+    assert policy.config_id == mc.EffortPolicy("n_fovs", 10).config_id
+    strategy = mc.FixedFOVStrategy(np.int32(4))
+    assert type(strategy.target_fovs) is int
+    assert strategy.config_id == mc.FixedFOVStrategy(4).config_id
+    with pytest.raises(TypeError):
+        mc.FixedFOVStrategy(np.float64(4.0))
+    with pytest.raises(TypeError):
+        mc.EffortPolicy("n_fovs", True)
+
+
+def test_a17_config_ids_tell_tuples_from_lists_and_number_keys_from_text():
+    assert config_hash("x", {1: "a"}) != config_hash("x", {"1": "a"})
+    assert config_hash("x", {"k": (1, 2)}) != config_hash("x", {"k": [1, 2]})
+    assert config_hash("x", {1: "a", "b": 2}) == config_hash("x", {"b": 2, 1: "a"})
+    # Parameters JSON already keeps apart keep the id earlier versions gave them.
+    parameters = {"target": 3, "names": ["a", "b"], "nested": {"z": None, "y": 1.5}}
+    payload = json.dumps(
+        {"identity": "x", "parameters": parameters},
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    assert config_hash("x", parameters) == hashlib.sha256(payload.encode()).hexdigest()[:16]
+    with pytest.raises(TypeError):
+        config_hash("x", {"__tuple__": 1})
+
+
+class _Constant(Estimator):
+    name = "constant"
+
+    def __init__(self, value: float) -> None:
+        self.value = value
+
+    @property
+    def parameters(self):
+        return {"value": self.value}
+
+    def estimate(self, data, *, objective):
+        return Evidence(
+            {
+                "q": Quantity.available(
+                    self.value,
+                    direction="lower_is_better",
+                    units="fraction",
+                    component="population",
+                )
+            }
+        )
+
+
+def test_a8_explain_prints_the_digits_that_separate_value_and_threshold():
+    cells, fovs = _six_cell_tables()
+    strategy = SamplingStrategy([_Constant(0.2504)], [ThresholdPolicy("q", 0.25)], name="c")
+    [result] = run_strategies(
+        cells,
+        fovs=fovs,
+        strategies=[strategy],
+        feature_cols=["area"],
+        objective=ObjectiveConfig(),
+        group_cols=[],
+        observation_unit="cell",
+    )
+    assert result.explain().startswith("continue: q = 0.2504 (stop at <= 0.25, population)")
+
+
+def test_a9_counts_are_singular_for_one():
+    cells, fovs = _six_cell_tables()
+    check = check_tables(
+        cells.iloc[:1], fovs.iloc[:1], feature_cols=["area"], observation_unit="Cells"
+    )
+    assert check.understood[0] == "1 observation (cell); 1 row in the FOV table."
+    strategy = SamplingStrategy([_Constant(0.1)], [ThresholdPolicy("q", 0.25)], name="c")
+    [result] = run_strategies(
+        cells.iloc[:1],
+        fovs=fovs.iloc[:1],
+        strategies=[strategy],
+        feature_cols=["area"],
+        objective=ObjectiveConfig(),
+        group_cols=[],
+        observation_unit="fov_summary",
+    )
+    # A stop then says what it rests on (audit 4, Q2).
+    assert "after 1 FOV, 1 field summary; treats the fields as a random sample" in result.explain()
+
+
+def test_a19_one_combination_of_decisions():
+    from morphocoverage import policies
+
+    assert not hasattr(policies, "_combine")
+    assert "redecide" in policies.__doc__ and "strategy_config_id" in policies.__doc__

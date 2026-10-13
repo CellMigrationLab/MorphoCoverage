@@ -186,3 +186,93 @@ def test_conditions_compared_in_different_numbers_of_repeats_give_the_range():
     same = _contrast([_row("A", 0, 3, 0.01, 0.01), _row("B", 3, 0, 0.01, 0.01)])
     same.settings["feature"] = "area"
     assert readings_headline(same).startswith("area, 2 conditions across 3 biological repeats")
+
+
+def test_seed11_the_trend_line_needs_six_repeats():
+    from types import SimpleNamespace
+
+    from morphocoverage.sampling_unit.reading_text import (
+        CONSISTENT,
+        NOT_SIGNIFICANT,
+        condition_readings,
+    )
+    from morphocoverage.workflows._whole_table import whole_headline
+
+    def reading(n):
+        row = {
+            "condition": "A",
+            "control_condition": "CTRL",
+            "repeats": n,
+            "lower": 0,
+            "higher": n,
+            "d_mean": 1.0,
+            "q_paired_t": 0.4,
+            "q_paired_t_normalised": 0.3,
+        }
+        contrast = SimpleNamespace(
+            table=pd.DataFrame(),
+            settings={"repeat_col": "biological_repeat", "observation_unit": "cell"},
+            repeats=pd.DataFrame([row]),
+            cells=pd.DataFrame(),
+            targets=pd.DataFrame(),
+        )
+        return condition_readings(contrast).iloc[0]
+
+    assert reading(5)["verdict"] == NOT_SIGNIFICANT
+    assert "higher in 5 of 5 biological repeats" in reading(5)["reading"]
+    assert reading(6)["verdict"] == CONSISTENT
+
+    def whole(n):
+        tests = pd.DataFrame(
+            [{"table": "DINO", "condition": "a", "status": "tested", "repeats": n}]
+        ).assign(same_way=n, q_repeats=0.4)
+        return whole_headline(SimpleNamespace(tests=tests))[1]
+
+    assert whole(5) == "no whole-table shift significant across repeats"
+    assert whole(6).endswith("a shifted the same way in every repeat")
+
+
+def _shared(control_fields: int, seed: int = 0):
+    """ctrl in ``control_fields`` fields of 4 cells, a and b in 3 fields of 20, 4 repeats;
+    a and b both 3 SDs higher on f0."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for r in range(4):
+        for condition, fields, cells in (("ctrl", control_fields, 4), ("a", 3, 20), ("b", 3, 20)):
+            for f in range(fields):
+                shift = 0.0 if condition == "ctrl" else 3.0
+                for _ in range(cells):
+                    rows.append(
+                        {
+                            "condition": condition,
+                            "biological_repeat": f"R{r}",
+                            "image_file": f"{condition}{r}_{f}.tif",
+                            "f0": 10 + shift + rng.normal(),
+                            "f1": 10 + rng.normal(),
+                        }
+                    )
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    return objects, fovs.reset_index(drop=True)
+
+
+def test_a9_conditions_significant_together_against_a_small_control_are_named_once():
+    from morphocoverage.retrospective.report_answers import conditions_sections
+    from morphocoverage.sampling_unit.contrast import condition_contrast
+    from morphocoverage.sampling_unit.discovery import feature_discovery
+    from morphocoverage.sampling_unit.reading_text import shared_control_line
+
+    def line(fields):
+        objects, fovs = _shared(fields)
+        kwargs = {"control": {"condition": "ctrl"}, "n_permutations": 99, "fov_col": "image_file"}
+        contrast = condition_contrast(objects, fovs, feature="f0", n_draws=5, **kwargs)
+        found = feature_discovery(objects, fovs, features=["f0", "f1"], **kwargs)
+        full, short = conditions_sections(contrast, None, found)
+        if fields == 1:  # said once in each form, as a caution
+            assert "⚠️ Shared small control" in "\n".join(full) and short.count("Shared") == 1
+        return shared_control_line(contrast, found), shared_control_line(contrast)
+
+    small, alone = line(1)
+    assert small.startswith("Shared small control: on f0, a and b against ctrl, 1 field in a")
+    assert alone.startswith("Shared small control: a and b against ctrl, 1 field in a repeat.")
+    assert line(3) == (None, None)

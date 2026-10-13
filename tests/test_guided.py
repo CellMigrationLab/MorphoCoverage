@@ -9,65 +9,16 @@ import zipfile
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_embedding import EMPTY, NOTHING_UNDER
+from _helpers_feature_tables import _tables
+from _helpers_guided import Script, _cells
+from _helpers_guided import Script as GuidedScript
+from _helpers_guided import _cells as guided_cells
 
 from morphocoverage.workflows import Answers, guide, load_answers, save_answers
-from morphocoverage.workflows._guided_ask import _selection
-from morphocoverage.workflows._guided_tables import entries
-from morphocoverage.workflows.guided import ANSWERS_FILE, table_checksum
-
-
-def _cells(seed=0):
-    rng = np.random.default_rng(seed)
-    rows = []
-    for condition, shift in (("siCTRL", 0), ("siA#1", 8), ("siA#2", 9)):
-        for repeat in ("2026_01_01", "2026_02_01", "2026_03_01"):
-            for field in range(4):
-                for label in range(6):
-                    rows.append(
-                        {
-                            "condition": condition,
-                            "biological_repeat": repeat,
-                            "image_file": f"{condition}_{repeat}_{field}.tif",
-                            "label_id": label + 1,
-                            "area": rng.normal(100 + shift, 10),
-                            "intensity": rng.normal(5, 1),
-                            "aspect": rng.normal(2, 0.2),
-                        }
-                    )
-    return pd.DataFrame(rows)
-
-
-# The scale question of plan v2 (owner, 2026-10-06), asked for features named like an area or
-# an intensity: answered with its default, Enter, unless a test scripts it (``scales=False``).
-SCALE_PROMPT = "Test the changes of "
-# Whether sets of conditions are separate experiments (audit 10, owner, 2026-10-06): answered
-# with its default, No, unless a test scripts it (``experiments=False``).
-EXPERIMENT_PROMPTS = ("Are the conditions of each control a separate", "Are they one experiment")
-
-
-class Script:
-    """Answers the prompts in order and records what was said."""
-
-    def __init__(self, answers, scales=True, experiments=True):
-        self.answers, self.said, self.prompts = list(answers), [], []
-        self.scales, self.experiments = scales, experiments
-
-    def ask(self, prompt):
-        self.prompts.append(prompt)
-        if self.scales and prompt.startswith(SCALE_PROMPT):
-            return ""
-        if self.experiments and prompt.startswith(EXPERIMENT_PROMPTS):
-            return ""
-        if not self.answers:
-            raise AssertionError(f"no scripted answer left for {prompt!r}")
-        return self.answers.pop(0)
-
-    def say(self, text):
-        self.said.append(text)
-
-    @property
-    def text(self):
-        return "\n".join(self.said)
+from morphocoverage.workflows._guided_ask import _selection, ask_scales
+from morphocoverage.workflows._guided_tables import changed, entries
+from morphocoverage.workflows.guided import ANSWERS_FILE, rough_runtime, table_checksum
 
 
 def _run(objects, folder, answers, **kwargs):
@@ -392,3 +343,133 @@ def test_a_fingerprint_with_other_tables_has_one_criterion_per_table():
     assert dino.metric.weights is None and dino.threshold == explainable.threshold == 0.2
     assert dino.description == "the covariance of the standardised DINOv2 columns within 20%"
     assert answers.fingerprint() == (explainable,)
+
+
+def test_b14_saved_answers_with_nothing_under_the_controls_are_refused_on_reload(tmp_path):
+    answers = Answers(True, {"condition": "cA"}, "population", ["area"], "area", "cell")
+    path = save_answers(tmp_path, answers)
+    saved = json.loads(path.read_text())
+    path.write_text(json.dumps({**saved, "control": EMPTY}))
+    with pytest.raises(ValueError, match=NOTHING_UNDER):
+        load_answers(tmp_path)
+
+
+def test_the_declared_fingerprint_runs_per_table():
+    answers = Answers(
+        loaded_correctly=True,
+        control={"condition": "ctrl"},
+        aim="fingerprint",
+        features=["area", "shape"],
+        readout="area",
+        observation_unit="cell",
+        fingerprint_tolerance=0.2,
+    )
+    criteria = answers.fingerprint({"DINO": ("e0", "e1"), "DINOv3": ("v0", "v1")})
+    assert [c.metric.features for c in criteria] == [
+        ("area", "shape"),
+        ("e0", "e1"),
+        ("v0", "v1"),
+    ]
+    assert {c.threshold for c in criteria} == {0.2} and all(
+        c.metric.weights is None for c in criteria
+    )
+
+
+def test_a_reordered_table_keeps_its_checksum_and_a_changed_one_is_named():
+    objects, _, embedding = _tables()
+    first = entries({"DINO": (embedding, None, "non-explainable")}, objects)
+    shuffled = entries(
+        {"DINO": (embedding.sample(frac=1, random_state=0), None, "non-explainable")}, objects
+    )
+    assert first == shuffled
+    edited = embedding.assign(e0=embedding["e0"] + 1e-3)
+    later = entries({"DINO": (edited, None, "non-explainable")}, objects)
+    saved = {"checksum": "a", "fovs_checksum": None, "feature_tables": first}
+    now = {"checksum": "a", "fovs_checksum": None, "feature_tables": later}
+    assert changed(saved, now) == ["the feature table 'DINO'"]
+    assert changed(saved, {**now, "feature_tables": []}) == [
+        "the feature table 'DINO', not given this time"
+    ]
+
+
+def test_the_rough_runtime_counts_the_other_tables():
+    alone = rough_runtime(17, 3)
+    assert rough_runtime(17, 3, tables=(400,)) > alone
+    assert rough_runtime(17, 3, tables=(1500,)) > rough_runtime(17, 3, tables=(400,))
+    assert rough_runtime(17, 3, tables=()) == alone
+
+
+def test_the_guided_session_proposes_ratios_for_intensities_and_areas_and_saves_them(tmp_path):
+    objects = pd.DataFrame(
+        {"area": [1.0, 2.0], "Mean intensity": [3.0, 4.0], "shift": [-1.0, 2.0], "len": [1, 2]}
+    )
+    said = []
+    yes = ask_scales(lambda _: "", said.append, objects, ["area", "Mean intensity", "shift"])
+    assert yes == {"area": "ratio", "Mean intensity": "ratio"}  # shift can be negative
+    no = ask_scales(lambda _: "n", said.append, objects, ["area", "len"])
+    assert no == {"area": "difference"}
+    assert ask_scales(lambda _: "", said.append, objects, ["len"]) == {}
+    script = GuidedScript(["y", "", "", "", "", "", "1,3", "area"], scales=False)
+    script.answers.insert(8, "n")  # the scale question, after the readout
+    result = guide(
+        guided_cells(), folder=tmp_path, ask=script.ask, say=script.say, run_report=False
+    )
+    assert any(p.startswith("Test the changes of area") for p in script.prompts)
+    assert result.answers.scales == {"area": "difference"}
+    assert result.setup.scales == {"area": "difference"}
+    assert load_answers(tmp_path).scales == {"area": "difference"}
+    assert "Tested as differences to the control: area." in result.answers.lines()
+
+
+def test_answers_name_several_controls_with_parents_and_master():
+    answers = Answers(
+        loaded_correctly=True,
+        control={"condition": {"A": ["a", "b"], "B": {"t": "c"}, "C": []}},
+        aim="population",
+        features=["area", "dna."],
+        readout="area",
+        observation_unit="cell",
+        control_parents={"A": "C", "B": ["C", "t"]},
+        master_control="A",
+    )
+    assert answers.lines() == [
+        "Control: A for a, b; B for c; C for -; A under C; B under C; master A.",
+        "Aim: compare the population averages of the conditions (the readout's mean).",
+        "Features (2): area, dna.",
+        "Readout: area.",
+        "One row is a cell.",
+    ]
+
+
+def test_answers_name_every_optional_answer():
+    answers = Answers(
+        loaded_correctly=True,
+        control={"condition": {"A": ["a"]}},
+        aim="population",
+        features=["area", "dna."],
+        readout="area",
+        observation_unit="cell",
+        positive={"condition": "YAP"},
+        rare_label="m",
+        fingerprint_tolerance=0.1,
+        experiment={"a": "e1", "A": "e2"},
+        scales={"area": "log"},
+        dataset={
+            "feature_tables": [
+                {"name": "D", "path": None},
+                {"name": "E", "path": "x.csv", "tag": "explainable"},
+            ]
+        },
+    )
+    assert answers.lines() == [
+        "Control: A for a.",
+        "Aim: compare the population averages of the conditions (the readout's mean).",
+        "Features (2): area, dna.",
+        "Readout: area.",
+        "One row is a cell.",
+        "Other feature tables: D (non-explainable, a DataFrame), E (explainable, x.csv).",
+        "Positive control: YAP.",
+        "Phenotype column: m (its share as the rare target, seen in 3 fields with 95% chance).",
+        "Fingerprint tolerance: 10%.",
+        "Experiments, each corrected on its own: e1 and e2.",
+    ]

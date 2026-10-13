@@ -5,10 +5,13 @@ code it gives runs on the session's ``result``, ``objects`` and ``fovs``."""
 import html
 import re
 import warnings
+from types import SimpleNamespace
 from typing import ClassVar
 
+import numpy as np
+import pandas as pd
 import pytest
-from test_rare_fingerprint import _screen, _setup
+from _helpers_rare_fingerprint import _screen, _setup
 
 from morphocoverage import ObjectiveConfig, workflows
 from morphocoverage.strategies import RareIncidenceStrategy
@@ -278,3 +281,47 @@ def test_the_incidence_counts_the_fields_without_observations():
     )
     assert where == shares.idxmin() and incidence == pytest.approx(shares.min())
     assert incidence < _incidence(result, objects, fovs, objects["mitotic"])[0]
+
+
+def test_a_condition_without_a_repeat_plan_is_left_out_of_the_table():
+    from morphocoverage.workflows._html_plan import _difference_goal
+
+    discovery = SimpleNamespace(
+        tests=pd.DataFrame(
+            {
+                "feature": ["area"] * 3,
+                "condition": ["a", "b", "c"],
+                "repeats": [3, 3, 3],
+                "confirmed": [True, False, False],
+            }
+        ),
+        ranking=pd.DataFrame({"feature": ["area"]}),
+    )
+    plan = pd.DataFrame(
+        {
+            "condition": ["a", "b", "c"],
+            "repeats_needed": [4.0, np.nan, 5.0],
+            "repeats_needed_twice_fields": [3.0, np.nan, np.inf],
+            "planned_on": ["log ratio", "difference", "log ratio"],
+            "change": [0.2, np.nan, -0.1],
+        }
+    )
+    contrast = SimpleNamespace(plan=plan, table=pd.DataFrame(), settings={})
+    result = SimpleNamespace(
+        discovery=discovery,
+        setup=SimpleNamespace(readout="area", columns=("area",)),
+        results={"contrast": contrast},
+    )
+    option, panel = _difference_goal(result)
+    assert option == "A difference from the control"
+    assert panel == (
+        "<p>Optimise plans each well&#x27;s own measurements, not a comparison: a difference "
+        "from the control is planned in biological repeats. For each condition not yet "
+        "significant across repeats, the repeats a paired t-test on the repeat means needs for "
+        "80% power, if the change and the variation seen here recur, each repeat with its own "
+        "control. Significant across repeats already: area.</p>"
+        '<div class="table-wrap"><table class="sortable"><thead><tr><th>feature</th>'
+        "<th>condition</th><th>change seen</th><th>repeats needed</th>"
+        "<th>with twice the fields per repeat</th></tr></thead><tbody><tr><td>area</td>"
+        "<td>c</td><td>×-0.10</td><td>5</td><td>more than 30</td></tr></tbody></table></div>"
+    )

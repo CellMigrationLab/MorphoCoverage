@@ -1,26 +1,47 @@
 """Tests for acquisition-order efficiency (P8 of docs/optimise/optimise.md)."""
 
+from __future__ import annotations
+
 import re
 
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_retrospective import (
+    FIXED,
+    MEAN_OF_FEATURE_A,
+    POPULATION,
+    STAGE,
+    _efficiency,
+    _f_reliability,
+    _f_replay,
+    _gradient,
+    _homogeneous_replay,
+    _homogeneous_tables,
+    _make,
+    _tables,
+)
 from scenarios import FEATURE_COLS, SCENARIOS
 
-from morphocoverage import FixedFOVStrategy, ObjectiveConfig, SamplingObjective
+from morphocoverage import FixedFOVStrategy, ObjectiveConfig
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.outcomes import RelativeMeanError
 from morphocoverage.retrospective import (
     OutcomeCriterion,
+    adequacy_points,
     dispersed_order,
     order_efficiency,
+    order_text,
     redundancy_distance,
     replay_acquisitions,
+    spatial,
     stage_travel,
+    stopping_calibration,
 )
-
-POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
-STAGE = ("stage_x", "stage_y")
+from morphocoverage.retrospective._text import order_name
+from morphocoverage.retrospective.adequacy import _median_point
+from morphocoverage.retrospective.frontier import family, frontier
+from morphocoverage.retrospective.spatial import EfficiencyResult, efficiency_summary
 
 
 def test_dispersed_order_is_farthest_point_first():
@@ -37,50 +58,6 @@ def test_stage_travel_is_the_cumulative_path():
     path = stage_travel(np.array([[0, 0], [3, 4], [3, 0]]))
     assert path.tolist() == [0.0, 5.0, 9.0]
     assert stage_travel(np.empty((0, 2))).size == 0
-
-
-def _gradient(seed=0):
-    """A 10 x 6 raster; the phenotype changes along y, the raster runs along x first."""
-    rng = np.random.default_rng(seed)
-    fov_rows, object_rows = [], []
-    for i in range(60):
-        x, y = i % 10, i // 10
-        name = f"f{i:02d}"
-        fov_rows.append(
-            {
-                "condition": "control",
-                "biological_repeat": "R1",
-                "image_file": name,
-                "acquisition_order": i,
-                "stage_x": x * 200.0,
-                "stage_y": y * 200.0,
-            }
-        )
-        values = rng.normal(10 + y, 0.5, size=(15, 2))
-        object_rows.append(
-            pd.DataFrame(values, columns=list(FEATURE_COLS)).assign(
-                condition="control", biological_repeat="R1", image_file=name
-            )
-        )
-    return pd.concat(object_rows, ignore_index=True), pd.DataFrame(fov_rows)
-
-
-def _efficiency(objects, fovs, orders, tolerance=0.06):
-    criterion = OutcomeCriterion(RelativeMeanError("feature_a"), tolerance, "lower_is_better")
-    replay = replay_acquisitions(
-        objects,
-        fovs,
-        feature_cols=list(FEATURE_COLS),
-        strategies=[FixedFOVStrategy(5)],
-        criteria=[criterion],
-        objective=POPULATION,
-        reservoir_fraction=0.3,
-        orders=orders,
-        acquisition_order_col="acquisition_order",
-        stage_cols=STAGE,
-        n_splits=3,
-    )
-    return order_efficiency(replay, per_fov_seconds=2.0, stage_speed=1000.0)
 
 
 def test_a_gradient_is_covered_sooner_by_dispersed_orders_with_more_travel_per_field():
@@ -179,3 +156,212 @@ def test_one_stage_axis_given_twice_is_refused():
             reservoir_fraction=0.3,
             stage_cols=twice,
         )
+
+
+def test_f3_a_group_without_two_fields_gets_a_row_with_a_reason():
+    good = _make(n_fovs=20)
+    bad = _make(n_fovs=3, empty=(1, 2), groups=(("B", "r1"),), seed=1)
+    objects = pd.concat([good[0], bad[0]], ignore_index=True)
+    fovs = pd.concat([good[1], bad[1]], ignore_index=True)
+    table = redundancy_distance(
+        objects, fovs, feature_cols=["f"], stage_cols=("x", "y"), bin_edges=[0, 150, 300, 600]
+    ).set_index("condition")
+    assert pd.isna(table.loc["A", "reason"]) and table.loc["A", "smallest_lag"] > 0
+    assert table.loc["B", "reason"].startswith("only 1 field with observations")
+    assert pd.isna(table.loc["B", "redundancy_distance"])
+    far = redundancy_distance(
+        *good, feature_cols=["f"], stage_cols=("x", "y"), bin_edges=[5000, 6000]
+    )
+    assert "no pair of fields is between 5000 and 6000" in far["reason"].iloc[0]
+
+
+def _replay(n_fovs=16, seed=7, threshold=0.03, random_state=0, **kwargs):
+    objects, fovs = _make(n_fovs=n_fovs, seed=seed)
+    criterion = OutcomeCriterion(RelativeMeanError("f"), threshold, "lower_is_better")
+    return replay_acquisitions(
+        objects,
+        fovs,
+        feature_cols=["f"],
+        strategies=[FixedFOVStrategy(5)],
+        criteria=[criterion],
+        objective=ObjectiveConfig(),
+        reservoir_fraction=0.3,
+        n_splits=2,
+        random_state=random_state,
+        stage_cols=("x", "y"),
+        **kwargs,
+    )
+
+
+def test_f4_unreached_runs_count_as_beyond_their_own_stream_in_the_median():
+    replay = _replay(orders=[AcquisitionOrder.permuted(s) for s in range(2)])
+    result = order_efficiency(replay)
+    runs = result.runs["sustained_realized"]
+    assert runs.isna().sum() == len(runs) / 2  # half the runs never reached it
+    row = result.table.iloc[0]
+    assert row["median_fovs"] is None and row["median_travel"] is None
+    full = result.summary(detail="full")
+    assert "not in half or more of runs" in full and "50% of runs, within 11 fields" in full
+    assert re.search(r"random +never +– +50%", result.summary())
+    # A median over reached runs and runs beyond their own stream, never a fill value.
+    assert order_efficiency(_replay(threshold=0.2)).table["median_fovs"].iloc[0] >= 1
+
+
+def test_f5_adequacy_from_another_replay_is_refused():
+    replay, other = _replay(), _replay(random_state=7)
+    with pytest.raises(ValueError, match="another replay .*random_state"):
+        order_efficiency(replay, adequacy_points(other))
+    assert len(order_efficiency(replay, adequacy_points(replay)).table) == 1
+
+
+def test_f14_the_order_comparison_names_every_criterion_and_short_times():
+    table = pd.DataFrame(
+        [
+            {
+                "order": order,
+                "runs": 2,
+                "reached": 1.0,
+                "median_fovs": 3.0,
+                "median_travel": 100.0,
+                "median_travel_total": 400.0,
+                "median_time": 20.0,
+                "stream_fovs": 10,
+                "longest_stream_fovs": 10,
+            }
+            for order in ("permuted", "dispersed")
+        ]
+    )
+    two = {"labels": {"a": "a", "b": "b"}}
+    text = efficiency_summary(EfficiencyResult(pd.DataFrame(), table, (), two))
+    assert "for all the criteria together" in text and "20 s" in text
+    full = efficiency_summary(EfficiencyResult(pd.DataFrame(), table, (), two), "full")
+    assert "about 20 s" in full
+    one = efficiency_summary(EfficiencyResult(pd.DataFrame(), table, (), {"labels": {"a": "a"}}))
+    assert "for this criterion" in one
+
+
+def test_f10_groups_the_replay_skipped_are_named_in_every_summary():
+    big, big_fovs = _tables(n_fovs=8, wells=("A1",))
+    one, one_fovs = _tables(n_fovs=1, wells=("A2",))
+    replay = _f_replay(
+        pd.concat([big, one]), pd.concat([big_fovs, one_fovs]), stage_cols=("x", "y")
+    )
+    assert replay.skipped["technical_repeat"].tolist() == ["A2"]
+    for result in (adequacy_points(replay), stopping_calibration(replay)):
+        assert result.skipped["technical_repeat"].tolist() == ["A2"]
+        # Every summary names the skipped group (by its values, or as column=value).
+        assert "A2: skipped, only 1 field" in result.summary()
+        assert "A2: skipped, only 1 field" in result.summary(detail="full")
+    efficiency = order_efficiency(replay)
+    assert efficiency.skipped["technical_repeat"].tolist() == ["A2"]
+    # The order comparison names the group by its values (condition · biological_repeat · well).
+    for detail in ("short", "full"):
+        assert "R1 · A2: skipped, only 1 field" in efficiency.summary(detail=detail)
+
+
+def test_f14_order_efficiency_refuses_adequacy_of_other_data():
+    kwargs = {"orders": [AcquisitionOrder.permuted(s) for s in range(2)], "stage_cols": ("x", "y")}
+    first = _f_replay(*_tables(n_fovs=16, seed=1, scale=0.2), **kwargs)
+    other = _f_replay(*_tables(n_fovs=16, seed=2, scale=3.0), **kwargs)
+    assert first.settings == other.settings
+    with pytest.raises(ValueError, match="other realized points"):
+        order_efficiency(first, adequacy_points(other))
+    assert len(order_efficiency(first, adequacy_points(first)).table)
+
+
+def _redundancy(objects, fovs):
+    return redundancy_distance(
+        objects,
+        fovs,
+        feature_cols=["f"],
+        stage_cols=("x", "y"),
+        bin_edges=[0, 150, 300, 500],
+        fov_col="position_id",
+    ).set_index("biological_repeat")
+
+
+def test_f22_a_constant_readout_has_no_redundancy_distance():
+    objects, fovs = _tables(n_fovs=16, repeats=("R1", "R2"))
+    table = _redundancy(objects.assign(f=5.0), fovs)
+    assert table["redundancy_distance"].isna().all()
+    assert table["reason"].str.contains("do not vary").all()
+
+
+def test_f23_a_missing_value_in_one_group_leaves_the_others_measured():
+    objects, fovs = _tables(n_fovs=16, repeats=("R1", "R2"))
+    objects.loc[objects.index[objects["biological_repeat"] == "R2"][0], "f"] = np.nan
+    table = _redundancy(objects, fovs)
+    assert pd.notna(table.loc["R1", "smallest_lag"]) and pd.isna(table.loc["R1", "reason"])
+    assert "missing values in f (1 observation)" in table.loc["R2", "reason"]
+
+
+def test_f24_one_order_phrase_one_median_rule_one_skip_rule():
+    assert not hasattr(spatial, "_ORDER_WORDS") and not hasattr(spatial, "_median_beyond")
+    point = _median_point(pd.Series([3, None, None], dtype="Int64"), pd.Series([12, 12, 12]))
+    assert point.startswith("not within the fields available (up to 12)")
+    assert _median_point(pd.Series([3, 5, None], dtype="Int64"), pd.Series([12] * 3)) == "field 5"
+    objects, fovs = _tables(n_fovs=8, wells=("A1",))
+    one, one_fovs = _tables(n_fovs=1, wells=("A2",))
+    tables = (pd.concat([objects, one]), pd.concat([fovs, one_fovs]))
+    skipped_replay = _f_replay(*tables).skipped["reason"].iloc[0]
+    skipped_reliability = _f_reliability(*tables).skipped["reason"].iloc[0]
+    assert skipped_replay == skipped_reliability
+    assert not hasattr(order_text, "_ORDER_NAMES")  # the words of an order kind live in _text
+    assert (
+        f"{order_name('recorded')}  "
+        in order_efficiency(
+            _f_replay(
+                objects,
+                fovs,
+                orders=[AcquisitionOrder.recorded()],
+                acquisition_order_col="order",
+                stage_cols=("x", "y"),
+            )
+        ).summary()
+    )
+
+
+def test_order_efficiency_states_the_runs_that_never_reached_adequacy(gradient_replay):
+    result = order_efficiency(gradient_replay)
+    table = result.table.set_index("order")
+    text = result.summary()
+    for order, row in table.iterrows():
+        if pd.isna(row["median_fovs"]) or row["reached"] == 1:
+            continue
+        share = f"{100 * (1 - row['reached']):.0f}% of runs"
+        assert f"never within the {row['stream_fovs']} fields in {share}" in text, order
+    if (table["reached"] == 1).all():
+        pytest.skip("every replayed order reached adequacy; nothing to state")
+
+
+def test_order_efficiency_frontier_and_redundancy_refuse_what_they_cannot_read():
+    objects, fovs = _homogeneous_tables()
+    with pytest.raises(TypeError, match="^replay must be a ReplayResult$"):
+        order_efficiency(None)
+    orders = [AcquisitionOrder.permuted(0)]
+    plain = _homogeneous_replay(reservoir_fraction=0.3, n_splits=1, orders=orders)
+    with pytest.raises(ValueError) as raised:
+        order_efficiency(plain)
+    expected = "the replay has no stage paths; run replay_acquisitions with stage_cols"
+    assert str(raised.value) == expected
+    staged = _homogeneous_replay(
+        reservoir_fraction=0.3, n_splits=1, orders=orders, stage_cols=("stage_x", "stage_y")
+    )
+    with pytest.raises(ValueError) as raised:
+        order_efficiency(staged, stage_speed=0)
+    assert str(raised.value) == "stage_speed must be a positive, finite number"
+    one = family(staged, "fixed", {FIXED[0].config_id: 3})
+    two = family(staged, "fixed", {FIXED[1].config_id: 5})
+    with pytest.raises(ValueError) as raised:
+        frontier(staged, [one, two], criterion=MEAN_OF_FEATURE_A.name, alphas=[0.2], unit_cols=[])
+    assert str(raised.value) == "family names used twice: ['fixed']"
+    with pytest.raises(ValueError) as raised:
+        redundancy_distance(
+            objects,
+            fovs,
+            feature_cols=["feature_a"],
+            stage_cols=("x", "y"),
+            bin_edges=[0, 1],
+            share=0,
+        )
+    assert str(raised.value) == "share must be in (0, 1]"

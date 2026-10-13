@@ -1,5 +1,7 @@
 """The cell-level test (Plot&Stats) with its balance check (question 9, ``contrast_cells``)."""
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
@@ -19,6 +21,9 @@ from morphocoverage.sampling_unit.contrast_cells import (
     chance_without_effect,
     effective_per_well,
     normalised,
+    permutations_for,
+    refined,
+    repeats_to_balance,
     sparse,
     trusted_test,
 )
@@ -324,3 +329,73 @@ def test_the_balanced_test_carries_its_own_chance():
     assert row["per_well"] == pytest.approx((effective_per_well([120, 40, 40]) + 40) / 2)
     assert row["chance_balanced_low"] < row["chance_low"]
     assert row["chance_balanced_high"] < row["chance_high"]
+
+
+def test_a_balanced_test_left_with_one_repeat_gives_way_to_the_test_as_provided() -> None:
+    # B5: the image-level "balanced" test kept R3 alone (the other repeats had fewer than 5
+    # control images) and the reading quoted it as the condition's image-level q.
+    rng = np.random.default_rng(3)
+    by_t = {"R1": rng.normal(1, 1, 3), "R2": rng.normal(1, 1, 4), "R3": rng.normal(1, 1, 12)}
+    by_c = {"R1": rng.normal(0, 1, 3), "R2": rng.normal(0, 1, 4), "R3": rng.normal(0, 1, 12)}
+    assert repeats_to_balance(by_t, {"R1", "R2"}, unbalanced=True) == []
+    assert repeats_to_balance(by_t, {"R1"}, unbalanced=True) == ["R2", "R3"]
+    test = trusted_test(by_t, by_c, by_c, 199, np.random.default_rng(0))
+    assert not test["balanced"]
+    assert test["observations"] == 19 and test["control_observations"] == 19
+    assert np.isfinite(test["p"])
+
+
+def test_the_shuffles_let_the_smallest_q_reach_alpha():
+    assert permutations_for(100, 999) == 2000
+    assert permutations_for(10, 999) == 999
+    for family in (50, 210, 300):
+        shuffles = permutations_for(family, 999)
+        assert family / (shuffles + 1) < 0.05
+
+
+def test_only_a_small_p_is_rerun_seeded_by_its_own_identity():
+    """A family of 100 at 99 shuffles: the clear difference is rerun with 2000 and its q can
+    reach 0.05; the null one, above 0.05, keeps its p and shuffles. The rerun is seeded from
+    the test, so the order of the tests does not change it."""
+    rng = np.random.default_rng(0)
+    clear = (rng.normal(3, 1, 40), rng.normal(0, 1, 40))
+    null = (rng.normal(0, 1, 40), rng.normal(0, 1, 40))
+    _, p_clear = cell_randomization(*clear, 99, rng)
+    _, p_null = cell_randomization(*null, 99, rng)
+    index = [f"t{i}" for i in range(100)]
+    p = pd.Series([p_clear, p_null] + [0.5] * 98, index=index)
+    family = pd.Series(0, index=index)
+    used = pd.Series(99, index=index)
+    retests = {"t0": [clear], "t1": [null]}
+
+    def seeded(name):
+        return np.random.default_rng(int(name[1:]))
+
+    values, shuffles = refined(p, family, used, retests, seeded)
+    assert p_clear == pytest.approx(1 / 100) and values[0] == pytest.approx(1 / 2001)
+    assert shuffles[0] == 2000 and shuffles[1] == 99 and values[1] == p_null
+    assert 100 * values[0] < 0.05
+    again, _ = refined(p[::-1], family, used, retests, seeded)
+    assert again[-1] == values[0]
+
+
+def test_the_balanced_test_is_rerun_with_more_labellings():
+    """#89: the balanced test is one permutation test; its rerun draws new labellings and
+    keeps the observed statistic, so its p moves to the finer grid of ``B`` and its d stays."""
+    rng = np.random.default_rng(1)
+    treated = [rng.normal(0.8, 1, n) for n in (60, 30, 30)]
+    control = [rng.normal(0, 1, 30) for _ in range(3)]
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(contrast_cells, "BALANCED_DRAWS", 5)
+        d, p, per_t, per_c, rerun = balanced_draws(treated, control, np.random.default_rng(2))
+        assert (per_t, per_c) == (30, 30) and d > 0.5
+        assert p == pytest.approx(1 / (contrast_cells.BALANCED_PERMUTATIONS + 1))
+        assert rerun(1999, np.random.default_rng(3)) == pytest.approx(1 / 2000)
+
+
+def test_the_screen_reruns_its_small_p_values_and_says_so(designs):
+    """E4 holds 4 tests in its sub-experiment: at 99 shuffles none needs more, the family
+    being small; the head says nothing then. With 100 features the screen states them."""
+    _, discovery = designs["E4"]
+    assert set(discovery.tests["permutations"].dropna()) <= {99, 999}
+    assert "rerun with" not in discovery.summary()

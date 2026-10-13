@@ -13,6 +13,7 @@ import warnings
 
 import numpy as np
 import pytest
+from _helpers_workflows import DOCS
 from ecm_design import CONTROLS, MASTER, PARENTS, tables
 
 from morphocoverage.workflows import Setup, report
@@ -174,3 +175,10 @@ def test_the_maps_say_the_gap_centring_leaves():
         "Controls apart in intensity (cA and cB): the maps, the separation"
     )
     assert gap_maps_line([]) == ""
+
+
+def test_the_two_fold_gap_is_said_to_be_an_engineering_threshold_for_quality_control():
+    caution = gap_caution([{"controls": ("a", "b"), "feature": "intensity", "fold": 13.0}])
+    assert caution.endswith("2-fold is an engineering threshold for quality control, not a test.")
+    docs = (DOCS / "report" / "conditions.md").read_text()
+    assert "engineering threshold for quality" in docs

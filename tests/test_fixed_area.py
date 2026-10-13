@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_strategies import _area_tables, _run, _run_one
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import (
@@ -12,6 +13,7 @@ from morphocoverage import (
     evaluate_acquisition_prefixes,
     validate_input_tables,
 )
+from morphocoverage.evidence import Availability
 from morphocoverage.strategies import FixedAreaStrategy, ImagedAreaEstimator
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
@@ -73,3 +75,18 @@ def test_misconfiguration_raises():
             FixedAreaStrategy(target, "area_um2")
     with pytest.raises(TypeError):
         ImagedAreaEstimator("")
+
+
+def test_c11_fixed_area_checks_its_area_column_on_construction():
+    with pytest.raises(TypeError, match="area_col"):
+        FixedAreaStrategy(100.0, "")
+    objects, fovs = _area_tables([[1.0, 2.0], [3.0]])
+    fovs["area_um2"] = ["60", "70"]
+    with pytest.raises(ValueError, match="not numbers"):
+        _run(objects, fovs, FixedAreaStrategy(100.0, "area_um2"))
+
+
+def test_c4_an_infinite_field_area_is_not_summed():
+    result = _run_one([[1.0], [2.0]], FixedAreaStrategy(10.0, "area_um2"), area_um2=[np.inf, 1.0])
+    assert result.decision is not Decision.STOP
+    assert result.evidence.quantities["imaged_area"].availability is Availability.NOT_APPLICABLE
