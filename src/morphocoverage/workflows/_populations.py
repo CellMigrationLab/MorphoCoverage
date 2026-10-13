@@ -36,7 +36,6 @@ from ..schema import observation_words, validate_input_tables
 from ..statistics import ALPHA
 from ._population_context import (
     AGAINST_WORDS,
-    EXPERIMENTS_DIFFER,
     NOT_NORMALISED,
     against_controls,
     by_evidence,
@@ -50,13 +49,17 @@ from ._population_rule_words import rule_cell, rule_words
 from ._population_spaces import (
     described,
     found_words,
-    no_own_control_words,
     populations_in_spaces,
     space_words,
-    spaces_method,
     undescribed_line,
 )
 from ._population_tests import enrichment_tests, one_sided
+from ._population_text_parts import (
+    no_group_answer,
+    population_assumptions,
+    population_method,
+    unpaired_lines,
+)
 
 if TYPE_CHECKING:
     from ..retrospective import MicroscopistReport
@@ -351,80 +354,42 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
     pops = result.populations
     settings = pops.settings
     units = setup.unit_words
-    method = (
-        f"{count(settings['observations'], setup.unit_word)} in all, every condition pooled, "
-        f"clustered on the {count(len(settings['features']), 'declared feature')}"
-        f" (HDBSCAN on a {settings['map_components']}-dimensional UMAP of their robust "
-        f"standardisation; a cluster holds at least {settings['min_cells']} {units}), each "
-        "cluster then judged on all the features"
-    )
-    if settings.get("spaces"):  # other feature tables: each space apart (owner, 2026-10-06)
-        method = (
-            f"Every condition pooled, clustered {spaces_method(pops, setup)}; in each, HDBSCAN "
-            "on a UMAP of the robust standardisation, each cluster then judged on all its "
-            f"features; groups found in two spaces are one when their {units} overlap with a "
-            f"Jaccard index of {settings['same_group']:g} or more"
-        )
-    # Observations without their own control, named once, never a missing value (audit 8).
-    left = no_own_control_words(settings, setup.unit_word, units)
-    method += f" ({left})" if left else ""
-    method += f", {EXPERIMENTS_DIFFER}" if result.normalised else ""
-    if not settings.get("observations") and not settings.get("spaces"):
-        text = wrap(
-            f"{method}: not assessed: no {setup.unit_word} has a value of every feature "
-            f"({count(settings['incomplete_observations'], setup.unit_word)} with a missing "
-            "value).",
-            2,
-            hang=4,
-        )
-        return Status.NOT_ASSESSED, f"not assessed: every {setup.unit_word} misses a value", text
-    if not settings.get("clustered", True):
-        text = wrap(
-            f"{method}: not clustered: too few {units} (or no feature that varies) for two "
-            f"clusters of {settings['min_cells']}.",
-            2,
-            hang=4,
-        )
-        return Status.NOT_ASSESSED, f"not clustered: too few {units}", text
-    if not pops.names:
-        # Not finding a group says nothing of a continuum, nor of rare states (#94; owner,
-        # 2026-10-05): ➖, a neutral answer.
-        text = wrap(
-            f"{method}: no candidate group passed the neighbours-inside check on these "
-            f"features ({percent(settings['purity'])} or more of a cluster's {units}' "
-            f"{settings['neighbours']} nearest neighbours in it).",
-            2,
-            hang=4,
-        )
-        headline = "no group: no candidate group passed the check on these features"
-        return Status.NOT_ASSESSED, headline, text
+    method = population_method(result, setup)
+    unfound = no_group_answer(method, pops, setup)
+    if unfound is not None:
+        return unfound
     lines = [wrap(f"{method}: {_found_words(pops)} ({_shares_line(pops, units)}).", 2, hang=4)]
+    lines.append(_groups_table(result, units))
+    if result.against:
+        lines.append(wrap(AGAINST_WORDS.format(units=units, unit=setup.unit_word), 4, hang=6))
+    if undescribed_line(pops):
+        lines.append(wrap(undescribed_line(pops), 4, hang=6))
+    significant, trend = _verdict(result)
+    lines += _group_lines(result, units)
+    lines += unpaired_lines(result)
+    labelled = only_labelled(result)
+    if setup.rare_label is not None:
+        # When the label's group is the only one, the headline says so (In short).
+        line = _label_line(result, setup.rare_label, units, said=bool(labelled))
+        if line:
+            lines.append(wrap(line, 4, hang=6))
+    lines.append(population_assumptions(setup, settings))
+    status, headline = _headline(result, setup, labelled, significant, trend)
+    return status, headline, "\n".join(lines)
+
+
+def _groups_table(result: PopulationsResult, units: str) -> str:
+    """The table of the groups: each one's kind, size, definition, neighbours inside, rule,
+    fields, repeats and its most different condition (where each was found with other
+    feature tables)."""
+    pops = result.populations
     control = result.control
     if isinstance(control, tuple):  # several controls: each condition against its own
         control = "its control"
     heading = f"most different (vs {control})" if control is not None else "most different"
     tested = set(tested_populations(pops))
     own = set(labelled_populations(result.label))
-    rows = [
-        [
-            r.population,
-            _KIND_WORDS.get(r.kind, r.kind),
-            f"{r.observations} ({percent_fine(r.share)})",
-            defined_by(r.defining[:2])
-            or ("no rule" if r.kind == "group" and not described(r._asdict()) else "–"),
-            percent(r.purity) if pd.notna(r.purity) else "–",
-            rule_cell(r),
-            r.fields,
-            percent(r.largest_field),
-            r.repeats,
-            _enriched(result, r.population)
-            if r.population in tested and r.population not in own
-            else "the declared label (not tested again)"
-            if r.population in own
-            else "the rest (not tested)",
-        ]
-        for r in pops.table.itertuples()
-    ]
+    rows = [_group_row(result, r, tested, own) for r in pops.table.itertuples()]
     columns = [
         "population",
         "kind",
@@ -437,16 +402,39 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         "repeats",
         heading,
     ]
-    if settings.get("spaces"):  # where each was found (owner, 2026-10-06)
+    if pops.settings.get("spaces"):  # where each was found (owner, 2026-10-06)
         for row, r in zip(rows, pops.table.itertuples(), strict=True):
             row.insert(3, listing([space_words(x) for x in r.found_in], 8))
         columns.insert(3, "found in")
-    lines.append(table(rows, columns, indent=4))
-    if result.against:
-        lines.append(wrap(AGAINST_WORDS.format(units=units, unit=setup.unit_word), 4, hang=6))
-    if undescribed_line(pops):
-        lines.append(wrap(undescribed_line(pops), 4, hang=6))
-    significant, trend = _verdict(result)
+    return table(rows, columns, indent=4)
+
+
+def _group_row(result: PopulationsResult, r: Any, tested: set[str], own: set[str]) -> list[Any]:
+    """One group's row of the table; the declared label's own and the main population are
+    not tested."""
+    return [
+        r.population,
+        _KIND_WORDS.get(r.kind, r.kind),
+        f"{r.observations} ({percent_fine(r.share)})",
+        defined_by(r.defining[:2])
+        or ("no rule" if r.kind == "group" and not described(r._asdict()) else "–"),
+        percent(r.purity) if pd.notna(r.purity) else "–",
+        rule_cell(r),
+        r.fields,
+        percent(r.largest_field),
+        r.repeats,
+        _enriched(result, r.population)
+        if r.population in tested and r.population not in own
+        else "the declared label (not tested again)"
+        if r.population in own
+        else "the rest (not tested)",
+    ]
+
+
+def _group_lines(result: PopulationsResult, units: str) -> list[str]:
+    """Every group with its rule, its conditions when there is a finding, a line each."""
+    pops = result.populations
+    lines = []
     for name in pops.names:
         row = pops.table.set_index("population").loc[name]
         parts = _group_parts(result, name, units)
@@ -469,61 +457,27 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
                     hang=6,
                 )
             )
-    unpaired = result.enrichment.attrs.get("unpaired", []) if result.enrichment is not None else []
-    if unpaired:
-        lines.append(
-            wrap(
-                f"Not compared: {listing([str(c) for c in unpaired], 4)} (no biological repeat "
-                "shared with the control).",
-                4,
-                hang=6,
-            )
-        )
-    labelled = only_labelled(result)
-    if setup.rare_label is not None:
-        # When the label's group is the only one, the headline says so (In short).
-        line = _label_line(result, setup.rare_label, units, said=bool(labelled))
-        if line:
-            lines.append(wrap(line, 4, hang=6))
-    lines.append(
-        wrap(
-            f"Assumptions: The {units} of every condition are clustered together"
-            + (  # compared only where a control is declared (audit 10, C24)
-                f", then each condition is compared with its own control on its share of "
-                f"{units} in each, per biological repeat (paired t-test on the log odds of the "
-                "repeat shares, Benjamini-Hochberg within each sub-experiment over every "
-                "population and condition)"
-                if setup.reference_control is not None
-                else ", and no condition is compared, as no control is declared"
-            )
-            + "; the main population, holding most of them, is the rest, listed and "
-            "not tested. A cluster on the UMAP is kept as a group when "
-            f"{percent(settings['purity'])} or more of its {units}' "
-            f"{settings['neighbours']} nearest neighbours on all the features are in it too "
-            "(neighbours inside). Whether a group is a separate state or the end of a "
-            f"continuum (the most extreme {units} of a gradient) is not decided from the "
-            "numbers: no test of a gap told the two apart reliably at these sizes, so open "
-            "the images of its fields to validate it. Its rule is the simplest one on the "
-            "features (at most two thresholds, a decision tree) that picks out its "
-            f"{units}, fitted on all of them; the share of them it finds and the share right "
-            "of those it picks describe that procedure refitted with whole fields held out "
-            f"({units} held out for a group in one field), not the exact thresholds shown. "
-            "Groups that overlap strongly on every feature "
-            "are not told apart. The clusters depend on the declared features and their "
-            "standardisation; a group held by few fields, or most of whose "
-            f"{units} are in one (in largest field), may be an artefact of those images.",
-            2,
-            hang=4,
-        )
-    )
-    found = _found_words(pops)
+    return lines
+
+
+def _headline(
+    result: PopulationsResult,
+    setup: Setup,
+    labelled: list[str],
+    significant: list[str],
+    trend: list[str],
+) -> tuple[Status, str]:
+    """Question 10's status and headline: the label's own group, the groups more common in a
+    condition (exploratory), a trend, or none; not assessed without a test across repeats."""
+    units = setup.unit_words
+    found = _found_words(result.populations)
     if labelled and setup.rare_label is not None:
         # The label's group is compared once, as the label's share: no q of its own here.
         headline = (
             f"{found}; {label_words(labelled[0], setup.rare_label, units)}; its share is compared "
             f"in {COMPARED_IN}"
         )
-        return Status.OK, headline, "\n".join(lines)
+        return Status.OK, headline
     if significant:
         # Exploratory until validated: ⚠️, never ✅ (owner, 2026-10-06, audit 10).
         headline = f"{found}; " + "; ".join(
@@ -549,7 +503,7 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
     if result.enrichment is not None and held < MIN_REPEATS:
         headline += f" (n = {held}: no test across repeats)"
         status = Status.NOT_ASSESSED
-    return status, headline, "\n".join(lines)
+    return status, headline
 
 
 def population_of(result: PopulationsResult | None, objects: pd.DataFrame) -> pd.Series | None:

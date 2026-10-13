@@ -36,7 +36,7 @@ import re
 import time
 import warnings
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -60,39 +60,40 @@ from ._html_cards import (
     significant_summary,
 )
 from ._html_data import (
-    LINKED,
     across_data,
     data_buttons,
     files_card,
     heatmap_data,
     inline_images,
-    json_island,
     page_files,
 )
 from ._html_enough import enough_body, enough_help
-from ._html_fields import NEW_STATES, NEW_STATES_HELP, fields_cards, has_new_states
+from ._html_fields import NEW_STATES, NEW_STATES_HELP, fields_cards
 from ._html_figures import feature_figures
 from ._html_maps import embeddings, maps_body
 from ._html_next import populations_next
+from ._html_page import (
+    check_counts,
+    navigation,
+    page_markup,
+    page_texts,
+    plotly_scripts,
+    settings_line,
+    shown_sections,
+)
 from ._html_plan import PLAN_TITLE, plan_card
-from ._html_plotly import plotly_js
-from ._html_plotly_script import PLOTLY_SCRIPT
 from ._html_render import Terms, adjusted_p, chip, first_sentence, in_units, text_html
-from ._html_script import SCRIPT
 from ._html_sections import (
     INTROS,
-    ORDER,
     TITLES,
     enough_reading,
     heatmap,
-    hidden,
     intros_for,
     not_declared,
     titles_for,
     unnumbered,
     what_checked,
 )
-from ._html_style import CSS
 from ._html_tests import figure_legends, page_assumptions, tests_section
 from ._source import verify_source
 from ._whole_table import whole_summary_html, whole_table_html, whole_table_lines
@@ -367,22 +368,10 @@ def html_report(
     if check_source:
         verify_source(result.source, objects, fovs)
     # The figures are drawn from these tables, the answers were computed from the report's.
-    counts = getattr(result.results.get("overview"), "counts", None)
-    if counts is not None and (len(objects), len(fovs)) != (counts["objects"], counts["fields"]):
-        raise ValueError(
-            f"objects and fovs must be the tables the report was run on ({counts['objects']} "
-            f"observations, {counts['fields']} fields), not {len(objects)} rows and {len(fovs)}"
-        )
+    check_counts(result, objects, fovs)
     objects = attached(objects, fovs, result.setup, feature_tables)[0]
     folder = Path(folder)
-    # The "?" help in the report's words for its observations (tracks, patches).
-    _INTROS.clear()
-    units, one = result.setup.unit_words, result.setup.unit_word
-    _INTROS.update(intros_for(units, one, **enough_help(result)), **{NEW_STATES: NEW_STATES_HELP})
-    _WORDS.clear()
-    _WORDS.update(chip_words(result))
-    _UNITS.update(words=units, one=one)
-    _TERMS.use(units, one)
+    units, one = _use_words(result)
     figures = folder / "figures"
     figures.mkdir(parents=True, exist_ok=True)
     # Allow for file systems that store modification times to the second.
@@ -398,111 +387,122 @@ def html_report(
         viz, static = ("", [])
         if len(space(result.setup)[0]) >= MIN_FEATURES:
             viz, static = embeddings(result, objects, fovs, figures)
-    statuses, headlines = doc.statuses, doc.headlines
     # The titles name the report's own observations (tracks, patches).
     titles = titles_for(units, one)
-    keys = [
-        k
-        for k in ORDER
-        if (k == "overview" and doc.overview) or k in doc.sections or (k == "dataset" and viz)
-    ]
-    shown = [k for k in keys if not hidden(statuses.get(k), headlines.get(k, ""))]
-    nav = ['<nav class="toc" aria-label="Sections"><h2>Report</h2>']
-    glance = []
-    for key in shown:
-        status = statuses.get(key)
-        icon = status.marker if status is not None else ""
-        nav.append(
-            f'<a href="#{key}"><span class="icon" aria-hidden="true">{icon}</span>'
-            f"<span>{html.escape(titles[key])}</span></a>"
+    shown = shown_sections(doc, bool(viz))
+    nav, glance = navigation(result, shown, titles, _WORDS, _TERMS.annotate)
+    subtitle = first_sentence(doc.short.get("overview") or doc.overview or "")
+    built = _Built(objects, fovs, figures, feature_blocks, viz, static, titles)
+    cards = [glance, *(_key_card(result, built, key, shown) for key in shown)]
+    cards += _closing_cards(result, objects, fovs)
+    files, images = page_files(folder, page_texts(result), [Path(p) for p in attach], started)
+    cards.append(files_card(files, attach))
+    # The page names the q-value the adjusted p (owner, 2026-10-02); then each PNG it
+    # carries is given its data, once (past the budget it stays a link, _html_data).
+    cards = [inline_images(adjusted_p(card, units, one), images) for card in cards]
+    footer = settings_line(result)
+    drawer = adjusted_p(_glossary_drawer(subtitle + "".join(cards)), units, one)
+    ends = (footer, drawer, plotly_scripts(specs, bool(viz)))
+    page = page_markup(title, nav, subtitle, cards, files, ends)
+    path = folder / REPORT_FILE
+    path.write_text(page, encoding="utf-8")
+    return path
+
+
+def _use_words(result: Report) -> tuple[str, str]:
+    """Set this page's "?" help, chip words and terms in the report's words for its
+    observations (tracks, patches); those words, plural and singular."""
+    _INTROS.clear()
+    units, one = result.setup.unit_words, result.setup.unit_word
+    _INTROS.update(intros_for(units, one, **enough_help(result)), **{NEW_STATES: NEW_STATES_HELP})
+    _WORDS.clear()
+    _WORDS.update(chip_words(result))
+    _UNITS.update(words=units, one=one)
+    _TERMS.use(units, one)
+    return units, one
+
+
+@dataclass(frozen=True)
+class _Built:
+    """What the cards show beside the report's text: the tables, the figures' folder, the
+    feature figures' blocks, the maps (interactive markup, static figures) and the titles."""
+
+    objects: pd.DataFrame
+    fovs: pd.DataFrame
+    figures: Path
+    feature_blocks: list[str]
+    viz: str
+    static: list[str]
+    titles: dict[str, str]
+
+
+def _key_card(result: Report, built: _Built, key: str, shown: list[str]) -> str:
+    """The card of the section ``key``: the data, the maps, the fields to check, the
+    conditions, or an answer (``_answer_card``)."""
+    doc = result.document
+    statuses, headlines = doc.statuses, doc.headlines
+    if key == "overview":
+        named = "inspect" in shown
+        return _data_card(result, doc, statuses.get("overview"), named)
+    if key == "dataset":
+        return _dataset_card(result, built.viz, built.static)
+    short = doc.short.get(key, doc.sections[key])
+    if key == "inspect":
+        return _fields_card(result, statuses.get(key), short, doc.sections[key])
+    if key == "conditions":
+        extras = _condition_extras(result, built.feature_blocks, built.figures)
+        return _conditions_card(
+            result,
+            statuses.get(key),
+            short,
+            doc.sections[key],
+            headlines.get(key),
+            extras,
+            built.figures,
         )
-        if key == "inspect" and has_new_states(result):  # the new states' card (audit 10)
-            nav.append(
-                f'<a href="#{NEW_STATES}"><span class="icon"></span><span>New states</span></a>'
-            )
-        if status is not None:
-            glance.append(
-                f'<a class="glance-row" href="#{key}"><span class="q">{html.escape(titles[key])}'
-                f"<br>{chip(status, key, headlines.get(key, ''), _WORDS.get(key))}</span>"
-                '<span class="a">'
-                f"{html.escape(headlines.get(key, ''))}</span></a>"
-            )
-    for anchor, label in (
-        ("limits", "What it cannot tell"),
-        ("plan", PLAN_TITLE),
-        ("glossary", "Glossary"),
-        ("files", "Files"),
-    ):
-        nav.append(f'<a href="#{anchor}"><span class="icon"></span><span>{label}</span></a>')
-    nav.append("</nav>")
-    overview_short = doc.short.get("overview") or doc.overview or ""
-    subtitle = first_sentence(overview_short)
-    cards = [
-        '<section class="card" id="glance"><h2>At a glance</h2><p class="key">Each marker '
-        "says what the answer found, in the word beside it. Underlined words show their "
-        "meaning, and a click opens them in the glossary, on the side.</p>"
-        + _TERMS.annotate("".join(glance))
-        + "</section>"
-    ]
-    for key in shown:
-        if key == "overview":
-            named = "inspect" in shown
-            cards.append(_data_card(result, doc, statuses.get("overview"), named))
-            continue
-        if key == "dataset":
-            cards.append(_dataset_card(result, viz, static))
-            continue
-        short = doc.short.get(key, doc.sections[key])
-        if key == "inspect":
-            cards.append(_fields_card(result, statuses.get(key), short, doc.sections[key]))
-            continue
-        if key == "conditions":
-            extras = _condition_extras(result, feature_blocks, figures)
-            cards.append(
-                _conditions_card(
-                    result,
-                    statuses.get(key),
-                    short,
-                    doc.sections[key],
-                    headlines.get(key),
-                    extras,
-                    figures,
-                )
-            )
-            continue
-        extra, answer, after = "", headlines.get(key), ""
-        # One sentence and a table, then one feature at a time (_html_enough).
-        body = enough_body(result, _TERMS.annotate) if key == "enough" else None
-        reading = enough_reading(result) if key == "enough" and body is None else []
-        if body is not None:  # the section's text is not printed: its exploratory line is
-            extra, answer = body + exploratory_html(result, key), None
-        elif reading:
-            # The reading answers in sentences, so the headline is not repeated above it.
-            lines = "".join(f"<p>{html.escape(line)}</p>" for line in reading)
-            extra = _TERMS.annotate(
-                f'<div class="reading">{lines}</div><h3>The numbers</h3>'
-                + _unnumbered(text_html(short))
-            )
-            answer = None
-        if key == "populations":
-            after = populations_next(result, fovs, objects)
-        cards.append(
-            _section(
-                key,
-                statuses.get(key),
-                short,
-                # The card says it all: the full text, the stopping rules, is in the files.
-                None if body is not None else doc.sections[key],
-                answer,
-                body_extra=extra,
-                found=headlines.get(key),
-                title=titles[key],
-                next_steps=after,
-            )
+    return _answer_card(result, built, key, short)
+
+
+def _answer_card(result: Report, built: _Built, key: str, short: str) -> str:
+    """An answer's card: "Did I image enough?" in sentences and tables, the populations with
+    what to do next, any other its text."""
+    doc = result.document
+    extra, answer, after = "", doc.headlines.get(key), ""
+    # One sentence and a table, then one feature at a time (_html_enough).
+    body = enough_body(result, _TERMS.annotate) if key == "enough" else None
+    reading = enough_reading(result) if key == "enough" and body is None else []
+    if body is not None:  # the section's text is not printed: its exploratory line is
+        extra, answer = body + exploratory_html(result, key), None
+    elif reading:
+        # The reading answers in sentences, so the headline is not repeated above it.
+        lines = "".join(f"<p>{html.escape(line)}</p>" for line in reading)
+        extra = _TERMS.annotate(
+            f'<div class="reading">{lines}</div><h3>The numbers</h3>'
+            + _unnumbered(text_html(short))
         )
+        answer = None
+    if key == "populations":
+        after = populations_next(result, built.fovs, built.objects)
+    return _section(
+        key,
+        doc.statuses.get(key),
+        short,
+        # The card says it all: the full text, the stopping rules, is in the files.
+        None if body is not None else doc.sections[key],
+        answer,
+        body_extra=extra,
+        found=doc.headlines.get(key),
+        title=built.titles[key],
+        next_steps=after,
+    )
+
+
+def _closing_cards(result: Report, objects: pd.DataFrame, fovs: pd.DataFrame) -> list[str]:
+    """What this dataset cannot tell and the plan of the next experiment."""
+    doc = result.document
     # The page leaves out the sections it cannot answer: their reasons stay here.
     limits = doc.limits(list(REPORT_QUESTIONS), "short", pointers=False)
-    cards.append(
+    return [
         _section(
             "limits",
             None,
@@ -510,69 +510,10 @@ def html_report(
             doc.limits(list(REPORT_QUESTIONS), "full", pointers=False),
             None,
             title=LIMITS_TITLE,
-        )
-    )
-    # The next experiment, planned with optimise and live (_html_plan; owner, 2026-10-02).
-    cards.append(_card("plan", PLAN_TITLE, "", plan_card(result, objects, fovs, _TERMS.annotate)))
-    texts = {
-        "report_short.txt": result.summary() + "\n",
-        "report_full.txt": result.summary(detail="full") + "\n",
-    }
-    if result.discovery is not None and len(result.discovery.tests):
-        texts["feature_discovery.csv"] = result.discovery.tests.to_csv(index=False)
-    if result.setup.contrast_table is not None:  # one row per test (owner, 2026-10-05)
-        texts["contrasts.csv"] = result.setup.contrast_table.to_csv(index=False)
-    files, images = page_files(folder, texts, [Path(p) for p in attach], started)
-    cards.append(files_card(files, attach))
-    # The page names the q-value the adjusted p (owner, 2026-10-02); then each PNG it
-    # carries is given its data, once (past the budget it stays a link, _html_data).
-    cards = [inline_images(adjusted_p(card, units, one), images) for card in cards]
-    inside = (
-        "every figure and file is inside this page (Files)"
-        if all(entry[1] != LINKED for entry in files.values())
-        else "the larger files open from the figures folder beside it (Files)"
-    )
-    stamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
-    page = (
-        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        f"<title>{html.escape(title)}</title><style>{CSS}</style></head><body>"
-        f'<div class="layout">{"".join(nav)}<main>'
-        '<header class="top"><button type="button" class="theme-toggle">Light / dark</button>'
-        f'<h1>{html.escape(title)}</h1><p class="sub">{html.escape(subtitle)}</p>'
-        f'<p class="meta">Generated {stamp} by MorphoCoverage. The same answers as the text '
-        f"report; {inside}.</p></header>"
-        + "".join(cards)
-        + "<footer>"
-        + html.escape(_settings(result))
-        + "</footer></main></div>"
-        + adjusted_p(_glossary_drawer(subtitle + "".join(cards)), units, one)
-        + '<script type="application/json" id="files-data">'
-        + json_island(files)
-        + f"</script><script>{SCRIPT}</script>"
-        + _plotly_scripts(specs, bool(viz))
-        + "</body></html>"
-    )
-    path = folder / REPORT_FILE
-    path.write_text(page, encoding="utf-8")
-    return path
-
-
-def _plotly_scripts(specs: list[dict], embedding: bool) -> str:
-    """plotly.js, the feature figures' data and the script that draws them; nothing when
-    the page has no interactive figure."""
-    if not specs and not embedding:
-        return ""
-    data = json_island(specs)
-    return (
-        f'<script type="application/json" id="feature-data">{data}</script>'
-        f"<script>{plotly_js()}</script><script>{PLOTLY_SCRIPT}</script>"
-    )
-
-
-def _settings(result: Report) -> str:
-    text = result.summary().rsplit("\n\n", 1)[-1]
-    return text if text.startswith("Settings") else ""
+        ),
+        # The next experiment, planned with optimise and live (_html_plan; owner, 2026-10-02).
+        _card("plan", PLAN_TITLE, "", plan_card(result, objects, fovs, _TERMS.annotate)),
+    ]
 
 
 def zip_results(folder: str | Path, *, since: float | None = None) -> Path:
