@@ -42,7 +42,7 @@ This page's own ids:
 - **Datasets to be made:** DS-1 to DS-5.
 - **Milestones:** M0 to M5.
 - **Audits:** AUD-1 to AUD-5.
-- **Decisions:** DEC-1 to DEC-20, listed in "Decisions".
+- **Decisions:** DEC-1 to DEC-21, listed in "Decisions".
 
 ## How the tracks fit together
 
@@ -53,7 +53,8 @@ ENG    ENG-1..8 ─────────────────────�
 BENCH  BENCH-1 (needs BRICK-0) ── BENCH-2, BENCH-3 ── M1 ── AUD-1
                                   BENCH-5 ───────────────── M2 ── AUD-2
 DATA   DATA-1 ── DATA-2 acquire DS-1, DS-2 ── processed after BRICK-2 ── DATA-4 register
-BRICK  DEC-10 ── BRICK-3 ── BRICK-0 (benchmark app)
+BRICK  DEC-21 ── BRICK-0 (benchmark app, its own repository)
+       DEC-10 ── BRICK-3
        BRICK-1 ── BRICK-2 (needs DS-3) ── BRICK-4 installer beta (needs M1) ── BRICK-5
 VAL    VAL-1, VAL-2, VAL-3 (need M1, DATA-4) · VAL-4 (needs M2) · VAL-5, VAL-6 ──── M3 ── AUD-3
 LIVE   LIVE-1 (needs M1) · LIVE-3 (needs DATA-4) · LIVE-5 (needs VP4) ── DATA-7 ── LIVE-7 ── M4 ── AUD-4
@@ -141,7 +142,7 @@ Packaging uses LabConstrictor, whose installer builds one app per repository.
 
 | Id | What | Needs | Pass condition |
 |---|---|---|---|
-| BRICK-0 | The benchmark app, packaged early with the design of DEC-10. A LabConstrictor installer pip-installs MorphoCoverage with its `validation` extra. The benchmark scripts of `data/simulations/decisions/` are not part of the package, so the app's `src/` carries them, copied from a pinned MorphoCoverage commit that each summary records. A notebook or command runs a module at a chosen size on every local core, resumes, and summarises. VP0 stays a repository run, since it is a test file. LabConstrictor builds installers with GitHub Actions, so the app repository needs Actions that run: public, or with DEC-1. It is the first test of LabConstrictor packaging. | BRICK-3, DEC-1, DEC-10, DEC-15 | On the owner's machine, the installed app runs each module's pilot and resumes after being stopped. Its `summary.csv` equals that of a run from the repository at the same seed in every column but the run times, and it selects the same methods. |
+| BRICK-0 | The benchmark app, in its own repository, separate from the MorphoBricks installer (owner, 2026-10-13; DEC-21). It is for the owner and reviewers rerunning the pre-registered protocol, not for users, so it never ships in the MorphoBricks installer. That keeps its comparators out of that installer, including the GPL-3.0 harmonypy, and lets one installer match one protocol commit, archived for the paper. It is a LabConstrictor app that pip-installs MorphoCoverage with its `validation` extra, at a pinned tag or commit. The benchmark code stays in MorphoCoverage, in `data/simulations/decisions/`, next to the protocol and its smoke tests. The app's `src/` carries a copy taken from a pinned MorphoCoverage commit, which each summary records. A notebook or command runs a module at a chosen size on every local core, resumes, and summarises. VP0 stays a repository run, since it is a test file. LabConstrictor builds installers with GitHub Actions, so the app repository needs Actions that run: public, or with DEC-1. It is the first test of LabConstrictor packaging and needs none of the upstream MorphoBricks changes. | DEC-1, DEC-14, DEC-15, DEC-21 | On the owner's machine, the installed app runs each module's pilot and resumes after being stopped. Its `summary.csv` equals that of a run from the repository at the same seed in every column but the run times, and it selects the same methods. |
 | BRICK-1 | The FOV table and identities upstream: the CellPatcher and fiberfeatures changes in [the FOV contract](morphobricks_fov_contract.md), section 2. CellPatcher's technical-repeat PR #9 lands when the owner says so (DEC-9). MorphoRelate is added to AGENTS.md section 18. | DEC-9 | Each upstream main emits the per-image table: zero-object and failed images listed, `position_id` where a file is not one position, the shared column names. |
 | BRICK-2 | The end-to-end test on DS-3: raw images, then CellPatcher, then feature extraction, then MorphoCoverage's `report` and `html_report`, every tool at a pinned commit. It also becomes a job of ENG-5's script, run on every pin change. | BRICK-1, DATA-3 | The FOV table lists every image: the zero-object image with 0 objects, the failed image marked failed, not dropped. Repeated file names stay distinct fields. `check_tables` reports no error. A second run is identical. An image removed from the inputs shows as a missing field. |
 | BRICK-3 | Each module pip-installable at a pinned version: MorphoCoverage, CellPatcher and the feature extraction each get a version (`__version__` and git tags, DEC-14) and are installable from where DEC-10 says, PyPI or a git tag, which needs the repositories public or a token on the user's machine (DEC-15). | DEC-10, DEC-14, DEC-15 | `pip install` of each module at its pinned version works in a clean environment. The MorphoCoverage notebook runs from a clean Colab. |
@@ -236,7 +237,8 @@ Not scheduled: #401, #402, #195, OW 15 to 17 and 19 to 21.
 
 The owner makes each one before the step it names, and it is recorded in AGENTS.md or the
 protocol, not here. The open ones are put to the owner together: before BENCH-1, which needs
-three of them (DEC-2, DEC-5, DEC-6), and at each milestone.
+DEC-2, DEC-5 and DEC-6, and through BRICK-0 DEC-1, DEC-14, DEC-15 and DEC-21; and at each
+milestone.
 
 | Id | Decision | Before |
 |---|---|---|
@@ -249,17 +251,18 @@ three of them (DEC-2, DEC-5, DEC-6), and at each milestone.
 | DEC-7 | The machine for BENCH-2: the owner's multi-core computer with the benchmark app, else Colab sessions or a paid runner | BENCH-2 |
 | DEC-8 | VP9's claim: the variance, or named quantiles | VP9's ADEMP section |
 | DEC-9 | When CellPatcher PR #9, the technical repeat, lands | BRICK-1 |
-| DEC-10 | The packaging design. Proposed by the owner, 2026-10-13: a single MorphoBricks repository does the packaging and pip-installs the modules at pinned versions. To confirm: whether the modules come from PyPI or from git tags (LabConstrictor's `requirements.yaml` lists pinned pip packages; git URLs there are untested), and whether BRICK-0's benchmark app is that repository's first version | BRICK-0, BRICK-3 |
+| DEC-10 | The packaging design of the MorphoBricks installer. Proposed by the owner, 2026-10-13: a single MorphoBricks repository does the packaging and pip-installs the modules at pinned versions. To confirm: whether the modules come from PyPI or from git tags (LabConstrictor's `requirements.yaml` lists pinned pip packages; git URLs there are untested) | BRICK-3 |
 | DEC-11 | How LIVE reaches the microscope. Through a `LiveFolder` filled per field only, or also by a direct integration such as Micro-Manager, which the bridge does not provide and AGENTS.md section 4 excludes today. Also whether the bridge hosts a long-running watch, or the tool is one-shot, replaying the folder and deciding now | BRICK-6, LIVE-7 |
 | DEC-12 | Who the external auditors of VAL-5 are | VAL-5 |
 | DEC-13 | The multi-group outcome contract and its registry | VAL-6 |
-| DEC-14 | The version scheme: how versions are numbered and tagged, and from which version the interface is stable | BRICK-3 |
-| DEC-15 | The repository's visibility, and the licences: the `validation` extra holds the GPL-3.0 harmonypy, which the benchmark app would bundle | BRICK-0, BRICK-3 |
+| DEC-14 | The version scheme: how versions are numbered and tagged, and from which version the interface is stable | BRICK-0, BRICK-3 |
+| DEC-15 | The repositories' visibility, and the licences: the `validation` extra holds the GPL-3.0 harmonypy, which the benchmark app bundles and the MorphoBricks installer does not | BRICK-0, BRICK-3 |
 | DEC-16 | The sampling-frame input contract, with CellPatcher | DATA-1 |
 | DEC-17 | AGENTS.md sections 3 and 18 gain the bridge's hosts and its command line as usage contexts; today they defer a command line | BRICK-5 |
 | DEC-18 | Who the second reviewer is, verifying implementations beside the owner | BENCH-3 |
 | DEC-19 | The cost-model inputs `C_sample` and `C_FOV` | OW 10 |
 | DEC-20 | The 1.0 scope: which workflows ship validated, whether LIVE is in 1.0, whether the `repeat` alias is removed | AUD-5 |
+| DEC-21 | The benchmark app's repository: its name, proposed `MorphoCoverage-Benchmark`, and its visibility, public when reviewers are to rerun it | BRICK-0 |
 
 ## Audits
 
