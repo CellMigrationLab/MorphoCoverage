@@ -297,6 +297,7 @@ src/morphocoverage/
         frontier_text.py   # its sentences
         inspection.py      # inspect-these-fields: one traceable reason per FOV and line
         inspection_text.py # its words: the fields in a table (short), every reason per group (full)
+        _field_reasons.py  # private: its count and new-state reasons, and what its groups gather beside their fields
         _stage_neighbours.py  # private: its stage-neighbour reason (a field unlike its nearest fields on the stage)
         _run_identity.py   # private: the typed fingerprint of one replayed run (stream, reservoir, labels), required to score a frontier family
         controls.py        # representation controls: detection and false-alarm rates
