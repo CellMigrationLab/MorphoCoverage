@@ -1,4 +1,4 @@
-"""The pre-registered benchmark behind MorphoCoverage's rules (docs/common/validation.md).
+"""The benchmark behind MorphoCoverage's rules (docs/common/validation.md).
 
 A common design skeleton (``design``), separate outcome generators (``scalar``,
 ``embedding``, ``populations``, ``sequential``), one runner (``runner``, ``summary``), one

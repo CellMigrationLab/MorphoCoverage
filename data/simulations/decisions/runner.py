@@ -17,7 +17,7 @@ same dataset (docs/common/validation.md, "How the benchmark is run").
 - **Sizes.** ``smoke`` (one replicate of the first point of each kind and alternative
   class, small settings: a test of the code), ``pilot`` (1% of the full replicates of every
   point, at least 2: timing, memory, convergence and generator sanity only, never a
-  result), ``full`` (the pre-registered counts, ``FULL``).
+  result), ``full`` (the counts fixed by the protocol, ``FULL``).
 
 Usage, from the repository root (each module script calls ``main``)::
 
@@ -44,7 +44,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-# The pre-registered replicate counts (docs/common/validation.md, "Selection rule").
+# The replicate counts fixed by the protocol (docs/common/validation.md, "Selection rule").
 FULL = {"core_null": 10_000, "core": 1_000, "stress": 1_000, "screening": 250}
 PILOT_SHARE = 0.01
 # Development runs (smoke, pilot) use seed 0; the confirmatory runs a new seed, fixed here
@@ -108,7 +108,7 @@ class Method:
 
 @dataclass(frozen=True)
 class Rule:
-    """The pre-registered selection rule of one question (docs/common/validation.md): the
+    """The selection rule of one question (docs/common/validation.md): the
     gate metric on the gated points and its bound (``binomial``: simultaneous one-sided
     Clopper-Pearson; ``mean``: normal; an empty ``gate``: none), the interval coverage
     gate, outputs that must always be 1 (``hard``), the objective over the alternative

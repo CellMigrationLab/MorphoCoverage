@@ -1,12 +1,13 @@
-# Validation protocol: the pre-registered benchmark
+# Validation protocol: the benchmark that chooses the rules
 
 This page fixes, before any confirmatory run, how each rule of MorphoCoverage is chosen
 and validated: the purpose, the principles, the selection rule, the designs, and the
 modules P0-P11, each in the ADEMP form of Morris, White and Crowther (2019): **A**im,
 **D**ata-generating mechanisms, **E**stimands, **M**ethods, **P**erformance measures. It
-holds no results. Its commit date is the date of the pre-registration; any later change
-to it is recorded under [Deviations](#deviations) with its reason and date (plan v2,
-adopted by the owner, 2026-10-06).
+holds no results. It is fixed before the confirmatory runs, to decide empirically what
+MorphoCoverage implements; it is not a registered study (owner, 2026-10-13). Any change
+after it was fixed is recorded under [Deviations](#deviations) with its reason and date
+(plan v2, adopted by the owner, 2026-10-06).
 
 The code is in [`data/simulations/decisions/`](../../data/simulations/decisions/README.md):
 one design skeleton, separate outcome generators, one runner, one script per module, the
@@ -306,8 +307,9 @@ imaging sessions and acquisition order) and separate outcome generators: scalar 
   wells, 5 or 80 cells, field share 0.02 or 0.3, overdispersed counts, CV 0.8). Stress:
   unrecorded wells, autocorrelated fields along the order (0.6), informative cluster size,
   MNAR loss, empty fields recorded or omitted, t3 tails, wells imaged one after the other.
-- **Estimand**: the sample's cell-weighted mean with every field imaged, given its wells
-  (computed by quadrature); the stop asks for a relative precision of 5%.
+- **Estimand**: the sample's cell-weighted mean over the wells that could have been
+  sampled, not only the wells imaged (a deviation of 2026-10-13); the stop asks for a
+  relative precision of 5%.
 - **Methods**: ours, the package's bootstrap of wells then fields, widened for the units
   resampled (Ren et al. 2010); the ratio-estimator SE with a t quantile; a two-stage
   bootstrap; a moving-block bootstrap along the acquisition order (Künsch 1989); the
@@ -356,8 +358,9 @@ before its confirmatory run. Planned content:
 - **P9, beyond the mean**: the claim defined first (variance, named quantiles), else it
   stays exploratory.
 - **P10, novelty and combined spaces**: an empirical threshold from held-out control
-  fields; MFA (Escofier and Pagès 1994) as a sensitivity; the MAD floor; the unusualness
-  threshold.
+  fields; MFA (Escofier and Pagès 1994) as a sensitivity; the MAD floor, including whether
+  novelty's `RobustStandardize` takes the geometry rule of `statistics.robust_sd` (it keeps
+  its zero rule until then, owner, 2026-10-13); the unusualness threshold.
 - **P11, separation score**: chance from a permutation that keeps the hierarchy.
 
 ## Minimum SI and exploratory labels
@@ -417,6 +420,14 @@ the chunks in progress. What is sent back is each module's `summary.md` and `sum
   20 features at 3, 4 and 6 repeats (`core_null_n*_family`) and the alternative class
   `family` (20 features, a fifth with a 1 SD multiplicative effect). Until P1 selects, the
   report keeps the paired t and says when a verdict "rests on 3 near-identical repeats".
+- **2026-10-13, not a registered study** (owner). The protocol is fixed before its
+  confirmatory runs to decide empirically what MorphoCoverage implements. It is not
+  deposited, and the documentation and the paper do not call it a pre-registration. The
+  confirmatory seed, the selection rule and the order of work stay as written.
+- **2026-10-13, P4's estimand, before any P4 run** (owner). The estimand was the sample's
+  mean "given its wells", the wells imaged. It becomes the mean over the wells that could
+  have been sampled, the quantity the package's bootstrap of wells then fields targets.
+  `sequential.Sequence.truth` changes to it before P4's pilot (roadmap BENCH-1).
 
 ## References
 

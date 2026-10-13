@@ -48,7 +48,7 @@ MorphoBricks ecosystem rules (shared with the other MorphoBricks repositories):
 - **Never rename shared CSV columns** (`position_id`, `image_file`, `z` or `z0`/`z1`, `c`, `t` (all 0-based), `condition`, `biological_repeat`, `technical_repeat`, and `mask_file`, `patch_file` as provenance). Other repos depend on them. The biological repeat's column was renamed from `repeat` to `biological_repeat` by the project owner on 2026-09-30; the former name is still read, with a `DeprecationWarning`, at the input boundary only (`_former_repeat`, section 5). MorphoCoverage rejects near-miss spellings such as `Biological_Repeat`, `bio_repeat` or `tec_repeat` ("did you mean ...?") rather than renaming them.
 - **Never hard-code machine-specific paths.** Use function arguments, config or environment variables; tests locate repository data relative to the test file.
 - **Never break public interfaces** (anything in `morphocoverage.__all__`) without explicit user approval.
-- **Keep public functionality usable as an imported dependency and from notebooks.** A CLI is deliberately deferred: the project owner asked to avoid premature CLI work until the scientific core stabilizes (see section 18). Add one only when asked.
+- **Keep public functionality usable as an imported dependency and from notebooks.** A CLI of the package's own is not built: the command line, like napari, Fiji and QuPath, comes through LabConstrictor's Tools bridge (owner, 2026-10-13, DEC-17; section 18).
 
 Scientific rules:
 
@@ -519,7 +519,7 @@ data/
     morphobricks/          # small tables as the other MorphoBricks tools write them (fiberfeatures_patches.csv), with provenance
     simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py,
                            # unusual_calibration.py, whole_table.py, beyond_the_mean.py) and results;
-                           # decisions/: the pre-registered benchmark (docs/common/validation.md, owner 2026-10-06)
+                           # decisions/: the benchmark fixed before its runs (docs/common/validation.md, owner 2026-10-06)
     synthetic/             # a constructed end-to-end dataset with known answers (make_synthetic.py, expected.json)
     scenarios/             # one small dataset per kind of input (tables, controls, normalisation, unit, wells,
                            # targets; edge designs; user mistakes) with the truth (make_scenarios.py, README.md)
@@ -533,7 +533,7 @@ docs/                      # README.md: start here, the three workflows and a re
     common/                # setup.md, what_happens.md, data_format.md, glossary.md (generated from glossary.py),
                            # project_aim.md, scientific_contract.md, architecture.md, morphobricks_fov_contract.md,
                            # roadmap.md (phases, audits, clean-up rules), open_work.md,
-                           # validation.md (the pre-registered benchmark)
+                           # validation.md (the benchmark fixed before its runs)
     audit/, proposals/, preliminary_findings.md  # records, kept as written
 
 `tests/test_contracts.py` checks that every module under `src/morphocoverage/` is listed above, as it checks section 9's scenarios. A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.
@@ -552,6 +552,28 @@ Do not skip directly to a polished `analyze()` API.
 8. Add targeted counterexamples and regression fixtures when real-data failures reveal them.
 9. Select a default estimator or decision rule only if evidence supports one.
 10. Validate continue/stop decisions prospectively before considering targeted smart-microscopy acquisition.
+
+The schedule is [`docs/common/roadmap.md`](docs/common/roadmap.md). Its decisions, taken by the owner on 2026-10-13 (DEC-n are the roadmap's ids):
+
+- DEC-1, DEC-21: the benchmark app lives in its own private repository, `guijacquemet/MorphoCoverage-Benchmark`, where GitHub Actions run; its builds read this repository with a read-only token stored as an Actions secret. This repository keeps the local gate of the roadmap's ENG-1 while its Actions are blocked.
+- DEC-2: the ECM tables are development data.
+- DEC-3: the audit history gains a paragraph per later audit and a table of renamed test files; its earlier paragraphs stay as written.
+- DEC-4: the deep held-out acquisition (DS-1) follows the roadmap's DATA-2 specification.
+- DEC-5: VP4's estimand becomes the mean over the wells that could have been sampled, not the wells imaged (a deviation in the protocol).
+- DEC-6: the benchmark is not a registered study. It is fixed before its confirmatory runs to decide empirically what to implement; it is not deposited, and nothing calls it a pre-registration.
+- DEC-7: the confirmatory runs run on the owner's multi-core computer.
+- DEC-8: VP9's claim is decided after VP1 to VP5.
+- DEC-9: CellPatcher's technical-repeat PR #9 is not merged yet; the upstream FOV work proceeds without it.
+- DEC-10, DEC-14: versions follow SemVer 0.x, stable from 1.0, tagged `vX.Y.Z`. The MorphoBricks installer pip-installs each module from its git tag until 1.0, from PyPI after.
+- DEC-11: how LIVE reaches the microscope is decided after M4; the prospective pilot uses `live_session` over a `LiveFolder` from a notebook.
+- DEC-12: another lab member runs the external audits of OPTIMISE P2 and P6.
+- DEC-13: the multi-group outcome contract is specified after M1.
+- DEC-15: the repositories become public at paper submission.
+- DEC-16: the sampling-frame contract comes later; LIVE-6 is not scheduled.
+- DEC-17: napari, Fiji, QuPath and the command line, through LabConstrictor's Tools bridge, are supported usage contexts (section 18).
+- DEC-18: each shipping PR of a benchmark winner gets an independent AI adversarial review beside the owner's check.
+- DEC-19: the cost-model inputs are given by the user for each experiment; the package has no defaults.
+- DEC-20: release 1.0 holds REPORT and OPTIMISE validated, LIVE (M4 passed), the bridge tools, and drops the `repeat` alias.
 
 ## 9. Validation philosophy and required contract tests
 
@@ -732,7 +754,7 @@ Scientific and computational benchmarking are separate dimensions. Runtime is fi
 
 Inputs: a phenotype-observation feature table from any step-2 tool, plus a FOV table that lists every acquired spatial position, including positions without observations. Current step-1/step-2 outputs do not yet emit such a table; `docs/common/morphobricks_fov_contract.md` lists what they need to change.
 
-Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
+Usage contexts: the importable API and notebooks; napari, Fiji, QuPath and the command line through LabConstrictor's Tools bridge, whose tools call the API (owner, 2026-10-13, DEC-17; roadmap BRICK-5).
 
 ## 19. Glossary
 

@@ -1,4 +1,4 @@
-# The pre-registered benchmark (P0-P5)
+# The benchmark (P0-P5)
 
 The code behind [the validation protocol](../../../docs/common/validation.md): it chooses,
 by a fair benchmark fixed in advance, the rules MorphoCoverage ships. Nothing here is part
@@ -36,7 +36,7 @@ statsmodels and harmonypy, used only here; harmonypy is GPL-3.0):
     PYTHONPATH=src:data/simulations python -m decisions.p1_repeat_inference summarise --out results
 
 - `--size`: `smoke` (one replicate of a few points: a test of the code), `pilot` (1% of
-  the replicates: timing, memory and convergence only), `full` (the pre-registered counts
+  the replicates: timing, memory and convergence only), `full` (the protocol's counts
   and the confirmatory seed, `runner.CONFIRMATORY_SEED`). `--smoke` is `--size smoke`.
 - `--workers`: processes (default every CPU); `--chunk`: replicates per file; `--kinds`:
   the layers to run (`core,stress,screening`); `--seed`: a seed other than the default.
