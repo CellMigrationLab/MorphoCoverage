@@ -26,7 +26,7 @@ import pandas as pd
 from .._caveats import assumption, caveat_lines
 from .._style import check_detail, group_columns, group_label, table, wrap
 from .._wording import column_word, count, plural
-from ..sampling_unit._group_text import selector_values
+from ..sampling_unit._group_text import present, selector_values
 from ..schema import observation_words
 from ._text import percent
 
@@ -207,25 +207,29 @@ def representation_gate(result: ControlResult, minimum_detection: float) -> tupl
     rates = result.pooled.set_index("candidate")["rate"]
     planted = (result.settings.get("control") or {}).get("planted_objects")
     rate = rates.get("planted" if planted else "positive")
-    if planted and (rate is None or pd.isna(rate)):
+    if planted and not present(rate):
         return NOT_PLANTED, False
     alarms = rates.get("reference")
-    both = not (rate is None or pd.isna(rate) or alarms is None or pd.isna(alarms))
+    both = present(rate) and present(alarms)
     if both and float(rate) <= float(alarms):  # nothing told apart: not judged (audit 10, C1)
         return cannot_tell(float(rate), float(alarms)), False
-    if rate is None or pd.isna(rate) or float(rate) >= minimum_detection:
+    if not present(rate) or float(rate) >= minimum_detection:
         return "", False
+    return _weak(result, float(rate), planted, minimum_detection), True
+
+
+def _weak(result: ControlResult, rate: float, planted: Any, minimum_detection: float) -> str:
+    """``Weak representation: ...``: the fields that gate, recognized below the minimum."""
     seen = (
         f"ordinary fields with {planted} planted positive-control objects"
         if planted
         else "fields of the declared positive control"
     )
     pooled = f", {pooled_over(result)}" if pooled_over(result) else ""
-    weak = (
-        f"Weak representation: {seen} were recognized in only {percent(float(rate))} of "
+    return (
+        f"Weak representation: {seen} were recognized in only {percent(rate)} of "
         f"checks{pooled} (below {percent(minimum_detection)})"
     )
-    return weak, True
 
 
 def _not_assessed(result: ControlResult) -> str:

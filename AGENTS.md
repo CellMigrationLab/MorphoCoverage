@@ -301,6 +301,7 @@ src/morphocoverage/
         _run_identity.py   # private: the typed fingerprint of one replayed run (stream, reservoir, labels), required to score a frontier family
         controls.py        # representation controls: detection and false-alarm rates
         controls_text.py   # their sentences
+        _control_draws.py  # private: the controls' checks one stratum at a time: draws, leave one field out, planted objects
         effort.py          # nested variance components and projected SE at equal FOVs
         effort_design.py   # its standard errors and allocations: acquired and balanced designs
         effort_text.py     # the effort projection in words (technical repeats, samples, caveats)
