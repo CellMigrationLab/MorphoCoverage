@@ -150,11 +150,16 @@ def span(values: Iterable[float], kind: str = "number") -> str:
         raise ValueError("span needs at least one value")
     write = percent if kind == "percent" else number
     low, high = write(found[0]), write(found[-1])
-    if low == high:
-        return low
-    if kind == "percent" and low.endswith("%") and high.endswith("%"):
+    if kind == "percent" and low != high and low.endswith("%") and high.endswith("%"):
         low = low[:-1]
-    return f"{low} to {high}"
+    return low_to_high(low, high)
+
+
+def low_to_high(low: Any, high: Any) -> str:
+    """``3 to 5``, the ends written as given, or one of them alone when they read the same: a
+    range whose ends are equal is one number (owner, 2026-10-12)."""
+    low, high = str(low), str(high)
+    return low if low == high else f"{low} to {high}"
 
 
 # --- Rule names ---------------------------------------------------------------
@@ -436,6 +441,7 @@ __all__ = [
     "headline",
     "indent_width",
     "indented",
+    "low_to_high",
     "merge_numbers",
     "number_pattern",
     "rule_label",

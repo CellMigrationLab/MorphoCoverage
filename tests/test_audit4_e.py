@@ -150,7 +150,7 @@ def test_p2_2_rare_stop_states_where_the_fields_have_looked():
     ]
     assert early, "the raster must stop the rare rule before it reaches the rare rows"
     line = early[0].results[1].explain(early[0].order_check)
-    assert "the fields so far cover the stage at stage_x 0 to 2000, stage_y 0 to 0" in line
+    assert "the fields so far cover the stage at stage_x 0 to 2000, stage_y 0" in line
     assert RARE_ASSUMPTION in line
     # In the report, the share of the stage extent the recorded order had covered.
     report = sufficiency_report(

@@ -26,7 +26,7 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._control import versus
-from .._style import SINGLE_LEVEL, Status, table, wrap
+from .._style import SINGLE_LEVEL, Status, low_to_high, table, wrap
 from .._wording import count, percent
 from ..metadata import REPEAT_COLUMN
 from ..sampling_unit.contrast_sampling import LEVEL, MIN_FIELDS, MORE_WELLS, PRACTICAL
@@ -139,7 +139,8 @@ def _interval(row: dict[str, Any]) -> str:
     # Not assessable: d alone, its interval kept for the plan only (audit 10).
     if pd.isna(row["d_low"]) or not row.get("assessable", True):
         return "no interval" if pd.isna(row["d_objects"]) else f"{row['d_objects']:+.2f}"
-    return f"{row['d_objects']:+.2f} ({row['d_low']:+.2f} to {row['d_high']:+.2f})"
+    interval = low_to_high(format(row["d_low"], "+.2f"), format(row["d_high"], "+.2f"))
+    return f"{row['d_objects']:+.2f} ({interval})"
 
 
 def _rows(rows: pd.DataFrame, fields: str = "fields") -> list[list[str]]:

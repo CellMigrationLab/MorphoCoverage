@@ -20,7 +20,16 @@ import pandas as pd
 
 from . import _integrity_match as match
 from ._caveats import assumption, caveat_lines
-from ._style import NOT_ASSESSED, Status, check_detail, group_columns, headline, table, wrap
+from ._style import (
+    NOT_ASSESSED,
+    Status,
+    check_detail,
+    group_columns,
+    headline,
+    low_to_high,
+    table,
+    wrap,
+)
 from ._wording import count, listing
 
 if TYPE_CHECKING:
@@ -172,9 +181,7 @@ def _finding_table(result: IntegrityResult) -> list[str]:
                 check + _in(key),
                 _between(settings, group, other),
                 count(len(found), "field" if within else "pair"),
-                observations[0]
-                if len(observations) == 1
-                else f"{observations[0]} to {observations[-1]}",
+                low_to_high(observations[0], observations[-1]),
             ]
         )
     rows, more = _capped(rows, "more row")

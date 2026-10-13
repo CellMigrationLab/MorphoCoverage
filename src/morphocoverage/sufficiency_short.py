@@ -39,6 +39,7 @@ from ._style import (
     among,
     group_columns,
     group_label,
+    low_to_high,
     merge_numbers,
     number_pattern,
     rule_label,
@@ -160,8 +161,9 @@ def _stops_cell(stops: pd.DataFrame, config: str, kind: str, groups: int) -> str
         return text if len(reached) == groups else f"{text} ({len(reached)} of {groups})"
     median = statistics.median(reached["stop_fov_median"].astype(float))
     text = (
-        f"{number(median)} ({number(reached['stop_fov_p10'].min())} to "
-        f"{number(reached['stop_fov_p90'].max())})"
+        f"{number(median)} ("
+        + low_to_high(number(reached["stop_fov_p10"].min()), number(reached["stop_fov_p90"].max()))
+        + ")"
     )
     total, stopped = int(rows["orders"].sum()), int(met.sum())
     if stopped == total:

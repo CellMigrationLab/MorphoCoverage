@@ -240,7 +240,7 @@ def test_overview_full_names_planes_and_a_missing_condition_or_repeat_column():
         planes, fovs, feature_cols=list(FEATURE_COLS), observation_unit="slice"
     ).summary(detail="full")
     assert text.splitlines()[2] == (
-        "'z' takes 3 to 3 values per field: slices of several planes, channels or frames of one "
+        "'z' takes 3 values per field: slices of several planes, channels or frames of one "
         "field (declared as plane-level rows)."
     )
     no_condition = dataset_overview(

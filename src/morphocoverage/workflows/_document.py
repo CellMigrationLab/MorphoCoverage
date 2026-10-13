@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 
 from .._caveats import ASSUMPTIONS, assumption, caveat_lines, pool_assumptions
-from .._style import CAUTION, Status, worst, wrap
+from .._style import CAUTION, Status, low_to_high, worst, wrap
 from .._wording import count, fields, listing, number, percent
 from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_report
 from ..retrospective.effort_design import between_technical_repeats
@@ -295,10 +295,11 @@ def _technical_repeats(document: MicroscopistReport, results: Mapping[str, Any])
         )
         text = (
             f"Between technical repeats ({feature}): in {groups} with 2 or more technical "
-            f"repeats, their means spread {number(ratio)} times (median; {number(ratios[0])} "
-            f"to {number(ratios[-1])}) as much as their fields alone predict, and the mean over "
-            f"them has a relative standard error of about {percent(error)} (median; "
-            f"{percent(errors[0])} to {percent(errors[-1])}) from that spread. Every 'enough' "
+            f"repeats, their means spread {number(ratio)} times (median; "
+            f"{low_to_high(number(ratios[0]), number(ratios[-1]))}) as much as their fields alone "
+            f"predict, and the mean over them has a relative standard error of about "
+            f"{percent(error)} (median; {low_to_high(percent(errors[0]), percent(errors[-1]))}) "
+            "from that spread. Every 'enough' "
             "of question 2 is per technical repeat and says nothing about this variation, "
             f"which only more technical repeats reduce (optimise, question 7){uncertain}."
             f"{_left_out(left)}"

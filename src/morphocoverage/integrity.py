@@ -77,7 +77,7 @@ from ._checks import as_count, is_number
 from ._frozen import owned
 from ._integrity_selection import _Log, _Selection, _selection
 from ._integrity_text import PRECISION, integrity_status, integrity_summary
-from ._style import Status, group_label
+from ._style import Status, group_label, low_to_high
 from ._wording import listing, plural, where
 from .data_check import validate_input_tables
 from .metadata import column_names
@@ -464,7 +464,8 @@ def _within_field(
         )
         if length >= min(block_length, n):
             detail = (
-                f"the field holds its observations {start + 1} to {start + length} again from "
+                f"the field holds its observations {low_to_high(start + 1, start + length)} again "
+                "from "
                 f"observation {again + 1} ({_PRECISION})"
                 + (f"; {n} observations repeat in all" if n > length else "")
                 + ": a table appended to itself, or merged with one that has a row per channel "

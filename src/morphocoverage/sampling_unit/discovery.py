@@ -50,7 +50,7 @@ from .._control import check_comparisons, compared_name, control_name
 from .._former_repeat import one_warning, read_former
 from .._frozen import owned
 from .._parallel import check_n_jobs
-from .._style import check_detail, span, table, wrap
+from .._style import check_detail, low_to_high, span, table, wrap
 from .._wording import (
     change,
     column_word,
@@ -204,7 +204,7 @@ def _limited(row: Mapping[str, Any]) -> list[str]:
     if row["repeats"] != MIN_REPEATS or not row["repeat_contrasts"]:
         return ["–", "–"]
     low, high = row["ci_low"], row["ci_high"]
-    interval = f"{change(low, values)} to {change(high, values)}" if np.isfinite(low) else "–"
+    interval = low_to_high(change(low, values), change(high, values)) if np.isfinite(low) else "–"
     return [contrasts_words(row["repeat_contrasts"], values), interval]
 
 

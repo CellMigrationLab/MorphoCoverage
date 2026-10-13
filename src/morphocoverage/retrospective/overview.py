@@ -27,7 +27,7 @@ from .._control import control_name
 from .._data_rules import _loose
 from .._former_repeat import one_warning, read_former
 from .._frozen import owned
-from .._style import Status, check_detail, group_columns, wrap
+from .._style import Status, check_detail, group_columns, low_to_high, wrap
 from .._style import table as style_table
 from .._wording import column_word, count, listing
 from ..data_check import DataCheck, Problem, validate_input_tables
@@ -158,7 +158,7 @@ class DatasetOverview:
         if design:
             lines.append(design)
         for axis, (low, high) in settings.get("planes", {}).items():
-            lines.append(f"{axis!r}: {low} to {high} planes per field, one field each.")
+            lines.append(f"{axis!r}: {low_to_high(low, high)} planes per field, one field each.")
         status, text = data_check_status(self)
         lines.append(f"{status.marker} {text[:1].upper()}{text[1:]}.")
         lines += [f"{Status.CAUTION.marker} {check}" for check in self.value_checks]
@@ -278,7 +278,8 @@ class DatasetOverview:
             lines.append(self._technical_line(technical_col))
         for axis, (low, high) in self.settings.get("planes", {}).items():
             lines.append(
-                f"{axis!r} takes {low} to {high} values per field: {words} of several planes, "
+                f"{axis!r} takes {low_to_high(low, high)} values per field: {words} of several "
+                "planes, "
                 "channels or frames of one field (declared as plane-level rows)."
             )
         lines += self._grouping_lines(words)

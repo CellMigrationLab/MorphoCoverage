@@ -20,7 +20,7 @@ from typing import Any
 import pandas as pd
 
 from ._caveats import _sentence, is_assumption
-from ._style import rule_label
+from ._style import low_to_high, rule_label
 from ._wording import count, listing, number, percent
 from .bounds import EXTRA_TRIALS_LIMIT
 from .evidence import Direction
@@ -68,8 +68,9 @@ def _stops_clause(stops: Mapping[str, Any]) -> str:
         se = stops.get("stop_fov_median_mc_se")
         se = "" if se is None or pd.isna(se) else f"; Monte Carlo SE {number(se)}"
         first += (
-            f" (median{se}; 10 to 90%: {number(stops['stop_fov_p10'])} to "
-            f"{number(stops['stop_fov_p90'])})"
+            f" (median{se}; 10 to 90%: "
+            + low_to_high(number(stops["stop_fov_p10"]), number(stops["stop_fov_p90"]))
+            + ")"
         )
     share = f"all {count(orders, kind)}" if met == orders else f"{met} of {count(orders, kind)}"
     return f"in {where or share}, {first}"
@@ -291,8 +292,10 @@ def _few_fovs_lines(row: Mapping[str, Any], confidence: str) -> list[str]:
         lines.append(
             f"Planning for such a state: these FOVs together are "
             f"{percent(row['few_state_incidence'])} of FOVs ({confidence} interval "
-            f"{percent(row['few_state_incidence_low'])} to "
-            f"{percent(row['few_state_incidence_high'])}); to see a state that "
+            + low_to_high(
+                percent(row["few_state_incidence_low"]), percent(row["few_state_incidence_high"])
+            )
+            + "); to see a state that "
             f"common at least once with {confidence} probability, image about "
             f"{int(row['fovs_to_see_again'])} independent representative FOVs, up "
             f"to {int(row['fovs_to_see_again_low_end'])} at the low end of the "

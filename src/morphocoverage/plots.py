@@ -81,6 +81,7 @@ from ._palette import (
 from ._plots_clusters import _cluster_units, _draw_cluster, _mask
 from ._plots_text import legend, title
 from ._seeds import group_rng
+from ._style import low_to_high
 from ._wording import shortened
 from .data_check import validate_input_tables
 from .metadata import (
@@ -391,7 +392,8 @@ def _feature_figures(plot: _Plot, feature: str, max_conditions: int) -> list[Fig
         chunk = lead + rest[start : start + size]
         shown = len(chunk) - len(lead)
         part = (
-            f" (conditions {start + 1} to {start + shown} of {len(rest)}"
+            f" ({'conditions' if shown > 1 else 'condition'} "
+            f"{low_to_high(start + 1, start + shown)} of {len(rest)}"
             + (", with the control)" if lead else ")")
             if len(rest) > size
             else ""

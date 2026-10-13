@@ -29,7 +29,7 @@ import pandas as pd
 
 from .._caveats import caveat_lines, once
 from .._control import control_name
-from .._style import among, group_label, span, wrap
+from .._style import among, group_label, low_to_high, span, wrap
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..sampling_unit._state_text import (
@@ -293,7 +293,8 @@ def _fields_line(profile: pd.DataFrame, variability: Any, observations: str) -> 
             if len(shares)
             else ""
         )
-        spread = f"{effects.min():.1f} to {effects.max():.1f} over {count(len(ok), 'group')}"
+        ends = low_to_high(f"{effects.min():.1f}", f"{effects.max():.1f}")
+        spread = f"{ends} over {count(len(ok), 'group')}"
         text = (
             f"Fields: a mean from whole fields varies {effects.median():.1f} times as much as one "
             f"from as many random {observations} (median; {spread}){differ}."

@@ -32,7 +32,7 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._control import control_name, versus
-from .._style import SINGLE_LEVEL, among, check_detail, span, table, wrap
+from .._style import SINGLE_LEVEL, among, check_detail, low_to_high, span, table, wrap
 from .._wording import column_word, count, listing, number, percent
 from ..metadata import REPEAT_COLUMN
 from ..schema import observation_words
@@ -463,7 +463,8 @@ def _draw_cells(
             cells.append("–")
             continue
         r = by.loc[sampling]
-        cell = f"{r['median']:.2f} ({r['q25']:.2f} to {r['q75']:.2f})"
+        quartiles = low_to_high(format(r["q25"], ".2f"), format(r["q75"], ".2f"))
+        cell = f"{r['median']:.2f} ({quartiles})"
         if not pd.isna(r["same_sign"]):
             cell += f", {percent(r['same_sign'])}"
         cells.append(cell)

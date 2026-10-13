@@ -18,6 +18,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._style import low_to_high
 from .._wording import change, contrasts_words, p_value
 from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.discovery import declared_scales
@@ -200,7 +201,7 @@ def _limited(row: Any) -> list[str]:
     if row.repeats != MIN_REPEATS or not isinstance(row.repeat_contrasts, str):
         return ["–", "–"]
     interval = (
-        f"{change(row.ci_low, row.values)} to {change(row.ci_high, row.values)}"
+        low_to_high(change(row.ci_low, row.values), change(row.ci_high, row.values))
         if pd.notna(row.ci_low)
         else "–"
     )

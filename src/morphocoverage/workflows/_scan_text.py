@@ -6,7 +6,7 @@ from typing import Any
 
 import pandas as pd
 
-from .._style import table, wrap
+from .._style import low_to_high, table, wrap
 from .._wording import count, listing
 from ._scan_rules import fields_line, repeat_lines, technical_line, unit_words
 
@@ -96,7 +96,7 @@ def _layout_lines(scan: Any) -> list[str]:
     rows = []
     for condition, counts in layout.iterrows():
         held = counts.dropna().astype(int)
-        rows.append([condition, len(held), f"{held.min()} to {held.max()}", int(held.sum())])
+        rows.append([condition, len(held), low_to_high(held.min(), held.max()), int(held.sum())])
     return [
         f"{words.capitalize()} per condition (over its biological repeats):",
         table(rows, ["condition", "repeats", "per repeat", "total"], indent=4, align="lrrr"),
@@ -110,7 +110,7 @@ def _design_lines(scan: Any) -> list[str]:
     # The other feature tables, checked, before "Loaded correctly?" (owner, 2026-10-05).
     sentences += [f"Other feature table {line}" for line in scan.design.get("feature_tables", [])]
     for axis, (low, high) in scan.design["planes"].items():
-        sentences.append(f"{axis!r}: {low} to {high} planes per field, one field each.")
+        sentences.append(f"{axis!r}: {low_to_high(low, high)} planes per field, one field each.")
     for sentence in sentences:
         if sentence is None:
             continue

@@ -23,7 +23,16 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 
 from .._caveats import assumption, caveat_lines
-from .._style import check_detail, group_label, merge_numbers, number_pattern, span, table, wrap
+from .._style import (
+    check_detail,
+    group_label,
+    low_to_high,
+    merge_numbers,
+    number_pattern,
+    span,
+    table,
+    wrap,
+)
 from .._wording import count, number
 from ._text import column_word, fields, median_beyond, percent, plural, rows_of, sample_word
 
@@ -138,7 +147,7 @@ def _cells(rows: pd.DataFrame, units: pd.DataFrame, w: Mapping[str, str]) -> lis
         interval = (
             "–"
             if row.share_low is None or pd.isna(row.share_low)
-            else f"{percent(row.share_low)} to {percent(row.share_high)}"
+            else low_to_high(percent(row.share_low), percent(row.share_high))
         )
         cells.append(
             [
@@ -468,7 +477,7 @@ def _needed(
         return [], "–"
     pool = [*known.tolist(), *([None] * len(short))]
     median = median_beyond(pool)
-    spread = f"range {known.min()} to {known.max()}" if len(known) else ""
+    spread = f"range {low_to_high(known.min(), known.max())}" if len(known) else ""
     if median is None:
         reached = f"{len(known)} of {count(len(pool), sample, samples_word)}"
         line = (
