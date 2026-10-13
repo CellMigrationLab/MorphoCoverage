@@ -98,3 +98,18 @@ and [the live session](../live/live_session.md).
     near-identical but not identical), opt-in and calibrated on imaging
     datasets before any threshold is used; the exact integrity checks are in
     `docs/report/integrity.md`.
+22. Library references for the hand-written statistics, left open by #101:
+    `statsmodels`' `TTestPower` as the reference of `repeat_plan`'s
+    `paired_power` and `repeats_needed`; `MixedLM` as an external reference
+    for the method-of-moments variance components on simulated balanced and
+    unbalanced designs, never their replacement, which would change the
+    estimator; SciPy's `median_abs_deviation` for the MAD where it is shown
+    equivalent, `RobustStandardize` keeping its zero rule until VP10; and a
+    test that the declared minimum versions support every API the package
+    imports. statsmodels stays in the `validation` extra.
+23. The assessment-state rule of #373, for AGENTS.md section 12: a unit or a
+    comparison is assessed, insufficient data, not applicable or not
+    assessable, each with its reason, and never leaves a denominator or
+    becomes zero, neutral or non-significant evidence because it could not
+    be assessed; invalid input raises. The fixes are in; the rule is not
+    written.
