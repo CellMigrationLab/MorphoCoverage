@@ -84,7 +84,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -97,7 +97,7 @@ from .._seeds import group_rng
 from .._wording import rows_of
 from ..data_check import validate_input_tables
 from ..metadata import column_names
-from ..schema import fov_positions
+from ..schema import ValidatedInput, fov_positions
 from ..statistics import design_effect as _design_effect
 from ..statistics import nested_variance_components
 from .effort_design import (
@@ -403,6 +403,78 @@ def _missing_stratum(data_fovs: pd.DataFrame, stratum: dict[str, Any]) -> str | 
     )
 
 
+class _EffortRun(NamedTuple):
+    """What every stratum of one ``effort_projection`` call is analysed with: ``identity``
+    the FOV-identity columns the hierarchy does not name, ``positions`` the FOV row of each
+    observation and ``values`` its value of ``feature``, ``chosen`` the checked allocations;
+    ``n_boot`` and ``random_state`` as given."""
+
+    data: ValidatedInput
+    feature: str
+    hierarchy: SamplingHierarchy
+    strata: list[str]
+    identity: list[str]
+    positions: np.ndarray
+    values: np.ndarray
+    chosen: list[tuple[int, float]] | None
+    n_boot: int
+    random_state: int
+
+
+def _analysed(
+    run: _EffortRun, stratum: dict[str, Any], where: dict[str, Any]
+) -> dict[str, list[dict]] | str:
+    """The component, projection and comparison rows of one stratum, or why it is skipped."""
+    data, hierarchy = run.data, run.hierarchy
+    reason = _missing_stratum(data.fovs[run.strata], stratum)
+    if reason is not None:
+        return reason
+    positions, values = run.positions, run.values
+    inside = np.ones(len(data.fovs), dtype=bool)
+    for column, value in stratum.items():
+        inside &= data.fovs[column].to_numpy() == value
+    stratum_fovs = data.fovs[inside]
+    # Strata are analysed apart, so a field name reused across them (the same
+    # image name in two conditions) is not a duplicate; within one it is.
+    hierarchy.validate(stratum_fovs)
+    keep = inside[positions] & ~np.isnan(values)
+    if not keep.any():
+        return f"no field holds an observation with a value of {run.feature}"
+    columns = [*hierarchy.levels, *run.identity]
+    cells = data.fovs.iloc[positions[keep]][columns].reset_index(drop=True)
+    cells["value"] = values[keep]
+    # One generator per stratum, so adding a stratum never changes another's interval.
+    rng = group_rng(int(run.random_state), stratum)
+    rows = _stratum(
+        cells, stratum_fovs, hierarchy, run.chosen, int(run.n_boot), rng, where, run.identity
+    )
+    if isinstance(rows, str):
+        # Reported, so one inestimable stratum does not hide the others.
+        return rows
+    n_missing = int((inside[positions] & np.isnan(values)).sum())
+    for row in rows["components"]:
+        row["missing_values"] = n_missing
+    return rows
+
+
+def _settings(run: _EffortRun) -> dict[str, Any]:
+    """The projection's settings, for provenance."""
+    data, chosen = run.data, run.chosen
+    return {
+        ACQUISITION: acquisition_identity(data),
+        "feature": run.feature,
+        "hierarchy": run.hierarchy.parameters,
+        "independent_unit": run.hierarchy.independent_unit,
+        "strata": run.strata,
+        "n_boot": run.n_boot,
+        "min_boot_success": MIN_BOOT_SUCCESS,
+        "random_state": run.random_state,
+        "allocations": None if chosen is None else [list(a) for a in chosen],
+        "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
+    }
+
+
 @one_warning
 def effort_projection(
     objects: pd.DataFrame,
@@ -459,54 +531,20 @@ def effort_projection(
     identity = [c for c in data.fov_key if c not in hierarchy.levels and c not in strata]
     positions = fov_positions(data, data.fovs)
     values = data.feature_values(feature)
+    run = _EffortRun(
+        data, feature, hierarchy, strata, identity, positions, values, chosen, n_boot, random_state
+    )
     tables: dict[str, list[dict]] = {"components": [], "projections": [], "comparisons": []}
     skipped_rows = []
     for stratum in data.fovs[strata].drop_duplicates().to_dict("records") if strata else [{}]:
         where = {**stratum, "stratum": ", ".join(f"{k}={v}" for k, v in stratum.items()) or "all"}
-        reason = _missing_stratum(data.fovs[strata], stratum)
-        if reason is not None:
-            skipped_rows.append({**where, "reason": reason})
-            continue
-        inside = np.ones(len(data.fovs), dtype=bool)
-        for column, value in stratum.items():
-            inside &= data.fovs[column].to_numpy() == value
-        stratum_fovs = data.fovs[inside]
-        # Strata are analysed apart, so a field name reused across them (the same
-        # image name in two conditions) is not a duplicate; within one it is.
-        hierarchy.validate(stratum_fovs)
-        keep = inside[positions] & ~np.isnan(values)
-        if not keep.any():
-            reason = f"no field holds an observation with a value of {feature}"
-            skipped_rows.append({**where, "reason": reason})
-            continue
-        columns = [*hierarchy.levels, *identity]
-        cells = data.fovs.iloc[positions[keep]][columns].reset_index(drop=True)
-        cells["value"] = values[keep]
-        # One generator per stratum, so adding a stratum never changes another's interval.
-        rng = group_rng(int(random_state), stratum)
-        rows = _stratum(cells, stratum_fovs, hierarchy, chosen, int(n_boot), rng, where, identity)
+        rows = _analysed(run, stratum, where)
         if isinstance(rows, str):
-            # Reported, so one inestimable stratum does not hide the others.
             skipped_rows.append({**where, "reason": rows})
             continue
-        n_missing = int((inside[positions] & np.isnan(values)).sum())
-        for row in rows["components"]:
-            row["missing_values"] = n_missing
         for name, own in rows.items():
             tables[name] += own
-    settings = {
-        ACQUISITION: acquisition_identity(data),
-        "feature": feature,
-        "hierarchy": hierarchy.parameters,
-        "independent_unit": hierarchy.independent_unit,
-        "strata": strata,
-        "n_boot": n_boot,
-        "min_boot_success": MIN_BOOT_SUCCESS,
-        "random_state": random_state,
-        "allocations": None if chosen is None else [list(a) for a in chosen],
-        "observation_unit": data.observation_unit,
-        "observation_unit_declared": data.observation_unit_declared,
-    }
+    settings = _settings(run)
     where_columns = [*strata, "stratum"]
     frames = [
         pd.DataFrame(rows, columns=None if rows else where_columns) for rows in tables.values()

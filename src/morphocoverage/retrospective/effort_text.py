@@ -389,62 +389,62 @@ def _allocation_cell(
     return "cannot tell", reason.split("cannot tell from these data (", 1)[1][:-2]
 
 
-def effort_short_parts(result: EffortResult, indent: int = 2) -> tuple[list[str], list[str]]:
-    """One table over the strata, the skipped strata, and every caveat once (see ``effort``)."""
-    w = _words(result)
+def _largest_cell(
+    ranked: pd.DataFrame, w: Mapping[str, Any], units: int, unit: str
+) -> tuple[str, str]:
+    """The short table's largest share, and why it is not established ('' when it is)."""
+    if not len(ranked):
+        return "–", ""
+    top = ranked.iloc[0]
+    place = w["levels"].get(top["level"], top["level"])
+    largest = f"{percent(top['share'])} {place}"
+    caveat = share_caveat(top, units, unit).removeprefix("; not established: ")
+    return largest, caveat
+
+
+def _stratum_notes(
+    result: EffortResult, stratum: Any, first: Mapping[str, Any], w: Mapping[str, Any]
+) -> list[str | None]:
+    """A stratum's sentences about its repeats, its imbalance and its counts (None: none)."""
     samples = w["samples"]
-    pad = " " * indent
-    rows, notes, reasons, shares = [], {}, {}, {}
-    strata = result.components.groupby("stratum", sort=False)
-    labels = []
-    for stratum, own in strata:
-        label = _label(result, own)
-        labels.append(label)
-        first = own.iloc[0]
-        units = int(first["units"])
-        unit = unit_word(w["hierarchy"], str(first["unit"]))
-        ranked = own.dropna(subset=["share"]).sort_values("share", ascending=False)
-        largest = "–"
-        if len(ranked):
-            top = ranked.iloc[0]
-            place = w["levels"].get(top["level"], top["level"])
-            largest = f"{percent(top['share'])} {place}"
-            caveat = share_caveat(top, units, unit).removeprefix("; not established: ")
-            if caveat:
-                shares.setdefault(caveat, []).append(label)
-        compared = result.comparisons[result.comparisons["stratum"] == stratum]
-        answer, reason = _allocation_cell(compared, first, units, unit, samples)
-        if reason and units < FEW_UNITS and len(ranked):
-            # Too few units to establish it, but the estimates still read one way: say how.
-            answer = _leaning(ranked.iloc[0], w["hierarchy"], samples) or answer
-        if reason:
-            reasons.setdefault(reason, []).append(label)
-        rows.append([label, count(units, unit), largest, answer])
-        projections = result.projections[result.projections["stratum"] == stratum]
-        extra = [
-            _repeat_line(first, w["repeat"], samples, w["observations"]),
-            _imbalance_line(projections, first, samples, w["observations"]),
-            *_counts_lines(first, samples, w["observations"]),
-        ]
-        for text in extra:
-            if text:
-                notes.setdefault(number_pattern(text.strip()), []).append((label, text.strip()))
-    lines, cautions = [], []
-    total = len(labels)
-    if rows:
-        lines.append(
-            wrap(
-                f"For the mean {w['feature']}: where most of the uncertainty of the mean sits "
-                f"(its share of the variance with the acquired design), and whether more fields "
-                f"or more {samples}s would help at the same total of fields:",
-                indent,
-                hang=indent + 2,
-            )
-        )
-        strata_cols = [c for c in result.settings.get("strata", [])]
-        head = group_columns(strata_cols) if strata_cols else "stratum"
-        columns = [head, "independent units", "largest share", f"more fields or {samples}s?"]
-        lines.append(table(rows, columns, indent=indent + 2))
+    projections = result.projections[result.projections["stratum"] == stratum]
+    return [
+        _repeat_line(first, w["repeat"], samples, w["observations"]),
+        _imbalance_line(projections, first, samples, w["observations"]),
+        *_counts_lines(first, samples, w["observations"]),
+    ]
+
+
+def _short_table(
+    result: EffortResult, rows: list[list[Any]], w: Mapping[str, Any], indent: int
+) -> list[str]:
+    """The short form's sentence and its table over the strata."""
+    samples = w["samples"]
+    strata_cols = [c for c in result.settings.get("strata", [])]
+    head = group_columns(strata_cols) if strata_cols else "stratum"
+    columns = [head, "independent units", "largest share", f"more fields or {samples}s?"]
+    return [
+        wrap(
+            f"For the mean {w['feature']}: where most of the uncertainty of the mean sits "
+            f"(its share of the variance with the acquired design), and whether more fields "
+            f"or more {samples}s would help at the same total of fields:",
+            indent,
+            hang=indent + 2,
+        ),
+        table(rows, columns, indent=indent + 2),
+    ]
+
+
+def _short_cautions(
+    shares: dict[str, list[str]],
+    reasons: dict[str, list[str]],
+    notes: dict[str, list[tuple[str, str]]],
+    total: int,
+    samples: str,
+) -> list[str]:
+    """Every caveat once, with the strata it holds in: the shares not established, why the
+    data cannot tell, and the strata's sentences (alike ones merged)."""
+    cautions = []
     for reasons_of, lead in (
         (shares, "the largest share is not established"),
         (reasons, f"cannot tell whether more fields or more {samples}s would help"),
@@ -459,10 +459,16 @@ def effort_short_parts(result: EffortResult, indent: int = 2) -> tuple[list[str]
         texts = [text for _, text in alike]
         merged = merge_numbers(texts) if len(texts) > 1 else texts[0]
         cautions.append(f"{_where([label for label, _ in alike], total, lead=False)}{merged}")
-    # Strata skipped for one reason are named together, the reason said once.
+    return cautions
+
+
+def _short_skipped(result: EffortResult, samples: str, indent: int) -> list[str]:
+    """The skipped strata, those skipped for one reason named together, the reason once."""
+    pad = " " * indent
     skipped: dict[str, list[str]] = {}
     for row in result.skipped.itertuples(index=False):
         skipped.setdefault(_not_estimable(result, row), []).append(_skipped_label(result, row))
+    lines = []
     for text, labels in skipped.items():
         lines.append(wrap(f"{listing(labels, 6)}: {text}", pad, hang=indent + 2))
         if "single" in text and "unit holds observations" in text:
@@ -475,6 +481,40 @@ def effort_short_parts(result: EffortResult, indent: int = 2) -> tuple[list[str]
                     hang=indent + 2,
                 )
             )
+    return lines
+
+
+def effort_short_parts(result: EffortResult, indent: int = 2) -> tuple[list[str], list[str]]:
+    """One table over the strata, the skipped strata, and every caveat once (see ``effort``)."""
+    w = _words(result)
+    samples = w["samples"]
+    rows, notes, reasons, shares = [], {}, {}, {}
+    strata = result.components.groupby("stratum", sort=False)
+    labels = []
+    for stratum, own in strata:
+        label = _label(result, own)
+        labels.append(label)
+        first = own.iloc[0]
+        units = int(first["units"])
+        unit = unit_word(w["hierarchy"], str(first["unit"]))
+        ranked = own.dropna(subset=["share"]).sort_values("share", ascending=False)
+        largest, caveat = _largest_cell(ranked, w, units, unit)
+        if caveat:
+            shares.setdefault(caveat, []).append(label)
+        compared = result.comparisons[result.comparisons["stratum"] == stratum]
+        answer, reason = _allocation_cell(compared, first, units, unit, samples)
+        if reason and units < FEW_UNITS and len(ranked):
+            # Too few units to establish it, but the estimates still read one way: say how.
+            answer = _leaning(ranked.iloc[0], w["hierarchy"], samples) or answer
+        if reason:
+            reasons.setdefault(reason, []).append(label)
+        rows.append([label, count(units, unit), largest, answer])
+        for text in _stratum_notes(result, stratum, first, w):
+            if text:
+                notes.setdefault(number_pattern(text.strip()), []).append((label, text.strip()))
+    lines = _short_table(result, rows, w, indent) if rows else []
+    cautions = _short_cautions(shares, reasons, notes, len(labels), samples)
+    lines += _short_skipped(result, samples, indent)
     return lines, cautions
 
 

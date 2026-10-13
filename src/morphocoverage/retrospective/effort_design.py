@@ -183,6 +183,32 @@ def _design(
     }
 
 
+def _acquired_projection(
+    acquired: float,
+    boots: np.ndarray,
+    design: dict[str, Any],
+    where: dict[str, Any],
+    units: int,
+) -> dict[str, Any]:
+    """The projection row of the acquired design, its standard error ``acquired``."""
+    samples, total_fovs = design["samples"], design["total_fovs"]
+    low, high = _interval(
+        np.array([_acquired_se(b, design) for b in boots]), acquired, units, floor=0.0
+    )
+    return {
+        **where,
+        "samples": samples,
+        "fovs_per_sample": total_fovs / samples,
+        "total_fovs": float(total_fovs),
+        "same_total": True,
+        "design": "acquired",
+        "se": acquired,
+        "se_low": low,
+        "se_high": high,
+        "current": True,
+    }
+
+
 def _allocation_rows(
     estimate: np.ndarray,
     boots: np.ndarray,
@@ -196,23 +222,7 @@ def _allocation_rows(
     samples, total_fovs = design["samples"], design["total_fovs"]
     current = (samples, total_fovs / samples)
     acquired = _acquired_se(estimate, design)
-    low, high = _interval(
-        np.array([_acquired_se(b, design) for b in boots]), acquired, units, floor=0.0
-    )
-    projections = [
-        {
-            **where,
-            "samples": samples,
-            "fovs_per_sample": current[1],
-            "total_fovs": float(total_fovs),
-            "same_total": True,
-            "design": "acquired",
-            "se": acquired,
-            "se_low": low,
-            "se_high": high,
-            "current": True,
-        }
-    ]
+    projections = [_acquired_projection(acquired, boots, design, where, units)]
     comparisons = []
     base = np.array([_se(b, design, *current) for b in boots])
     balanced = _se(estimate, design, *current)
