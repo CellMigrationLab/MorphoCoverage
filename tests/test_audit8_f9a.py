@@ -9,9 +9,8 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
-from test_audit8_b import SEVERAL, _several
-from test_embedding_only import _cells
-from test_feature_tables_batch import _batch, _setup
+from _helpers_embedding import SEVERAL, _cells, _several
+from _helpers_feature_tables import _batch, _setup
 
 from morphocoverage.embedding import robust_scale
 from morphocoverage.feature_tables import mfa_weights

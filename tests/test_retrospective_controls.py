@@ -3,51 +3,9 @@
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_retrospective import BOTH, FEATURES, NOVELTY, _control, _plate
 
 from morphocoverage.retrospective import RepresentationControl, representation_control
-from morphocoverage.strategies import SupportNoveltyEstimator
-
-FEATURES = ["feature_a", "feature_b"]
-NOVELTY = SupportNoveltyEstimator(1.0, 1, None, 3, 3)
-
-
-def _plate(seed=0, shift=6.0, plates=("P1", "P2"), fovs_per_well=12):
-    """Per plate: a reference well and a positive well shifted by ``shift`` in feature_a."""
-    rng = np.random.default_rng(seed)
-    fov_rows, object_rows = [], []
-    for plate in plates:
-        for well, condition, offset in (("A1", "MOCK", 0.0), ("B1", "KD", shift)):
-            for i in range(fovs_per_well):
-                name = f"{plate}_{well}_{i}"
-                fov_rows.append(
-                    {
-                        "condition": condition,
-                        "biological_repeat": plate,
-                        "well": well,
-                        "image_file": name,
-                    }
-                )
-                values = rng.normal(0.0, 1.0, size=(25, 2))
-                values[:, 0] += offset
-                object_rows.append(
-                    pd.DataFrame(values, columns=FEATURES).assign(
-                        condition=condition, biological_repeat=plate, well=well, image_file=name
-                    )
-                )
-    return pd.concat(object_rows, ignore_index=True), pd.DataFrame(fov_rows)
-
-
-def _control(objects, fovs, control, **kwargs):
-    settings = {"pair_cols": ["biological_repeat"], "fovs_seen": 6, "draws": 10}
-    settings.update(kwargs)
-    return representation_control(
-        objects, fovs, feature_cols=FEATURES, novelty=NOVELTY, control=control, **settings
-    )
-
-
-BOTH = RepresentationControl(
-    positive={"condition": "KD"}, reference={"condition": "MOCK"}, planted_objects=5
-)
 
 
 def test_a_strong_positive_is_detected_and_rates_are_counted():

@@ -272,7 +272,7 @@ def test_a_repeat_where_the_group_is_absent_on_both_sides_counts_as_no_change():
 
 @pytest.fixture(scope="module")
 def labelled():
-    from test_rare_fingerprint import _screen, _setup
+    from _helpers_rare_fingerprint import _screen, _setup
 
     objects, fovs = _screen()
     setup = _setup(fingerprint=())

@@ -6,7 +6,7 @@ import json
 import numpy as np
 import pandas as pd
 import pytest
-from test_owner_decisions_1002 import _three
+from _helpers_sampling_unit import _three
 
 from morphocoverage.sampling_unit.contrast import condition_contrast
 from morphocoverage.sampling_unit.distribution import distribution_contrast

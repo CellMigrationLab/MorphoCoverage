@@ -186,7 +186,7 @@ def test_the_planted_gate_follows_the_declaration_and_never_reads_the_whole_fiel
 
 
 def test_a_report_with_no_planting_says_the_gate_was_not_assessed():
-    from test_microscopist_audit import _weak_control_report
+    from _helpers_retrospective import _weak_control_report
 
     _, sufficiency = _weak_control_report()
     plain = microscopist_report(sufficiency=sufficiency)
@@ -304,7 +304,7 @@ def test_the_foundation_headline_counts_groups_that_could_not_be_checked_apart()
 
 
 def test_the_between_well_spread_names_the_wells_and_groups_left_out():
-    from test_audit4_h import _WELLS, _report_parts, _tables
+    from _helpers_workflows import _WELLS, _report_parts, _tables
 
     from morphocoverage.workflows._document import _technical_repeats
 

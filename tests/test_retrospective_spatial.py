@@ -3,24 +3,20 @@
 import re
 
 import numpy as np
-import pandas as pd
 import pytest
+from _helpers_retrospective import POPULATION, STAGE, _efficiency, _gradient
 from scenarios import FEATURE_COLS, SCENARIOS
 
-from morphocoverage import FixedFOVStrategy, ObjectiveConfig, SamplingObjective
+from morphocoverage import FixedFOVStrategy
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.outcomes import RelativeMeanError
 from morphocoverage.retrospective import (
     OutcomeCriterion,
     dispersed_order,
-    order_efficiency,
     redundancy_distance,
     replay_acquisitions,
     stage_travel,
 )
-
-POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
-STAGE = ("stage_x", "stage_y")
 
 
 def test_dispersed_order_is_farthest_point_first():
@@ -37,50 +33,6 @@ def test_stage_travel_is_the_cumulative_path():
     path = stage_travel(np.array([[0, 0], [3, 4], [3, 0]]))
     assert path.tolist() == [0.0, 5.0, 9.0]
     assert stage_travel(np.empty((0, 2))).size == 0
-
-
-def _gradient(seed=0):
-    """A 10 x 6 raster; the phenotype changes along y, the raster runs along x first."""
-    rng = np.random.default_rng(seed)
-    fov_rows, object_rows = [], []
-    for i in range(60):
-        x, y = i % 10, i // 10
-        name = f"f{i:02d}"
-        fov_rows.append(
-            {
-                "condition": "control",
-                "biological_repeat": "R1",
-                "image_file": name,
-                "acquisition_order": i,
-                "stage_x": x * 200.0,
-                "stage_y": y * 200.0,
-            }
-        )
-        values = rng.normal(10 + y, 0.5, size=(15, 2))
-        object_rows.append(
-            pd.DataFrame(values, columns=list(FEATURE_COLS)).assign(
-                condition="control", biological_repeat="R1", image_file=name
-            )
-        )
-    return pd.concat(object_rows, ignore_index=True), pd.DataFrame(fov_rows)
-
-
-def _efficiency(objects, fovs, orders, tolerance=0.06):
-    criterion = OutcomeCriterion(RelativeMeanError("feature_a"), tolerance, "lower_is_better")
-    replay = replay_acquisitions(
-        objects,
-        fovs,
-        feature_cols=list(FEATURE_COLS),
-        strategies=[FixedFOVStrategy(5)],
-        criteria=[criterion],
-        objective=POPULATION,
-        reservoir_fraction=0.3,
-        orders=orders,
-        acquisition_order_col="acquisition_order",
-        stage_cols=STAGE,
-        n_splits=3,
-    )
-    return order_efficiency(replay, per_fov_seconds=2.0, stage_speed=1000.0)
 
 
 def test_a_gradient_is_covered_sooner_by_dispersed_orders_with_more_travel_per_field():

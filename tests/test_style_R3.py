@@ -11,10 +11,15 @@ import re
 
 import numpy as np
 import pytest
-from test_retrospective_inspection import NOVELTY, _acquisition, _inspect
-from test_retrospective_spatial import _efficiency, _gradient
-from test_sampling_unit import _technical, _two_conditions
-from test_workflows import _fingerprint, _rare, _setup
+from _helpers_retrospective import (
+    INSPECTION_NOVELTY,
+    _acquisition,
+    _efficiency,
+    _gradient,
+    _inspect,
+)
+from _helpers_sampling_unit import _technical, _two_conditions
+from _helpers_workflows import _fingerprint, _rare, _setup
 
 from morphocoverage._style import CAUTION, NOT_ASSESSED, PROBLEM, Status
 from morphocoverage.benchmark import AcquisitionOrder
@@ -84,7 +89,7 @@ def test_question_6_is_marked_by_what_was_listed_and_what_could_be_judged():
     )
     assert inspect_status(partly)[0] is Status.CAUTION
     assert inspect_status(None)[0] is Status.NOT_ASSESSED
-    assert NOVELTY is not None
+    assert INSPECTION_NOVELTY is not None
 
 
 # --- 8. Could I have sampled more efficiently? --------------------------------------------
@@ -254,7 +259,7 @@ def test_the_declaration_short_form_names_the_rules_and_states_each_caveat_once(
 
 
 def test_the_workflow_document_prints_the_short_declaration_and_the_full_one_on_demand():
-    from test_workflows import _acquisition as _workflow_acquisition
+    from _helpers_workflows import _acquisition as _workflow_acquisition
 
     from morphocoverage.workflows import report
 

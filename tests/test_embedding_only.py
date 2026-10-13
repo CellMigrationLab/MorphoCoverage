@@ -6,9 +6,9 @@ test the only test of "Do the conditions differ?", unusual observations on the t
 import re
 import warnings
 
-import numpy as np
 import pandas as pd
 import pytest
+from _helpers_embedding import KEY, _cells
 
 from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.objectives import RareTarget
@@ -24,35 +24,6 @@ from morphocoverage.workflows import (
     report,
     scan_design,
 )
-
-KEY = ["condition", "biological_repeat", "image_file", "label_id"]
-
-
-def _cells(seed: int = 0, columns: int = 12):
-    """3 conditions in 3 repeats, 4 fields of 6 labelled cells; an embedding of ``columns``
-    columns with condition ``a`` shifted; a 0/1 label in the observation table."""
-    rng = np.random.default_rng(seed)
-    rows = [
-        {
-            "condition": c,
-            "biological_repeat": f"R{r}",
-            "image_file": f"{c}_{r}_{f}.tif",
-            "label_id": k,
-        }
-        for c in ("ctrl", "a", "b")
-        for r in range(3)
-        for f in range(4)
-        for k in range(1, 7)
-    ]
-    objects = pd.DataFrame(rows)
-    fovs = objects[KEY[:3]].drop_duplicates().reset_index(drop=True)
-    values = rng.normal(size=(len(objects), columns))
-    values[objects["condition"].eq("a").to_numpy(), :2] += 1.0
-    table = pd.concat(
-        [objects[KEY], pd.DataFrame(values, columns=[f"e{j}" for j in range(columns)])], axis=1
-    )
-    objects["mitotic"] = (rng.random(len(objects)) < 0.2).astype(int)
-    return objects, fovs, table
 
 
 @pytest.fixture(scope="module")

@@ -155,7 +155,7 @@ class _UndefinedWith(OutcomeMetric):
 
 
 def _precision(fields: tuple[str, ...]) -> pd.DataFrame:
-    from test_rare_fingerprint import _screen, _setup
+    from _helpers_rare_fingerprint import _screen, _setup
 
     objects, fovs = _screen()
     criterion = OutcomeCriterion(_UndefinedWith(fields), 10.0, "lower_is_better", "loose")
@@ -203,7 +203,7 @@ def test_below_10_percent_undefined_halves_the_error_is_from_the_others_and_said
 def test_the_wells_not_judged_are_named_with_each_reason():
     # Fields 0 and 1 both in the second half: 4 in 20 halves of 6 fields; a well left with 3
     # fields is too small to be judged at all.
-    from test_rare_fingerprint import _screen, _setup
+    from _helpers_rare_fingerprint import _screen, _setup
 
     objects, fovs = _screen()
     small = fovs["image_file"].str.startswith("arrest_2026_01_05_C1_")
@@ -256,7 +256,7 @@ def test_a_fingerprint_judged_in_no_well_is_said_and_not_assessed():
     # show ✅ over an empty set. It now says so, and the marker is ➖ (not assessed).
     from types import SimpleNamespace
 
-    from test_rare_fingerprint import _setup
+    from _helpers_rare_fingerprint import _setup
 
     from morphocoverage._style import Status
     from morphocoverage.workflows._enough_targets import targets_status

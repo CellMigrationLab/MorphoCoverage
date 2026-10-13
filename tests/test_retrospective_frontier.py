@@ -1,23 +1,18 @@
 """Tests for the benchmark score: fields saved at matched risk (retrospective.frontier)."""
 
-from dataclasses import dataclass
-
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_retrospective import MEAN, POPULATION, _mixed, _oracle, _replay
 from scenarios import FEATURE_COLS, SCENARIOS
 
 from morphocoverage import (
     FixedFOVStrategy,
-    ObjectiveConfig,
-    SamplingObjective,
     ScalarPrecisionStrategy,
 )
 from morphocoverage._style import Status
 from morphocoverage.benchmark import AcquisitionOrder
-from morphocoverage.evidence import Component, Direction, Evidence, Quantity
-from morphocoverage.outcomes import RareStateDetected, RelativeMeanError
-from morphocoverage.policies import ThresholdPolicy
+from morphocoverage.outcomes import RareStateDetected
 from morphocoverage.retrospective import OutcomeCriterion, replay_acquisitions
 from morphocoverage.retrospective.frontier import (
     BASELINE,
@@ -29,85 +24,6 @@ from morphocoverage.retrospective.frontier import (
     transfer,
 )
 from morphocoverage.retrospective.frontier_text import frontier_status
-from morphocoverage.strategies.base import Estimator, SamplingStrategy
-
-POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
-MEAN = OutcomeCriterion(RelativeMeanError("feature_a"), 0.05, "lower_is_better", "the mean")
-
-
-def _mixed(seed=0, n_easy=4, n_hard=4, n_fovs=40, cells=20):
-    """Samples whose FOVs barely differ (easy) and samples whose FOVs differ a lot (hard).
-
-    The difficulty is known by construction and recorded on the FOV table, so
-    a test-only oracle can read it; no packaged strategy sees it.
-    """
-    rng = np.random.default_rng(seed)
-    fov_rows, object_rows = [], []
-    for s in range(n_easy + n_hard):
-        hard = s >= n_easy
-        spread = 0.6 if hard else 0.02
-        for f in range(n_fovs):
-            name = f"s{s}_f{f}"
-            fov_rows.append(
-                {
-                    "condition": "c",
-                    "biological_repeat": f"R{s}",
-                    "image_file": name,
-                    "difficulty": "hard" if hard else "easy",
-                }
-            )
-            level = 10 + rng.normal(0, spread)
-            values = level + rng.normal(0, 0.2, size=(cells, 2))
-            object_rows.append(
-                pd.DataFrame(values, columns=list(FEATURE_COLS)).assign(
-                    condition="c", biological_repeat=f"R{s}", image_file=name
-                )
-            )
-    return pd.concat(object_rows, ignore_index=True), pd.DataFrame(fov_rows)
-
-
-@dataclass(frozen=True)
-class _Oracle(Estimator):
-    """Test only: knows each sample's difficulty and asks for ``easy`` or ``hard`` fields."""
-
-    easy: int
-    hard: int
-    name: str = "oracle"
-
-    @property
-    def parameters(self):
-        return {"easy": self.easy, "hard": self.hard}
-
-    def estimate(self, data, *, objective):
-        need = self.hard if (data.fovs["difficulty"] == "hard").any() else self.easy
-        short = max(0, need - len(data.fovs))
-        meta = {
-            "direction": Direction.LOWER_IS_BETTER,
-            "units": "FOVs",
-            "component": Component.POPULATION,
-        }
-        return Evidence({"fields_short": Quantity.available(short, **meta)})
-
-
-def _oracle(easy, hard):
-    return SamplingStrategy([_Oracle(easy, hard)], [ThresholdPolicy("fields_short", 0)])
-
-
-def _replay(objects, fovs, strategies, *, orders=4, splits=3, seed=0, criteria=(MEAN,)):
-    return replay_acquisitions(
-        objects,
-        fovs,
-        feature_cols=list(FEATURE_COLS),
-        strategies=strategies,
-        criteria=list(criteria),
-        objective=POPULATION,
-        reservoir_fraction=0.3,
-        orders=[AcquisitionOrder.permuted(s) for s in range(orders)],
-        n_splits=splits,
-        random_state=seed,
-        keep_results=True,
-        group_cols=["condition", "biological_repeat"],
-    )
 
 
 @pytest.fixture(scope="module")

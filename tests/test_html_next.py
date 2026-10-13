@@ -11,7 +11,7 @@ from dataclasses import replace
 import numpy as np
 import pandas as pd
 import pytest
-from test_rare_fingerprint import _screen, _setup
+from _helpers_rare_fingerprint import _screen, _setup
 
 from morphocoverage import workflows
 from morphocoverage.workflows import report

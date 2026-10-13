@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_embedding import FEATURES, _one_per_field
 
 from morphocoverage import ObjectiveConfig
 from morphocoverage.data_check import validate_input_tables
@@ -29,7 +30,6 @@ from morphocoverage.workflows import Setup, benchmark, live_session, optimise
 from morphocoverage.workflows.benchmarks import Family
 
 sys.path.insert(0, str(Path(__file__).parent))
-from test_audit8_b import FEATURES, _one_per_field
 
 RULE = SupportNoveltyStrategy(np.sqrt(len(FEATURES)), 0.5, 1, RobustStandardize(), 5, 3)
 FIELD_RULE = per_field(RULE)

@@ -6,7 +6,7 @@ and fails on the code before the fix.
 
 import numpy as np
 import pandas as pd
-from test_sampling_unit import CONTRAST_GROUPS, _technical, _two_conditions
+from _helpers_sampling_unit import CONTRAST_GROUPS, _technical, _two_conditions
 
 from morphocoverage.retrospective import microscopist_report
 from morphocoverage.sampling_unit import (

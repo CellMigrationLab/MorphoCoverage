@@ -11,10 +11,10 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
-from test_discovery import _tables as _discovery_tables
-from test_feature_tables_wide import _wide
-from test_guided import Script as GuidedScript
-from test_guided import _cells as guided_cells
+from _helpers_feature_tables import _wide
+from _helpers_guided import Script as GuidedScript
+from _helpers_guided import _cells as guided_cells
+from _helpers_sampling_unit import _tables as _discovery_tables
 
 from morphocoverage._control import NO_CONTROL
 from morphocoverage._wording import WITHIN_FAMILY

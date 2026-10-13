@@ -295,7 +295,7 @@ def test_seed19_the_whole_distribution_declares_no_mean_target():
     from pathlib import Path
 
     sys.path.insert(0, str(Path(__file__).parent))
-    from test_guided import _cells as guided_cells
+    from _helpers_guided import _cells as guided_cells
 
     from morphocoverage.objectives import SamplingObjective
     from morphocoverage.workflows import Answers, scan_design
@@ -386,7 +386,7 @@ def test_item10_one_image_per_field_leaves_the_rare_clustering_out_of_question_3
     from pathlib import Path
 
     sys.path.insert(0, str(Path(__file__).parent))
-    from test_audit8_b import FEATURES, MITOTIC, _one_per_field
+    from _helpers_embedding import FEATURES, MITOTIC, _one_per_field
 
     from morphocoverage.workflows import Setup, report
 

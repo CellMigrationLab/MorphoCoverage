@@ -7,10 +7,19 @@ and fails on the code before the fix.
 import numpy as np
 import pandas as pd
 import pytest
-from test_retrospective_controls import BOTH, _control, _plate
-from test_retrospective_effort import TRUTH, _simulate
-from test_retrospective_frontier import MEAN, _mixed, _oracle, _replay
-from test_retrospective_protocol import HIERARCHY, _curve
+from _helpers_retrospective import (
+    BOTH,
+    HIERARCHY,
+    MEAN,
+    TRUTH,
+    _control,
+    _curve,
+    _mixed,
+    _oracle,
+    _plate,
+    _replay,
+    _simulate,
+)
 
 from morphocoverage.retrospective import (
     SamplingHierarchy,
@@ -114,7 +123,7 @@ def test_f4_checks_that_could_not_be_judged_are_counted_not_printed_as_nan():
 
 
 def test_f5_f11_f13_inspection_says_what_it_could_not_look_for():
-    from test_retrospective_controls import FEATURES, NOVELTY
+    from _helpers_retrospective import FEATURES, NOVELTY
 
     objects, fovs = _plate(shift=0.0)
     objects.loc[objects.index[0], "feature_b"] = np.nan

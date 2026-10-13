@@ -6,7 +6,7 @@ and fails on the code before the fix.
 
 import numpy as np
 import pandas as pd
-from test_sufficiency import _novel_acquisition
+from _helpers_sufficiency import _novel_acquisition
 
 from morphocoverage import FixedFOVStrategy, ObjectiveConfig, SamplingObjective
 from morphocoverage._wording import fields as fields_text

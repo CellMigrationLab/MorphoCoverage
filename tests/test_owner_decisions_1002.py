@@ -7,6 +7,7 @@ shared by every group said once."""
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_sampling_unit import _repeat_tables, _three
 
 from morphocoverage._wording import change
 from morphocoverage.objectives import RareTarget
@@ -23,30 +24,6 @@ from morphocoverage.workflows._distribution import split_words
 from morphocoverage.workflows._rare_share import share_by_field, with_share
 from morphocoverage.workflows._result_influence import with_result_influence
 from morphocoverage.workflows.retrospective import inspect_fovs
-
-
-def _tables(conditions, repeats, fields=6, cells=20, effect=None, seed=0, shift=None):
-    """``conditions`` per repeat, ``fields`` fields of ``cells`` cells each; ``effect`` the
-    mean of each condition, ``shift`` a multiplier of each repeat's values."""
-    rng = np.random.default_rng(seed)
-    rows, fovs = [], []
-    for repeat in repeats:
-        for condition in conditions[repeat]:
-            for field in range(fields):
-                key = {
-                    "condition": condition,
-                    "biological_repeat": repeat,
-                    "position_id": f"{condition}_{repeat}_{field}",
-                }
-                fovs.append(key)
-                mean = (effect or {}).get(condition, 10.0) * (shift or {}).get(repeat, 1.0)
-                rows += [{**key, "x": v} for v in rng.normal(mean, 1.0, cells)]
-    return pd.DataFrame(rows), pd.DataFrame(fovs)
-
-
-def _three(effect=None, seed=0):
-    repeats = ["r1", "r2", "r3"]
-    return _tables({r: ["ctrl", "drug"] for r in repeats}, repeats, effect=effect, seed=seed)
 
 
 def test_the_plan_powers_the_paired_test_on_the_log_ratios():
@@ -105,7 +82,7 @@ def _screen():
     conditions = {r: ["ctrl", "drugA"] for r in ("a1", "a2", "a3")}
     conditions.update({r: ["ctrl", "drugB"] for r in ("b1", "b2", "b3")})
     shift = {"b1": 2.0, "b2": 2.0, "b3": 2.0}
-    return _tables(conditions, list(conditions), fields=4, cells=15, shift=shift)
+    return _repeat_tables(conditions, list(conditions), fields=4, cells=15, shift=shift)
 
 
 def test_unusual_cells_are_judged_against_their_own_sets_control():

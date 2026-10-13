@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
-from test_retrospective_controls import FEATURES, NOVELTY, _plate
+from _helpers_retrospective import FEATURES, NOVELTY, _plate
 
 from morphocoverage import statistics
 from morphocoverage._wording import percent

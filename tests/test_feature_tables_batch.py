@@ -6,11 +6,9 @@ the populations, unusual observations and separation read the centred values, ne
 import numpy as np
 import pandas as pd
 import pytest
-from test_feature_tables_1006 import _cells, _table
+from _helpers_feature_tables import _batch, _setup
 
-from morphocoverage.feature_tables import attach_feature_tables
 from morphocoverage.separation import lift
-from morphocoverage.workflows import Setup
 from morphocoverage.workflows._feature_space import (
     analysed_tables,
     centred_tables,
@@ -18,36 +16,6 @@ from morphocoverage.workflows._feature_space import (
     separation_in_report,
 )
 from morphocoverage.workflows._whole_table import whole_table_in_report
-
-
-def _batch(drop_ctrl_r3: bool = False, effect: float = 1.5, batch: float = 3.0):
-    """3 conditions in 3 repeats; DINO of 6 columns with a shift per repeat (a batch) and
-    condition ``a`` shifted on the first two columns."""
-    objects, fovs, rng = _cells(fields=4, cells=8)
-    if drop_ctrl_r3:
-        keep = ~((objects["condition"] == "a") & (objects["biological_repeat"] == "R3"))
-        objects = objects[keep].reset_index(drop=True)
-        fovs = fovs[~((fovs["condition"] == "a") & (fovs["biological_repeat"] == "R3"))]
-        fovs = fovs.reset_index(drop=True)
-    values = rng.normal(size=(len(objects), 6))
-    shifts = {r: rng.normal(size=6) * batch for r in ("R1", "R2", "R3")}
-    values += np.vstack([shifts[r] for r in objects["biological_repeat"]])
-    values[objects["condition"].eq("a").to_numpy(), :2] += effect
-    table = _table(objects, values, "d")
-    merged = attach_feature_tables(objects, fovs, {"DINO": table}).objects
-    merged["x0"] = 1.0
-    names = tuple(f"d{j}" for j in range(6))
-    return merged, fovs, names
-
-
-def _setup(names, **kwargs) -> Setup:
-    return Setup(
-        readout="x0",
-        control={"condition": "ctrl"},
-        feature_tables={"DINO": names},
-        observation_unit="cell",
-        **kwargs,
-    )
 
 
 def _per_condition_centre(rows: pd.DataFrame, conditions: list[str]) -> float:

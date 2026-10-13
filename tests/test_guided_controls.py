@@ -2,8 +2,8 @@
 (owner, 2026-10-05)."""
 
 import pytest
+from _helpers_guided import Script, _cells
 from ecm_design import CONTROLS, MASTER, PARENTS, tables
-from test_guided import Script, _cells
 
 from morphocoverage.workflows import Setup, guide, load_answers, save_answers
 from morphocoverage.workflows._guided_controls import treatment_key

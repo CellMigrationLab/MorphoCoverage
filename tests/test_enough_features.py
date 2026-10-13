@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
-from test_html_report import _tables
+from _helpers_html import _tables
 
 from morphocoverage._style import Status
 from morphocoverage.sampling_unit.contrast import condition_contrast

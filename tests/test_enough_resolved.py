@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_sampling_unit import _technical, _two_conditions
 
 from morphocoverage._style import CAUTION, Status
 from morphocoverage.retrospective.report_enough import enough_short
@@ -26,7 +27,6 @@ LAB = Path(__file__).resolve().parents[1] / "data" / "lab"
 sys.path.insert(0, str(LAB))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import catalog
-from test_sampling_unit import _technical, _two_conditions
 
 
 def _fields(rng, n_fields, mean, per_field=5):

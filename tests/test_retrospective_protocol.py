@@ -2,6 +2,7 @@
 
 import pandas as pd
 import pytest
+from _helpers_retrospective import HIERARCHY, _curve
 from scenarios import FEATURE_COLS, SCENARIOS
 from scipy import stats
 
@@ -15,31 +16,6 @@ from morphocoverage.retrospective import (
     protocol_reliability,
     sampling_reliability,
 )
-
-HIERARCHY = SamplingHierarchy("image_file", "well", "plate")
-
-
-def _curve(preserved, stream=12, criterion="mean"):
-    """A reliability result from {(plate, well): {k: preserved}}."""
-    rows = []
-    for (plate, well), by_k in preserved.items():
-        for k, value in by_k.items():
-            rows.append(
-                {
-                    "condition": "ctrl",
-                    "plate": plate,
-                    "well": well,
-                    "criterion": criterion,
-                    "fovs": k,
-                    "preserved": value,
-                    "stream_fovs": stream,
-                }
-            )
-    curve = pd.DataFrame(rows)
-    return ReliabilityResult(
-        curve, pd.DataFrame(), ("condition", "plate", "well"), {"labels": {criterion: "the mean"}}
-    )
-
 
 PLATES = {
     ("P1", "A1"): {5: 0.95, 10: 0.99},

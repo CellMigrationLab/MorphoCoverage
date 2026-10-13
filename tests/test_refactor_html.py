@@ -229,7 +229,7 @@ def test_a_condition_without_a_repeat_plan_is_left_out_of_the_table():
 def screened():
     import warnings
 
-    from test_rare_fingerprint import _screen, _setup
+    from _helpers_rare_fingerprint import _screen, _setup
 
     from morphocoverage.workflows import report
 

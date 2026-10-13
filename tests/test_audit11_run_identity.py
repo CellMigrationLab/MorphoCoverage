@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
+from _helpers_retrospective import MEAN, _mixed, _oracle, _replay
 
 from morphocoverage.retrospective._run_identity import run_fingerprint
 from morphocoverage.retrospective.frontier import family, frontier
-from tests.test_retrospective_frontier import MEAN, _mixed, _oracle, _replay
 
 
 @pytest.fixture(scope="module")

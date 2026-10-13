@@ -5,8 +5,8 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import pytest
+from _helpers_sampling_unit import _tables
 
 from morphocoverage.embedding import embed
 from morphocoverage.plots_embedding import embedding_figures
@@ -15,31 +15,6 @@ from morphocoverage.sampling_unit import feature_discovery
 LAB = Path(__file__).resolve().parents[1] / "data" / "lab"
 sys.path.insert(0, str(LAB))
 import catalog
-
-
-def _tables(shift=1.0, n_repeats=3, cells=30, seed=0, unbalanced=False):
-    """One well per condition and repeat: 'area' differs in every repeat, 'noise' does not,
-    'flat' holds one value."""
-    rng = np.random.default_rng(seed)
-    rows = []
-    for repeat in range(n_repeats):
-        for condition, effect in (("ctrl", 0.0), ("drug", shift)):
-            n = cells * (4 if unbalanced and repeat == 0 else 1)
-            for field in range(n):
-                rows.append(
-                    {
-                        "condition": condition,
-                        "biological_repeat": f"r{repeat}",
-                        "position_id": f"{condition}-{repeat}-{field}",
-                        "area": rng.normal(10 + effect, 1),
-                        "noise": rng.normal(5, 1),
-                        "aspect": rng.normal(2, 0.3),
-                        "flat": 1.0,
-                    }
-                )
-    objects = pd.DataFrame(rows)
-    fovs = objects[["condition", "biological_repeat", "position_id"]].drop_duplicates()
-    return objects, fovs
 
 
 def _discovery(objects, fovs, features=("area", "noise", "aspect", "flat")):

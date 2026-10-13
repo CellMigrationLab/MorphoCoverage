@@ -1,8 +1,8 @@
 """Tests for the retrospective sufficiency report."""
 
-import numpy as np
 import pandas as pd
 import pytest
+from _helpers_sufficiency import _novel_acquisition
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import (
@@ -136,23 +136,6 @@ def test_a_rules_standing_assumption_is_not_called_a_caution():
         "warning_list": ("measured here", assumption("true of every dataset")),
     }
     assert _enough_answer(row, []).endswith(" Caution: measured here. True of every dataset.")
-
-
-def _novel_acquisition(n_fovs=12, state_fovs=(3, 7), outlier_fovs=(5,)):
-    """Common cells everywhere; its own 3-cell state in ``state_fovs``, one odd cell elsewhere."""
-    rng = np.random.default_rng(0)
-    rows = []
-    for j in range(n_fovs):
-        cells = rng.normal(10, 0.1, size=(20, 2))
-        if j in state_fovs:
-            cells = np.vstack([cells, rng.normal(20 + 5 * j, 0.05, size=(3, 2))])
-        if j in outlier_fovs:
-            cells = np.vstack([cells, [[50.0, 50.0]]])
-        rows += [
-            {"image_file": f"f{j}", "label_id": i, "a": a, "b": b} for i, (a, b) in enumerate(cells)
-        ]
-    fovs = pd.DataFrame({"image_file": [f"f{j}" for j in range(n_fovs + 1)]})  # one empty
-    return pd.DataFrame(rows), fovs
 
 
 NOVELTY = SupportNoveltyEstimator(0.5, 1, None, 2, 3)

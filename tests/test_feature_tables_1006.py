@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
-from test_feature_tables import _tables
+from _helpers_feature_tables import KEY, _cells, _table, _tables, _without
 
 from morphocoverage._integrity_tables import integrity_by_table
 from morphocoverage.embedding import _standardised
@@ -29,34 +29,6 @@ from morphocoverage.workflows._population_spaces import (
 )
 from morphocoverage.workflows._populations import PopulationsResult, populations_text
 from morphocoverage.workflows.guided import Answers, rough_runtime
-
-KEY = ["condition", "biological_repeat", "image_file", "label_id"]
-
-
-def _cells(
-    fields: int = 4,
-    cells: int = 15,
-    conditions: tuple[str, ...] = ("ctrl", "a", "b"),
-    seed: int = 0,
-) -> tuple[pd.DataFrame, pd.DataFrame, np.random.Generator]:
-    """Conditions in three repeats, ``fields`` fields of ``cells`` labelled cells each."""
-    rng = np.random.default_rng(seed)
-    rows = [
-        {"condition": c, "biological_repeat": r, "image_file": f"{c}_{r}_{f}.tif", "label_id": k}
-        for c in conditions
-        for r in ("R1", "R2", "R3")
-        for f in range(fields)
-        for k in range(1, cells + 1)
-    ]
-    objects = pd.DataFrame(rows)
-    fovs = objects[KEY[:3]].drop_duplicates().reset_index(drop=True)
-    return objects, fovs, rng
-
-
-def _table(objects: pd.DataFrame, values: np.ndarray, prefix: str) -> pd.DataFrame:
-    columns = {f"{prefix}{j}": values[:, j] for j in range(values.shape[1])}
-    return pd.concat([objects[KEY].reset_index(drop=True), pd.DataFrame(columns)], axis=1)
-
 
 # --- D2: populations in each space, merged -------------------------------------------------
 
@@ -315,12 +287,6 @@ def test_the_centred_view_subtracts_the_median_of_the_condition_medians_in_every
         np.testing.assert_allclose(centred.loc[rows.index, "d0"], rows["d0"] - np.median(medians))
     assert (centred["x0"] == 1.0).all()  # the explainable features are left as they are
     assert centred_tables(merged, fovs, Setup(readout="x0")) is None
-
-
-def _without(table: pd.DataFrame, condition: str, repeat: str) -> pd.DataFrame:
-    """``table`` without the rows of ``condition`` in ``repeat``."""
-    gone = (table["condition"] == condition) & (table["biological_repeat"] == repeat)
-    return table[~gone].reset_index(drop=True)
 
 
 # --- Findings 2, 5, 6, 11, 12, 14, 15, 16 ---------------------------------------------------

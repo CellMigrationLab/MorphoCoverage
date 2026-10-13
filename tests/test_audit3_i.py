@@ -10,8 +10,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from test_audit_workflows import _wells
-from test_workflows import FEATURE_COLS, READOUT, _acquisition, _setup
+from _helpers_workflows import READOUT, _acquisition, _setup, _wells
+from scenarios import FEATURE_COLS
 
 import morphocoverage.workflows._document as document_module
 import morphocoverage.workflows._shared as shared_module

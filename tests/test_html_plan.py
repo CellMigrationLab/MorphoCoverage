@@ -8,7 +8,7 @@ import warnings
 from typing import ClassVar
 
 import pytest
-from test_rare_fingerprint import _screen, _setup
+from _helpers_rare_fingerprint import _screen, _setup
 
 from morphocoverage import ObjectiveConfig, workflows
 from morphocoverage.strategies import RareIncidenceStrategy

@@ -11,9 +11,10 @@ import re
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_retrospective import POPULATION, _weak_control_report
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
-from morphocoverage import FixedFOVStrategy, ObjectiveConfig, SamplingObjective
+from morphocoverage import FixedFOVStrategy
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.bounds import lower_bound
 from morphocoverage.outcomes import RelativeMeanError
@@ -34,7 +35,6 @@ from morphocoverage.strategies import SupportNoveltyEstimator
 from morphocoverage.sufficiency import sufficiency_report
 from morphocoverage.transforms import Standardize
 
-POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 MEAN_A = OutcomeCriterion(
     RelativeMeanError("feature_a"), 0.02, "lower_is_better", "the mean of feature_a within 2%"
 )
@@ -425,45 +425,6 @@ def test_a_result_explains_its_decision_in_one_line():
         "(stop at <= 0.25, distribution)"
     )
     assert line.endswith("after 3 FOVs, 90 cells")
-
-
-def _weak_control_report():
-    from scenarios import _fov_table, _objects_for
-
-    from morphocoverage.retrospective import RepresentationControl, representation_control
-
-    rng = np.random.default_rng(1)
-    ref_f = _fov_table(20, condition="MOCK")
-    pos_f = _fov_table(20, condition="KD")
-    ref_o, pos_o = (
-        _objects_for(ref_f, np.full(20, 30), rng),
-        _objects_for(pos_f, np.full(20, 30), rng),
-    )
-    pos_o[list(FEATURE_COLS)] += 0.8
-    objects, fovs = pd.concat([ref_o, pos_o], ignore_index=True), pd.concat([ref_f, pos_f])
-    novelty = SupportNoveltyEstimator(np.sqrt(2), 1, Standardize(), 2, 3)
-    controls = representation_control(
-        objects,
-        fovs,
-        feature_cols=list(FEATURE_COLS),
-        novelty=novelty,
-        control=RepresentationControl(
-            positive={"condition": ["KD"]}, reference={"condition": ["MOCK"]}
-        ),
-        pair_cols=[],
-        fovs_seen=10,
-        draws=5,
-    )
-    sufficiency = sufficiency_report(
-        objects,
-        fovs,
-        feature_cols=list(FEATURE_COLS),
-        strategies=[FixedFOVStrategy(10)],
-        objective=POPULATION,
-        orders=[AcquisitionOrder.permuted(0)],
-        novelty=novelty,
-    )
-    return controls, sufficiency
 
 
 def test_a_weakly_detected_control_prefixes_every_adequacy_answer():

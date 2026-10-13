@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_retrospective import TRUTH, _simulate
 
 from morphocoverage.retrospective import (
     SamplingHierarchy,
@@ -13,29 +14,6 @@ from morphocoverage.retrospective import (
 from morphocoverage.retrospective.effort_design import _se
 
 
-def _simulate(rng, components, repeats, samples, fovs, cells, balanced=True):
-    """Observation and FOV tables of a nested design with known variance components."""
-    v_rep, v_sample, v_fov, v_obs = components
-    object_rows, fov_rows = [], []
-    for r in range(repeats):
-        rep = rng.normal(0, np.sqrt(v_rep))
-        n_samples = samples if balanced else rng.integers(max(2, samples - 2), samples + 3)
-        for s in range(n_samples):
-            sample = rng.normal(0, np.sqrt(v_sample))
-            n_fovs = fovs if balanced else rng.integers(max(2, fovs - 3), fovs + 4)
-            for f in range(n_fovs):
-                field = rng.normal(0, np.sqrt(v_fov))
-                name = f"r{r}_s{s}_f{f}"
-                fov_rows.append({"biological_repeat": f"R{r}", "well": f"W{s}", "image_file": name})
-                m = cells if balanced else rng.integers(max(1, cells - 10), cells + 11)
-                values = rep + sample + field + rng.normal(0, np.sqrt(v_obs), m)
-                object_rows.append(pd.DataFrame({"image_file": name, "x": values}))
-    fovs_table = pd.DataFrame(fov_rows).assign(condition="ctrl")
-    objects = pd.concat(object_rows, ignore_index=True)
-    objects = objects.merge(fovs_table, on="image_file")
-    return objects, fovs_table
-
-
 def _codes(objects):
     keys = [
         objects["biological_repeat"],
@@ -43,9 +21,6 @@ def _codes(objects):
         objects["image_file"],
     ]
     return [pd.factorize(k)[0] for k in keys]
-
-
-TRUTH = (0.5, 1.0, 0.3, 4.0)
 
 
 def test_components_are_recovered_on_average_in_unbalanced_designs():

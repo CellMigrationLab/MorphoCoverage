@@ -455,7 +455,7 @@ def test_the_short_report_opens_with_a_title_and_one_line_per_question():
 
 
 def test_a_weak_representation_marks_the_control_and_the_adequacy_answers():
-    from test_microscopist_audit import _weak_control_report
+    from _helpers_retrospective import _weak_control_report
 
     controls, sufficiency = _weak_control_report()
     report = microscopist_report(controls=controls, sufficiency=sufficiency)

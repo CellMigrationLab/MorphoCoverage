@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_feature_tables import _tables
 
 from morphocoverage.feature_tables import (
     FeatureTables,
@@ -22,27 +23,6 @@ from morphocoverage.workflows import Setup, html_report, optimise, report, scan_
 from morphocoverage.workflows._feature_space import attached, novelty_space, space
 from morphocoverage.workflows._shared import check_workflow_inputs
 from morphocoverage.workflows.setup import default_novelty
-
-
-def _tables(cells: int = 2) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Two conditions, two repeats, two fields each, ``cells`` labelled cells a field; an
-    embedding of 3 columns in another row order."""
-    rows = [
-        {"condition": c, "biological_repeat": r, "image_file": f"f{f}.tif", "label_id": k}
-        for c in ("ctrl", "drug")
-        for r in ("R1", "R2")
-        for f in range(2)
-        for k in range(1, cells + 1)
-    ]
-    objects = pd.DataFrame(rows)
-    rng = np.random.default_rng(0)
-    objects["area"] = rng.normal(size=len(objects))
-    objects["shape"] = rng.normal(size=len(objects))
-    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
-    embedding = objects[["condition", "biological_repeat", "image_file", "label_id"]].copy()
-    for j in range(3):
-        embedding[f"e{j}"] = rng.normal(size=len(embedding))
-    return objects, fovs.reset_index(drop=True), embedding.iloc[::-1].reset_index(drop=True)
 
 
 def _message(objects, fovs, tables) -> str:

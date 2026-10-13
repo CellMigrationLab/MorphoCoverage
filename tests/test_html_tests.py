@@ -9,7 +9,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
-from test_rare_fingerprint import _screen, _setup
+from _helpers_rare_fingerprint import _screen, _setup
 
 from morphocoverage.workflows import html_report, report
 from morphocoverage.workflows._families import _CELL_VERSIONS

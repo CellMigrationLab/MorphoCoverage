@@ -9,12 +9,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from scenarios import FEATURE_COLS, _fov_table, _objects_for
+from _helpers_workflows import READOUT, _acquisition, _fingerprint, _rare, _setup
+from scenarios import FEATURE_COLS
 
 from morphocoverage import RareTarget, validate_input_tables
 from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.results import Decision
-from morphocoverage.retrospective import OutcomeCriterion
 from morphocoverage.retrospective.report import DECLARATION_TITLE
 from morphocoverage.sampling_unit import condition_contrast, fov_variability
 from morphocoverage.strategies import FixedFOVStrategy
@@ -35,32 +35,6 @@ from morphocoverage.workflows import (
 )
 from morphocoverage.workflows.live import MANIFEST, OBJECTS_FILE
 
-READOUT = FEATURE_COLS[0]
-
-
-def _acquisition(n_fovs: int = 16, n_objects: int = 12, seed: int = 7):
-    rng = np.random.default_rng(seed)
-    fov_tables, object_tables = [], []
-    for condition, shift in (("control", 0.0), ("drug", 3.0)):
-        for repeat in ("R1", "R2"):
-            fovs = _fov_table(n_fovs, condition=condition, repeat=repeat, grid_width=4)
-            objects = _objects_for(fovs, np.full(n_fovs, n_objects), rng)
-            objects.loc[:, list(FEATURE_COLS)] += shift
-            fov_tables.append(fovs)
-            object_tables.append(objects)
-    return pd.concat(object_tables, ignore_index=True), pd.concat(fov_tables, ignore_index=True)
-
-
-def _setup(**changes) -> Setup:
-    settings = {
-        "readout": READOUT,
-        "features": FEATURE_COLS,
-        "control": {"condition": "control"},
-        "acquisition_order_col": "acquisition_order",
-        "stage_cols": ("stage_x", "stage_y"),
-    }
-    return Setup(**{**settings, **changes})
-
 
 def test_setup_rejects_ambiguous_declarations():
     with pytest.raises(TypeError):
@@ -70,21 +44,6 @@ def test_setup_rejects_ambiguous_declarations():
     with pytest.raises(ValueError, match="declare both"):
         Setup(readout=READOUT, positive=PositiveControl({"condition": "drug"}, fovs_seen=4))
     assert Setup(readout=READOUT, features=FEATURE_COLS).columns == list(FEATURE_COLS)
-
-
-def _fingerprint(tolerance: float = 0.5) -> OutcomeCriterion:
-    return OutcomeCriterion(
-        CovarianceError(FEATURE_COLS, True),
-        tolerance,
-        "lower_is_better",
-        f"the covariance of the features within {tolerance:.0%}",
-    )
-
-
-def _rare() -> RareTarget:
-    return RareTarget(
-        fov_incidence=0.2, detection_probability=0.95, min_fov_occurrences=1, phenotype="planted"
-    )
 
 
 def test_setup_declares_what_to_preserve_and_refuses_undeclared_targets():

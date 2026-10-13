@@ -8,9 +8,17 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
-from test_embedding_only import _cells
+from _helpers_embedding import (
+    FEATURES,
+    KEY,
+    MITOTIC,
+    SEVERAL,
+    _cells,
+    _embedding_only,
+    _one_per_field,
+    _several,
+)
 
-from morphocoverage.objectives import RareTarget
 from morphocoverage.retrospective import dataset_overview
 from morphocoverage.workflows import (
     Answers,
@@ -31,25 +39,10 @@ from morphocoverage.workflows._feature_space import (
     separation_in_report,
 )
 
-KEY = ["condition", "biological_repeat", "image_file", "label_id"]
-
-MITOTIC = RareTarget(
-    detection_probability=0.95, min_fov_occurrences=2, object_prevalence=0.2, phenotype="mitotic"
-)
-
 
 def _visible(page: str) -> str:
     text = re.sub(r"<script.*?</script>", "", page, flags=re.DOTALL)
     return " ".join(re.sub(r"<[^>]+>", " ", text).split())
-
-
-def _embedding_only(**fields):
-    objects, fovs, table = _cells()
-    setup = Setup(control={"condition": "ctrl"}, observation_unit="cell", **fields)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        result = report(objects, fovs, setup, feature_tables={"DINO": table})
-    return objects, fovs, table, result
 
 
 @pytest.mark.parametrize(
@@ -120,30 +113,6 @@ def test_b11_the_scan_accepts_several_controls_as_setup_declares_them():
     assert "Several conditions" not in text  # one condition besides the controls
     setup = scan.setup("mitotic", control_parents={"b": "ctrl"})
     assert setup.own_references == {"a": "ctrl", "b": "ctrl", "ctrl": "ctrl"}
-
-
-FEATURES = ("f1", "f2", "f3")
-
-
-def _one_per_field(seed: int = 0):
-    """3 conditions in 3 repeats, 6 fields of one image each; features f1, f2, f3 with
-    ``a`` shifted, and a table of 6 other columns."""
-    rng = np.random.default_rng(seed)
-    rows = [
-        {"condition": c, "biological_repeat": f"R{r}", "image_file": f"{c}_{r}_{f}.tif"}
-        for c in ("ctrl", "a", "b")
-        for r in range(3)
-        for f in range(6)
-    ]
-    objects = pd.DataFrame(rows)
-    fovs = objects.copy()
-    shift = objects["condition"].eq("a").to_numpy() * 1.0
-    for name in FEATURES:
-        objects[name] = 10 + rng.normal(size=len(objects)) + shift
-    table = objects[["condition", "biological_repeat", "image_file"]].assign(
-        **{f"e{j}": rng.normal(size=len(objects)) for j in range(6)}
-    )
-    return objects, fovs, table
 
 
 def test_seed3_b4_one_image_per_field_says_why_and_declares_only_what_runs():
@@ -230,38 +199,6 @@ def test_seed6_the_batch_line_says_unusual_observations_read_the_explainable_fea
         "the centred map, the populations and the separation of the conditions read them, "
         "never a test" in full
     )
-
-
-SEVERAL = {"condition": {"cA": ["a1"], "cB": ["b1"]}}
-
-
-def _several(seed: int = 0):
-    """cA, a1, cB, b1 in 3 repeats (cB not imaged in R2), 3 fields of 6 cells; ``area`` in
-    the observation table, an explainable table ``fiber`` (fib_len, fib_w) and a table
-    ``DINO`` of 4 columns, a1 and b1 shifted."""
-    rng = np.random.default_rng(seed)
-    rows = [
-        {
-            "condition": c,
-            "biological_repeat": f"R{r}",
-            "image_file": f"{c}_{r}_{f}.tif",
-            "label_id": k,
-        }
-        for c in ("cA", "a1", "cB", "b1")
-        for r in range(3)
-        for f in range(3)
-        for k in range(1, 7)
-        if (c, r) != ("cB", 1)
-    ]
-    objects = pd.DataFrame(rows)
-    fovs = objects[KEY[:3]].drop_duplicates().reset_index(drop=True)
-    shift = objects["condition"].isin(["a1", "b1"]).to_numpy() * 0.8
-    objects["area"] = 10 * np.exp(rng.normal(0, 0.2, len(objects)) + shift)
-    fiber = objects[KEY].assign(
-        fib_len=5 + rng.normal(size=len(objects)) + shift, fib_w=2 + rng.normal(size=len(objects))
-    )
-    dino = objects[KEY].assign(**{f"d{j}": rng.normal(size=len(objects)) for j in range(4)})
-    return objects, fovs, {"fiber": (fiber, "explainable"), "DINO": dino}
 
 
 def test_b7_the_csvs_name_each_features_table(tmp_path):

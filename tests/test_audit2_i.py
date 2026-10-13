@@ -9,8 +9,7 @@ import inspect
 
 import pandas as pd
 import pytest
-from test_audit_workflows import _wells
-from test_workflows import READOUT, _acquisition, _setup
+from _helpers_workflows import READOUT, _acquisition, _setup, _wells
 
 import morphocoverage.workflows.retrospective as workflow_module
 from morphocoverage.multivariate_outcomes import CovarianceError

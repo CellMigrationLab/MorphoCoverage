@@ -55,7 +55,7 @@ def test_the_scan_says_one_image_not_one_images():
 def test_the_maps_have_raw_and_normalised_buttons_and_a_method_menu(tmp_path):
     import warnings
 
-    from test_audit8_b import _embedding_only
+    from _helpers_embedding import _embedding_only
 
     from morphocoverage.workflows import html_report
 

@@ -12,6 +12,7 @@ import re
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_workflows import _WELLS, _report_parts, _tables
 from scenarios import FEATURE_COLS, SCENARIOS
 
 from morphocoverage import ObjectiveConfig, SamplingObjective, ScalarPrecisionStrategy
@@ -23,7 +24,6 @@ from morphocoverage.retrospective import (
     OutcomeCriterion,
     SamplingHierarchy,
     Summary,
-    dataset_overview,
     effort_projection,
     inspect_fovs,
     microscopist_report,
@@ -40,31 +40,12 @@ from morphocoverage.retrospective.frontier import BASELINE, FrontierResult, _sav
 from morphocoverage.retrospective.frontier_text import frontier_summary
 from morphocoverage.retrospective.report import MicroscopistReport
 from morphocoverage.retrospective.report_profile import _redundancy_rows
-from morphocoverage.sampling_unit import fov_variability
 from morphocoverage.sufficiency import sufficiency_report
 from morphocoverage.workflows import Setup
 from morphocoverage.workflows._document import _technical_repeats, coverage_notes
 from morphocoverage.workflows.benchmarks import Benchmark, grid_warnings
 
 MEAN = OutcomeCriterion(RelativeMeanError("feature_a"), 0.05, "lower_is_better", "the mean")
-
-
-def _tables(spec, seed=0, per_field=20, obs_sd=1.0):
-    """``spec``: (condition, repeat, technical repeat, fields, well mean, field SD) per well."""
-    rng = np.random.default_rng(seed)
-    objects, fovs = [], []
-    for condition, repeat, well, n_fields, mean, field_sd in spec:
-        for j in range(n_fields):
-            key = {
-                "condition": condition,
-                "biological_repeat": repeat,
-                "technical_repeat": well,
-                "position_id": f"{repeat}_{condition}_{well}_f{j}",
-            }
-            fovs.append(key)
-            offset = mean + rng.normal(0, field_sd)
-            objects += [{**key, "x": v} for v in offset + rng.normal(0, obs_sd, per_field)]
-    return pd.DataFrame(objects), pd.DataFrame(fovs)
 
 
 def _frontier_result(units: int, low: float | None = 1.0, high: float | None = 3.0):
@@ -355,22 +336,6 @@ def test_p9_8_sufficiency_report_runs_its_replays_on_n_jobs_with_identical_answe
     pd.testing.assert_frame_equal(serial.stops, parallel.stops)
     assert serial.summary() == parallel.summary()
     assert "stop_fov_median_mc_se" in serial.stops.columns
-
-
-def _report_parts(objects, fovs, group_cols):
-    overview = dataset_overview(objects, fovs, feature_cols=["x"], group_cols=group_cols)
-    variability = fov_variability(objects, fovs, feature="x", group_cols=group_cols)
-    document = microscopist_report(overview=overview, variability=variability)
-    return {"overview": overview, "variability": variability}, document
-
-
-_WELLS = [
-    ("ctrl", "r1", "A", 6, 10.0, 0.1),
-    ("ctrl", "r1", "B", 6, 14.0, 0.1),
-    ("ctrl", "r1", "C", 6, 8.0, 0.1),
-    ("drug", "r1", "A", 6, 12.0, 0.1),
-    ("drug", "r1", "B", 6, 16.0, 0.1),
-]
 
 
 def test_p1_7_the_report_names_the_variance_between_technical_repeats():

@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-from test_html_report import _tables
+from _helpers_html import _tables
 
 from morphocoverage import RareTarget
 from morphocoverage.retrospective.overview import dataset_overview

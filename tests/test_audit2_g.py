@@ -3,9 +3,8 @@
 import numpy as np
 import pandas as pd
 import pytest
-from test_retrospective_controls import FEATURES, NOVELTY, _plate
-from test_retrospective_inspection import FEATURES as INSPECTED
-from test_retrospective_inspection import _acquisition
+from _helpers_retrospective import FEATURES, NOVELTY, _acquisition, _plate
+from _helpers_retrospective import FEATURES as INSPECTED
 
 from morphocoverage._wording import percent
 from morphocoverage.bounds import lower_bound

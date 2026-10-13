@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from _helpers_integrity import FEATURES, _check, _field, _replace_field
+from _helpers_workflows import READOUT, _acquisition, _setup
 from scenarios import FEATURE_COLS, SCENARIOS
 
 from morphocoverage import check_tables, integrity_checks
@@ -27,8 +29,6 @@ DATA = Path(__file__).resolve().parents[1] / "data" / "crick_idr"
 sys.path.insert(0, str(DATA))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from datasets import load
-from test_integrity import FEATURES, _check, _field, _replace_field
-from test_workflows import READOUT, _acquisition, _setup
 
 OUT_OF_REACH = "Out of reach of these checks"
 RESAMPLED = "treated as independent"

@@ -5,6 +5,7 @@ and fails on the code before the fix.
 """
 
 import matplotlib
+from _helpers_workflows import READOUT, _acquisition, _setup, _wells
 
 matplotlib.use("Agg")
 
@@ -12,7 +13,6 @@ import numpy as np
 import pandas as pd
 import pytest
 from scenarios import FEATURE_COLS
-from test_workflows import READOUT, _acquisition, _setup
 
 import morphocoverage._plots_clusters as intervals_module  # where the intervals are drawn
 import morphocoverage.plots as plots_module
@@ -241,12 +241,6 @@ def test_h12_h13_the_declaration_says_what_is_assessed():
     assert "no feature columns declared, so unusual cells and new phenotypes are not" in text
     normalised = Setup(readout="x", control={"condition": "MOCK"}, normalize="control_mean")
     assert "(of the whole table without a repeat column)" in "\n".join(normalised.declaration())
-
-
-def _wells(objects, fovs):
-    fovs = fovs.assign(technical_repeat=[f"w{i % 2}" for i in range(len(fovs))])
-    keys = ["condition", "biological_repeat", "image_file", "technical_repeat"]
-    return objects.merge(fovs[keys]), fovs
 
 
 def test_df1_optimise_runs_when_group_cols_leave_the_technical_repeat_out():

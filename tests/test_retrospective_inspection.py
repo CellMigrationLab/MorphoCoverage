@@ -3,53 +3,17 @@
 import numpy as np
 import pandas as pd
 import pytest
+from _helpers_retrospective import (
+    DENSE,
+    FEATURES,
+    INSPECTION_NOVELTY,
+    NEW,
+    TAIL,
+    _acquisition,
+    _inspect,
+)
 
 from morphocoverage.retrospective import Summary, inspect_fovs
-from morphocoverage.strategies import SupportNoveltyEstimator
-
-FEATURES = ["feature_a", "feature_b"]
-NEW, TAIL, DENSE = "f03", "f07", "f12"
-
-
-def _acquisition(seed=5, duplicate_tail=1):
-    """20 FOVs of 20 cells; one holds a new state, one a feature_b tail, one is dense.
-
-    The tail cells are spread along feature_a, so they are not one new state.
-    """
-    rng = np.random.default_rng(seed)
-    names = [f"f{i:02d}" for i in range(20)]
-    fovs = pd.DataFrame(
-        {
-            "condition": "control",
-            "biological_repeat": "R1",
-            "image_file": names,
-            "stage_x": np.arange(20) % 5 * 100.0,
-            "stage_y": np.arange(20) // 5 * 100.0,
-        }
-    )
-    rows = []
-    for name in names:
-        n = 100 if name == DENSE else 20
-        values = rng.normal(0.0, 1.0, size=(n, 2))
-        if name == TAIL:
-            tail = np.column_stack([np.linspace(-15, 15, 19), np.linspace(3, 5, 19)])
-            values = np.repeat(np.vstack([values[:1], tail]), duplicate_tail, axis=0)
-        if name == NEW:
-            state = np.column_stack([rng.normal(8, 0.1, 8), rng.normal(0, 0.1, 8)])
-            values = np.vstack([values, state])
-        # A positive baseline, as for areas or intensities: a relative change needs one.
-        rows.append(pd.DataFrame(values + 10, columns=FEATURES).assign(image_file=name))
-    objects = pd.concat(rows, ignore_index=True).assign(condition="control", biological_repeat="R1")
-    return objects, fovs
-
-
-NOVELTY = SupportNoveltyEstimator(1.5, 1, None, 5, 5)
-
-
-def _inspect(objects, fovs, **kwargs):
-    settings = {"summaries": [Summary("feature_b", 0.97)], "novelty": NOVELTY}
-    settings.update(kwargs)
-    return inspect_fovs(objects, fovs, feature_cols=FEATURES, **settings)
 
 
 def test_each_constructed_field_is_listed_for_its_reason_and_no_other_field_is():
@@ -205,7 +169,7 @@ def test_a_generator_of_features_is_read_once():
         fovs,
         feature_cols=(c for c in FEATURES),
         summaries=[Summary("feature_b", 0.97)],
-        novelty=NOVELTY,
+        novelty=INSPECTION_NOVELTY,
     )
     pd.testing.assert_frame_equal(listed.fovs, generated.fovs)
 

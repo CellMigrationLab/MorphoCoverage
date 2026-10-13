@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
-from test_rare_fingerprint import FEATURES, _screen, _setup
+from _helpers_rare_fingerprint import FEATURES, _screen, _setup
 
 from morphocoverage.workflows import report
 from morphocoverage.workflows._html_plan import _incidence
