@@ -27,7 +27,7 @@ held-out data):
 - ``idr0028_screenB`` is **development**: every threshold, preset and
   definition of new in ``docs/preliminary_findings.md`` was chosen while
   looking at it. ``idr0028_screenB_plates`` contains its wells.
-- ``idr0139`` is **held out**: it has never been used to choose a setting. It
+- ``idr0139`` is **held out**, its status per choice in AGENTS.md section 9. It
   is shallow (a reservoir of 2 fields judges 1 or 2 stream fields), so it can
   refute a development conclusion but cannot establish a protocol.
   ``idr0139_plate`` contains its wells and is used only for descriptive,

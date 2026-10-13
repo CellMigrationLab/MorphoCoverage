@@ -80,11 +80,8 @@ and [the live session](../live/live_session.md).
 17. A "validated across" block in the protocol summary: for each declared
     level of the hierarchy (field, sample, technical level, repeat), whether
     the protocol curve spans more than one unit of it, or "not assessed".
-18. Two process rules for AGENTS.md: a dataset stops being held out for a
-    choice once its results influence that choice (section 9 and
-    `docs/optimise/benchmarking.md`; no setting has yet been chosen on idr0139), and a
-    new method names the microscopist's question it improves that the simpler
-    tools cannot answer reliably (section 20).
+18. Done (roadmap ENG-6): the held-out rule and idr0139's status per choice
+    are in AGENTS.md section 9, the new-method rule in section 20.
 19. Smaller items left open by the 2026-09-25 audit: advice when missing
     values make the novelty question not estimable (drop those observations
     or those features, and say so); a cap on the support-novelty cost, which
@@ -101,3 +98,18 @@ and [the live session](../live/live_session.md).
     near-identical but not identical), opt-in and calibrated on imaging
     datasets before any threshold is used; the exact integrity checks are in
     `docs/report/integrity.md`.
+22. Library references for the hand-written statistics, left open by #101:
+    `statsmodels`' `TTestPower` as the reference of `repeat_plan`'s
+    `paired_power` and `repeats_needed`; `MixedLM` as an external reference
+    for the method-of-moments variance components on simulated balanced and
+    unbalanced designs, never their replacement, which would change the
+    estimator; SciPy's `median_abs_deviation` for the MAD where it is shown
+    equivalent, `RobustStandardize` keeping its zero rule until VP10; and a
+    test that the declared minimum versions support every API the package
+    imports. statsmodels stays in the `validation` extra.
+23. The assessment-state rule of #373, for AGENTS.md section 12: a unit or a
+    comparison is assessed, insufficient data, not applicable or not
+    assessable, each with its reason, and never leaves a denominator or
+    becomes zero, neutral or non-significant evidence because it could not
+    be assessed; invalid input raises. The fixes are in; the rule is not
+    written.

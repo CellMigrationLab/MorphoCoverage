@@ -502,9 +502,9 @@ tools/                     # the code audits: ast only, import nothing from the 
     function_index.py      # the function index (module, class and function rows) and the metrics (lines, complexity, arguments)
     callgraph.py           # calls and called_by, resolved through each module's imports and self./cls.
     fallbacks.py           # the silent-fallback detector and its `# fallback: <reason>` markers
-    ratchet.py             # the function baselines: only tighten, a new entry needs a reason, compared with the merge base in CI
+    ratchet.py             # the function baselines: only tighten, a new entry needs a reason, compared with the merge base (--check-against, section 13)
     search.py              # --find: the index searched by names, docstrings and synonyms (an embedding model when installed)
-    duplicates.py          # identical function bodies (CI tier) and structural clones, repeated module constants (report-only): docs/common/function_duplicates.json
+    duplicates.py          # identical function bodies (the tier the guard tests fail on) and structural clones, repeated module constants (report-only): docs/common/function_duplicates.json
     jscpd_review.py        # on demand, never in CI: jscpd 5.4.1 token, AST and semantic passes propose duplicate pairs for review
     layers.py              # the import layers and their rule (docs/common/architecture.md#import-layers), runtime cycles and deferred back-edges, from ast alone
     baselines/             # the ratchets: lines, complexity, arguments, no_docstring, fallbacks (unmarked); accepted.json (each admitted entry with its
@@ -555,7 +555,7 @@ Do not skip directly to a polished `analyze()` API.
 
 The schedule is [`docs/common/roadmap.md`](docs/common/roadmap.md). Its decisions, taken by the owner on 2026-10-13 (DEC-n are the roadmap's ids):
 
-- DEC-1, DEC-21: the benchmark app lives in its own private repository, `guijacquemet/MorphoCoverage-Benchmark`, where GitHub Actions run; its builds read this repository with a read-only token stored as an Actions secret. This repository keeps the local gate of the roadmap's ENG-1 while its Actions are blocked.
+- DEC-1, DEC-21: the benchmark app lives in its own private repository, `guijacquemet/MorphoCoverage-Benchmark`, where GitHub Actions run; its builds read this repository with a read-only token stored as an Actions secret. This repository keeps the local gate of section 13 while its Actions are blocked.
 - DEC-2: the ECM tables are development data.
 - DEC-3: the audit history gains a paragraph per later audit and a table of renamed test files; its earlier paragraphs stay as written.
 - DEC-4: the deep held-out acquisition (DS-1) follows the roadmap's DATA-2 specification.
@@ -611,6 +611,16 @@ Rules for these tests:
 
 A high line-coverage percentage is not a substitute for these behavior tests or for scientific validation on real acquisitions.
 
+**Held-out data.** A dataset stops being held out for a choice once its results influence that choice; from then on it is development data for that choice. Held-out data are registered in a `BenchmarkRegistry` and their digests locked before anyone reads them, and development work and audits never read them (roadmap, DATA-4).
+
+idr0139, registered held out on 2026-09-25 (`data/crick_idr/datasets.py`), was read during development before this rule, so its status is given per choice:
+
+| Choice | idr0139 for it |
+| --- | --- |
+| the presets, the definitions of new and the settings of the locked benchmark, all chosen on idr0028 | held out: scored as transfer only (`docs/preliminary_findings.md`, entries 7 and 8) |
+| the minimum of fields with objects of `sampling_unit.object_rule_check` (`min_fields`, 5 since audit 10), set with idr0139's wells of 4 fields in view, `min_fields=2` kept to reproduce entry 9 (`object_rules.py`, `docs/report/objects_or_fields.md`) | not held out |
+| the exact integrity checks, built with idr0139's tables among their negative controls (`docs/report/integrity.md`) | not held out |
+
 ## 10. JCB comparison rules
 
 The 2024 JCB "how many cells to average" framework is an important benchmark, not an opponent to caricature.
@@ -655,7 +665,7 @@ If acquisition becomes targeted, do not treat targeted FOVs as an unbiased popul
 - The bug classes the audits kept finding are guarded package-wide by `tests/test_guards.py`, so write new code through the shared helpers: percentages and declared rates through `_wording` (`percent`, `rate`), count and number checks through `_checks`, FOV and group identity only through `metadata`'s resolvers, group lookups by `_seeds.group_key` (never the 32-bit `group_identity`, which only seeds), and every new interval with a coverage test. The live session must give the replay's result at every step of every contract scenario, and `check_tables` must accept exactly what the validator accepts.
 - Comments explain scientific assumptions or non-obvious reasoning.
 - Search before writing a helper: `python tools/audit.py --find "robust scale"` ranks the package's modules, classes and functions by name, docstring and synonyms (BH, FDR, MAD, SD, CI, ...). Reuse what it finds, or say why it does not fit.
-- `docs/common/function_index.jsonl` lists every module, class and function (kind, decorators, signature, the first line of its docstring, lines, complexity, arguments, resolved `calls` and `called_by`, body hash; no line numbers): regenerate it with `python tools/audit.py` after changing code, since `tests/test_function_guards.py` fails when it is stale. The same test keeps ratchets that only tighten: no function over 60 lines (counted after the docstring), complexity 15 (counted like ruff `C901`) or 8 named arguments beyond `tools/baselines/`, no public function without a docstring, no unmarked silent fallback, identical function body (parameters and local names aside), import across a layer (the rules: [architecture](docs/common/architecture.md#import-layers)) or deferred import closing a cycle that is not already recorded, and no runtime import cycle at all. New code meets the limits. Record a fix with `python tools/audit.py --tighten` (it lowers and drops entries, never adds); a new or larger function entry needs `--accept KIND:module:name --reason "..."`, which records the reason in `accepted.json`, an identical group that stays `python tools/duplicates.py --accept HASH --reason ...`, and CI fails on any other growth against the base branch (`--check-against`). A function moved unchanged keeps its entry; one moved and edited needs `--rename OLD NEW --reason "..."`. The limits themselves are pinned by the test.
+- `docs/common/function_index.jsonl` lists every module, class and function (kind, decorators, signature, the first line of its docstring, lines, complexity, arguments, resolved `calls` and `called_by`, body hash; no line numbers): regenerate it with `python tools/audit.py` after changing code, since `tests/test_function_guards.py` fails when it is stale. The same test keeps ratchets that only tighten: no function over 60 lines (counted after the docstring), complexity 15 (counted like ruff `C901`) or 8 named arguments beyond `tools/baselines/`, no public function without a docstring, no unmarked silent fallback, identical function body (parameters and local names aside), import across a layer (the rules: [architecture](docs/common/architecture.md#import-layers)) or deferred import closing a cycle that is not already recorded, and no runtime import cycle at all. New code meets the limits. Record a fix with `python tools/audit.py --tighten` (it lowers and drops entries, never adds); a new or larger function entry needs `--accept KIND:module:name --reason "..."`, which records the reason in `accepted.json`, an identical group that stays `python tools/duplicates.py --accept HASH --reason ...`, and `python tools/audit.py --check-against <base>` fails on any other growth against the base branch (run on every pull request by the gate of section 13). A function moved unchanged keeps its entry; one moved and edited needs `--rename OLD NEW --reason "..."`. The limits themselves are pinned by the test.
 - A deliberate silent fallback (an `except` that does not raise, `errors="ignore"`, `contextlib.suppress`, `np.errstate(...="ignore")`, `warnings.simplefilter("ignore")`) carries its reason on its line or the line above: `# fallback: <reason>`. Unmarked ones fail the guard; `python tools/audit.py --fallbacks` lists them all.
 - Duplicates the AST guard cannot see (statements reordered, a helper inlined, one idea written twice) are found on demand, never in CI: after adding or moving several functions, and before an audit, run `python tools/jscpd_review.py` (jscpd 5.4.1 via `npx`; the semantic pass needs the local model, downloaded once with `npx -y jscpd@5.4.1 --semantic-download`, and takes about half an hour). It writes the pairs not yet reviewed to `build/duplicate_candidates.json`; check each pair function by function and record the verdict with `python tools/jscpd_review.py --record A B --source jscpd-ast --verdict merged|helper|overlap-kept|intentional --reason ...` into `tools/baselines/duplicates_reviewed.json`, so later runs report only new pairs (owner, 2026-10-12).
 - Prefer specific exception types and actionable error messages.
@@ -671,7 +681,18 @@ python -m ruff check src tests data
 python -m ruff format --check src tests data
 ```
 
-The whole suite runs locally before every push. On GitHub a pull request runs only lint, formatting, the install, the import, the guard tests (`tests/test_guards.py`, `tests/test_function_guards.py`, `tests/test_function_tools.py`) and the baseline check against the base branch (`python tools/audit.py --check-against HEAD^1`), also when it changes only the generated index; the whole suite runs on demand from the Actions tab (`.github/workflows/tests.yml`, owner 2026-10-05; guards owner 2026-10-12).
+The whole suite runs locally before every push.
+
+**The local gate.** GitHub Actions do not run on this repository today: its billing limit blocks them (DEC-1). Until they run again, every pull request description pastes the output of
+
+```bash
+pytest -n 0 tests/test_guards.py tests/test_function_guards.py tests/test_function_tools.py
+python tools/audit.py --check-against <base>
+```
+
+run on the pull request's last commit, `<base>` being its base branch (for example `origin/main`), and, before merge, the result of the whole suite (`pytest`: passed, failed, xfailed). A documentation-only pull request runs the gate too.
+
+When Actions run, `.github/workflows/tests.yml` checks a pull request for lint, formatting, the install, the import, the same guard tests and the baseline check (`--check-against HEAD^1`), also when it changes only the generated index, and skips one that changes only documentation; the whole suite runs on demand from the Actions tab (owner 2026-10-05; guards owner 2026-10-12).
 
 Never claim a command passed unless it actually ran successfully.
 
@@ -798,6 +819,8 @@ Strategies are interchangeable: the framework never branches on a strategy's ide
 7. Keep `estimate` a pure recomputation: it runs on a fresh copy for every group and prefix, so instance state is discarded. Randomness takes an explicit seed parameter. Incremental support is optional: `start(template, *, objective)` returns an `EstimatorState` whose `update(new)` receives only each newly revealed FOV and must return the same evidence as `estimate` on the whole prefix. Full recomputation stays the reference implementation.
 8. Document the source, any published parameters, and each deviation from the published method in the module docstring; expose non-standard choices as explicit parameters without defaults. To keep a published parameterization, add a `SamplingStrategy` subclass that pairs the estimator with its published policy, as the baselines do.
 9. Export it from `strategies/__init__.py`; adding it to the top-level `morphocoverage.__all__` needs approval (section 15), and candidate estimators currently stay in the subpackage. Add a strategy using it to `STRATEGIES_UNDER_CONTRACT`. `test_every_package_strategy_is_under_contract` fails otherwise; it also covers exported estimators and policies. If it is a current-practice baseline, also add it to `baseline_comparison`.
+
+A new method names the microscopist's question it improves (section 2) that the simpler tools cannot answer reliably: a fixed number of fields or objects and the current-practice baselines of `baseline_comparison` (section 9).
 
 
 ### Multidimensional acquisition rule
