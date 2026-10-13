@@ -83,6 +83,8 @@ Locally it needs `ipywidgets` and, for the plots, `matplotlib`.
    - [Architecture](common/architecture.md);
    - [MorphoBricks FOV contract](common/morphobricks_fov_contract.md): what upstream tools
      need to emit;
+   - [Roadmap](common/roadmap.md): the phases, milestones and audits, and how the
+     repository stays clean;
    - [Open work](common/open_work.md), in order.
 
 Records, kept as they were written: [preliminary findings](preliminary_findings.md),
