@@ -31,7 +31,7 @@ from .sufficiency_text import _next_fov_answer
 
 _POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 # The count columns of the table: integers, missing as <NA>.
-_COUNTS = (
+_COUNT_COLUMNS = (
     "fovs_with_new",
     "extra_fovs_if_nothing_new",
     "extra_fovs_at_current_rate",
@@ -134,7 +134,7 @@ def _next_fov_tables(
             flagged.append(group_data.objects.loc[counted, keep])
     new_observations = pd.concat(flagged, ignore_index=True) if flagged else pd.DataFrame()
     table = pd.DataFrame(rows)
-    for column in _COUNTS:
+    for column in _COUNT_COLUMNS:
         table[column] = table[column].astype("Int64")  # counts, missing as <NA>
     return table, new_observations
 

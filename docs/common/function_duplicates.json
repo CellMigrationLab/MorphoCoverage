@@ -459,9 +459,9 @@
     "workflows._html_render = re.compile('^[−+-]?[<>≤≥]?\\\\d[\\\\d.,]*%?$')"
    ],
    "_POPULATION": [
+    "_next_fov = ObjectiveConfig(SamplingObjective.POPULATION)",
     "calibration = ObjectiveConfig(SamplingObjective.POPULATION)",
-    "retrospective.inspection = ObjectiveConfig(SamplingObjective.POPULATION)",
-    "sufficiency = ObjectiveConfig(SamplingObjective.POPULATION)"
+    "retrospective.inspection = ObjectiveConfig(SamplingObjective.POPULATION)"
    ],
    "_RUN": [
     "retrospective.frontier = ['split', 'order_id']",
