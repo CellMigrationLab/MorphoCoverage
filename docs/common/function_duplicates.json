@@ -460,7 +460,7 @@
    ],
    "_POPULATION": [
     "calibration = ObjectiveConfig(SamplingObjective.POPULATION)",
-    "retrospective.inspection = ObjectiveConfig(SamplingObjective.POPULATION)",
+    "retrospective._field_reasons = ObjectiveConfig(SamplingObjective.POPULATION)",
     "sufficiency = ObjectiveConfig(SamplingObjective.POPULATION)"
    ],
    "_RUN": [

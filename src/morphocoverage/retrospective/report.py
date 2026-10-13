@@ -267,7 +267,7 @@ class MicroscopistReport:
 
 
 # The type of each result ``microscopist_report`` takes, in the order they are checked.
-_KINDS: dict[str, type] = {
+_RESULT_TYPES: dict[str, type] = {
     "controls": ControlResult,
     "sufficiency": SufficiencyReport,
     "calibration": StoppingCalibration,
@@ -378,7 +378,7 @@ def microscopist_report(
         "overview": overview,
     }
     for name, value in given.items():
-        _check(value, _KINDS[name], name)
+        _check(value, _RESULT_TYPES[name], name)
     unchecked = check_one_acquisition(dict(given))
     parts, short, profile = _answer_parts(given, [key for key, _ in QUESTIONS])
     notes, novel = _first_notes(given, unchecked)
