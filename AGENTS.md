@@ -518,6 +518,9 @@ data/
                            # dataset; run_lab.py runs the report, FINDINGS.md logs each run (rules in data/lab/README.md:
                            # only pinned public or owner-released sources, never a manuscript)
     morphobricks/          # small tables as the other MorphoBricks tools write them (fiberfeatures_patches.csv), with provenance
+    reference/             # the reference check (README.md): reference.py runs every committed analysis (jobs.txt) on a
+                           # commit or the working tree, outputs outside the repository, and compares two runs
+                           # file for file, the run's stamps removed (reference_compare.py); reference_job.py, one job
     simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py,
                            # unusual_calibration.py, whole_table.py, beyond_the_mean.py) and results;
                            # decisions/: the benchmark fixed before its runs (docs/common/validation.md, owner 2026-10-06)
@@ -694,6 +697,8 @@ python tools/audit.py --check-against <base>
 ```
 
 run on the pull request's last commit, `<base>` being its base branch (for example `origin/main`), and, before merge, the result of the whole suite (`pytest`: passed, failed, xfailed). A documentation-only pull request runs the gate too.
+
+Beside the gate, a change that must not change behaviour (a refactor, a clean-up, a move) and an audit run the reference check of [`data/reference`](data/reference/README.md): every committed analysis on main and on the change, outputs outside the repository, compared file for file (`python data/reference/reference.py compare`); 0 differences is the proof, and a change that alters outputs on purpose lists them with it. Its README gives the run time of the whole committed tier and the subsets (`--only`, `--skip`).
 
 When Actions run, `.github/workflows/tests.yml` checks a pull request for lint, formatting, the install, the import, the same guard tests and the baseline check (`--check-against HEAD^1`), also when it changes only the generated index, and skips one that changes only documentation; the whole suite runs on demand from the Actions tab (owner 2026-10-05; guards owner 2026-10-12).
 
