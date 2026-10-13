@@ -70,6 +70,7 @@ from .._wording import column_word, count, number, percent, rate
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..sampling_unit._common import groups, validated
 from ..sampling_unit._units import (
+    Described,
     contrasts_of,
     control_label,
     describe_groups,
@@ -79,6 +80,7 @@ from ..sampling_unit._units import (
     sides,
 )
 from ..sampling_unit.contrast_sampling import LEVEL, N_BOOT, sampling_row
+from ..schema import ValidatedInput
 from ..statistics import cohen_d
 
 DEFAULT_FOV_COUNTS = (2, 3, 5, 8, 10, 15, 20)
@@ -252,21 +254,17 @@ def _preserved_share(
     return kept / n_draws
 
 
-def _contrast_rows(
+def _split_references(
     base: dict[str, Any],
     t_units: list[list[np.ndarray]],
     c_units: list[list[np.ndarray]],
     settings: Mapping[str, Any],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """The rows of one repeat and condition: one per ``k``, and one per split."""
+) -> tuple[list[tuple[dict[str, Any], list[np.ndarray], list[np.ndarray]]], list[dict[str, Any]]]:
+    """Each split's held-back reference with the two sides' streams, and one row per split."""
     seed = {**base, "question": "effect preservation"}
-    random_state = settings["random_state"]
-    t_all = [f for u in t_units for f in u]
-    c_all = [f for u in c_units for f in u]
-    d_all = cohen_d(_pooled(t_all), _pooled(c_all))
     splits, references = [], []
     for split in range(settings["n_splits"]):
-        rng = group_rng(random_state, seed, split)
+        rng = group_rng(settings["random_state"], seed, split)
         t_reference, t_stream = _split_side(t_units, settings["reservoir_fraction"], rng)
         c_reference, c_stream = _split_side(c_units, settings["reservoir_fraction"], rng)
         reference = _reference(t_reference, c_reference, rng)
@@ -282,6 +280,47 @@ def _contrast_rows(
                 "stream_fovs": stream,
             }
         )
+    return splits, references
+
+
+def _split_shares(
+    base: dict[str, Any],
+    splits: list[tuple[dict[str, Any], list[np.ndarray], list[np.ndarray]]],
+    k: int,
+    settings: Mapping[str, Any],
+) -> list[float]:
+    """The share of draws of ``k`` fields a side that preserve the d, per evaluable split."""
+    seed = {**base, "question": "effect preservation"}
+    shares = []
+    for split, (reference, t_stream, c_stream) in enumerate(splits):
+        if reference["status"] != OK:
+            continue
+        rng = group_rng(settings["random_state"], seed, split, k)
+        shares.append(
+            _preserved_share(
+                t_stream,
+                c_stream,
+                k,
+                reference["reference_d"],
+                settings["tolerance"],
+                settings["n_draws"],
+                rng,
+            )
+        )
+    return shares
+
+
+def _contrast_rows(
+    base: dict[str, Any],
+    t_units: list[list[np.ndarray]],
+    c_units: list[list[np.ndarray]],
+    settings: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The rows of one repeat and condition: one per ``k``, and one per split."""
+    t_all = [f for u in t_units for f in u]
+    c_all = [f for u in c_units for f in u]
+    d_all = cohen_d(_pooled(t_all), _pooled(c_all))
+    splits, references = _split_references(base, t_units, c_units, settings)
     evaluable = [s for s in splits if s[0]["status"] == OK]
     rows = []
     for k in settings["fov_counts"]:
@@ -307,22 +346,7 @@ def _contrast_rows(
             every_shallow = all(s[0]["status"] == SHALLOW for s in splits)
             rows.append({**row, "status": SHALLOW if every_shallow else UNCLEAR})
             continue
-        shares = []
-        for split, (reference, t_stream, c_stream) in enumerate(splits):
-            if reference["status"] != OK:
-                continue
-            rng = group_rng(random_state, seed, split, k)
-            shares.append(
-                _preserved_share(
-                    t_stream,
-                    c_stream,
-                    k,
-                    reference["reference_d"],
-                    settings["tolerance"],
-                    settings["n_draws"],
-                    rng,
-                )
-            )
+        shares = _split_shares(base, splits, k, settings)
         rows.append(
             {
                 **row,
@@ -331,6 +355,34 @@ def _contrast_rows(
                 "status": OK,
             }
         )
+    return rows, references
+
+
+def _all_contrast_rows(
+    described: Described,
+    all_groups: list[tuple[dict[str, Any], ValidatedInput]],
+    control: Mapping[str, Any] | None,
+    settings: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The rows of every repeat and condition against its control, and of every split."""
+    feature, technical_col = settings["feature"], settings["technical_col"]
+    rows, references = [], []
+    for repeat, condition in contrasts_of(described):
+        treated, controls = sides(described, repeat, condition)
+        base = {
+            REPEAT_COLUMN: repeat,
+            "condition": condition,
+            "control_condition": control_label(described, controls)
+            or reference_of(described, condition, control, settings["condition_col"]),
+        }
+        if not controls:
+            rows += [{**base, "fovs": k, "status": NO_CONTROL} for k in settings["fov_counts"]]
+            continue
+        t_units, _ = side_units(all_groups, feature, treated, technical_col)
+        c_units, _ = side_units(all_groups, feature, controls, technical_col)
+        contrast_rows, contrast_references = _contrast_rows(base, t_units, c_units, settings)
+        rows += contrast_rows
+        references += contrast_references
     return rows, references
 
 
@@ -413,23 +465,7 @@ def effect_preservation(
         "random_state": random_state,
         "observation_unit": data.observation_unit,
     }
-    rows, references = [], []
-    for repeat, condition in contrasts_of(described):
-        treated, controls = sides(described, repeat, condition)
-        base = {
-            REPEAT_COLUMN: repeat,
-            "condition": condition,
-            "control_condition": control_label(described, controls)
-            or reference_of(described, condition, control, condition_col),
-        }
-        if not controls:
-            rows += [{**base, "fovs": k, "status": NO_CONTROL} for k in counts]
-            continue
-        t_units, _ = side_units(all_groups, feature, treated, technical_col)
-        c_units, _ = side_units(all_groups, feature, controls, technical_col)
-        contrast_rows, contrast_references = _contrast_rows(base, t_units, c_units, settings)
-        rows += contrast_rows
-        references += contrast_references
+    rows, references = _all_contrast_rows(described, all_groups, control, settings)
     return EffectPreservation(
         pd.DataFrame(rows, columns=TABLE_COLUMNS),
         pd.DataFrame(references, columns=REFERENCE_COLUMNS),
