@@ -190,7 +190,7 @@ What this acquisition was asked to preserve
     Cytoplasm_Intensity_UpperQuartileIntensity_YAPTAZ   enough: shown in 6 of 6            –                                            12 of 12 wells
     Nuclei_Intensity_MADIntensity_YAPTAZ                partly: shown in 5 of 6            1 too small to show                          11 of 12 wells
     Cytoplasm_Intensity_MeanIntensityEdge_YAPTAZ        partly: shown in 5 of 6            1 needs more wells or biological repeats     12 of 12 wells
-    Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ     partly: shown in 4 of 6            about 29-35 fields a side                    11 of 12 wells
+    Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ     partly: shown in 4 of 6            about 29 to 35 fields a side                 11 of 12 wells
     Nuclei_Intensity_StdIntensityEdge_YAPTAZ            partly: shown in 5 of 6            about 52 fields a side                       11 of 12 wells
     Cytoplasm_Intensity_MADIntensity_YAPTAZ             enough: shown in 6 of 6            –                                            11 of 12 wells
     Cytoplasm_Intensity_MedianIntensity_YAPTAZ          partly: shown in 5 of 6            1 needs more wells or biological repeats     12 of 12 wells
@@ -548,12 +548,13 @@ What this acquisition was asked to preserve
 
   Analysis groups: condition · biological repeat · technical repeat.
   Each rule by its own threshold (not a held-out check), in 12 groups:
-    rule                                  met with the fields acquired  fields when first met  fields needed in random orders: median (10-90%)
-    mean-precision rule, per nucleus, 5%  12 of 12                      1-2                    1 (1-2)
-    mean-precision rule, per field, 5%    12 of 12                      4-8                    5 (4-8)
+    rule                                  met with the fields acquired  fields when first met  fields needed in random orders: median (10 to 90%)
+    mean-precision rule, per nucleus, 5%  12 of 12                      1 to 2                 1 (1 to 2)
+    mean-precision rule, per field, 5%    12 of 12                      4 to 8                 5 (4 to 8)
     nothing new (≤5%)                     0 of 12                       never                  never
   Fields when first met: in the order acquired, when it first said enough; recorded: the range over
-    groups; random: the median of the groups' medians, 10-90% from the lowest to the highest group.
+    groups; random: the median of the groups' medians, 10 to 90% from the lowest to the highest
+    group.
   Rules: mean-precision rule, per nucleus, 5% (scalar_precision_object_upper95: averaging_cv <=
     0.05; config 7f33d85e490f1fa8); mean-precision rule, per field, 5%
     (scalar_precision_fov_upper95:
@@ -564,72 +565,72 @@ What this acquisition was asked to preserve
     without them; only where the acquired fields are enough).
 
   MOCK · repeat 1A · B6 — 28 fields acquired:
-    rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1-1)                               27
-    mean-precision rule, per field, 5%    yes     5         5 (0.3; 5-6)                             23
-    nothing new (≤5%)                     no      never     never                                    –
+    rule                                  enough  recorded  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1)                                    27
+    mean-precision rule, per field, 5%    yes     5         5 (0.3; 5 to 6)                             23
+    nothing new (≤5%)                     no      never     never                                       –
     Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 2.3; mean-precision rule,
       per field, 5%: Spearman rho -0.43, p = 0.023.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 2 of 28 fields hold a state seen in 2 to 3 fields; together 7% of fields
-      (95% interval 0.9%-24%): to see it once with 95% probability, about 41 independent
+      (95% interval 0.9% to 24%): to see it once with 95% probability, about 41 independent
       representative fields, up to 341 at the low end of the interval.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
       shows anything new (31 at the current rate of new fields).
 
   LATS1 · repeat 1A · I23 — 28 fields acquired:
-    rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1-1)                               27
-    mean-precision rule, per field, 5%    yes     4         5 (0.5; 4-6)                             23
-    nothing new (≤5%)                     no      never     never                                    –
+    rule                                  enough  recorded  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1)                                    27
+    mean-precision rule, per field, 5%    yes     4         5 (0.5; 4 to 6)                             23
+    nothing new (≤5%)                     no      never     never                                       –
     Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 3.0; mean-precision rule,
       per field, 5%: Spearman rho -0.41, p = 0.032.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 1 of 28 fields hold a state seen in 2 to 3 fields; together 4% of fields
-      (95% interval 0.09%-18%): to see it once with 95% probability, about 83 independent
+      (95% interval 0.09% to 18%): to see it once with 95% probability, about 83 independent
       representative fields, up to 3314 at the low end of the interval.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
       shows anything new (31 at the current rate of new fields).
 
   LATS1 · repeat 1A · J23 — 28 fields acquired:
-    rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1-1)                               27
-    mean-precision rule, per field, 5%    yes     5         5 (0.3; 5-6)                             23
-    nothing new (≤5%)                     no      never     never                                    –
+    rule                                  enough  recorded  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1)                                    27
+    mean-precision rule, per field, 5%    yes     5         5 (0.3; 5 to 6)                             23
+    nothing new (≤5%)                     no      never     never                                       –
     Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 2.8; mean-precision rule,
       per field, 5%: Spearman rho -0.49, p = 0.0085.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 2 of 28 fields hold a state seen in 2 to 3 fields; together 7% of fields
-      (95% interval 0.9%-24%): to see it once with 95% probability, about 41 independent
+      (95% interval 0.9% to 24%): to see it once with 95% probability, about 41 independent
       representative fields, up to 341 at the low end of the interval.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
       shows anything new (31 at the current rate of new fields).
 
   YAP · repeat 1A · M23 — 28 fields acquired:
-    rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1-1)                               27
-    mean-precision rule, per field, 5%    yes     5         5 (0.4; 4-6)                             23
-    nothing new (≤5%)                     no      never     never                                    –
+    rule                                  enough  recorded  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1)                                    27
+    mean-precision rule, per field, 5%    yes     5         5 (0.4; 4 to 6)                             23
+    nothing new (≤5%)                     no      never     never                                       –
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 1 of 28 fields hold a state seen in 2 to 3 fields; together 4% of fields
-      (95% interval 0.09%-18%): to see it once with 95% probability, about 83 independent
+      (95% interval 0.09% to 18%): to see it once with 95% probability, about 83 independent
       representative fields, up to 3314 at the low end of the interval.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
       shows anything new (31 at the current rate of new fields).
 
   YAP · repeat 1A · N23 — 28 fields acquired:
-    rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1-1)                               27
-    mean-precision rule, per field, 5%    yes     5         5 (0.5; 5-7)                             23
-    nothing new (≤5%)                     no      never     never                                    –
+    rule                                  enough  recorded  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1)                                    27
+    mean-precision rule, per field, 5%    yes     5         5 (0.5; 5 to 7)                             23
+    nothing new (≤5%)                     no      never     never                                       –
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
@@ -638,10 +639,10 @@ What this acquisition was asked to preserve
       shows anything new (31 at the current rate of new fields).
 
   ARAP2 · repeat 2A · C13 — 28 fields acquired:
-    rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1-1)                               27
-    mean-precision rule, per field, 5%    yes     5         5 (0.6; 4-6)                             23
-    nothing new (≤5%)                     no      never     never                                    –
+    rule                                  enough  recorded  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1)                                    27
+    mean-precision rule, per field, 5%    yes     5         5 (0.6; 4 to 6)                             23
+    nothing new (≤5%)                     no      never     never                                       –
     Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 2.8.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
@@ -651,29 +652,29 @@ What this acquisition was asked to preserve
       shows anything new (31 at the current rate of new fields).
 
   LATS1 · repeat 2A · J23 — 28 fields acquired:
-    rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1-1)                               27
-    mean-precision rule, per field, 5%    yes     5         5 (0.5; 4-6)                             23
-    nothing new (≤5%)                     no      never     never                                    –
+    rule                                  enough  recorded  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1)                                    27
+    mean-precision rule, per field, 5%    yes     5         5 (0.5; 4 to 6)                             23
+    nothing new (≤5%)                     no      never     never                                       –
     Cautions here: mean-precision rule, per field, 5%: Spearman rho -0.55, p = 0.0023.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 1 of 28 fields hold a state seen in 2 to 3 fields; together 4% of fields
-      (95% interval 0.09%-18%): to see it once with 95% probability, about 83 independent
+      (95% interval 0.09% to 18%): to see it once with 95% probability, about 83 independent
       representative fields, up to 3314 at the low end of the interval.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
       shows anything new (31 at the current rate of new fields).
 
   MOCK · repeat 2A · K16 — 28 fields acquired:
-    rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1-1)                               27
-    mean-precision rule, per field, 5%    yes     5         6 (0.5; 6-8)                             22
-    nothing new (≤5%)                     no      never     never                                    –
+    rule                                  enough  recorded  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1)                                    27
+    mean-precision rule, per field, 5%    yes     5         6 (0.5; 6 to 8)                             22
+    nothing new (≤5%)                     no      never     never                                       –
     One more field: chance 4% (nominal 95% bound 16%); 1 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 4 of 28 fields hold a state seen in 2 to 3 fields; together 14% of fields
-      (95% interval 4%-33%): to see it once with 95% probability, about 20 independent
+      (95% interval 4% to 33%): to see it once with 95% probability, about 20 independent
       representative fields, up to 73 at the low end of the interval; they may hold several states,
       each rarer: one seen in only 2 fields needs about 41.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
@@ -681,25 +682,25 @@ What this acquisition was asked to preserve
       shows anything new (689 at the current rate of new fields).
 
   YAP · repeat 2A · N23 — 28 fields acquired:
-    rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per nucleus, 5%  yes     2         1 (0.3; 1-2)                             27
-    mean-precision rule, per field, 5%    yes     8         6 (0.5; 5-7)                             22
-    nothing new (≤5%)                     no      never     never                                    –
+    rule                                  enough  recorded  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per nucleus, 5%  yes     2         1 (0.3; 1 to 2)                             27
+    mean-precision rule, per field, 5%    yes     8         6 (0.5; 5 to 7)                             22
+    nothing new (≤5%)                     no      never     never                                       –
     Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 9.2.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 1 of 28 fields hold a state seen in 2 to 3 fields; together 4% of fields
-      (95% interval 0.09%-18%): to see it once with 95% probability, about 83 independent
+      (95% interval 0.09% to 18%): to see it once with 95% probability, about 83 independent
       representative fields, up to 3314 at the low end of the interval.
     Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none
       shows anything new (31 at the current rate of new fields).
 
   ARAP2 · repeat 2B · C13 — 28 fields acquired:
-    rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1-1)                               27
-    mean-precision rule, per field, 5%    yes     6         5 (0.3; 5-6)                             23
-    nothing new (≤5%)                     no      never     never                                    –
+    rule                                  enough  recorded  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1)                                    27
+    mean-precision rule, per field, 5%    yes     6         5 (0.3; 5 to 6)                             23
+    nothing new (≤5%)                     no      never     never                                       –
     Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 2.6.
     One more field: chance 7% (nominal 95% bound 21%); 2 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
@@ -709,10 +710,10 @@ What this acquisition was asked to preserve
       shows anything new (never, at the current rate of new fields).
 
   ARAP2 · repeat 2B · C17 — 28 fields acquired:
-    rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1-1)                               27
-    mean-precision rule, per field, 5%    yes     6         5 (0.6; 4-7)                             23
-    nothing new (≤5%)                     no      never     never                                    –
+    rule                                  enough  recorded  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1)                                    27
+    mean-precision rule, per field, 5%    yes     6         5 (0.6; 4 to 7)                             23
+    nothing new (≤5%)                     no      never     never                                       –
     Cautions here: mean-precision rule, per nucleus, 5%: excess kurtosis 6.1.
     One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
@@ -722,10 +723,10 @@ What this acquisition was asked to preserve
       shows anything new (31 at the current rate of new fields).
 
   MOCK · repeat 2B · P13 — 28 fields acquired:
-    rule                                  enough  recorded  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1-1)                               27
-    mean-precision rule, per field, 5%    yes     6         6 (0.5; 5-7)                             22
-    nothing new (≤5%)                     no      never     never                                    –
+    rule                                  enough  recorded  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per nucleus, 5%  yes     1         1 (0; 1)                                    27
+    mean-precision rule, per field, 5%    yes     6         6 (0.5; 5 to 7)                             22
+    nothing new (≤5%)                     no      never     never                                       –
     One more field: chance 4% (nominal 95% bound 16%); 1 of 28 fields showed a state counted as new.
     Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
     Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
@@ -743,7 +744,7 @@ What this acquisition was asked to preserve
      1A · I23, LATS1 · repeat 1A · J23, ARAP2 · repeat 2A · C13, YAP · repeat 2A · N23 and 2 more):
      the upper-95 SD bound assumes normal values, and these nuclei have excess kurtosis 2.3 to 9.2
      (above 2: a heavy tail), so the bound can be optimistic (with 10% of nuclei at four times the
-     level of the rest it covered the true SD 68-88% of the time, not 97.5%)
+     level of the rest it covered the true SD 68 to 88% of the time, not 97.5%)
   ⚠️ Mean-precision rule, per field, 5%, in 4 of 12 groups (MOCK · repeat 1A · B6, LATS1 · repeat
      1A · I23, LATS1 · repeat 1A · J23 and LATS1 · repeat 2A · J23): field size and field mean are
      related (Spearman rho -0.55 to -0.41, p = 0.0023 to 0.032, over 28 fields with nuclei): the
@@ -793,8 +794,8 @@ What this acquisition was asked to preserve
     - Mean-precision rule, per nucleus, 5% treats nuclei as independent draws: it assumes a
       spatially uniform sample.
     - Mean-precision rule, per field, 5%: in simulations its upper bound, a bootstrap of whole
-      fields, covered the true averaging error about 85-95% of the time with uneven field sizes and
-      93-99% with Poisson sizes.
+      fields, covered the true averaging error about 85 to 95% of the time with uneven field sizes
+      and 93 to 99% with Poisson sizes.
     - Order check: no trend with acquisition order or spatial autocorrelation flagged at the
       Bonferroni threshold of 0.025 (Spearman p = 0.053 to 0.93; Moran's I permutation p = 0.037 to
       0.84) over 28 fields; every stop still treats the fields as a random sample of the well's
@@ -814,7 +815,7 @@ What this acquisition was asked to preserve
   Measured quantities (the sampling profile), each with where it holds:
   - a mean from whole fields varies 2.1 times as much as one from as many random nuclei (design
     effect of the variance between the fields of each group (condition, biological_repeat,
-    technical_repeat), range 1.0-3.4); 16% of fields differ more than random nuclei would (5%
+    technical_repeat), range 1.0 to 3.4); 16% of fields differ more than random nuclei would (5%
     expected) [median of 12 groups]
   - unusual nuclei: clustered in a few fields (q <= 0.05) in 3 of the 9 groups where it could be
     tested, of 12 where it was seen; there, seeing it takes about 3.4 times the fields that a count
@@ -852,7 +853,7 @@ What this acquisition was asked to preserve
     MOCK · repeat 2B · P13             963        4   0.4%          100%       7.19  leave-one-group-out
   Background: the controls' own nuclei, scored the same way against the other control groups, are 1%
     unusual, 32 of 2882; a condition's share reads against it.
-  ⚠️ Refits with other reference samples agree on only 69-88% of the unusual nuclei in 5 of 12
+  ⚠️ Refits with other reference samples agree on only 69 to 88% of the unusual nuclei in 5 of 12
      groups (MOCK · repeat 1A · B6, LATS1 · repeat 1A · I23, LATS1 · repeat 1A · J23 and 2 more;
      below 90%): treat those labels as unstable.
 
@@ -895,9 +896,9 @@ What this acquisition was asked to preserve
 
   Between technical repeats (YAPTAZ_Ratio): in 3 condition and repeat groups with 2 or more
     technical repeats, their means spread 1.4 times (median; 1.4 to 1.5) as much as their fields
-    alone predict, and the mean over them has a relative standard error of about 0.4% (median; 0.4%
-    to 0.4%) from that spread. Every 'enough' of question 2 is per technical repeat and says nothing
-    about this variation, which only more technical repeats reduce (optimise, question 7); with 2
+    alone predict, and the mean over them has a relative standard error of about 0.4% (median; 0.4%)
+    from that spread. Every 'enough' of question 2 is per technical repeat and says nothing about
+    this variation, which only more technical repeats reduce (optimise, question 7); with 2
     technical repeats the spread itself is uncertain.
   Assumptions:
     - A state the reference already holds, at any share, is not unusual: only its share can change,
@@ -1090,11 +1091,11 @@ What this acquisition was asked to preserve
       median over 100 draws taking the same number of nuclei from each repeat, p from the condition
       and control labels shuffled within each repeat, the same statistic on the same draws for each
       shuffle. In data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells of
-      the others, the test as provided gives 22-46% false positives where equal repeats give 16% (s
-      = 0.25), and the balanced test 15-19%; with the control pooled from repeats the condition was
-      not imaged in, the raw test as provided gives 46% even when the repeats agree, the balanced
-      test about 5%. Balancing removes the weight of the repeats holding more, not the independence
-      assumption.
+      the others, the test as provided gives 22 to 46% false positives where equal repeats give 16%
+      (s = 0.25), and the balanced test 15 to 19%; with the control pooled from repeats the
+      condition was not imaged in, the raw test as provided gives 46% even when the repeats agree,
+      the balanced test about 5%. Balancing removes the weight of the repeats holding more, not the
+      independence assumption.
     - No well-level test within a repeat in all 6 contrasts: only one technical repeat (well) with
       observations on one side, no within-repeat technical replication: the fields of one well are
       not independent replicates, so there is no test.

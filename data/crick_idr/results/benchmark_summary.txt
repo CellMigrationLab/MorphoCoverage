@@ -1,6 +1,6 @@
 Benchmark, protocol version 5 (5ebaa47debfc)
 
-== mean, idr0028_screenB (development; replay 106 s) ==
+== mean, idr0028_screenB (development; replay 89 s) ==
 
 ✅ For the well mean within 5% — at ≤5% and ≤10% risk, no rule beats a fixed 1 field
   Stopping too early in at most 5% of acquisitions:
@@ -148,7 +148,7 @@ FOV bootstrap of the mean   0.10    0.064          0.072727            2.315152 
      JCS spread per field   0.10    0.080          0.015152            5.000000             0.080       0.550000              2.0              360 the well mean within 2.5%
     JCS spread per object   0.10    0.040          0.033333            4.009091             0.040       0.550000              2.0              360 the well mean within 2.5%
 
-== rare, planted states in idr0028 (semi-synthetic; replays 68 s) ==
+== rare, planted states in idr0028 (semi-synthetic; replays 62 s) ==
 
 ⚠️ For the planted state seen, when the held-back fields show it — at ≤5% risk, rare incidence
    (labels) may save the most here, 8.9 fields (no interval); at ≤10% risk, rare incidence (labels)

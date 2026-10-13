@@ -82,8 +82,8 @@ What this acquisition was asked to preserve
 ✅ Foundation: why count fields, and not only cells?
   How variable are the fields (Area)? Each field holds one cell, so fields and cells coincide: a
     mean from whole fields is a mean of as many random cells (design effect 1), and SD / sqrt(n), n
-    the fields, is its error. The fields spread by 26-74% of their mean (the SD over fields; median
-    52%, over 9 groups).
+    the fields, is its error. The fields spread by 26 to 74% of their mean (the SD over fields;
+    median 52%, over 9 groups).
     group                fields  mean  SD over fields   CV
     siCCT8#5 · repeat 1      25   375             196  52%
     siCCT8#5 · repeat 2      21   554             376  68%
@@ -106,17 +106,17 @@ What this acquisition was asked to preserve
 ⚠️ 2. Did I image enough?
   Each feature alike, 10 features, ordered as in “Do the conditions differ?” (significant across
     repeats first); the rule of the last column: the mean-precision rule, per cell, 5%:
-    feature   difference from the control shown  to show the rest                               wells whose mean meets the rule
-    Round     enough: shown in 6 of 6            –                                              0 of 9 wells
-    AR        enough: shown in 6 of 6            –                                              0 of 9 wells
-    Major     enough: shown in 6 of 6            –                                              0 of 9 wells
-    Feret     enough: shown in 6 of 6            –                                              0 of 9 wells
-    Circ.     partly: shown in 5 of 6            1 too small to show                            1 of 9 wells
-    Solidity  partly: shown in 4 of 6            about 35 cells a side; 1 too small to show     8 of 9 wells
-    Minor     partly: shown in 3 of 6            about 17-36 cells a side; 1 too small to show  0 of 9 wells
-    Perim.    partly: shown in 4 of 6            2 too small to show                            0 of 9 wells
-    Area      partly: shown in 2 of 6            about 30-46 cells a side; 1 too small to show  0 of 9 wells
-    MinFeret  partly: shown in 2 of 6            2 too small to show                            1 of 9 wells
+    feature   difference from the control shown  to show the rest                                                wells whose mean meets the rule
+    Round     enough: shown in 6 of 6            –                                                               0 of 9 wells
+    AR        enough: shown in 6 of 6            –                                                               0 of 9 wells
+    Major     enough: shown in 6 of 6            –                                                               0 of 9 wells
+    Feret     enough: shown in 6 of 6            –                                                               0 of 9 wells
+    Circ.     partly: shown in 5 of 6            1 too small to show                                             1 of 9 wells
+    Solidity  partly: shown in 4 of 6            about 35 cells a side; 1 too small to show                      8 of 9 wells
+    Minor     partly: shown in 3 of 6            about 17 to 36 cells a side; 1 too small to show                0 of 9 wells
+    Perim.    partly: shown in 4 of 6            2 too small to show                                             0 of 9 wells
+    Area      partly: shown in 2 of 6            about 30 to 46 cells a side; 1 too small to show                0 of 9 wells
+    MinFeret  partly: shown in 2 of 6            2 not projected (no candidate difference); 2 too small to show  1 of 9 wells
 
   Within each repeat, does the difference from the control show? Round, each condition against the
     control of the same repeat, 95% interval of d from the fields resampled as acquired:
@@ -220,12 +220,12 @@ What this acquisition was asked to preserve
 
   Analysis groups: condition · biological repeat · technical repeat.
   Each rule by its own threshold (not a held-out check), in 9 groups:
-    rule                                met with the fields acquired  fields needed in random orders: median (10-90%)
+    rule                                met with the fields acquired  fields needed in random orders: median (10 to 90%)
     mean-precision rule, per cell, 5%   0 of 9                        never
     mean-precision rule, per field, 5%  0 of 9                        never
     nothing new (≤5%)                   0 of 9                        never
-  Fields when first met in random orders; random: the median of the groups' medians, 10-90% from the
-    lowest to the highest group.
+  Fields when first met in random orders; random: the median of the groups' medians, 10 to 90% from
+    the lowest to the highest group.
   Rules: mean-precision rule, per cell, 5% (scalar_precision_object_upper95: averaging_cv <= 0.05;
     config 8d1fdaa201845e06); mean-precision rule, per field, 5% (scalar_precision_fov_upper95:
     averaging_cv <= 0.05; config 96023624bc06b3a0); nothing new (≤5%) (support_novelty:
@@ -235,149 +235,86 @@ What this acquisition was asked to preserve
     without them; only where the acquired fields are enough).
 
   siCCT8#5 · repeat 1 — 25 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                       –
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.4, bimodality coefficient
       0.589.
-    One more field: chance 20% (nominal 95% bound 38%); 5 of 25 fields showed a state counted as
-      new.
-    Not yet seen: at most 11% of fields (95% confidence, about 3 / 25).
-    Seen in few fields: 2 of 25 fields hold a state seen in 2 to 3 fields; together 8% of fields
-      (95% interval 1%-26%): to see it once with 95% probability, about 36 independent
-      representative fields, up to 303 at the low end of the interval.
-    Fields still needed: at least 34 more fields with nothing new to rule out unseen states in more
-      than 5% of fields; to bring the next-field bound below 5%, at least 183 more fields if none
-      shows anything new (never, at the current rate of new fields).
+    One more field: not informative with 25 fields in 10 features: this definition of new calls 36%
+      of the fields of a homogeneous population of this size new.
 
   siCCT8#5 · repeat 2 — 21 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                       –
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     Cautions here: mean-precision rule, per cell, 5%: bimodality coefficient 0.677.
-    One more field: chance 29% (nominal 95% bound 49%); 6 of 21 fields showed a state counted as
-      new.
-    Not yet seen: at most 13% of fields (95% confidence, about 3 / 21).
-    Seen in few fields: 3 of 21 fields hold a state seen in 2 to 3 fields; together 14% of fields
-      (95% interval 3%-36%): to see it once with 95% probability, about 20 independent
-      representative fields, up to 97 at the low end of the interval.
-    Fields still needed: at least 38 more fields with nothing new to rule out unseen states in more
-      than 5% of fields; to bring the next-field bound below 5%, at least 213 more fields if none
-      shows anything new (never, at the current rate of new fields).
+    One more field: not informative with 21 fields in 10 features: this definition of new calls 52%
+      of the fields of a homogeneous population of this size new.
 
   siCCT8#5 · repeat 3 — 17 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                       –
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 5.1, bimodality coefficient
       0.619.
-    One more field: chance 12% (nominal 95% bound 33%); 2 of 17 fields showed a state counted as
-      new.
-    Not yet seen: at most 16% of fields (95% confidence, about 3 / 17).
-    Seen in few fields: 2 of 17 fields hold a state seen in 2 to 3 fields; together 12% of fields
-      (95% interval 1%-36%): to see it once with 95% probability, about 24 independent
-      representative fields, up to 204 at the low end of the interval.
-    Fields still needed: at least 42 more fields with nothing new to rule out unseen states in more
-      than 5% of fields; to bring the next-field bound below 5%, at least 107 more fields if none
-      shows anything new (never, at the current rate of new fields).
+    One more field: not informative with 17 fields in 10 features: this definition of new calls 66%
+      of the fields of a homogeneous population of this size new.
 
   siCCT8#8 · repeat 1 — 27 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
-    One more field: chance 7% (nominal 95% bound 22%); 2 of 27 fields showed a state counted as new.
-    Not yet seen: at most 11% of fields (95% confidence, about 3 / 27).
-    Seen in few fields: 2 of 27 fields hold a state seen in 2 to 3 fields; together 7% of fields
-      (95% interval 0.9%-24%): to see it once with 95% probability, about 39 independent
-      representative fields, up to 328 at the low end of the interval.
-    Fields still needed: at least 32 more fields with nothing new to rule out unseen states in more
-      than 5% of fields; to bring the next-field bound below 5%, at least 97 more fields if none
-      shows anything new (never, at the current rate of new fields).
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                       –
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
+    One more field: not informative with 27 fields in 10 features: this definition of new calls 32%
+      of the fields of a homogeneous population of this size new.
 
   siCCT8#8 · repeat 2 — 16 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                       –
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     Cautions here: mean-precision rule, per cell, 5%: bimodality coefficient 0.569.
-    One more field: chance 31% (nominal 95% bound 55%); 5 of 16 fields showed a state counted as
-      new.
-    Not yet seen: at most 17% of fields (95% confidence, about 3 / 16).
-    Seen in few fields: 4 of 16 fields hold a state seen in 2 to 3 fields; together 25% of fields
-      (95% interval 7%-52%): to see it once with 95% probability, about 11 independent
-      representative fields, up to 40 at the low end of the interval; they may hold several states,
-      each rarer: one seen in only 2 fields needs about 23.
-    Fields still needed: at least 43 more fields with nothing new to rule out unseen states in more
-      than 5% of fields; to bring the next-field bound below 5%, at least 192 more fields if none
-      shows anything new (never, at the current rate of new fields).
+    One more field: not informative with 16 fields in 10 features: this definition of new calls 48%
+      of the fields of a homogeneous population of this size new.
 
   siCCT8#8 · repeat 3 — 15 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                       –
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 9.0, bimodality coefficient
       0.671.
-    One more field: chance 13% (nominal 95% bound 36%); 2 of 15 fields showed a state counted as
-      new.
-    Not yet seen: at most 18% of fields (95% confidence, about 3 / 15).
-    Seen in few fields: 4 of 15 fields hold a state seen in 2 to 3 fields; together 27% of fields
-      (95% interval 8%-55%): to see it once with 95% probability, about 10 independent
-      representative fields, up to 37 at the low end of the interval; they may hold several states,
-      each rarer: one seen in only 2 fields needs about 21.
-    Fields still needed: at least 44 more fields with nothing new to rule out unseen states in more
-      than 5% of fields; to bring the next-field bound below 5%, at least 109 more fields if none
-      shows anything new (never, at the current rate of new fields).
+    One more field: not informative with 15 fields in 10 features: this definition of new calls 57%
+      of the fields of a homogeneous population of this size new.
 
   siCTRL · repeat 1 — 18 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
-    One more field: chance 6% (nominal 95% bound 24%); 1 of 18 fields showed a state counted as new.
-    Not yet seen: at most 15% of fields (95% confidence, about 3 / 18).
-    Seen in few fields: 7 of 18 fields hold a state seen in 2 to 3 fields; together 39% of fields
-      (95% interval 17%-64%): to see it once with 95% probability, about 7 independent
-      representative fields, up to 16 at the low end of the interval; they may hold several states,
-      each rarer: one seen in only 2 fields needs about 26.
-    Fields still needed: at least 41 more fields with nothing new to rule out unseen states in more
-      than 5% of fields; to bring the next-field bound below 5%, at least 75 more fields if none
-      shows anything new (never, at the current rate of new fields).
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                       –
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
+    One more field: not informative with 18 fields in 10 features: this definition of new calls 50%
+      of the fields of a homogeneous population of this size new.
 
   siCTRL · repeat 2 — 24 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                       –
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 7.3, bimodality coefficient
       0.591.
-    One more field: chance 8% (nominal 95% bound 24%); 2 of 24 fields showed a state counted as new.
-    Not yet seen: at most 12% of fields (95% confidence, about 3 / 24).
-    Seen in few fields: 2 of 24 fields hold a state seen in 2 to 3 fields; together 8% of fields
-      (95% interval 1%-27%): to see it once with 95% probability, about 35 independent
-      representative fields, up to 291 at the low end of the interval.
-    Fields still needed: at least 35 more fields with nothing new to rule out unseen states in more
-      than 5% of fields; to bring the next-field bound below 5%, at least 100 more fields if none
-      shows anything new (never, at the current rate of new fields).
+    One more field: not informative with 24 fields in 10 features: this definition of new calls 38%
+      of the fields of a homogeneous population of this size new.
 
   siCTRL · repeat 3 — 11 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
-    One more field: chance 27% (nominal 95% bound 56%); 3 of 11 fields showed a state counted as
-      new.
-    Not yet seen: at most 24% of fields (95% confidence, about 3 / 11).
-    Seen in few fields: 3 of 11 fields hold a state seen in 2 to 3 fields; together 27% of fields
-      (95% interval 6%-61%): to see it once with 95% probability, about 10 independent
-      representative fields, up to 49 at the low end of the interval.
-    Fields still needed: at least 48 more fields with nothing new to rule out unseen states in more
-      than 5% of fields; to bring the next-field bound below 5%, at least 142 more fields if none
-      shows anything new (never, at the current rate of new fields).
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                       –
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
+    One more field: not informative with 11 fields in 10 features: this definition of new calls 60%
+      of the fields of a homogeneous population of this size new.
 
   'New' means at least 1 observation with no other FOV within distance 3.16228 (robust_standardize),
     on 10 features (Area, Perim., Major and 7 more).
@@ -388,17 +325,17 @@ What this acquisition was asked to preserve
      bound assumes normal values, and these cells have excess kurtosis 4.4 to 9.0 (above 2: a heavy
      tail) and bimodality coefficient 0.589 to 0.671 (above 5/9 = 0.556: two groups of values), so
      the bound can be optimistic (with 10% of cells at four times the level of the rest it covered
-     the true SD 68-88% of the time, not 97.5%)
+     the true SD 68 to 88% of the time, not 97.5%)
   ⚠️ Mean-precision rule, per cell, 5%, in 2 of 9 groups (siCCT8#5 · repeat 2 and siCCT8#8 · repeat
      2): the SD between cells exceeds 50% of their mean; Zweifach (JCB 2024) advises acquiring more
      data and repeating the estimate; the upper-95 SD bound assumes normal values, and these cells
      have bimodality coefficient 0.569 to 0.677 (above 5/9 = 0.556: two groups of values), so the
      bound can be optimistic (with 10% of cells at four times the level of the rest it covered the
-     true SD 68-88% of the time, not 97.5%)
+     true SD 68 to 88% of the time, not 97.5%)
   ⚠️ Mean-precision rule, per cell, 5%, in 1 of 9 groups (siCCT8#8 · repeat 1): the upper-95 SD
      bound assumes normal values, and these cells have bimodality coefficient 0.557 (above 5/9 =
      0.556: two groups of values), so the bound can be optimistic (with 10% of cells at four times
-     the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
+     the level of the rest it covered the true SD 68 to 88% of the time, not 97.5%)
   ⚠️ Mean-precision rule, per field, 5%, in 6 of 9 groups (siCCT8#5 · repeat 1, siCCT8#5 · repeat 2,
      siCCT8#5 · repeat 3, siCCT8#8 · repeat 2, siCCT8#8 · repeat 3 and 1 more): the SD between cells
      exceeds 50% of their mean; Zweifach (JCB 2024) advises acquiring more data and repeating the
@@ -417,14 +354,8 @@ What this acquisition was asked to preserve
     - Mean-precision rule, per cell, 5% treats cells as independent draws: it assumes a spatially
       uniform sample.
     - Mean-precision rule, per field, 5%: in simulations its upper bound, a bootstrap of whole
-      fields, covered the true averaging error about 85-95% of the time with uneven field sizes and
-      93-99% with Poisson sizes.
-    - The next-field bound is approximate: the leave-one-field-out outcomes share their reference
-      fields.
-    - The novelty bounds treat fields as independent, representative draws: neighbouring fields
-      acquired in a raster over patchy states make them too low.
-    - Every novelty bound holds at a number of fields fixed in advance, not at the first field where
-      it passes: stopping there is premature more often than 5% of the time.
+      fields, covered the true averaging error about 85 to 95% of the time with uneven field sizes
+      and 93 to 99% with Poisson sizes.
 
   Novelty is exploratory: not yet validated by the benchmark of docs/common/validation.md.
 
@@ -450,9 +381,9 @@ What this acquisition was asked to preserve
     siCTRL · repeat 3               11        0     0%                 – (none unusual)       5.28  leave-one-group-out
   Background: the controls' own images, scored the same way against the other control groups, are 4%
     unusual, 2 of 53; a condition's share reads against it.
-  ⚠️ Refits with other reference samples agree on only 25-67% of the unusual images in 3 of 5 groups
-     (siCCT8#5 · repeat 3, siCCT8#8 · repeat 2 and siCTRL · repeat 2; below 90%): treat those labels
-     as unstable.
+  ⚠️ Refits with other reference samples agree on only 25 to 67% of the unusual images in 3 of 5
+     groups (siCCT8#5 · repeat 3, siCCT8#8 · repeat 2 and siCTRL · repeat 2; below 90%): treat those
+     labels as unstable.
   Assumptions:
     - A state the reference already holds, at any share, is not unusual: only its share can change,
       and the populations (“Are there groups of cells?”) compare each condition's share of such a
@@ -622,11 +553,11 @@ What this acquisition was asked to preserve
       median over 100 draws taking the same number of cells from each repeat, p from the condition
       and control labels shuffled within each repeat, the same statistic on the same draws for each
       shuffle. In data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells of
-      the others, the test as provided gives 22-46% false positives where equal repeats give 16% (s
-      = 0.25), and the balanced test 15-19%; with the control pooled from repeats the condition was
-      not imaged in, the raw test as provided gives 46% even when the repeats agree, the balanced
-      test about 5%. Balancing removes the weight of the repeats holding more, not the independence
-      assumption.
+      the others, the test as provided gives 22 to 46% false positives where equal repeats give 16%
+      (s = 0.25), and the balanced test 15 to 19%; with the control pooled from repeats the
+      condition was not imaged in, the raw test as provided gives 46% even when the repeats agree,
+      the balanced test about 5%. Balancing removes the weight of the repeats holding more, not the
+      independence assumption.
     - Within a repeat the conditions are described by their effect sizes; they are tested across
       repeats (the first table).
     - The test and the effect sizes compare means: a difference confined to a subpopulation of cells

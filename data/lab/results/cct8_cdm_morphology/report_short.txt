@@ -14,8 +14,8 @@ At a glance
      cells; of the rest, Area needs the most if its difference is real (about 46 cells a side); each
      well's own mean meets the default mean-precision rule, per cell, 5% in every well for none of
      the 10 features, a different goal from the comparison
-  ⚠️ 3. What limits my sampling? — one of the cells per field; unusual images 0-13% of each scored
-     group (exploratory)
+  ⚠️ 3. What limits my sampling? — one of the cells per field; unusual images 0 to 13% of each group
+     that is not a control, against 4% of the controls' own (exploratory)
   ⚠️ 6. Which fields should I look at? — 4 fields to reopen in 3 wells (influence in 4); integrity
      names 2 fields
   ✅ 9. Do the conditions differ? — 4 of 10 features significant across repeats (Round, AR, Major
@@ -66,8 +66,8 @@ What this acquisition was asked to preserve
 ✅ Foundation: why count fields, and not only cells?
   How variable are the fields (Area)? Each field holds one cell, so fields and cells coincide: a
     mean from whole fields is a mean of as many random cells (design effect 1), and SD / sqrt(n), n
-    the fields, is its error. The fields spread by 26-74% of their mean (the SD over fields; median
-    52%, over 9 groups).
+    the fields, is its error. The fields spread by 26 to 74% of their mean (the SD over fields;
+    median 52%, over 9 groups).
     group                fields  mean  SD over fields   CV
     siCCT8#5 · repeat 1      25   375             196  52%
     siCCT8#5 · repeat 2      21   554             376  68%
@@ -90,37 +90,30 @@ What this acquisition was asked to preserve
 ⚠️ 2. Did I image enough?
   Each feature alike, 10 features, ordered as in “Do the conditions differ?” (significant across
     repeats first); the rule of the last column: the mean-precision rule, per cell, 5%:
-    feature   difference from the control shown  to show the rest                               wells whose mean meets the rule
-    Round     enough: shown in 6 of 6            –                                              0 of 9 wells
-    AR        enough: shown in 6 of 6            –                                              0 of 9 wells
-    Major     enough: shown in 6 of 6            –                                              0 of 9 wells
-    Feret     enough: shown in 6 of 6            –                                              0 of 9 wells
-    Circ.     partly: shown in 5 of 6            1 too small to show                            1 of 9 wells
-    Solidity  partly: shown in 4 of 6            about 35 cells a side; 1 too small to show     8 of 9 wells
-    Minor     partly: shown in 3 of 6            about 17-36 cells a side; 1 too small to show  0 of 9 wells
-    Perim.    partly: shown in 4 of 6            2 too small to show                            0 of 9 wells
-    Area      partly: shown in 2 of 6            about 30-46 cells a side; 1 too small to show  0 of 9 wells
-    MinFeret  partly: shown in 2 of 6            2 too small to show                            1 of 9 wells
+    feature   difference from the control shown  to show the rest                                                wells whose mean meets the rule
+    Round     enough: shown in 6 of 6            –                                                               0 of 9 wells
+    AR        enough: shown in 6 of 6            –                                                               0 of 9 wells
+    Major     enough: shown in 6 of 6            –                                                               0 of 9 wells
+    Feret     enough: shown in 6 of 6            –                                                               0 of 9 wells
+    Circ.     partly: shown in 5 of 6            1 too small to show                                             1 of 9 wells
+    Solidity  partly: shown in 4 of 6            about 35 cells a side; 1 too small to show                      8 of 9 wells
+    Minor     partly: shown in 3 of 6            about 17 to 36 cells a side; 1 too small to show                0 of 9 wells
+    Perim.    partly: shown in 4 of 6            2 too small to show                                             0 of 9 wells
+    Area      partly: shown in 2 of 6            about 30 to 46 cells a side; 1 too small to show                0 of 9 wells
+    MinFeret  partly: shown in 2 of 6            2 not projected (no candidate difference); 2 too small to show  1 of 9 wells
 
   The stopping rules, as optimise and live run them (on the readout):
   Analysis groups: condition · biological repeat · technical repeat.
   Each rule by its own threshold (not a held-out check), in 9 groups:
-    rule                                met with the fields acquired  fields needed in random orders: median (10-90%)
+    rule                                met with the fields acquired  fields needed in random orders: median (10 to 90%)
     mean-precision rule, per cell, 5%   0 of 9                        never
     mean-precision rule, per field, 5%  0 of 9                        never
     nothing new (≤5%)                   0 of 9                        never
-  Fields when first met in random orders; random: the median of the groups' medians, 10-90% from the
-    lowest to the highest group.
-  One more field: fields with a state counted as new in all 9 groups: siCCT8#5 · repeat 1 (5
-    fields), siCCT8#5 · repeat 2 (6 fields), siCCT8#5 · repeat 3 (2 fields) and 6 more; chance up to
-    31%, nominal 95% bound 22-56%.
-  Not yet seen: a state no field has shown is in at most 11-24% of fields (95% confidence); rarer
-    states can remain.
-  Seen in few fields: all 9 groups hold a state seen in only 2 to 3 fields (siCCT8#5 · repeat 1,
-    siCCT8#5 · repeat 2, siCCT8#5 · repeat 3 and 6 more); look at those fields before calling the
-    sample settled.
-  How many more fields would rule out unseen states, or bring the next-field bound below 5%, is in
-    the full report (report_full.txt).
+  Fields when first met in random orders; random: the median of the groups' medians, 10 to 90% from
+    the lowest to the highest group.
+  One more field: not informative in all 9 groups with 11 to 27 fields in the declared features:
+    this definition of new calls 32% to 66% of the fields of a homogeneous population of that size
+    new, so no chance of a new state and no number of fields still needed is given.
   'New': a cell that no other field shows; the exact definition is in the full report.
   The cautions on these rules are in the full report.
   Assumptions: Shown: the 95% interval of d, exact from the noncentral t distribution, each field
@@ -129,24 +122,19 @@ What this acquisition was asked to preserve
     projected from it (narrowing as 1/sqrt(cells)). Beyond 4 times the cells acquired a difference
     is called too small to show. Mean-precision rule, per cell, 5% treats cells as independent
     draws: it assumes a spatially uniform sample. Mean-precision rule, per field, 5%: in simulations
-    its upper bound, a bootstrap of whole fields, covered the true averaging error about 85-95% of
-    the time with uneven field sizes and 93-99% with Poisson sizes. The next-field bound is
-    approximate: the leave-one-field-out outcomes share their reference fields. The novelty bounds
-    treat fields as independent, representative draws: neighbouring fields acquired in a raster over
-    patchy states make them too low. Every novelty bound holds at a number of fields fixed in
-    advance, not at the first field where it passes: stopping there is premature more often than 5%
-    of the time.
+    its upper bound, a bootstrap of whole fields, covered the true averaging error about 85 to 95%
+    of the time with uneven field sizes and 93 to 99% with Poisson sizes.
 
   Novelty is exploratory: not yet validated by the benchmark of docs/common/validation.md.
 
 ⚠️ 3. What is limiting my sampling?
   - Fields: each field holds one of the cells, so a mean from whole fields is one of as many random
     cells (design effect 1).
-  - Unusual images (exploratory, farther from the siCTRL reference than all but 1% of its images;
-    0-13% of each scored group).
-  ⚠️ Refits with other reference samples agree on only 25-67% of the unusual images in 3 of 5 groups
-     (siCCT8#5 · repeat 3, siCCT8#8 · repeat 2 and siCTRL · repeat 2; below 90%): treat those labels
-     as unstable.
+  - Unusual images (exploratory, farther from the siCTRL reference than all but 1% of its images; 0
+    to 13% of each group that is not a control).
+  ⚠️ Refits with other reference samples agree on only 25 to 67% of the unusual images in 3 of 5
+     groups (siCCT8#5 · repeat 3, siCCT8#8 · repeat 2 and siCTRL · repeat 2; below 90%): treat those
+     labels as unstable.
   Assumptions: A state the reference already holds, at any share, is not unusual: only its share can
     change, and the populations (“Are there groups of cells?”) compare each condition's share of
     such a state with its control's.

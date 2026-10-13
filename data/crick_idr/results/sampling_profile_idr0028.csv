@@ -1,5 +1,5 @@
 item,where,value,statement,source
-fields against random objects,median of 12 groups,2.059257828937201,"a mean from whole fields varies 2.1 times as much as one from as many random nuclei (design effect of the variance between the fields of each group (condition, biological_repeat, technical_repeat), range 1.0-3.4); 16% of fields differ more than random nuclei would (5% expected)",fov_variability
+fields against random objects,median of 12 groups,2.059257828937201,"a mean from whole fields varies 2.1 times as much as one from as many random nuclei (design effect of the variance between the fields of each group (condition, biological_repeat, technical_repeat), range 1.0 to 3.4); 16% of fields differ more than random nuclei would (5% expected)",fov_variability
 rare-state clustering,all groups,3.0,"unusual nuclei: clustered in a few fields (q <= 0.05) in 3 of the 9 groups where it could be tested, of 12 where it was seen; there, seeing it takes about 3.4 times the fields that a count of nuclei predicts",fov_clustering
 representation,pooled,1.0,100% of declared positive-control fields recognized as different after 10 reference fields,representation_control
 representation,pooled,0.07083333333333333,7% of reference fields called different after 10 reference fields (false alarms),representation_control
