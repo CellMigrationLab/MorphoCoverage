@@ -311,6 +311,7 @@ src/morphocoverage/
         spatial.py         # acquisition-order efficiency and redundancy distance
         order_text.py      # its words: a table per order kind (short), per group and order (full)
         report.py          # the microscopist's report, question by question
+        _report_assembly.py  # private: its steps: each answer's text, the notes, the control's gate, the sections and statuses
         report_profile.py  # its sampling profile, one helper per source
         _control_rates.py  # private: the control's rates as other answers read them, and why a rate does not apply
         _new_states.py     # private: the fields holding new states beside the count chance alone gives

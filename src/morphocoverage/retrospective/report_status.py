@@ -260,52 +260,57 @@ def overview_status(overview: Any, integrity: Any = None) -> Answer:
     return worst(s for s, _ in parts), "; ".join(text for _, text in parts)
 
 
+def _variability_parts(variability: Any) -> tuple[bool, list[str]]:
+    """The Foundation's variability in words, and whether some group was not estimated."""
+    groups, words = variability.groups, observation_words(variability.settings)[1]
+    ok, single = (groups[groups["status"] == s] for s in ("ok", ONE_PER_FIELD))
+    parts = []
+    if len(ok):
+        effect = statistics.median(ok["design_effect"].astype(float))
+        parts.append(
+            f"a mean from whole fields varies {effect:.1f}x as much as from random {words} (median)"
+        )
+    elif len(single):  # one observation per field: the fields are the observations
+        parts.append(f"each field holds one of the {words}, so fields and {words} coincide")
+    if len(ok) + len(single) >= len(groups):
+        return False, parts
+    missing = among(len(groups) - len(ok) - len(single), len(groups), group_word(variability))
+    parts.append(f"variability not estimated in {missing}")
+    return True, parts
+
+
+def _count_rule_part(object_rules: Any) -> tuple[bool, str]:
+    """The mean-precision count rule with whole fields in words, and whether it missed."""
+    kept, total = rule_held(object_rules)
+    word = group_word(object_rules)
+    # Groups that could not be checked are counted apart, neither held nor missed (#272).
+    unchecked, why = rule_unchecked(object_rules)
+    apart = f"; {unchecked} more not assessed ({why})" if unchecked and total else ""
+    if not total:
+        return False, "mean-precision count rule not applicable"
+    if kept == total:
+        held = f"the {count(total, word)} assessed" if apart else among(kept, total, word)
+        return False, f"the mean-precision count rule still held with whole fields in {held}{apart}"
+    missed = total - kept
+    missed = (
+        f"{missed} of the {count(total, word)} assessed" if apart else among(missed, total, word)
+    )
+    return True, f"the mean-precision count rule missed with whole fields in {missed}{apart}"
+
+
 def unit_status(variability: Any, object_rules: Any, descriptor_spread: Any) -> Answer:
     """Foundation: would object counts have held with whole fields? (see the module)."""
     if variability is None and object_rules is None and descriptor_spread is None:
         return Status.NOT_ASSESSED, "not assessed"
     status, parts = Status.OK, []
     if variability is not None:
-        groups, words = variability.groups, observation_words(variability.settings)[1]
-        ok, single = (groups[groups["status"] == s] for s in ("ok", ONE_PER_FIELD))
-        if len(ok):
-            effect = statistics.median(ok["design_effect"].astype(float))
-            parts.append(
-                f"a mean from whole fields varies {effect:.1f}x as much as from random "
-                f"{words} (median)"
-            )
-        elif len(single):  # one observation per field: the fields are the observations
-            parts.append(f"each field holds one of the {words}, so fields and {words} coincide")
-        if len(ok) + len(single) < len(groups):
-            status = Status.CAUTION
-            missing = among(
-                len(groups) - len(ok) - len(single), len(groups), group_word(variability)
-            )
-            parts.append(f"variability not estimated in {missing}")
+        caution, own = _variability_parts(variability)
+        status = Status.CAUTION if caution else status
+        parts += own
     if object_rules is not None:
-        kept, total = rule_held(object_rules)
-        word = group_word(object_rules)
-        # Groups that could not be checked are counted apart, neither held nor missed (#272).
-        unchecked, why = rule_unchecked(object_rules)
-        apart = f"; {unchecked} more not assessed ({why})" if unchecked and total else ""
-        if not total:
-            parts.append("mean-precision count rule not applicable")
-        elif kept == total:
-            held = f"the {count(total, word)} assessed" if apart else among(kept, total, word)
-            parts.append(
-                f"the mean-precision count rule still held with whole fields in {held}{apart}"
-            )
-        else:
-            status = Status.CAUTION
-            missed = total - kept
-            missed = (
-                f"{missed} of the {count(total, word)} assessed"
-                if apart
-                else among(missed, total, word)
-            )
-            parts.append(
-                f"the mean-precision count rule missed with whole fields in {missed}{apart}"
-            )
+        caution, part = _count_rule_part(object_rules)
+        status = Status.CAUTION if caution else status
+        parts.append(part)
     if descriptor_spread is not None:
         never, phrase = spread_headline(descriptor_spread, group_word(descriptor_spread))
         status = Status.CAUTION if never else status
@@ -351,52 +356,28 @@ def calibration_status(calibration: Any) -> Answer:
     return Status.OK, text
 
 
-def enough_status(sufficiency: Any, calibration: Any = None, contrast: Any = None) -> Answer:
-    """2. Did I image enough? (see the module)."""
-    tallies = rule_tallies(sufficiency) if sufficiency is not None else []
-    if has_resolution(contrast):
-        status, text = resolved_headline(contrast)
-        precision = precision_words(tallies, group_word(sufficiency)) if tallies else None
-        premature = _premature(calibration)
-        if premature is not None and premature > PREMATURE_CAUTION:
-            status = Status.CAUTION
-            precision = "; ".join(
-                p
-                for p in (
-                    precision,
-                    f"held-back fields: some rules stopped too early (up to {percent(premature)})",
-                )
-                if p
-            )
-        return status, text + (f"; {precision}" if precision else "")
+def _too_early(premature: float) -> str:
+    """``held-back fields: some rules stopped too early (up to 12%)``."""
+    return f"held-back fields: some rules stopped too early (up to {percent(premature)})"
+
+
+def _resolved_status(
+    sufficiency: Any, calibration: Any, contrast: Any, tallies: list[dict[str, Any]]
+) -> Answer:
+    """2. with a control: whether the fields resolve the difference, with the rules' precision
+    and the stops that came too early."""
+    status, text = resolved_headline(contrast)
+    precision = precision_words(tallies, group_word(sufficiency)) if tallies else None
     premature = _premature(calibration)
-    if not tallies and premature is None:
-        return Status.NOT_ASSESSED, "not assessed"
-    late = premature is not None and premature > PREMATURE_CAUTION
-    held = (
-        ""
-        if premature is None
-        else "held-back fields: no rule stopped too early"
-        if premature == 0
-        else f"held-back fields: some rules stopped too early (up to {percent(premature)})"
-    )
-    data = [t for t in tallies if t["data_rule"]]
-    if not data:
-        if not tallies:
-            return (Status.CAUTION if late else Status.OK), held
-        return Status.CAUTION, "only fixed amounts of effort, which say nothing about the data"
-    groups = max(t["groups"] for t in data)
-    everywhere = [t for t in data if t["met"] == t["groups"]]
-    nowhere = [t for t in data if t["met"] == 0]
-    word = group_word(sufficiency)
-    if len(nowhere) == len(data):
-        where = f"the {word}" if groups == 1 else f"any of the {count(groups, word)}"
-        return Status.PROBLEM, f"no rule met in {where}"  # not "any of all 6" (audit 10, C19)
-    cautions = any(t["warned"] or t["flagged"] or t["lost"] for t in data)
-    status = Status.OK if len(everywhere) == len(data) and not cautions else Status.CAUTION
-    if late:
+    if premature is not None and premature > PREMATURE_CAUTION:
         status = Status.CAUTION
-    # Counted as the table lists them: every rule, the fixed amounts of effort included.
+        precision = "; ".join(p for p in (precision, _too_early(premature)) if p)
+    return status, text + (f"; {precision}" if precision else "")
+
+
+def _rules_said(tallies: list[dict[str, Any]], word: str, groups: int) -> list[str]:
+    """How many rules said enough, counted as the table lists them (the fixed amounts of
+    effort included), and the first two that did not."""
     enough = [t for t in tallies if t["met"] == t["groups"]]
     every = f"every {word}" if groups > 1 else f"the {word}"
     parts = [
@@ -410,6 +391,55 @@ def enough_status(sufficiency: Any, calibration: Any = None, contrast: Any = Non
             parts.append("'nothing new' not yet shown")
         else:
             parts.append(f"{label}: in {met} of {missed['groups']}")
+    return parts
+
+
+def enough_status(sufficiency: Any, calibration: Any = None, contrast: Any = None) -> Answer:
+    """2. Did I image enough? (see the module)."""
+    tallies = rule_tallies(sufficiency) if sufficiency is not None else []
+    if has_resolution(contrast):
+        return _resolved_status(sufficiency, calibration, contrast, tallies)
+    premature = _premature(calibration)
+    if not tallies and premature is None:
+        return Status.NOT_ASSESSED, "not assessed"
+    late = premature is not None and premature > PREMATURE_CAUTION
+    held = _held_words(premature)
+    data = [t for t in tallies if t["data_rule"]]
+    if not data:
+        if not tallies:
+            return (Status.CAUTION if late else Status.OK), held
+        return Status.CAUTION, "only fixed amounts of effort, which say nothing about the data"
+    return _data_rules_status(tallies, data, group_word(sufficiency), late, held)
+
+
+def _held_words(premature: float | None) -> str:
+    """What the held-back fields said of the stops ('' without a calibration)."""
+    return (
+        ""
+        if premature is None
+        else "held-back fields: no rule stopped too early"
+        if premature == 0
+        else _too_early(premature)
+    )
+
+
+def _data_rules_status(
+    tallies: list[dict[str, Any]], data: list[dict[str, Any]], word: str, late: bool, held: str
+) -> Answer:
+    """2. from the rules that read the data (``data``, of every rule in ``tallies``): met
+    nowhere, everywhere or in some groups (``word``: what a group is), and the stops that
+    came too early (``late``, said by ``held``)."""
+    groups = max(t["groups"] for t in data)
+    everywhere = [t for t in data if t["met"] == t["groups"]]
+    nowhere = [t for t in data if t["met"] == 0]
+    if len(nowhere) == len(data):
+        where = f"the {word}" if groups == 1 else f"any of the {count(groups, word)}"
+        return Status.PROBLEM, f"no rule met in {where}"  # not "any of all 6" (audit 10, C19)
+    cautions = any(t["warned"] or t["flagged"] or t["lost"] for t in data)
+    status = Status.OK if len(everywhere) == len(data) and not cautions else Status.CAUTION
+    if late:
+        status = Status.CAUTION
+    parts = _rules_said(tallies, word, groups)
     if held and late:
         parts.append(held)
     return status, "; ".join(parts)

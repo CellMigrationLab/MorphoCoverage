@@ -60,12 +60,11 @@ from typing import Any
 
 import pandas as pd
 
-from .._acquisition import check_one_acquisition, unchecked_note
-from .._caveats import assumption, caveat_lines, pool_assumptions
+from .._acquisition import check_one_acquisition
 from .._checks import is_share
 from .._fitted import fitted
 from .._frozen import owned
-from .._style import DASH, PROBLEM, Status, check_detail, headline, indented, wrap
+from .._style import DASH, Status, check_detail, headline, indented, wrap
 from .._wording import count, listing
 from ..sampling_unit import (
     ConditionContrast,
@@ -79,36 +78,28 @@ from ..sampling_unit import (
 )
 from ..schema import observation_words, unit_words
 from ..sufficiency import SufficiencyReport
+from ._report_assembly import (
+    _answer_parts,
+    _closing_notes,
+    _first_notes,
+    _gate,
+    _sections,
+    _statuses,
+)
 from .adequacy import AdequacyResult
 from .calibration import StoppingCalibration
 from .controls import ControlResult
-from .controls_text import representation_gate
 from .effort import EffortResult
 from .inspection import InspectionResult
-from .inspection_text import inspection_parts
-from .order_text import order_parts
 from .overview import DatasetOverview
 from .protocol import ProtocolResult
 from .reliability import ReliabilityResult
-from .report_answers import conditions_sections, limits_text, short_section
-from .report_enough import enough_full, enough_short
-from .report_needs import _NEEDS, _SHORT_NEEDS
-from .report_plan import bought_short, effort_short, next_time_short
-from .report_profile import sampling_profile
-from .report_sampling import (
-    controls_full,
-    controls_short,
-    profile_full,
-    profile_short,
-    unit_full,
-    unit_short,
-)
+from .report_answers import limits_text
+from .report_needs import _NEEDS
+from .report_profile import sampling_profile  # noqa: F401  (re-exported for callers)
 from .report_status import (
-    caveat_status,
     integrity_status,
     overview_status,
-    question_statuses,
-    weak_status,
 )
 from .spatial import EfficiencyResult
 
@@ -124,13 +115,6 @@ GLANCE_KEY = (
     "Key: ✅ yes, or a clear answer · ⚠️ partly, a trend only, or something to look at · ❌ "
     "check the data first · ➖ no conclusion possible here. The word beside each marker says "
     "which."
-)
-
-
-# Said only where a definition of new ran (audit 10, C24).
-_NO_CONTROL_NOTE = (
-    "No representation control: a 'nothing new' answer says nothing about phenotypes these "
-    "features and this definition of new cannot see."
 )
 
 
@@ -282,6 +266,50 @@ class MicroscopistReport:
         )
 
 
+# The type of each result ``microscopist_report`` takes, in the order they are checked.
+_KINDS: dict[str, type] = {
+    "controls": ControlResult,
+    "sufficiency": SufficiencyReport,
+    "calibration": StoppingCalibration,
+    "adequacy": AdequacyResult,
+    "reliability": ReliabilityResult,
+    "protocol": ProtocolResult,
+    "inspection": InspectionResult,
+    "effort": EffortResult,
+    "efficiency": EfficiencyResult,
+    "redundancy": pd.DataFrame,
+    "variability": FOVVariability,
+    "object_rules": ObjectRuleCheck,
+    "descriptor_spread": DescriptorSpreadCheck,
+    "unusual": UnusualObjects,
+    "clustering": FOVClustering,
+    "contrast": ConditionContrast,
+    "ranking": FeatureRanking,
+    "discovery": FeatureDiscovery,
+    "overview": DatasetOverview,
+}
+# The results the statuses read, in the order the observation unit is looked for in.
+_RESULTS = (
+    "variability",
+    "object_rules",
+    "descriptor_spread",
+    "controls",
+    "sufficiency",
+    "calibration",
+    "clustering",
+    "unusual",
+    "reliability",
+    "protocol",
+    "adequacy",
+    "inspection",
+    "effort",
+    "efficiency",
+    "contrast",
+    "ranking",
+    "discovery",
+)
+
+
 def _check(value: object, kind: type, name: str) -> None:
     if value is not None and not isinstance(value, kind):
         raise TypeError(f"{name} must be a {kind.__name__}")
@@ -328,184 +356,40 @@ def microscopist_report(
         raise ValueError("minimum_detection must be a share in (0, 1]")
     if isinstance(declaration, str) or any(not isinstance(d, str) for d in declaration):
         raise TypeError("declaration must be a sequence of sentences")
-    supplied = (
-        (controls, ControlResult, "controls"),
-        (sufficiency, SufficiencyReport, "sufficiency"),
-        (calibration, StoppingCalibration, "calibration"),
-        (adequacy, AdequacyResult, "adequacy"),
-        (reliability, ReliabilityResult, "reliability"),
-        (protocol, ProtocolResult, "protocol"),
-        (inspection, InspectionResult, "inspection"),
-        (effort, EffortResult, "effort"),
-        (efficiency, EfficiencyResult, "efficiency"),
-        (redundancy, pd.DataFrame, "redundancy"),
-        (variability, FOVVariability, "variability"),
-        (object_rules, ObjectRuleCheck, "object_rules"),
-        (descriptor_spread, DescriptorSpreadCheck, "descriptor_spread"),
-        (unusual, UnusualObjects, "unusual"),
-        (clustering, FOVClustering, "clustering"),
-        (contrast, ConditionContrast, "contrast"),
-        (ranking, FeatureRanking, "ranking"),
-        (discovery, FeatureDiscovery, "discovery"),
-        (overview, DatasetOverview, "overview"),
-    )
-    for value, kind, name in supplied:
-        _check(value, kind, name)
-    unchecked = check_one_acquisition({name: value for value, _, name in supplied})
-    parts: dict[str, list[str]] = {key: [] for key, _ in QUESTIONS}
-    short = {}
-    for check in (variability, object_rules, descriptor_spread):
-        if check is not None:
-            parts["unit"].append(check.summary(detail="full"))
-    if parts["unit"]:
-        short["unit"] = unit_short(variability, object_rules, descriptor_spread)
-    if controls is not None:
-        parts["controls"].append(controls.summary(detail="full"))
-        short["controls"] = controls_short(controls)
-    parts["enough"] += enough_full(sufficiency, calibration, controls, contrast)
-    if parts["enough"]:
-        short["enough"] = enough_short(sufficiency, calibration, controls, contrast=contrast)
-    if adequacy is not None:
-        parts["bought"].append(adequacy.summary(detail="full"))
-    if reliability is not None:
-        parts["next_time"].append(reliability.summary(detail="full"))
-    if protocol is not None:
-        parts["next_time"].append(protocol.summary(detail="full"))
-    if inspection is not None:
-        parts["inspect"].append(inspection.summary(detail="full"))
-        short["inspect"] = short_section([inspection_parts(inspection, indent=2)])
-    if effort is not None:
-        parts["effort"].append(effort.summary(detail="full"))
-    for key, text in (
-        ("next_time", next_time_short(reliability, protocol)),
-        ("bought", bought_short(adequacy)),
-        ("effort", effort_short(effort)),
-    ):
-        if text:
-            short[key] = text
-    if efficiency is not None:
-        parts["order"].append(efficiency.summary(detail="full"))
-    profile = sampling_profile(controls, effort, redundancy, inspection, variability, clustering)
-    if len(profile) or unusual is not None or clustering is not None:
-        parts["profile"].append("profile")  # its text, wrapped at its indent, is set below
-    parts["conditions"], conditions = conditions_sections(contrast, ranking, discovery)
-    if conditions:
-        short["conditions"] = conditions
-    # Redundancy alone feeds the profile; question 8 is answered by an order replay.
-    frame = assumption(
-        "Whether these were the right positions needs every candidate position from an "
-        "overview (not available: sampling-frame bias is not assessed)."
-    )
-    # Only what was stated: no tolerance or definition of new where none ran (C24, B21).
-    novel = sufficiency is not None and len(sufficiency.next_fov) > 0
-    stated = ["features"]
-    stated += ["tolerances"] if sufficiency is not None and len(sufficiency.enough) else []
-    stated += ["definition of new"] if novel else []
-    notes = [
-        assumption(f"Every answer holds for the stated {listing(stated)}."),
-        assumption(
-            "Replays, draws and hold-outs describe these samples; they are not independent "
-            "experiments. Statements across samples count samples or repeats."
-        ),
-        assumption(
-            "A field count that preserved this acquisition is not a protocol until it holds on "
-            "samples it was not chosen on."
-        ),
-    ]
-    notes += [assumption(unchecked_note(unchecked))] if unchecked else []
-    weakened: list[str] = []
-    weak = False
-    if controls is None or controls.status == "not assessed":
-        notes += [assumption(_NO_CONTROL_NOTE)] if novel else []
-    else:
-        # With planted objects declared, the rare-state rate gates the warning (P6-4); none
-        # planted, the gate is not assessed, never read from the whole fields (#270).
-        gate, weak = representation_gate(controls, float(minimum_detection))
-        after = ", so the answers below cannot exclude a phenotype like it." if weak else "."
-        marker = PROBLEM if weak else Status.NOT_ASSESSED.marker
-        for key in ("enough", "next_time", "bought") if gate else ():
-            if parts[key]:
-                weakened.append(key)
-                parts[key].insert(0, f"{gate}{after}")
-                if key in short:
-                    short[key] = f"{wrap(f'{marker} {gate}{after}', 2, hang=5)}\n{short[key]}"
-        if gate:
-            # The notes close the report: the adequacy answers are above them.
-            notes.append(
-                f"{gate}, so the adequacy answers (questions 2, 4 and 5) "
-                + ("cannot exclude a phenotype like it." if weak else "are not checked for it.")
-            )
-    notes.append(
-        assumption(
-            "Technical drift between repeats, batches or plates is not assessed: groups are "
-            "analysed apart, and a shift shared by all fields of a group is not new within it."
-        )
-    )
-    framed = None
-    if efficiency is not None:
-        parts["order"].append("\n".join(caveat_lines([frame], 0, detail="full")))
-        short["order"] = short_section([order_parts(efficiency, indent=2)], frame)
-    elif redundancy is not None and parts["profile"]:
-        framed = frame  # it closes question 3 (profile_full, profile_short)
-    elif redundancy is not None:
-        # A caveat alone does not assess question 3: it stays "not assessed", and
-        # the caveat is kept with the notes.
-        notes.append(frame)
-    if parts["profile"]:
-        short["profile"] = profile_short(
-            profile,
-            variability=variability,
-            effort=effort,
-            unusual=unusual,
-            clustering=clustering,
-            frame=framed,
-        )
-    sections = {
-        key: indented("\n\n".join(texts)) if texts else f"  Not assessed: {_NEEDS[key]}."
-        for key, texts in parts.items()
-    }
-    # The Foundation, 1 and 3 are wrapped at the indent they are printed at.
-    if parts["unit"]:
-        sections["unit"] = unit_full(variability, object_rules, descriptor_spread)
-    if controls is not None:
-        sections["controls"] = controls_full(controls)
-    if parts["profile"]:
-        sections["profile"] = profile_full(profile, unusual, clustering, framed)
-    inputs = {key: ("given" if parts[key] else "not assessed") for key, _ in QUESTIONS}
-    results = {
-        "variability": variability,
-        "object_rules": object_rules,
-        "descriptor_spread": descriptor_spread,
+    given = {
         "controls": controls,
         "sufficiency": sufficiency,
         "calibration": calibration,
-        "clustering": clustering,
-        "unusual": unusual,
+        "adequacy": adequacy,
         "reliability": reliability,
         "protocol": protocol,
-        "adequacy": adequacy,
         "inspection": inspection,
         "effort": effort,
         "efficiency": efficiency,
+        "redundancy": redundancy,
+        "variability": variability,
+        "object_rules": object_rules,
+        "descriptor_spread": descriptor_spread,
+        "unusual": unusual,
+        "clustering": clustering,
         "contrast": contrast,
         "ranking": ranking,
         "discovery": discovery,
+        "overview": overview,
     }
-    # One "Assumptions:" block per section, after its answers; a caution raises its status.
-    sections = {key: pool_assumptions(text) for key, text in sections.items()}
-    short = {key: pool_assumptions(text) for key, text in short.items()}
-    answers = question_statuses(results, profile, minimum_detection)
-    for key, (status, glance) in answers.items():
-        answers[key] = caveat_status(status, short.get(key, sections[key]), key), glance
-    statuses = {key: answers[key][0] for key, _ in QUESTIONS}
-    headlines = {key: answers[key][1] for key, _ in QUESTIONS}
-    for key, _ in QUESTIONS:
-        if not parts[key]:
-            statuses[key] = Status.NOT_ASSESSED
-            headlines[key] = f"not assessed; {_SHORT_NEEDS[key]}"
-    for key in weakened:
-        gated = (statuses[key], f"small-state representation not assessed; {headlines[key]}")
-        statuses[key], headlines[key] = weak_status(answers[key]) if weak else gated
+    for name, value in given.items():
+        _check(value, _KINDS[name], name)
+    unchecked = check_one_acquisition(dict(given))
+    parts, short, profile = _answer_parts(given, [key for key, _ in QUESTIONS])
+    notes, novel = _first_notes(given, unchecked)
+    gate = _gate(controls, minimum_detection, novel, parts, short, notes)
+    framed = _closing_notes(given, parts, short, notes)
+    sections = _sections(given, parts, short, profile, framed)
+    inputs = {key: ("given" if parts[key] else "not assessed") for key, _ in QUESTIONS}
+    results = {name: given[name] for name in _RESULTS}
+    statuses, headlines, sections, short = _statuses(
+        results, profile, minimum_detection, parts, sections, short, gate
+    )
     document = MicroscopistReport(
         sections,
         profile,
