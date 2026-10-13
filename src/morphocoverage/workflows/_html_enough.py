@@ -255,68 +255,97 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
     precision = results.get("fingerprint_precision")
     lines, tabs = [], []
     if clustering is not None and len(clustering.table):
-        rows = clustering.table
-        k = setup.rare.min_fov_occurrences
-        seen = rows["fovs_with_state"] >= k
-        parts = []
-        for condition, block in seen.groupby(rows["condition"], sort=False):
-            if block.all():
-                parts.append(("every", str(condition)))
-            elif block.any():
-                parts.append((f"{int(block.sum())} of {len(block)}", str(condition)))
-        full = [c for kind, c in parts if kind == "every"]
-        said = [f"every {listing(full, len(full))} {word}"] if full else []
-        said += [f"{kind} {c} {plural(word)}" for kind, c in parts if kind != "every"]
-        name = setup.rare_label or setup.rare.phenotype
-        where = (
-            f"in every {word}"
-            if seen.all()
-            else f"in {int(seen.sum())} of {count(len(rows), word)}"
-            + (f": {joined_clauses(said)}" if said else "")
-        )
-        lines.append(f"The rare phenotype, {name}, was seen in at least {count(k, field)} {where}.")
-        text = "\n".join(rare_lines(clustering, setup, word, field))
-        tabs.append(("rare phenotype", "✅" if seen.all() else "⚠️", text_html(text)))
+        line, tab = _rare_target(clustering, setup, word, field)
+        lines.append(line)
+        tabs.append(tab)
     if precision is not None:
-        judged = precision[precision["met"].notna()]
         criteria = list(dict.fromkeys(precision["criterion"]))
-        for criterion in criteria:
-            own = judged[judged["criterion"] == criterion]
-            rows = precision[precision["criterion"] == criterion]
-            table = rows["table"].iloc[0] if "table" in rows else None
-            # With other feature tables, each table its own verdict (owner, 2026-10-06).
-            named = (
-                f" of {table}"
-                if isinstance(table, str)
-                else ("" if len(criteria) == 1 else f", {criterion},")
-            )
-            reason = assessable_reason(rows)
-            what = rows["noun"].iloc[0] if "noun" in rows else "fingerprint"
-            if reason is not None:  # a wide table and small groups (owner, 2026-10-06)
-                lines.append(f"The {what}{named} is not assessable: {reason}.")
-                continue
-            if not len(own):
-                lines.append(f"The {what}{named} is not judged in any {word}.")
-                continue
-            met = int(own["met"].sum())
-            every = (precision["criterion"] == criterion).sum() == len(own)
-            within = (
-                f"in every {word}"
-                if met == len(own) and every
-                else f"in {met} of {count(len(own), word)}" + ("" if every else " judged")
-            )
-            lines.append(f"The {what}{named} is within its tolerance {within}.")
+        lines += [
+            _criterion_line(precision, criterion, len(criteria), word) for criterion in criteria
+        ]
         if no_target_judged(precision, setup):
             lines.append(NO_TARGET)
-        text = "\n".join(
-            fingerprint_lines(precision, word, plural(field), held_back=False, unit=setup.unit_word)
-        )
-        if text:
-            # No group judged: not assessed, never a ✅ over an empty set.
-            mark = "✅" if judged["met"].astype(bool).all() else "⚠️"
-            mark = mark if len(judged) else NOT_ASSESSED
-            tabs.append(("fingerprint", mark, text_html(text)))
+        tabs += _fingerprint_tab(precision, setup, word, field)
     return lines, tabs
+
+
+def _rare_target(
+    clustering: Any, setup: Any, word: str, field: str
+) -> tuple[str, tuple[str, str, str]]:
+    """The rare phenotype's line for the top (in how many groups it was seen) and its tab."""
+    rows = clustering.table
+    k = setup.rare.min_fov_occurrences
+    seen = rows["fovs_with_state"] >= k
+    name = setup.rare_label or setup.rare.phenotype
+    where = (
+        f"in every {word}"
+        if seen.all()
+        else f"in {int(seen.sum())} of {count(len(rows), word)}"
+        + _seen_by_condition(seen, rows, word)
+    )
+    line = f"The rare phenotype, {name}, was seen in at least {count(k, field)} {where}."
+    text = "\n".join(rare_lines(clustering, setup, word, field))
+    return line, ("rare phenotype", "✅" if seen.all() else "⚠️", text_html(text))
+
+
+def _seen_by_condition(seen: pd.Series, rows: pd.DataFrame, word: str) -> str:
+    """Where the rare phenotype was seen, condition by condition (``: every a well, ...``),
+    or nothing when no condition saw it."""
+    parts = []
+    for condition, block in seen.groupby(rows["condition"], sort=False):
+        if block.all():
+            parts.append(("every", str(condition)))
+        elif block.any():
+            parts.append((f"{int(block.sum())} of {len(block)}", str(condition)))
+    full = [c for kind, c in parts if kind == "every"]
+    said = [f"every {listing(full, len(full))} {word}"] if full else []
+    said += [f"{kind} {c} {plural(word)}" for kind, c in parts if kind != "every"]
+    return f": {joined_clauses(said)}" if said else ""
+
+
+def _criterion_line(precision: pd.DataFrame, criterion: Any, criteria: int, word: str) -> str:
+    """The fingerprint line of one criterion (of ``criteria``): not assessable, not judged,
+    or within its tolerance in how many groups."""
+    judged = precision[precision["met"].notna()]
+    own = judged[judged["criterion"] == criterion]
+    rows = precision[precision["criterion"] == criterion]
+    table_name = rows["table"].iloc[0] if "table" in rows else None
+    # With other feature tables, each table its own verdict (owner, 2026-10-06).
+    named = (
+        f" of {table_name}"
+        if isinstance(table_name, str)
+        else ("" if criteria == 1 else f", {criterion},")
+    )
+    reason = assessable_reason(rows)
+    what = rows["noun"].iloc[0] if "noun" in rows else "fingerprint"
+    if reason is not None:  # a wide table and small groups (owner, 2026-10-06)
+        return f"The {what}{named} is not assessable: {reason}."
+    if not len(own):
+        return f"The {what}{named} is not judged in any {word}."
+    met = int(own["met"].sum())
+    every = (precision["criterion"] == criterion).sum() == len(own)
+    within = (
+        f"in every {word}"
+        if met == len(own) and every
+        else f"in {met} of {count(len(own), word)}" + ("" if every else " judged")
+    )
+    return f"The {what}{named} is within its tolerance {within}."
+
+
+def _fingerprint_tab(
+    precision: pd.DataFrame, setup: Any, word: str, field: str
+) -> list[tuple[str, str, str]]:
+    """The fingerprint's tab, none when there is nothing to show."""
+    text = "\n".join(
+        fingerprint_lines(precision, word, plural(field), held_back=False, unit=setup.unit_word)
+    )
+    if not text:
+        return []
+    judged = precision[precision["met"].notna()]
+    # No group judged: not assessed, never a ✅ over an empty set.
+    mark = "✅" if judged["met"].astype(bool).all() else "⚠️"
+    mark = mark if len(judged) else NOT_ASSESSED
+    return [("fingerprint", mark, text_html(text))]
 
 
 def _assumptions(contrast: Any, sufficiency: Any, labels: set[str]) -> str:

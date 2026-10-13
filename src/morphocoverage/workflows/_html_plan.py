@@ -22,16 +22,14 @@ import html
 from collections.abc import Callable, Sequence
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from .._identity import IdentityKey, identity_key
-from .._wording import change, count, listing, percent_fine, plural, rate
+from .._wording import count, listing, percent_fine, plural, rate
 from ..data_check import validate_input_tables
 from ..retrospective.report_status import group_word
 from ..sampling_unit.reading_text import CONFIRMED, condition_readings
-from ..sampling_unit.repeat_plan import MAX_REPEATS, POWER
-from ..sampling_unit.repeat_plan_text import field_words
+from ..sampling_unit.repeat_plan import POWER
 from ._enough_targets import held_back_note
 from ._feature_space import table_columns
 from ._html_next import (
@@ -47,6 +45,7 @@ from ._html_next import (
     rule_code,
     rule_labels,
 )
+from ._html_plan_repeats import _plan_rows, _plan_table, _repeat_conditions
 from ._html_render import text_html
 from ._html_tabs import NOTHING_LIVE, choose
 from ._populations import rule_words
@@ -223,12 +222,6 @@ def _confirmed_pairs(result: Any) -> set[tuple[IdentityKey, IdentityKey]]:
     return {(identity_key(f), identity_key(c)) for f, c in pairs}
 
 
-def _plan_words(value: Any) -> str:
-    if pd.isna(value):
-        return "–"
-    return f"more than {MAX_REPEATS}" if not np.isfinite(float(value)) else str(int(value))
-
-
 def _difference_goal(result: Any) -> tuple[str, str] | None:
     """The repeats each condition not yet significant across repeats would need, per
     feature; with too few repeats, how many to plan."""
@@ -247,44 +240,7 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
         return option, _panel(few)
     if not plans:
         return None
-    done = _confirmed_pairs(result)
-    # Without a feature discovery (one feature), the readout's own verdicts.
-    contrast = result.results.get("contrast")
-    if not done and contrast is not None:
-        readings = condition_readings(contrast)
-        if len(readings):
-            confirmed = readings.loc[readings["verdict"] == CONFIRMED, "condition"]
-            done = {(identity_key(result.setup.readout), identity_key(c)) for c in confirmed}
-    rows, shown = [], []
-    for feature, contrast in plans:
-        plan = getattr(contrast, "plan", None)
-        if plan is None or plan.empty:
-            continue
-        unit = field_words(contrast)[1]
-        for _, row in plan.iterrows():
-            if identity_key(row["condition"]) in pilots:
-                continue
-            if (identity_key(feature), identity_key(row["condition"])) in done:
-                shown.append(feature)
-                continue
-            if pd.isna(row["repeats_needed"]):
-                continue
-            planned = str(row["planned_on"])
-            moved = (
-                change(float(row["change"]), "normalised" if planned == "log ratio" else "raw")
-                if planned in ("log ratio", "difference") and pd.notna(row["change"])
-                else "–"
-            )
-            rows.append(
-                (
-                    feature,
-                    str(row["condition"]),
-                    moved,
-                    _plan_words(row["repeats_needed"]),
-                    _plan_words(row["repeats_needed_twice_fields"]),
-                    unit,
-                )
-            )
+    rows, shown = _plan_rows(plans, pilots, _done(result))
     already = list(dict.fromkeys(shown))
     known = f" Significant across repeats already: {listing(already, 6)}." if already else ""
     pilot = f"<p>{html.escape(few)}</p>" if few else ""
@@ -295,18 +251,6 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
             else "Every condition is significant across repeats."
         )
         return option, _panel(f"{done_words}{known}".strip(), extra=pilot)
-    unit = rows[0][5]
-    head = (
-        "<tr><th>feature</th><th>condition</th><th>change seen</th><th>repeats needed</th>"
-        f"<th>with twice the {html.escape(unit)} per repeat</th></tr>"
-    )
-    body = "".join(
-        "<tr>" + "".join(f"<td>{html.escape(v)}</td>" for v in row[:5]) + "</tr>" for row in rows
-    )
-    table = (
-        f'<div class="table-wrap"><table class="sortable"><thead>{head}</thead>'
-        f"<tbody>{body}</tbody></table></div>"
-    )
     sentence = (
         "Optimise plans each well's own measurements, not a comparison: a difference from "
         "the control is planned in biological repeats. For each condition not yet "
@@ -314,12 +258,20 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
         f"for {rate(POWER)} power, if the change and the variation seen here recur, each "
         f"repeat with its own control.{known}"
     )
-    return option, _panel(sentence, extra=table + pilot)
+    return option, _panel(sentence, extra=_plan_table(rows) + pilot)
 
 
-def _repeat_conditions(discovery: Any) -> set[IdentityKey]:
-    tests = discovery.tests["condition"] if discovery is not None else []
-    return {identity_key(c) for c in tests}
+def _done(result: Any) -> set[tuple[IdentityKey, IdentityKey]]:
+    """The (feature, condition) pairs significant across repeats; without a feature
+    discovery (one feature), the readout's own verdicts."""
+    done = _confirmed_pairs(result)
+    contrast = result.results.get("contrast")
+    if not done and contrast is not None:
+        readings = condition_readings(contrast)
+        if len(readings):
+            confirmed = readings.loc[readings["verdict"] == CONFIRMED, "condition"]
+            done = {(identity_key(result.setup.readout), identity_key(c)) for c in confirmed}
+    return done
 
 
 def _group(result: Any) -> Any | None:

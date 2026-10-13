@@ -104,61 +104,9 @@ def across_frame(result: Any) -> pd.DataFrame:
     without a test across repeats. The figure legends read their numbers from it."""
     discovery, contrast = result.discovery, result.results.get("contrast")
     if discovery is not None and len(discovery.tests):
-        tests = _order(discovery.tests, discovery)
-        frame = pd.DataFrame(
-            {
-                "feature": tests["feature"],
-                **({"table": tests["table"]} if "table" in tests else {}),  # owner, 2026-10-06
-                "condition": tests["condition"],
-                "control": tests["control_condition"],
-                "repeats": tests["repeats"],
-                "lower": tests["lower"],
-                "higher": tests["higher"],
-                "values": tests["paired_values"],
-                "change": tests["change"],
-                "p": tests["p_paired"],
-                "adjusted_p": tests["q_paired"],
-                "p_raw": tests["p_paired_raw"],
-                "adjusted_p_raw": tests["q_paired_raw"],
-                "screen_wide_adjusted_p": tests.get("q_screen", np.nan),
-                "confirmed": tests["confirmed"].fillna(False).astype(bool),
-                "d_per_repeat_mean": tests["d_repeat_mean"],
-                "d_per_repeat_min": tests["d_repeat_min"],
-                "d_per_repeat_max": tests["d_repeat_max"],
-                "repeat_observations_min": tests["repeat_observations_min"],
-                "repeat_observations_max": tests["repeat_observations_max"],
-                "repeat_contrasts": tests["repeat_contrasts"],
-                "ci_low": tests["ci_low"],
-                "ci_high": tests["ci_high"],
-            }
-        )
+        frame = _tests_frame(discovery)
     elif contrast is not None and len(contrast.repeats):
-        rep = contrast.repeats
-        # One mask for the values, the change and p: normalised on the feature's log scale.
-        normalised = rep["fold_change"].notna()
-        frame = pd.DataFrame(
-            {
-                "feature": result.setup.readout,
-                "condition": rep["condition"],
-                "control": rep["control_condition"],
-                "repeats": rep["repeats"],
-                "lower": rep["lower"],
-                "higher": rep["higher"],
-                "values": np.where(normalised, "normalised", "raw"),
-                "change": rep["fold_change"].where(normalised, rep["mean_difference"]),
-                "p": rep["p_paired_t_normalised"].where(normalised, rep["p_paired_t"]),
-                "adjusted_p": rep["q_paired_t_normalised"].where(normalised, rep["q_paired_t"]),
-                "p_raw": rep["p_paired_t"],
-                "adjusted_p_raw": rep["q_paired_t"],
-                "screen_wide_adjusted_p": rep.get("q_screen", np.nan),
-                "d_per_repeat_mean": rep["d_mean"],
-                "d_per_repeat_min": rep["d_min"],
-                "d_per_repeat_max": rep["d_max"],
-                "repeat_contrasts": rep["repeat_contrasts"],
-                "ci_low": rep["ci_low"],
-                "ci_high": rep["ci_high"],
-            }
-        )
+        frame = _repeats_frame(contrast, result.setup.readout)
     else:
         return pd.DataFrame()
     one = getattr(result.setup, "unit_word", "cell")
@@ -167,6 +115,68 @@ def across_frame(result: Any) -> pd.DataFrame:
         for r in frame.itertuples()
     ]
     return frame
+
+
+def _tests_frame(discovery: Any) -> pd.DataFrame:
+    """The table's rows from the feature discovery: every feature and condition."""
+    tests = _order(discovery.tests, discovery)
+    return pd.DataFrame(
+        {
+            "feature": tests["feature"],
+            **({"table": tests["table"]} if "table" in tests else {}),  # owner, 2026-10-06
+            "condition": tests["condition"],
+            "control": tests["control_condition"],
+            "repeats": tests["repeats"],
+            "lower": tests["lower"],
+            "higher": tests["higher"],
+            "values": tests["paired_values"],
+            "change": tests["change"],
+            "p": tests["p_paired"],
+            "adjusted_p": tests["q_paired"],
+            "p_raw": tests["p_paired_raw"],
+            "adjusted_p_raw": tests["q_paired_raw"],
+            "screen_wide_adjusted_p": tests.get("q_screen", np.nan),
+            "confirmed": tests["confirmed"].fillna(False).astype(bool),
+            "d_per_repeat_mean": tests["d_repeat_mean"],
+            "d_per_repeat_min": tests["d_repeat_min"],
+            "d_per_repeat_max": tests["d_repeat_max"],
+            "repeat_observations_min": tests["repeat_observations_min"],
+            "repeat_observations_max": tests["repeat_observations_max"],
+            "repeat_contrasts": tests["repeat_contrasts"],
+            "ci_low": tests["ci_low"],
+            "ci_high": tests["ci_high"],
+        }
+    )
+
+
+def _repeats_frame(contrast: Any, readout: str) -> pd.DataFrame:
+    """The table's rows of the readout alone (one feature), from its contrast."""
+    rep = contrast.repeats
+    # One mask for the values, the change and p: normalised on the feature's log scale.
+    normalised = rep["fold_change"].notna()
+    return pd.DataFrame(
+        {
+            "feature": readout,
+            "condition": rep["condition"],
+            "control": rep["control_condition"],
+            "repeats": rep["repeats"],
+            "lower": rep["lower"],
+            "higher": rep["higher"],
+            "values": np.where(normalised, "normalised", "raw"),
+            "change": rep["fold_change"].where(normalised, rep["mean_difference"]),
+            "p": rep["p_paired_t_normalised"].where(normalised, rep["p_paired_t"]),
+            "adjusted_p": rep["q_paired_t_normalised"].where(normalised, rep["q_paired_t"]),
+            "p_raw": rep["p_paired_t"],
+            "adjusted_p_raw": rep["q_paired_t"],
+            "screen_wide_adjusted_p": rep.get("q_screen", np.nan),
+            "d_per_repeat_mean": rep["d_mean"],
+            "d_per_repeat_min": rep["d_min"],
+            "d_per_repeat_max": rep["d_max"],
+            "repeat_contrasts": rep["repeat_contrasts"],
+            "ci_low": rep["ci_low"],
+            "ci_high": rep["ci_high"],
+        }
+    )
 
 
 def d_per_repeat(row: Any) -> str:

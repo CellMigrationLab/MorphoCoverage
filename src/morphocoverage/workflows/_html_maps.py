@@ -14,21 +14,18 @@ feature space, as data for the page's script, with the static figures beside.
 from __future__ import annotations
 
 import html
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
-import numpy as np
 import pandas as pd
 
 from .._palette import GREY, condition_palette
-from .._wording import percent
 from ..embedding import MIN_FEATURES, Embedding, embed
 from ..feature_tables import COMBINED
-from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
+from ..metadata import CONDITION_COLUMN, sorted_labels
 from ..normalize import control_mean_problem, normalize_to_control
 from ..plots_embedding import embedding_figures
-from ..sampling_unit.populations import MAX_COMPONENTS, VARIANCE
 from ._acquisition_gap import gap_maps_line
 from ._contrasts import left_out_sentence, normalisation_problem
 from ._feature_space import (
@@ -42,6 +39,7 @@ from ._feature_space import (
 from ._html_data import data_buttons, embedding_data, json_island, write_csv
 from ._html_figures import figure_block, file_stem, save
 from ._html_map_controls import colour_menu, find_box, values_controls
+from ._html_map_sets import _held, _set
 from ._html_map_text import (
     METHOD_WORDS,
     NEIGHBOURS,
@@ -49,9 +47,7 @@ from ._html_map_text import (
     VALUE_HELP,
     VIEW_ORDER,
     centred_note,
-    combined_words,
     comparison_table,
-    share_lines,
 )
 from ._population_spaces import found_words
 from ._populations import population_of
@@ -60,158 +56,6 @@ from .retrospective import Report
 
 # The most features a map can be coloured by and a selection described with.
 MAP_FEATURES = 60
-
-
-def _extras(
-    points: pd.DataFrame, features: list[str], populations: list[str], label: str | None
-) -> dict[str, Any]:
-    """Per point: its population (an index into ``populations``, -1 none), whether it carries
-    the label, its standardised value of each feature (2 decimals), and its ``observation``
-    and ``label_id`` (``obs``, ``lid``), which its hover names (#74)."""
-    extra: dict[str, Any] = {"obs": _ids(points["observation"])} if "observation" in points else {}
-    if "label_id" in points:
-        extra["lid"] = _ids(points["label_id"])
-    if populations and "population" in points:
-        index = {name: i for i, name in enumerate(populations)}
-        extra["pop"] = [index.get(v, -1) for v in points["population"]]
-    if label and label in points:
-        extra["lab"] = [int(bool(v)) if pd.notna(v) else 0 for v in points[label]]
-    # On another table's map, an observation the explainable map left out (a missing value)
-    # has none (null): drawn grey when the map is coloured by a feature.
-    extra["z"] = {
-        f: [round(float(v), 2) if pd.notna(v) else None for v in points[f"z:{f}"]]
-        for f in features
-        if f"z:{f}" in points
-    }
-    return extra
-
-
-def _ids(values: pd.Series) -> list[Any]:
-    """Identifiers as the page's JSON holds them: a whole number as an int, anything else as
-    its text, a missing one as ``None``."""
-    ids: list[Any] = []
-    for value in values.tolist():
-        if value is None or (isinstance(value, float) and np.isnan(value)):
-            ids.append(None)
-        elif isinstance(value, int | float) and float(value).is_integer():
-            ids.append(int(value))
-        else:
-            ids.append(str(value))
-    return ids
-
-
-# The strongest loadings named under the PCA for each axis (#75).
-TOP_LOADINGS = 3
-
-
-def _held(result: Report) -> str:
-    """How many PCs hold ``VARIANCE`` of the variance of the declared values, as the
-    populations counted them (``populations._components``), as a clause; empty without."""
-    found = result.results.get("populations")
-    if found is None:
-        return ""
-    k = found.populations.settings.get("components")
-    if not k:
-        return ""
-    many = f"{k} or more" if k >= MAX_COMPONENTS else str(k)
-    return f", {many} PCs hold {percent(VARIANCE)} of it"
-
-
-def _loading_lines(loadings: pd.DataFrame, explained: tuple[float, float]) -> list[str]:
-    """One line per shown PC: its ``TOP_LOADINGS`` largest loadings by size, with signs on
-    the axis as drawn (a PC that holds no variance is left out)."""
-    lines = []
-    sides = ((1, explained[0], "to the right"), (2, explained[1], "towards the top"))
-    for axis, share, side in sides:
-        if share <= 0:
-            continue
-        column = loadings[f"pc{axis}"]
-        strongest = column.abs().sort_values(ascending=False, kind="stable").index
-        named = ", ".join(
-            f"{loadings.at[i, 'feature']} {column[i]:+.2f}" for i in strongest[:TOP_LOADINGS]
-        )
-        lines.append(f"PC{axis}, strongest loadings: {named}; a feature with + is higher {side}.")
-    return lines
-
-
-def _set(
-    embedding: Embedding,
-    method: str,
-    order: dict,
-    values: str,
-    extras: tuple[list[str], list[str], str | None] = ([], [], None),
-    held: str = "",
-    line: str = "",
-) -> dict[str, Any] | None:
-    """One map's data: its points, caption (with ``line``, how far the conditions separate in
-    it, last), axis titles, arrows and what rides on each point (``_extras``)."""
-    x, y = (f"{method}1", f"{method}2")
-    points = embedding.points.dropna(subset=[x, y])
-    if points.empty:
-        return None
-    if CONDITION_COLUMN in points:
-        # The control first, so the conditions are drawn over it.
-        points = points.assign(_rank=points[CONDITION_COLUMN].map(order)).sort_values(
-            "_rank", kind="stable"
-        )
-        cond = points["_rank"].astype(int).tolist()
-    else:
-        cond = [0] * len(points)
-    named = [c for c in (REPEAT_COLUMN, "field") if c in points]
-    labels = [" · ".join(str(v) for v in row if pd.notna(v)) for row in points[named].values]
-    settings = embedding.settings
-    n = f"{len(settings['features'])} standardised features"
-    shares = settings.get("table_shares")
-    if shares:  # the combined space of several feature tables (owner, 2026-10-06)
-        n = combined_words(settings["table_columns"])
-    if method == "pc":
-        first, second = embedding.explained
-        loadings = embedding.loadings
-        shown = loadings[loadings["top"]]
-        drawn = "the loadings of the best-ranked features"
-        if shown.empty:
-            size = np.hypot(loadings["pc1"], loadings["pc2"])
-            shown = loadings.loc[size.sort_values(ascending=False).index[:5]]
-            drawn = f"the {len(shown)} largest loadings, as no feature ranks"
-        reach = 0.8 * float(np.nanmax(np.hypot(points[x], points[y])) or 1.0)
-        longest = float(np.hypot(shown["pc1"], shown["pc2"]).max()) or 1.0
-        arrows = [
-            [r.feature, round(r.pc1 / longest * reach, 3), round(r.pc2 / longest * reach, 3)]
-            for r in shown.itertuples()
-        ]
-        head = (
-            f"PCA of {n} ({values} values): PC1 {percent(first)} and "
-            f"PC2 {percent(second)} of the variance{held}; arrows: {drawn}."
-        )
-        # The combined map: each table's share of each axis, not loadings of a table's
-        # columns under arrows of explainable ones (owner, 2026-10-06).
-        shown_lines = (
-            share_lines(shares, embedding.explained)
-            if shares
-            else _loading_lines(loadings, embedding.explained)
-        )
-        caption = "\n".join([head, *shown_lines])
-        labels_xy = (f"PC1 ({percent(first)})", f"PC2 ({percent(second)})")
-    else:
-        arrows = []
-        caption = (
-            f"UMAP of {n} ({values} values), "
-            f"{settings['umap_points']} observations (n_neighbors {settings['n_neighbors']}, "
-            f"min_dist {settings['min_dist']:g}); its axes have no units."
-        )
-        labels_xy = ("UMAP 1", "UMAP 2")
-    caption = f"{caption}\n{line}" if line else caption
-    return {
-        "x": [round(float(v), 4) for v in points[x]],
-        "y": [round(float(v), 4) for v in points[y]],
-        "cond": cond,
-        "labels": labels,
-        "caption": caption,
-        "xlabel": labels_xy[0],
-        "ylabel": labels_xy[1],
-        "arrows": arrows,
-        **_extras(points, *extras),
-    }
 
 
 def _tables(
@@ -283,6 +127,13 @@ def _maps(
             )
     if not maps.get("centred"):
         maps.pop("centred", None)
+    _carry_explained(maps, own)
+    return maps
+
+
+def _carry_explained(maps: dict[str, dict[str, Embedding]], own: set[str]) -> None:
+    """On each other table's map, the explainable features' standardised values of the
+    first map of its values (the raw one's for the centred maps), in place."""
     for values, view in maps.items():
         source = maps["raw"] if values == "centred" else view
         first = next(iter(source.values())).points.set_index("observation")
@@ -294,7 +145,33 @@ def _maps(
                 view[name] = replace(
                     embedding, points=points.join(first[explained], on="observation")
                 )
-    return maps
+
+
+class _Legend(NamedTuple):
+    """The conditions of the maps as the page draws them: their names (the control first),
+    their order, the hits kept in colour past 12, the colours, the colour note and how many
+    points each has."""
+
+    names: list[Any]
+    order: dict[Any, int]
+    hits: list[Any]
+    colours: list[str]
+    note: str
+    counts: list[int]
+
+
+@dataclass(frozen=True)
+class _Sets:
+    """What every map's data shares: the separations by values, the values whose PCs the
+    populations counted (``declared``), the first space, the held clause, the extras riding
+    on the points and the conditions' order."""
+
+    separations: dict[str, Any]
+    declared: str
+    first_space: str
+    held: str
+    extras: tuple[list[str], list[str], str | None]
+    order: dict[Any, int]
 
 
 def embeddings(
@@ -313,12 +190,7 @@ def embeddings(
     control = setup.figure_control
     tables, unnormalisable = _tables(setup, objects, fovs)
     maps = _maps(setup, tables, fovs, top, carry)
-    ran = "unusual" in result.results
-    line = centring_line(objects, fovs, setup, ran) if "centred" in maps else ""
-    contrast = result.results.get("contrast")
-    gaps = contrast.settings.get("acquisition_gaps", []) if contrast is not None else []
-    centred = " ".join(p for p in (centred_note(line), gap_maps_line(gaps)) if p)
-    uncentred = gap_maps_line(gaps, centred=False)
+    centring = _centring_note(result, objects, fovs, "centred" in maps)
     spaces = list(maps["raw"])
     several = len(spaces) > 1
     # How far the conditions separate in each space, under its map (owner, 2026-10-05).
@@ -330,18 +202,62 @@ def embeddings(
         for values, table in tables.items()
         if values in maps
     }
+    neighbours = _neighbours(separations.get("raw"), fovs)
+    ranked = list(top) + [f for f in setup.columns if f not in set(top)]
+    first = maps["raw"][spaces[0]]
+    features = [f for f in ranked if f"z:{f}" in first.points][:MAP_FEATURES]
+    legend = _legend(first.points, (control or {}).get(CONDITION_COLUMN), result.discovery)
+    declared = _declared(setup, maps)
+    shared = _Sets(
+        separations,
+        declared,
+        spaces[0],
+        _held(result),
+        (features, populations, label),
+        legend.order,
+    )
+    sets = {values: _view_sets(maps, shared, values, own) for values in maps}
+    data = _page_data(legend, features, _population_rows(result, found), label, sets, spaces)
+    shown, data_files = _files(maps, own, separations[declared], folder, setup)
+    comparison = comparison_table(separations[declared]) if several else ""
+    static = _static(shown, spaces, control, legend, folder)
+    batch = _batch_words(setup, fovs, unnormalisable, "centred" in maps)
+    notes = (neighbours, centring, batch)
+    markup = _controls(data, spaces, len(setup.columns)) + _body(
+        data, legend.note, comparison, data_files, notes
+    )
+    return markup, static
+
+
+def _centring_note(result: Report, objects: pd.DataFrame, fovs: pd.DataFrame, centred: bool) -> str:
+    """The note under the maps on centring: what the centred view takes out (with it, as a
+    paragraph even when empty), else the acquisition gaps' line when there is one."""
+    setup = result.setup
+    ran = "unusual" in result.results
+    line = centring_line(objects, fovs, setup, ran) if centred else ""
+    contrast = result.results.get("contrast")
+    gaps = contrast.settings.get("acquisition_gaps", []) if contrast is not None else []
+    with_centred = " ".join(p for p in (centred_note(line), gap_maps_line(gaps)) if p)
+    uncentred = gap_maps_line(gaps, centred=False)
+    if centred:
+        return f'<p class="note">{html.escape(with_centred)}</p>'
+    return f'<p class="note">{html.escape(uncentred)}</p>' if uncentred else ""
+
+
+def _neighbours(raw_separation: Any, fovs: pd.DataFrame) -> str:
+    """The note on the neighbours under the maps, with its line on wells; with one
+    condition, that there is nothing to separate."""
     # One well per condition and repeat: a well difference reads as a condition's (audit 8).
-    raw_separation = separations.get("raw")
     wells = raw_separation.well_line() if raw_separation is not None else ""
     neighbours = f"{NEIGHBOURS} {wells}".rstrip()
     one = CONDITION_COLUMN not in fovs or fovs[CONDITION_COLUMN].nunique() < 2
     if raw_separation is None and one:
         neighbours = ONE_CONDITION  # nothing to separate, said with why (audit 10, C29)
-    ranked = list(top) + [f for f in setup.columns if f not in set(top)]
-    first = maps["raw"][spaces[0]]
-    features = [f for f in ranked if f"z:{f}" in first.points][:MAP_FEATURES]
-    control_value = (control or {}).get(CONDITION_COLUMN)
-    points = first.points
+    return neighbours
+
+
+def _legend(points: pd.DataFrame, control_value: Any, discovery: Any) -> _Legend:
+    """The conditions as the maps draw and colour them (``_Legend``)."""
     names = (
         sorted_labels(points[CONDITION_COLUMN], control_value)
         if CONDITION_COLUMN in points
@@ -349,7 +265,7 @@ def embeddings(
     )
     order = {name: i for i, name in enumerate(names)}
     # Past 12 conditions, the control and the hits in colour (owner, 2026-10-05).
-    hits, words = highlighted(result.discovery)
+    hits, words = highlighted(discovery)
     palette = condition_palette(names, control_value, hits)
     colours = [palette[name] for name in names]
     note = colour_note(palette, words)
@@ -358,62 +274,95 @@ def embeddings(
         if CONDITION_COLUMN in points
         else [len(points)]
     )
-    # The populations counted the PCs of the declared values: said on their set only. An
-    # embedding-only report has no normalised set: with normalize, its tables are centred.
+    return _Legend(names, order, hits, colours, note, counts)
+
+
+def _declared(setup: Any, maps: dict[str, dict[str, Embedding]]) -> str:
+    """The values whose PCs the populations counted, said on their set only. An
+    embedding-only report has no normalised set: with normalize, its tables are centred."""
     declared = "raw"
     if setup.normalize is not None:
         declared = next((v for v in ("normalised", "centred") if v in maps), "raw")
-    held = _held(result)
+    return declared
 
-    def built(values: str, space: str) -> dict[str, Any]:
-        scored = separations[values]
-        line = scored.line(space) if scored is not None else ""
-        here = held if values == declared and space == spaces[0] else ""
-        extras = (features, populations, label)
-        return {
-            method: _set(maps[values][space], short, order, values, extras, here, line)
-            for method, short in (("PCA", "pc"), ("UMAP", "umap"))
-        }
 
+def _built(maps: dict[str, dict[str, Embedding]], shared: _Sets, values: str, space: str) -> dict:
+    """The PCA's and the UMAP's data of one space in one values."""
+    scored = shared.separations[values]
+    line = scored.line(space) if scored is not None else ""
+    here = shared.held if values == shared.declared and space == shared.first_space else ""
+    return {
+        method: _set(maps[values][space], short, shared.order, values, shared.extras, here, line)
+        for method, short in (("PCA", "pc"), ("UMAP", "umap"))
+    }
+
+
+def _view_sets(
+    maps: dict[str, dict[str, Embedding]], shared: _Sets, values: str, own: list[str]
+) -> dict:
+    """The maps' data of one values: by space with several, else the one space's."""
+    if len(maps["raw"]) <= 1:
+        return _built(maps, shared, values, shared.first_space)
     # An other table's normalised map is its raw one: the page draws the raw set for it, not
     # a second copy (``_html_plotly_script``), which keeps room for its centred view.
-    sets = {
-        values: {
-            space: built(values, space)
-            for space in view
-            if not (values == "normalised" and space in own)
-        }
-        if several
-        else built(values, spaces[0])
-        for values, view in maps.items()
+    return {
+        space: _built(maps, shared, values, space)
+        for space in maps[values]
+        if not (values == "normalised" and space in own)
     }
-    data = {
-        "conditions": [str(n) for n in names],
-        "colours": colours,
+
+
+def _population_rows(result: Report, found: Any) -> list[dict[str, Any]]:
+    """The populations as the page's data names them, none without."""
+    if found is None:
+        return []
+    return [
+        {
+            "name": r.population,
+            "share": round(float(r.share), 4),
+            "defined": r.defined_by or found_words(r._asdict()),
+            "kind": r.kind,
+        }
+        for r in result.results["populations"].populations.table.itertuples()
+    ]
+
+
+def _page_data(
+    legend: _Legend,
+    features: list[str],
+    populations: list[dict[str, Any]],
+    label: str | None,
+    sets: dict[str, Any],
+    spaces: list[str],
+) -> dict[str, Any]:
+    """The maps' data for the page's script."""
+    return {
+        "conditions": [str(n) for n in legend.names],
+        "colours": legend.colours,
         "grey": GREY,
-        "counts": counts,
+        "counts": legend.counts,
         "methods": ["PCA", "UMAP"],
         "features": features,
-        "populations": [
-            {
-                "name": r.population,
-                "share": round(float(r.share), 4),
-                "defined": r.defined_by or found_words(r._asdict()),
-                "kind": r.kind,
-            }
-            for r in result.results["populations"].populations.table.itertuples()
-        ]
-        if found is not None
-        else [],
+        "populations": populations,
         "label": label,
         "values": sorted(sets, key=lambda v: VIEW_ORDER.get(v, len(VIEW_ORDER))),
         "sets": sets,
-        **({"tables": spaces} if several else {}),
+        **({"tables": spaces} if len(spaces) > 1 else {}),
     }
+
+
+def _files(
+    maps: dict[str, dict[str, Embedding]],
+    own: list[str],
+    separation: Any,
+    folder: Path,
+    setup: Any,
+) -> tuple[list[tuple[str, str, Embedding]], list[tuple[str, str]]]:
+    """The maps shown in the files and the data behind them, written: each map's points and
+    the separation's table."""
+    several = len(maps["raw"]) > 1
     # Each map once in the files: an other table's is the same in both values; the centred
     # view is in the interactive maps only, which keeps the page within its budget.
-    taken: set[str] = set()
-    stems = {space: file_stem(space, taken) for space in spaces}
     shown = [
         (values, space, embedding)
         for values, view in maps.items()
@@ -423,19 +372,38 @@ def embeddings(
     data_files = embedding_data(
         {f"{values}, {s}" if several else values: e for values, s, e in shown}, folder, setup
     )
-    comparison = comparison_table(separations[declared]) if several else ""
-    if separations[declared] is not None:
-        path = write_csv(separations[declared].table, folder, "separation.csv")
+    if separation is not None:
+        path = write_csv(separation.table, folder, "separation.csv")
         data_files.append((path, "Neighbours sharing the condition, per repeat (CSV)"))
+    return shown, data_files
+
+
+def _static(
+    shown: list[tuple[str, str, Embedding]],
+    spaces: list[str],
+    control: Any,
+    legend: _Legend,
+    folder: Path,
+) -> list[str]:
+    """The static PCA and UMAP of each map shown, saved, as figure blocks."""
+    several = len(spaces) > 1
+    taken: set[str] = set()
+    stems = {space: file_stem(space, taken) for space in spaces}
     static = []
     for values, space, embedding in shown:
-        drawn = embedding_figures(embedding, control=control, highlight=hits)
+        drawn = embedding_figures(embedding, control=control, highlight=legend.hits)
         key = f"{values}_{stems[space]}" if several else values
         for method, figure in drawn.items():
             name = f"{method}_{key}"
             caption = f"{method.upper()}, {values}" + (f", {space}" if several else "")
-            caption += f". {note}" if note else ""
+            caption += f". {legend.note}" if legend.note else ""
             static.append(figure_block(save(figure, folder, name), name, caption))
+    return static
+
+
+def _controls(data: dict[str, Any], spaces: list[str], n_features: int) -> str:
+    """The maps' controls: the feature table, the method, the values, the colour, the
+    search and the enlarge button, with how to use the map."""
     buttons = "".join(
         f'<button type="button" data-key="method" data-value="{m}" '
         f'aria-pressed="{str(i == 0).lower()}">{m}</button>'
@@ -447,11 +415,11 @@ def embeddings(
         f'aria-pressed="{str(i == 0).lower()}">{html.escape(t)}</button>'
         for i, t in enumerate(spaces)
     )
-    markup = (
+    return (
         '<div class="viz" data-viz="embedding"><div class="controls">'
         + (
             f'<span class="seg" role="group" aria-label="Feature table">{table_buttons}</span>'
-            if several
+            if len(spaces) > 1
             else ""
         )
         + f'<span class="seg" role="group" aria-label="Method">{buttons}</span>'
@@ -461,13 +429,27 @@ def embeddings(
             if len(data["values"]) > 1
             else ""
         )
-        + colour_menu(data, len(setup.columns))
-        + find_box(data["conditions"], colours)
+        + colour_menu(data, n_features)
+        + find_box(data["conditions"], data["colours"])
         + '<button type="button" class="dl full">Enlarge</button>'
         '<span class="note">Click an entry in the legend to hide it, double-click to show '
         "it alone; draw around points (the lasso is on) to see which conditions and "
         "populations they come from and which features set them apart; colour the map by a "
         "feature to see where its high and low values sit; ◯ rings a population.</span></div>"
+    )
+
+
+def _body(
+    data: dict[str, Any],
+    note: str,
+    comparison: str,
+    data_files: list[tuple[str, str]],
+    notes: tuple[str, str, str],
+) -> str:
+    """The maps themselves, their notes (``notes``: the neighbours, the centring paragraph
+    and the end of the batch note), the data behind them and the data for the script."""
+    neighbours, centring, batch = notes
+    return (
         '<div class="viz-body"><div class="pl-embed"></div>'
         '<div class="selection" aria-live="polite"></div></div>'
         '<p class="caption note" style="white-space: pre-line"></p>'
@@ -482,20 +464,14 @@ def embeddings(
         + comparison
         + f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
         f'<p class="note">{html.escape(neighbours)}</p>'
-        + (f'<p class="note">{html.escape(centred)}</p>' if "centred" in maps else "")
-        + (
-            f'<p class="note">{html.escape(uncentred)}</p>'
-            if uncentred and "centred" not in maps
-            else ""
-        )
+        + centring
         + '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "
-        + _batch_words(setup, fovs, unnormalisable, "centred" in maps)
+        + batch
         + '<script type="application/json" id="embedding-data">'
         + json_island(data)
         + "</script>"
     )
-    return markup, static
 
 
 def maps_body(setup: Any, viz: str, static: list[str]) -> str:

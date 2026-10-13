@@ -230,37 +230,57 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
         )
         return _block([(line, "")])
     fields = _group_fields(result, populations, objects, fovs, name)
-    cells = int(row["observations"])
-    # A few of its fields, with their counts: not "most of its cells" (audit 10, A13).
-    shown = sum(held for _, held in fields)
-    where = (
-        f", for example {listing([f for f, _ in fields], FIELDS_SHOWN)} ({shown} of its "
-        f"{count(cells, result.setup.unit_word, units)})"
-        if fields
-        else ""
-    )
     # A group only another feature table found has no rule in the explainable features.
     what = traits(row["defining"][:2]) if described(row) else found_words(row)
     validate = (
         f"First validate {name} ({percent_fine(share)} of the {units}; "
-        f"{what}): open the images of its fields{where}; check "
+        f"{what}): open the images of its fields{_where(result, row, fields)}; check "
         f"that its {units} are one state, not the end of a gradient or an artefact."
     )
     why_not = not_rare(populations, name, share, units)
     if why_not:  # a whole condition, or not rare: never suggested as the rare phenotype
         return _block([(f"{validate} {why_not}", "")])
-    rule = rule_words(row, units)
-    study = (
-        f"If it is, label its {units} with its rule, {rule}, and declare it as the rare "
-        "phenotype: the report then says in “Did I image enough?” whether it was seen in "
-        "enough fields of every well. The rule labels new acquisitions the same way; adjust "
-        "its thresholds after looking at the images."
-        if rule
-        else f"If it is, label its {units} (the clustering's labels) and declare it as the "
+    study = _study(rule_words(row, units), units)
+    phenotype = f"{name}: {what}" if described(row) else name
+    code = _declare_code(row, name, share, phenotype, objects)
+    return _block([(validate, ""), (study, code.rstrip("\n"))])
+
+
+def _where(result: Any, row: pd.Series, fields: list[tuple[str, int]]) -> str:
+    """A few of the group's fields, with their counts: not "most of its cells" (audit 10,
+    A13); empty without."""
+    units = result.setup.unit_words
+    cells = int(row["observations"])
+    shown = sum(held for _, held in fields)
+    return (
+        f", for example {listing([f for f, _ in fields], FIELDS_SHOWN)} ({shown} of its "
+        f"{count(cells, result.setup.unit_word, units)})"
+        if fields
+        else ""
+    )
+
+
+def _study(rule: str, units: str) -> str:
+    """How to study a validated group: label its cells (with its ``rule`` when it has one)
+    and declare it as the rare phenotype."""
+    if rule:
+        return (
+            f"If it is, label its {units} with its rule, {rule}, and declare it as the rare "
+            "phenotype: the report then says in “Did I image enough?” whether it was seen in "
+            "enough fields of every well. The rule labels new acquisitions the same way; adjust "
+            "its thresholds after looking at the images."
+        )
+    return (
+        f"If it is, label its {units} (the clustering's labels) and declare it as the "
         "rare phenotype: the report then says in “Did I image enough?” whether it was seen in "
         "enough fields of every well."
     )
-    phenotype = f"{name}: {what}" if described(row) else name
+
+
+def _declare_code(
+    row: pd.Series, name: str, share: float, phenotype: str, objects: pd.DataFrame | None
+) -> str:
+    """The code that labels the group's cells and declares it as the rare phenotype."""
     # The share of cells the rule labels, which the code declares (the cluster's share
     # without a rule).
     if row["rule"] and objects is not None:
@@ -271,7 +291,7 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
         else 'found = result.results["populations"].populations\n'
         f"objects[{name!r}] = found.membership({name!r}).reindex(objects.index).eq(1)\n"
     )
-    code = (
+    return (
         _GUARD + "from dataclasses import replace\n"
         "from morphocoverage import RareTarget\n"
         "from morphocoverage.workflows import report\n\n" + labelled + "setup = replace(\n"
@@ -282,7 +302,6 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
         ")\n"
         "result = report(objects, fovs, setup)\n"
     )
-    return _block([(validate, ""), (study, code.rstrip("\n"))])
 
 
 def fields_value(value: Any) -> Any:

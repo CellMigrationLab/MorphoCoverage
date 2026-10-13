@@ -203,20 +203,8 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
     features = tuple(setup.columns)
     if len(features) > 1:
         lines.append(f"Features: {count(len(features), 'feature')} ({listing(list(features), 6)}).")
-    control = (setup.single_control or {}).get("condition")
     several = controls_sentence(setup)
-    if several:  # several controls, each with its conditions (owner, 2026-10-05)
-        lines.append(f"{several}.")
-    elif control is not None:
-        lines.append(
-            f"Negative control: {control}; every condition is compared with it, within each "
-            "biological repeat."
-        )
-    if setup.positive is not None:
-        lines.append(
-            f"Positive control: {dict(setup.positive.selector).get('condition', '')}; it checks "
-            "that the features see a change."
-        )
+    lines += _control_lines(setup, several)
     tolerances = " and ".join(rate(t) for t in setup.tolerances)
     if setup.mean_target:
         lines.append(
@@ -227,17 +215,7 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
     if setup.fingerprint:
         named = "; ".join(plain(c) for c in setup.fingerprint)
         lines.append(f"Fingerprint: {named}.")
-    if several and setup.normalize:
-        lines.append(
-            "Values: each condition divided by its own control's mean in its repeat for the "
-            "figures; levels across experiments are read on the raw values."
-        )
-    elif setup.readout is not None:
-        lines.append(
-            "Values: divided by each repeat's control mean."
-            if setup.normalize
-            else "Values: as measured (the tests between conditions also use them normalised)."
-        )
+    lines += _values_line(setup, several)
     rules = _rules(setup, undefined)
     if rules:
         lines.append(f"Stopping rules checked: {rules}.")
@@ -250,6 +228,44 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
     if missing:
         lines.append(f"Not declared, so not checked: {listing(missing, 6)}.")
     return lines
+
+
+def _control_lines(setup: Any, several: str) -> list[str]:
+    """The controls checked: several, each with its conditions (``several``), or the negative
+    one, and the positive one."""
+    lines = []
+    control = (setup.single_control or {}).get("condition")
+    if several:  # several controls, each with its conditions (owner, 2026-10-05)
+        lines.append(f"{several}.")
+    elif control is not None:
+        lines.append(
+            f"Negative control: {control}; every condition is compared with it, within each "
+            "biological repeat."
+        )
+    if setup.positive is not None:
+        lines.append(
+            f"Positive control: {dict(setup.positive.selector).get('condition', '')}; it checks "
+            "that the features see a change."
+        )
+    return lines
+
+
+def _values_line(setup: Any, several: str) -> list[str]:
+    """The values the figures and tests read, as a line; none without a readout."""
+    if several and setup.normalize:
+        return [
+            (
+                "Values: each condition divided by its own control's mean in its repeat for the "
+                "figures; levels across experiments are read on the raw values."
+            )
+        ]
+    if setup.readout is not None:
+        return [
+            "Values: divided by each repeat's control mean."
+            if setup.normalize
+            else "Values: as measured (the tests between conditions also use them normalised)."
+        ]
+    return []
 
 
 def not_declared(setup: Any) -> list[str]:
@@ -439,20 +455,39 @@ def heatmap(discovery: Any, conditions: list[Any], one: str = "cell") -> str:
     feature_title = "feature, best-ranked first"
     transposed = len(columns) > len(features)
     rows, cols = (columns, features) if transposed else (features, columns)
-    row_title, col_title = (
-        (condition_title, feature_title) if transposed else (feature_title, condition_title)
-    )
+    titles = (condition_title, feature_title) if transposed else (feature_title, condition_title)
+    left, top, parts = _frame(rows, cols, titles)
+    lookup = {(r.feature, r.condition): r for r in tests.itertuples()}
+    for i, name in enumerate(rows):
+        y = top + i * _CELL_H
+        parts.append(_label(left - 8, y + _CELL_H / 2 + 4, name, "hm-row", ' text-anchor="end"'))
+        for j, other in enumerate(cols):
+            feature, condition = (other, name) if transposed else (name, other)
+            row = lookup.get((feature, condition))
+            parts.append(_square(row, feature, condition, (left + j * _CELL_W, y), one))
+    parts.append("</svg>")
+    # Scrolls sideways at its own size instead of shrinking to the page (owner, 2026-10-05).
+    return f'{_heatmap_key(one)}<div class="heatmap-scroll">{"".join(parts)}</div>'
+
+
+# A heatmap square's width and height.
+_CELL_W, _CELL_H = 72, 24
+
+
+def _frame(rows: list[Any], cols: list[Any], titles: tuple[str, str]) -> tuple[int, int, list[str]]:
+    """The heatmap's left and top margins and its start: the SVG element, the axes' titles
+    (``titles``: the rows', the columns') and the column labels."""
+    row_title, col_title = titles
     # The column labels slant up to the right: room above and beside for the longest, and
     # for each axis's title (the rows' turned up its left side).
     longest = max(len(shortened(c, HEATMAP_NAME)) for c in cols)
     title = 22
-    cell_w, cell_h = 72, 24
     left = title + 10 + 7 * max(len(shortened(r, HEATMAP_NAME)) for r in rows)
     top = title + 24 + round(4.2 * longest)
-    width = left + cell_w * len(cols) + 10 + round(5.8 * longest)
-    height = top + cell_h * len(rows) + 10
-    middle_x = left + cell_w * len(cols) / 2
-    middle_y = top + cell_h * len(rows) / 2
+    width = left + _CELL_W * len(cols) + 10 + round(5.8 * longest)
+    height = top + _CELL_H * len(rows) + 10
+    middle_x = left + _CELL_W * len(cols) / 2
+    middle_y = top + _CELL_H * len(rows) / 2
     parts = [
         (
             f'<svg class="heatmap" viewBox="0 0 {width} {height}" width="{width}" '
@@ -466,36 +501,37 @@ def heatmap(discovery: Any, conditions: list[Any], one: str = "cell") -> str:
         ),
     ]
     for j, name in enumerate(cols):
-        x = left + j * cell_w + cell_w / 2
+        x = left + j * _CELL_W + _CELL_W / 2
         parts.append(_label(x, top - 8, name, "hm-col", f' transform="rotate(-35 {x} {top - 8})"'))
-    lookup = {(r.feature, r.condition): r for r in tests.itertuples()}
-    for i, name in enumerate(rows):
-        y = top + i * cell_h
-        parts.append(_label(left - 8, y + cell_h / 2 + 4, name, "hm-row", ' text-anchor="end"'))
-        for j, other in enumerate(cols):
-            feature, condition = (other, name) if transposed else (name, other)
-            row = lookup.get((feature, condition))
-            d = float(row.d) if row is not None and row.d == row.d else float("nan")
-            fill, ink = _colour(d)
-            mark = ""
-            if row is not None and bool(row.passes):
-                mark = " ✓" if bool(row.confirmed) else " ●"
-            shown = "–" if not np.isfinite(d) else f"{d:+.2f}"
-            tip = f"{feature}, {condition}: d {shown}"
-            if row is not None and np.isfinite(row.q_cells):
-                tip += f"; {one}-level q {p_value(row.q_cells)}"
-            if row is not None and np.isfinite(row.q_paired):
-                tip += f"; repeat means q {p_value(row.q_paired)}"
-            x = left + j * cell_w
-            parts.append(
-                f'<g><title>{html.escape(tip)}</title><rect x="{x + 1}" y="{y + 1}" '
-                f'width="{cell_w - 2}" height="{cell_h - 2}" rx="3" fill="{fill}"/>'
-                f'<text x="{x + cell_w / 2}" y="{y + cell_h / 2 + 4}" text-anchor="middle" '
-                f'fill="{ink}" class="hm-cell">{shown}{mark}</text></g>'
-            )
-    parts.append("</svg>")
-    # The key first: which test each value and mark comes from (owner, 2026-10-02).
-    legend = (
+    return left, top, parts
+
+
+def _square(row: Any, feature: Any, condition: Any, corner: tuple[int, int], one: str) -> str:
+    """One heatmap square at ``corner`` (x, y): d coloured, its mark (● a candidate, ✓ also
+    confirmed) and its q-values on hover; "–" without a test."""
+    x, y = corner
+    d = float(row.d) if row is not None and row.d == row.d else float("nan")
+    fill, ink = _colour(d)
+    mark = ""
+    if row is not None and bool(row.passes):
+        mark = " ✓" if bool(row.confirmed) else " ●"
+    shown = "–" if not np.isfinite(d) else f"{d:+.2f}"
+    tip = f"{feature}, {condition}: d {shown}"
+    if row is not None and np.isfinite(row.q_cells):
+        tip += f"; {one}-level q {p_value(row.q_cells)}"
+    if row is not None and np.isfinite(row.q_paired):
+        tip += f"; repeat means q {p_value(row.q_paired)}"
+    return (
+        f'<g><title>{html.escape(tip)}</title><rect x="{x + 1}" y="{y + 1}" '
+        f'width="{_CELL_W - 2}" height="{_CELL_H - 2}" rx="3" fill="{fill}"/>'
+        f'<text x="{x + _CELL_W / 2}" y="{y + _CELL_H / 2 + 4}" text-anchor="middle" '
+        f'fill="{ink}" class="hm-cell">{shown}{mark}</text></g>'
+    )
+
+
+def _heatmap_key(one: str) -> str:
+    """The key first: which test each value and mark comes from (owner, 2026-10-02)."""
+    return (
         '<p class="note hm-legend">Each square: Cohen\'s d of the condition against the '
         f"control on every {one}, as the {one}-level screen computes it "
         '(<span class="hm-key" style="background:#2a78d6"></span> lower · '
@@ -504,8 +540,6 @@ def heatmap(discovery: Any, conditions: list[Any], one: str = "cell") -> str:
         "q ≤ 0.05, exploratory. ✓ also significant across repeats: the paired t-test on "
         "the repeat means, q ≤ 0.05. Hover a square for its q-values.</p>"
     )
-    # Scrolls sideways at its own size instead of shrinking to the page (owner, 2026-10-05).
-    return f'{legend}<div class="heatmap-scroll">{"".join(parts)}</div>'
 
 
 __all__ = [

@@ -400,10 +400,12 @@ src/morphocoverage/
         _scan_parts.py     # private: parts of the scan: the controls as declared, the feature tables by tag, planes, targets, observations per condition and repeat
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)
         html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
+        _html_page.py      # private: the page's frame: the tables checked against the report's counts, the sections shown, the sidebar and At a glance, the texts carried, the page around the cards and its scripts
         _html_render.py    # private: the report's text as HTML, glossary term links, status chips
         _html_sections.py  # private: the page's order, titles, plain answers, heatmap, no numbers
         _html_figures.py   # private: the feature figures as PNG/PDF, palette
         _html_maps.py      # private: the PCA/UMAP data and markup, a map per feature table and the combined one, with the neighbours line under each
+        _html_map_sets.py  # private: one map's data: its points in drawing order, caption, axis titles, arrows and what rides on each point
         _html_map_controls.py  # private: the maps' controls: colour by, search, the Normalised / Raw buttons and the method menu
         _html_map_text.py  # private: the words around the maps: the comparison of the tables, the neighbours and centred notes, each table's share of an axis
         _html_plotly.py    # private: plotly.js (assets/) and the feature figures' data for it
@@ -416,6 +418,7 @@ src/morphocoverage/
         _html_next.py      # private: "What to do next" after the answers that call for a look at the images, with its code
         _html_fields.py    # private: the fields to check (quality control) and the new states apart, two cards
         _html_plan.py      # private: "Plan the next experiment": what to optimise or watch for live, with the code filled in
+        _html_plan_repeats.py  # private: its difference from the control: the repeats each condition would need, as rows and a table
         _html_data.py      # private: each figure's and table's data as CSV, and the download links
         _html_tests.py     # private: "The tests behind the reading": the tests explained, then one table per test (p, adjusted p)
         _html_across.py    # private: its table across repeats (with exactly 3 repeats, each repeat's change and the 95% t interval) and tests_across_repeats.csv
@@ -441,6 +444,7 @@ src/morphocoverage/
         _populations.py    # private: question 10, the populations and each condition's enrichment across repeats
         _population_spaces.py # private: question 10's groups found in each feature space and merged by Jaccard index
         _population_tests.py  # private: question 10's enrichment tests across repeats
+        _population_text_parts.py  # private: parts of question 10's text: how the groups were searched, the answer without a group, the conditions not compared, the assumptions
         _population_context.py  # private: question 10's groups against the conditions: mostly one condition, against the compared control, normalised values with several controls, rules on few values, ranking
         _population_rule_words.py  # private: a group's feature rule in words (fitted on all cells; its procedure checked on held-out fields)
         _result_influence.py  # private: the fields whose removal moves the result (the repeat means the paired test compares)
