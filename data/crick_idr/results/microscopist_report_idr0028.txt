@@ -79,7 +79,7 @@ What this acquisition was asked to preserve
     well's positions; image fields in a random or dispersed order.
 
 ✅ Foundation: why count fields, and not only nuclei?
-  How variable are the fields (YAPTAZ_Ratio)? A mean from whole fields has 1.0-3.4 times the
+  How variable are the fields (YAPTAZ_Ratio)? A mean from whole fields has 1.0 to 3.4 times the
     variance of one from as many random nuclei (median 2.1, over 12 groups), so SD / sqrt(n)
     understates its error up to 1.8-fold.
     group                    fields  nuclei  between fields  design effect  fields that differ
@@ -101,9 +101,9 @@ What this acquisition was asked to preserve
   Would the mean-precision count rule hold with whole fields? The nuclei it asks for, taken as whole
     fields drawn at random with replacement, against the mean of all MOCK nuclei of the same
     biological repeat:
-    target  held in   nuclei asked  fields taken  error: SD/sqrt(n) → real  as fields (upper-95 SD)
-    5%      12 of 12           2-3             1  1-2% → 1-2% (0.9-1.8x)    1 (1)
-    2.5%    12 of 12          6-10             1  1-2% → 1-2% (0.9-1.8x)    1 (1-2)
+    target  held in   nuclei asked  fields taken  error: SD/sqrt(n) → real         as fields (upper-95 SD)
+    5%      12 of 12        2 to 3             1  1 to 2% → 1 to 2% (0.9 to 1.8x)  1 (1)
+    2.5%    12 of 12       6 to 10             1  1 to 2% → 1 to 2% (0.9 to 1.8x)  1 (1 to 2)
   Ranges are over the groups; as fields: the fields to acquire when the rule counts fields, not
     nuclei.
 
@@ -145,7 +145,7 @@ What this acquisition was asked to preserve
     Cytoplasm_Intensity_UpperQuartileIntensity_YAPTAZ   enough: shown in 6 of 6            –                                            12 of 12 wells
     Nuclei_Intensity_MADIntensity_YAPTAZ                partly: shown in 5 of 6            1 too small to show                          11 of 12 wells
     Cytoplasm_Intensity_MeanIntensityEdge_YAPTAZ        partly: shown in 5 of 6            1 needs more wells or biological repeats     12 of 12 wells
-    Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ     partly: shown in 4 of 6            about 29-35 fields a side                    11 of 12 wells
+    Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ     partly: shown in 4 of 6            about 29 to 35 fields a side                 11 of 12 wells
     Nuclei_Intensity_StdIntensityEdge_YAPTAZ            partly: shown in 5 of 6            about 52 fields a side                       11 of 12 wells
     Cytoplasm_Intensity_MADIntensity_YAPTAZ             enough: shown in 6 of 6            –                                            11 of 12 wells
     Cytoplasm_Intensity_MedianIntensity_YAPTAZ          partly: shown in 5 of 6            1 needs more wells or biological repeats     12 of 12 wells
@@ -164,15 +164,16 @@ What this acquisition was asked to preserve
   The stopping rules, as optimise and live run them (on the readout):
   Analysis groups: condition · biological repeat · technical repeat.
   Each rule by its own threshold (not a held-out check), in 12 groups:
-    rule                                  met with the fields acquired  fields when first met  fields needed in random orders: median (10-90%)
-    mean-precision rule, per nucleus, 5%  12 of 12                      1-2                    1 (1-2)
-    mean-precision rule, per field, 5%    12 of 12                      4-8                    5 (4-8)
+    rule                                  met with the fields acquired  fields when first met  fields needed in random orders: median (10 to 90%)
+    mean-precision rule, per nucleus, 5%  12 of 12                      1 to 2                 1 (1 to 2)
+    mean-precision rule, per field, 5%    12 of 12                      4 to 8                 5 (4 to 8)
     nothing new (≤5%)                     0 of 12                       never                  never
   Fields when first met: in the order acquired, when it first said enough; recorded: the range over
-    groups; random: the median of the groups' medians, 10-90% from the lowest to the highest group.
+    groups; random: the median of the groups' medians, 10 to 90% from the lowest to the highest
+    group.
   One more field: fields with a state counted as new in 3 of 12 groups: MOCK · repeat 2A · K16 (1
     field), ARAP2 · repeat 2B · C13 (2 fields) and MOCK · repeat 2B · P13 (1 field); chance up to
-    7%, nominal 95% bound 10-21%.
+    7%, nominal 95% bound 10 to 21%.
   Not yet seen: a state no field has shown is in at most 10% of fields (95% confidence); rarer
     states can remain.
   Seen in few fields: 7 of 12 groups hold a state seen in only 2 to 3 fields (MOCK · repeat 1A · B6,
@@ -196,8 +197,8 @@ What this acquisition was asked to preserve
     repeats. Beyond 4 times the fields acquired a difference is called too small to show.
     Mean-precision rule, per nucleus, 5% treats nuclei as independent draws: it assumes a spatially
     uniform sample. Mean-precision rule, per field, 5%: in simulations its upper bound, a bootstrap
-    of whole fields, covered the true averaging error about 85-95% of the time with uneven field
-    sizes and 93-99% with Poisson sizes. Order check: no trend with acquisition order or spatial
+    of whole fields, covered the true averaging error about 85 to 95% of the time with uneven field
+    sizes and 93 to 99% with Poisson sizes. Order check: no trend with acquisition order or spatial
     autocorrelation flagged at the Bonferroni threshold of 0.025 (Spearman p = 0.053 to 0.93;
     Moran's I permutation p = 0.037 to 0.84) over 28 fields; every stop still treats the fields as a
     random sample of the well's positions; a raster over a spatial trend can stop early. The
@@ -213,27 +214,27 @@ What this acquisition was asked to preserve
 
 ⚠️ 3. What is limiting my sampling?
   - Fields: a mean from whole fields varies 2.1 times as much as one from as many random nuclei
-    (median; 1.0-3.4 over 12 groups); 16% of fields differ more than random nuclei would (5%
+    (median; 1.0 to 3.4 over 12 groups); 16% of fields differ more than random nuclei would (5%
     expected).
-  - Unusual nuclei (exploratory, farther from the MOCK reference than all but 1% of its nuclei;
-    0.4-99.7% of each scored group): clustered in a few fields (q ≤ 0.05) in 3 of the 9 groups where
-    tested (MOCK · repeat 2A · K16, ARAP2 · repeat 2B · C13 and ARAP2 · repeat 2B · C17), 3 more
-    where seen too few to reach 0.05; there, seeing them takes about 3.4 times the fields a count of
-    nuclei predicts.
+  - Unusual nuclei (exploratory, farther from the MOCK reference than all but 1% of its nuclei; 0.4
+    to 99.7% of each group that is not a control): clustered in a few fields (q ≤ 0.05) in 3 of the
+    9 groups where tested (MOCK · repeat 2A · K16, ARAP2 · repeat 2B · C13 and ARAP2 · repeat
+    2B · C17), 3 more where seen too few to reach 0.05; there, seeing them takes about 3.4 times the
+    fields a count of nuclei predicts.
   - New states come from 4 fields; false alarms alone would give about 8, up to 25, of the 336
     fields judged, so these are compatible with chance.
   - How well the declared control is seen: question 1.
   ⚠️ No field holds at least 3 unusual nuclei in LATS1 · repeat 1A · I23, LATS1 · repeat 1A · J23,
      ARAP2 · repeat 2A · C13 and 2 more, so no field count is given there.
-  ⚠️ Refits with other reference samples agree on only 69-88% of the unusual nuclei in 5 of 12
+  ⚠️ Refits with other reference samples agree on only 69 to 88% of the unusual nuclei in 5 of 12
      groups (MOCK · repeat 1A · B6, LATS1 · repeat 1A · I23, LATS1 · repeat 1A · J23 and 2 more;
      below 90%): treat those labels as unstable.
   ⚠️ Between technical repeats (YAPTAZ_Ratio): in 3 condition and repeat groups with 2 or more
      technical repeats, their means spread 1.4 times (median; 1.4 to 1.5) as much as their fields
-     alone predict, and the mean over them has a relative standard error of about 0.4% (median; 0.4%
-     to 0.4%) from that spread. Every 'enough' of question 2 is per technical repeat and says
-     nothing about this variation, which only more technical repeats reduce (optimise, question 7);
-     with 2 technical repeats the spread itself is uncertain.
+     alone predict, and the mean over them has a relative standard error of about 0.4% (median;
+     0.4%) from that spread. Every 'enough' of question 2 is per technical repeat and says nothing
+     about this variation, which only more technical repeats reduce (optimise, question 7); with 2
+     technical repeats the spread itself is uncertain.
   Assumptions: The field counts assume fields from independent technical repeats: a state held by
     few technical repeats is clustered in their fields, so seeing it needs fields from more
     technical repeats than the count says (no two-level plan is made). A state the reference already

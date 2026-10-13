@@ -274,6 +274,7 @@ src/morphocoverage/
     sufficiency_tables.py  # its criteria tables: each rule on the full acquisition and its stops
     statistics.py          # shared statistics, written once: effect sizes, tolerances, whole-field sampling and bootstrap, variance components, design effect, JCB counts, detection counts, field-level JCB estimands
     _repeat_statistics.py  # private, re-exported by statistics: the paired test across repeats, the values it compares (log ratios or differences), Sarle's bimodality and kurtosis
+    _robust_sd.py          # private, re-exported by statistics: the robust SD under two named rules, detector (the SD only where the MAD is 0: acquisition, influence) and geometry (the SD under a quarter-SD MAD, constant columns 0: the maps' robust_scale), and the constant-column test (owner, 2026-10-12)
     normalize.py           # features divided by the control condition's mean, biological repeat by biological repeat
     plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
     glossary.py            # the report's glossary: every test, rule and term in plain words, with its papers

@@ -196,40 +196,43 @@ def _as_ints(instance: object, *names: str) -> None:
             object.__setattr__(instance, name, int(value))
 
 
-def check_order_col(fovs: pd.DataFrame, order_col: str, purpose: str) -> None:
+def check_order_col(
+    fovs: pd.DataFrame, order_col: str, purpose: str, argument: str = "order_col"
+) -> None:
     """Refuse an order column that is missing, incomplete, categorical or not numbers or times.
 
     A field with no order value has no place in the order: sorting would put it
     last without saying so, and the full and the incremental evaluation could
     place it differently. Text is refused rather than sorted as text, where
-    ``"10"`` comes before ``"2"``; booleans are not an order either. This is the
-    rule ``sequential._check_order_values`` applies to the acquisition order
-    (kept there as its own function), so a pilot or a plateau window follows the
-    order a replay would. A categorical column is refused (``TypeError``): a
+    ``"10"`` comes before ``"2"``; booleans are not an order either. The replay
+    checks its acquisition order with it too (``sequential.REPLAY_PURPOSE``; owner,
+    2026-10-12), so a pilot or a plateau window follows the order a replay would.
+    A categorical column is refused (``TypeError``): a
     newly revealed FOV carries only its own category (the framework hides the
     categories of FOVs not yet seen), so its category order cannot be kept FOV
-    by FOV. ``purpose`` names what needs the order, for the message.
+    by FOV. ``purpose`` names what needs the order and ``argument`` the caller's argument
+    that named the column, for the messages (owner, 2026-10-12).
     """
     if order_col not in fovs.columns:
-        raise ValueError(f"order_col {order_col!r} is not a column of the FOV table")
+        raise ValueError(f"{argument} {order_col!r} is not a column of the FOV table")
     values = fovs[order_col]
     missing = int(values.isna().sum())
     if missing:
         raise ValueError(
-            f"order_col {order_col!r} has missing values; {purpose} needs an order value for "
+            f"{argument} {order_col!r} has missing values; {purpose} needs an order value for "
             f"every FOV ({count(missing, 'FOV row')} without one)"
         )
     dtype, types = values.dtype, pd.api.types
     if isinstance(dtype, pd.CategoricalDtype):
         raise TypeError(
-            f"order_col {order_col!r} is categorical, and its category order is lost when FOVs "
+            f"{argument} {order_col!r} is categorical, and its category order is lost when FOVs "
             f"arrive one at a time; give {purpose} its order as numbers or times (for an "
             "ordered categorical, its .cat.codes)"
         )
     numeric = types.is_numeric_dtype(dtype) and not types.is_bool_dtype(dtype)
     if not (numeric or types.is_datetime64_any_dtype(dtype) or types.is_timedelta64_dtype(dtype)):
         raise ValueError(
-            f"order_col {order_col!r} holds {dtype} values, not numbers or date-times; text "
+            f"{argument} {order_col!r} holds {dtype} values, not numbers or date-times; text "
             f"would sort '10' before '2'. Convert it first, for example "
             f"fovs[{order_col!r}] = pd.to_numeric(fovs[{order_col!r}]) or pd.to_datetime(...)."
         )

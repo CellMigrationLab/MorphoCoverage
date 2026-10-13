@@ -157,7 +157,7 @@ def test_p2_9_calibration_headlines_the_stops_not_preserved_with_bounds():
     total = row["premature"] + row["not_preserved_by_stream"]
     assert total == pytest.approx(row["not_preserved_at_stop"])
     text = calibration_summary(StoppingCalibration(runs, table, (), {"labels": {}}))
-    assert "60%, 20%-60% too early" in text
+    assert "60%, 20% to 60% too early" in text
     assert "held-back fields' own noise can also cause" in " ".join(text.split())
     # A median stop carries its Monte Carlo error.
     assert "median (MC SE)" in text and re.search(r"  4 \(\d", text)

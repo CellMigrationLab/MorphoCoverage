@@ -19,19 +19,19 @@ What the dataset is
   Features: 1 feature declared (Filopodia number).
   Cells per condition (over its biological repeats):
     condition     repeats  per repeat  total
-    siCTRL             18       18-39    555
-    siCCT8#5            3       30-49    113
-    siCCT8#8            3       31-38    100
-    siCSNK1A1#11        3       34-34    102
-    siCSNK1A1#5         3       34-35    103
-    siMAP4K4#5          3       13-32     76
-    siMAP4K4#6          3       29-37     98
-    siMINK1#10          3       27-33     89
-    siMINK1#3           3       20-38     85
-    siNF2#17            3       30-32     93
-    siNF2#7             3       30-31     92
-    siSCRIB#6           3       28-31     89
-    siSCRIB#7           3       29-33     91
+    siCTRL             18    18 to 39    555
+    siCCT8#5            3    30 to 49    113
+    siCCT8#8            3    31 to 38    100
+    siCSNK1A1#11        3          34    102
+    siCSNK1A1#5         3    34 to 35    103
+    siMAP4K4#5          3    13 to 32     76
+    siMAP4K4#6          3    29 to 37     98
+    siMINK1#10          3    27 to 33     89
+    siMINK1#3           3    20 to 38     85
+    siNF2#17            3    30 to 32     93
+    siNF2#7             3    30 to 31     92
+    siSCRIB#6           3    28 to 31     89
+    siSCRIB#7           3    29 to 33     91
 
 Loaded correctly?
   ✅ The data check found nothing to fix.

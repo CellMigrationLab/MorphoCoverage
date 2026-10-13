@@ -53,7 +53,7 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._frozen import owned
-from .._style import check_detail, group_columns, group_label, span, table, wrap
+from .._style import check_detail, group_columns, group_label, low_to_high, span, table, wrap
 from .._wording import listing, number
 from ..calibration import calibrate_next_fov_novelty, pool_calibration
 from ..statistics import median_standard_error
@@ -240,7 +240,7 @@ def _not_preserved_cell(row: Any) -> str:
         return percent(total)
     if reach <= 0:
         return f"{percent(total)}, all too early"
-    return f"{percent(total)}, {percent(premature)}-{percent(total)} too early"
+    return f"{percent(total)}, {low_to_high(percent(premature), percent(total))} too early"
 
 
 def _never_cell(row: Any, min_fovs: int) -> str | None:

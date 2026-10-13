@@ -272,8 +272,8 @@ def test_cautions_are_stated_once_each_with_the_marker():
 
 
 def test_spans_write_one_value_or_the_lowest_and_highest():
-    assert span([8, 8]) == "8" and span([3, 5, 4]) == "3-5"
-    assert span([0.0, 0.2], "percent") == "0-20%" and span([0.04], "percent") == "4%"
+    assert span([8, 8]) == "8" and span([3, 5, 4]) == "3 to 5"
+    assert span([0.0, 0.2], "percent") == "0 to 20%" and span([0.04], "percent") == "4%"
     assert span([-0.5, -0.4]) == "-0.5 to -0.4"
 
 

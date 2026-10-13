@@ -49,6 +49,7 @@ from scipy import sparse, spatial, stats
 
 from ._caveats import assumption
 from ._stage_coordinates import stage_matrix
+from ._style import low_to_high
 from ._wording import count, percent
 from .schema import ValidatedInput, fov_values
 from .statistics import ALPHA
@@ -138,7 +139,8 @@ class OrderCheck:
         every = np.array(self.positions, dtype=float)
         low, high = every.min(axis=0), every.max(axis=0)
         return ", ".join(
-            f"{column} {low[i]:g} to {high[i]:g}" for i, column in enumerate(self.stage_cols)
+            f"{column} {low_to_high(f'{low[i]:g}', f'{high[i]:g}')}"
+            for i, column in enumerate(self.stage_cols)
         )
 
     def _found(self) -> list[str]:

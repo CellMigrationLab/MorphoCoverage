@@ -167,7 +167,7 @@ def _orders(frame: pd.DataFrame) -> list[str]:
 
 
 def _cell(medians: Sequence[float | None]) -> str:
-    """The range of the groups' medians: ``1-3``; ``1-3; never in 2`` or ``never``."""
+    """The range of the groups' medians: ``1 to 3``; ``1 to 3; never in 2`` or ``never``."""
     reached = [m for m in medians if m is not None]
     missed = len(medians) - len(reached)
     if not reached:

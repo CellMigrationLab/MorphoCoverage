@@ -71,9 +71,9 @@ What this acquisition was asked to preserve
     or dispersed order.
 
 ⚠️ Foundation: why count fields, and not only tracks?
-  How variable are the fields (Mean Speed)? A mean from whole fields has 1.0-2.7 times the variance
-    of one from as many random tracks (median 1.0, over 18 groups), so SD / sqrt(n) understates its
-    error up to 1.6-fold.
+  How variable are the fields (Mean Speed)? A mean from whole fields has 1.0 to 2.7 times the
+    variance of one from as many random tracks (median 1.0, over 18 groups), so SD / sqrt(n)
+    understates its error up to 1.6-fold.
     group                          fields  tracks  between fields  design effect  fields that differ
     siCCT7#3 · repeat CCT7_1 · B5       7      28            0.5%            1.0                 14%
     siCCT7#3 · repeat CCT7_2 · B5       8      34              0%            1.0                 13%
@@ -99,9 +99,9 @@ What this acquisition was asked to preserve
   Would the mean-precision count rule hold with whole fields? The tracks it asks for, taken as whole
     fields drawn at random with replacement, against the mean of all siCTRL tracks of the same
     biological repeat:
-    target  held in   tracks asked  fields taken  error: SD/sqrt(n) → real  as fields (upper-95 SD)
-    5%      11 of 18         12-71        3-16.5  5% → 2-8% (0.5-1.6x)      2-67 (6-322)
-    2.5%    11 of 18        47-281     10.5-63.8  2% → 1-4% (0.5-1.6x)      5-266 (24-1287)
+    target  held in   tracks asked  fields taken  error: SD/sqrt(n) → real    as fields (upper-95 SD)
+    5%      11 of 18      12 to 71     3 to 16.5  5% → 2 to 8% (0.5 to 1.6x)  2 to 67 (6 to 322)
+    2.5%    11 of 18     47 to 281  10.5 to 63.8  2% → 1 to 4% (0.5 to 1.6x)  5 to 266 (24 to 1287)
   Ranges are over the groups; as fields: the fields to acquire when the rule counts fields, not
     tracks.
   The rule misses its target with whole fields: 5% in siCCT7#3 · repeat CCT7_1 · B5,
@@ -117,33 +117,33 @@ What this acquisition was asked to preserve
 ⚠️ 2. Did I image enough?
   Each feature alike, 13 features, ordered as in “Do the conditions differ?” (significant across
     repeats first); the rule of the last column: the mean-precision rule, per field, 5%:
-    feature                           difference from the control shown  to show the rest                                wells whose mean meets the rule
-    Tortuosity Rolling                partly: shown in 8 of 12           4 too small to show                             1 of 18 wells
-    Median Speed                      partly: shown in 8 of 12           about 15-26 fields a side; 2 too small to show  0 of 18 wells
-    Total Turning Angle Rolling       partly: shown in 8 of 12           about 12 fields a side; 3 too small to show     0 of 18 wells
-    Median Speed Rolling              partly: shown in 8 of 12           about 8-26 fields a side; 1 too small to show   0 of 18 wells
-    Mean Speed                        partly: shown in 8 of 12           about 9-11 fields a side; 2 too small to show   0 of 18 wells
-    Mean Speed Rolling                partly: shown in 8 of 12           about 10-12 fields a side; 2 too small to show  0 of 18 wells
-    Total Distance Traveled Rolling   partly: shown in 8 of 12           about 10-12 fields a side; 2 too small to show  0 of 18 wells
-    Spatial Coverage Rolling          partly: shown in 7 of 12           about 11-12 fields a side; 3 too small to show  0 of 18 wells
-    Min Speed Rolling Rolling         partly: shown in 6 of 12           about 10-20 fields a side; 2 too small to show  0 of 18 wells
-    Max Speed Rolling                 partly: shown in 5 of 12           about 14-18 fields a side; 4 too small to show  0 of 18 wells
-    Speed Standard Deviation Rolling  partly: shown in 4 of 12           about 10-17 fields a side; 4 too small to show  0 of 18 wells
-    Speed Standard Deviation          partly: shown in 3 of 12           about 15-25 fields a side; 6 too small to show  1 of 18 wells
-    Directionality Rolling            partly: shown in 5 of 12           5 too small to show                             14 of 18 wells
+    feature                           difference from the control shown  to show the rest                                                wells whose mean meets the rule
+    Tortuosity Rolling                partly: shown in 8 of 12           4 too small to show                                             1 of 18 wells
+    Median Speed                      partly: shown in 8 of 12           about 15 to 26 fields a side; 2 too small to show               0 of 18 wells
+    Total Turning Angle Rolling       partly: shown in 8 of 12           about 12 fields a side; 3 too small to show                     0 of 18 wells
+    Median Speed Rolling              partly: shown in 8 of 12           about 8 to 26 fields a side; 1 too small to show                0 of 18 wells
+    Mean Speed                        partly: shown in 8 of 12           about 9 to 11 fields a side; 2 too small to show                0 of 18 wells
+    Mean Speed Rolling                partly: shown in 8 of 12           about 10 to 12 fields a side; 2 too small to show               0 of 18 wells
+    Total Distance Traveled Rolling   partly: shown in 8 of 12           about 10 to 12 fields a side; 2 too small to show               0 of 18 wells
+    Spatial Coverage Rolling          partly: shown in 7 of 12           about 11 to 12 fields a side; 3 too small to show               0 of 18 wells
+    Min Speed Rolling Rolling         partly: shown in 6 of 12           about 10 to 20 fields a side; 2 too small to show               0 of 18 wells
+    Max Speed Rolling                 partly: shown in 5 of 12           about 14 to 18 fields a side; 4 too small to show               0 of 18 wells
+    Speed Standard Deviation Rolling  partly: shown in 4 of 12           about 10 to 17 fields a side; 4 too small to show               0 of 18 wells
+    Speed Standard Deviation          partly: shown in 3 of 12           about 15 to 25 fields a side; 6 too small to show               1 of 18 wells
+    Directionality Rolling            partly: shown in 5 of 12           2 not projected (no candidate difference); 5 too small to show  14 of 18 wells
 
   The stopping rules, as optimise and live run them (on the readout):
   Analysis groups: condition · biological repeat · technical repeat.
   Each rule by its own threshold (not a held-out check), in 18 groups:
-    rule                                met with the fields acquired  fields needed in random orders: median (10-90%)
+    rule                                met with the fields acquired  fields needed in random orders: median (10 to 90%)
     mean-precision rule, per field, 5%  0 of 18                       never
     nothing new (≤5%)                   0 of 18                       never
-  Fields when first met in random orders; random: the median of the groups' medians, 10-90% from the
-    lowest to the highest group.
+  Fields when first met in random orders; random: the median of the groups' medians, 10 to 90% from
+    the lowest to the highest group.
   One more field: fields with a state counted as new in 6 of 18 groups: siCCT7#3 · repeat
     CCT7_3 · B5 (1 field), siCCT7#6 · repeat CCT7_1 · B6 (1 field), siCCT7#6 · repeat CCT7_2 · B6 (1
-    field) and 3 more; chance up to 17%, nominal 95% bound 28-58%.
-  Not yet seen: a state no field has shown is in at most 28-45% of fields (95% confidence); rarer
+    field) and 3 more; chance up to 17%, nominal 95% bound 28 to 58%.
+  Not yet seen: a state no field has shown is in at most 28 to 45% of fields (95% confidence); rarer
     states can remain.
   Seen in few fields: all 18 groups hold a state seen in only 2 to 3 fields (siCCT7#3 · repeat
     CCT7_1 · B5, siCCT7#3 · repeat CCT7_2 · B5, siCCT7#3 · repeat CCT7_3 · B5 and 15 more); look at
@@ -160,30 +160,30 @@ What this acquisition was asked to preserve
     it alone is as wide as the difference, more fields will not resolve it: more wells or biological
     repeats. Beyond 4 times the fields acquired a difference is called too small to show.
     Mean-precision rule, per field, 5%: in simulations its upper bound, a bootstrap of whole fields,
-    covered the true averaging error about 85-95% of the time with uneven field sizes and 93-99%
-    with Poisson sizes. The next-field bound is approximate: the leave-one-field-out outcomes share
-    their reference fields. The novelty bounds treat fields as independent, representative draws:
-    neighbouring fields acquired in a raster over patchy states make them too low. Every novelty
-    bound holds at a number of fields fixed in advance, not at the first field where it passes:
-    stopping there is premature more often than 5% of the time. A state carried by fewer than 3
-    similar tracks per field is never counted, however many fields hold it.
+    covered the true averaging error about 85 to 95% of the time with uneven field sizes and 93 to
+    99% with Poisson sizes. The next-field bound is approximate: the leave-one-field-out outcomes
+    share their reference fields. The novelty bounds treat fields as independent, representative
+    draws: neighbouring fields acquired in a raster over patchy states make them too low. Every
+    novelty bound holds at a number of fields fixed in advance, not at the first field where it
+    passes: stopping there is premature more often than 5% of the time. A state carried by fewer
+    than 3 similar tracks per field is never counted, however many fields hold it.
 
   Novelty is exploratory: not yet validated by the benchmark of docs/common/validation.md.
 
 ⚠️ 3. What is limiting my sampling?
   - Fields: a mean from whole fields varies 1.0 times as much as one from as many random tracks
-    (median; 1.0-2.7 over 18 groups); 6% of fields differ more than random tracks would (5%
+    (median; 1.0 to 2.7 over 18 groups); 6% of fields differ more than random tracks would (5%
     expected).
-  - Unusual tracks (exploratory, farther from the siCTRL reference than all but 1% of its tracks;
-    0-16% of each scored group): clustered in a few fields (q ≤ 0.05) in 0 of the 2 groups where
-    tested, 7 more where seen too few to reach 0.05.
+  - Unusual tracks (exploratory, farther from the siCTRL reference than all but 1% of its tracks; 0
+    to 16% of each group that is not a control): clustered in a few fields (q ≤ 0.05) in 0 of the 2
+    groups where tested, 7 more where seen too few to reach 0.05.
   - New states come from 6 fields; false alarms alone would give about 6, up to 9, of the 133 fields
     judged, so these are compatible with chance.
   ⚠️ No field holds at least 3 unusual tracks in siCCT7#3 · repeat CCT7_2 · B5, siCCT7#6 · repeat
      CCT7_2 · B6, siCTRL · repeat CCT7_1 · B4 and 6 more, so no field count is given there.
-  ⚠️ Refits with other reference samples agree on only 0-80% of the unusual tracks in 5 of 9 groups
-     (siCTRL · repeat CCT7_1 · B4, siCCT8#5 · repeat CCT8_1 · B2, siCCT8#5 · repeat CCT8_3 · B2 and
-     2 more; below 90%): treat those labels as unstable.
+  ⚠️ Refits with other reference samples agree on only 0 to 80% of the unusual tracks in 5 of 9
+     groups (siCTRL · repeat CCT7_1 · B4, siCCT8#5 · repeat CCT8_1 · B2, siCCT8#5 · repeat
+     CCT8_3 · B2 and 2 more; below 90%): treat those labels as unstable.
   Assumptions: The field counts assume fields from independent technical repeats: a state held by
     few technical repeats is clustered in their fields, so seeing it needs fields from more
     technical repeats than the count says (no two-level plan is made). A state the reference already

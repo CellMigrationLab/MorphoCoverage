@@ -246,7 +246,8 @@ fingerprint read raw values. The rule and why are in
 
 **Robust standardisation and MFA weighting.** Before distances or principal components, each
 column is centred on its median and divided by its MAD as an SD, or by its SD when the MAD
-is under a quarter of it: the maps, the populations, the separation, the label check and a
+is under a quarter of it, and a column constant up to rounding is left out (owner,
+2026-10-12): the maps, the populations, the separation, the label check and a
 wide fingerprint read this; the whole-table test divides by the same robust scale, taken per
 comparison on the within-group residuals of its two sides (owner, 2026-10-06). Novelty uses its own transform,
 `RobustStandardize` by default, and unusual observations a mean and SD fitted on the

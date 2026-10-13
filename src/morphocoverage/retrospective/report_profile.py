@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
+from .._style import low_to_high
 from .._wording import count, percent
 from ..bounds import lower_bound
 from ..sampling_unit._state_text import CLUSTER_ALPHA
@@ -199,7 +200,8 @@ def _variability_rows(variability: FOVVariability | None, observations: str) -> 
             "statement": (
                 f"a mean from whole fields varies {effect.median():.1f} times as much as "
                 f"one from as many random {observations} (design effect of the variance "
-                f"{level}, range {effect.min():.1f}-{effect.max():.1f}){unusual}"
+                f"{level}, range {low_to_high(f'{effect.min():.1f}', f'{effect.max():.1f}')})"
+                f"{unusual}"
             ),
             "source": "fov_variability",
         }

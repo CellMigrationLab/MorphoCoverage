@@ -9,9 +9,9 @@ At a glance
   ➖ 1. Can the features see the phenotype? — not assessed; needs a positive control: a condition
      known to change the phenotype
   ⚠️ 2. Did I image enough? — to compare with the control, within single repeats: shown in 29 of 36
-     comparisons; 6 would need about 42-87 cells a side; 1 too small to show with more cells; each
-     well's own mean by the default mean-precision rule, per cell, 5%: met in 0 of 54, a different
-     goal from the comparison
+     comparisons; 6 would need about 42 to 87 cells a side; 1 too small to show with more cells;
+     each well's own mean by the default mean-precision rule, per cell, 5%: met in 0 of 54, a
+     different goal from the comparison
   ⚠️ 3. What limits my sampling? — one of the cells per field
   ⚠️ 6. Which fields should I look at? — 22 fields to reopen in 19 wells (new state in 22)
   ✅ 9. Do the conditions differ? — Filopodia number, 12 conditions against the control, each in 3
@@ -62,7 +62,7 @@ What this acquisition was asked to preserve
 ✅ Foundation: why count fields, and not only cells?
   How variable are the fields (Filopodia number)? Each field holds one cell, so fields and cells
     coincide: a mean from whole fields is a mean of as many random cells (design effect 1), and SD /
-    sqrt(n), n the fields, is its error. The fields spread by 24-59% of their mean (the SD over
+    sqrt(n), n the fields, is its error. The fields spread by 24 to 59% of their mean (the SD over
     fields; median 37%, over 54 groups).
     group                              fields  mean  SD over fields   CV
     siCCT8#5 · repeat siCCT8_1             34  32.2              15  47%
@@ -143,16 +143,16 @@ What this acquisition was asked to preserve
   The precision of each group's own mean:
   Analysis groups: condition · biological repeat · technical repeat.
   Each rule by its own threshold (not a held-out check), in 54 groups:
-    rule                                met with the fields acquired  fields needed in random orders: median (10-90%)
-    mean-precision rule, per cell, 5%   0 of 54                       never in 267 of 270 orders; 17 (11-25) in the 3 that met it
-    mean-precision rule, per field, 5%  0 of 54                       never in 267 of 270 orders; 20 (14-29) in the 3 that met it
+    rule                                met with the fields acquired  fields needed in random orders: median (10 to 90%)
+    mean-precision rule, per cell, 5%   0 of 54                       never in 267 of 270 orders; 17 (11 to 25) in the 3 that met it
+    mean-precision rule, per field, 5%  0 of 54                       never in 267 of 270 orders; 20 (14 to 29) in the 3 that met it
     nothing new (≤5%)                   0 of 54                       never
-  Fields when first met in random orders; random: the median of the groups' medians, 10-90% from the
-    lowest to the highest group.
+  Fields when first met in random orders; random: the median of the groups' medians, 10 to 90% from
+    the lowest to the highest group.
   One more field: fields with a state counted as new in 19 of 54 groups: siCCT8#5 · repeat siCCT8_2
     (1 field), siCCT8#5 · repeat siCCT8_3 (1 field), siCCT8#8 · repeat siCCT8_1 (1 field) and 16
-    more; chance up to 8%, nominal 95% bound 7-32%.
-  Not yet seen: a state no field has shown is in at most 6-21% of fields (95% confidence); rarer
+    more; chance up to 8%, nominal 95% bound 7 to 32%.
+  Not yet seen: a state no field has shown is in at most 6 to 21% of fields (95% confidence); rarer
     states can remain.
   Seen in few fields: 28 of 54 groups hold a state seen in only 2 to 3 fields (siCCT8#5 · repeat
     siCCT8_1, siCCT8#5 · repeat siCCT8_3, siCCT8#8 · repeat siCCT8_1 and 25 more); look at those
@@ -167,8 +167,8 @@ What this acquisition was asked to preserve
     projected from it (narrowing as 1/sqrt(cells)). Beyond 4 times the cells acquired a difference
     is called too small to show. Mean-precision rule, per cell, 5% treats cells as independent
     draws: it assumes a spatially uniform sample. Mean-precision rule, per field, 5%: in simulations
-    its upper bound, a bootstrap of whole fields, covered the true averaging error about 85-95% of
-    the time with uneven field sizes and 93-99% with Poisson sizes. The next-field bound is
+    its upper bound, a bootstrap of whole fields, covered the true averaging error about 85 to 95%
+    of the time with uneven field sizes and 93 to 99% with Poisson sizes. The next-field bound is
     approximate: the leave-one-field-out outcomes share their reference fields. The novelty bounds
     treat fields as independent, representative draws: neighbouring fields acquired in a raster over
     patchy states make them too low. Every novelty bound holds at a number of fields fixed in

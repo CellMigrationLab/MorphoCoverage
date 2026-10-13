@@ -238,7 +238,7 @@ def test_a_pilot_of_one_repeat_leads_with_the_cell_level_test():
     assert (one.cells["chance_low"] < one.cells["chance_high"]).all()
     # The full report states the assumed variation between repeats.
     full = " ".join(one.summary(detail="full").split())
-    assert "with one repeat s is unknown and taken as 0.25–0.5" in full
+    assert "with one repeat s is unknown and taken as 0.25 to 0.5" in full
     assert "⚠️" not in one.summary()
 
 

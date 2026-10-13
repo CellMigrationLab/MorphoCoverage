@@ -21,7 +21,7 @@ def test_comparisons_not_projected_are_counted_so_the_row_adds_up():
 
 def test_a_flagged_feature_still_gets_its_projection():
     said = _needed(_row(needing=2, flagged=True, fields_low=12, fields_high=20), "images")
-    assert "about 12-20 images a side" in said and "not projected" not in said
+    assert "about 12 to 20 images a side" in said and "not projected" not in said
 
 
 def test_labels_of_arrows_ending_together_are_moved_apart():

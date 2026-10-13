@@ -31,6 +31,7 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import _SENTENCE_END, _assumption_block, assumption, assumption_lines
+from .._style import low_to_high
 from .._wording import WITHIN_FAMILY, count, listing, p_value, percent
 from ..sampling_unit._experiments import family_noun
 from ..sampling_unit.cells_text import balance_lines
@@ -94,7 +95,9 @@ def _chance(row: Any, columns: tuple[str, str]) -> str:
     low, high = (row.get(c, np.nan) for c in columns)
     if pd.isna(low):
         return "–"
-    return f"about {percent(low)}" if np.isclose(low, high) else f"{percent(low)}–{percent(high)}"
+    if np.isclose(low, high):
+        return f"about {percent(low)}"
+    return low_to_high(percent(low), percent(high))
 
 
 def _version(normalised: Any, balanced: Any) -> str:

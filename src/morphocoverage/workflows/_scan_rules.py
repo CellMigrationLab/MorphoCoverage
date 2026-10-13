@@ -372,7 +372,7 @@ def fields_line(scan: DesignScan) -> str:
         return f"{fields}, one {unit} per field."
     if low == high:
         return f"{fields}, {low} {words} per field."
-    return f"{fields}, {low}-{high} {words} per field (median {median:g})."
+    return f"{fields}, {low} to {high} {words} per field (median {median:g})."
 
 
 def technical_line(scan: DesignScan) -> str | None:
@@ -383,7 +383,7 @@ def technical_line(scan: DesignScan) -> str | None:
     if technical is None:
         return "Technical repeats: none recorded (one well per condition and repeat)."
     low, high = technical["low"], technical["high"]
-    spread = f"{low}" if low == high else f"{low}-{high}"
+    spread = f"{low}" if low == high else f"{low} to {high}"
     return f"Technical repeats: {spread} per condition and biological repeat."
 
 

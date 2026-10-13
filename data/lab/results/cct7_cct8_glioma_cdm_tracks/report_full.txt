@@ -185,20 +185,20 @@ What this acquisition was asked to preserve
 ⚠️ 2. Did I image enough?
   Each feature alike, 13 features, ordered as in “Do the conditions differ?” (significant across
     repeats first); the rule of the last column: the mean-precision rule, per field, 5%:
-    feature                           difference from the control shown  to show the rest                                wells whose mean meets the rule
-    Tortuosity Rolling                partly: shown in 8 of 12           4 too small to show                             1 of 18 wells
-    Median Speed                      partly: shown in 8 of 12           about 15-26 fields a side; 2 too small to show  0 of 18 wells
-    Total Turning Angle Rolling       partly: shown in 8 of 12           about 12 fields a side; 3 too small to show     0 of 18 wells
-    Median Speed Rolling              partly: shown in 8 of 12           about 8-26 fields a side; 1 too small to show   0 of 18 wells
-    Mean Speed                        partly: shown in 8 of 12           about 9-11 fields a side; 2 too small to show   0 of 18 wells
-    Mean Speed Rolling                partly: shown in 8 of 12           about 10-12 fields a side; 2 too small to show  0 of 18 wells
-    Total Distance Traveled Rolling   partly: shown in 8 of 12           about 10-12 fields a side; 2 too small to show  0 of 18 wells
-    Spatial Coverage Rolling          partly: shown in 7 of 12           about 11-12 fields a side; 3 too small to show  0 of 18 wells
-    Min Speed Rolling Rolling         partly: shown in 6 of 12           about 10-20 fields a side; 2 too small to show  0 of 18 wells
-    Max Speed Rolling                 partly: shown in 5 of 12           about 14-18 fields a side; 4 too small to show  0 of 18 wells
-    Speed Standard Deviation Rolling  partly: shown in 4 of 12           about 10-17 fields a side; 4 too small to show  0 of 18 wells
-    Speed Standard Deviation          partly: shown in 3 of 12           about 15-25 fields a side; 6 too small to show  1 of 18 wells
-    Directionality Rolling            partly: shown in 5 of 12           5 too small to show                             14 of 18 wells
+    feature                           difference from the control shown  to show the rest                                                wells whose mean meets the rule
+    Tortuosity Rolling                partly: shown in 8 of 12           4 too small to show                                             1 of 18 wells
+    Median Speed                      partly: shown in 8 of 12           about 15 to 26 fields a side; 2 too small to show               0 of 18 wells
+    Total Turning Angle Rolling       partly: shown in 8 of 12           about 12 fields a side; 3 too small to show                     0 of 18 wells
+    Median Speed Rolling              partly: shown in 8 of 12           about 8 to 26 fields a side; 1 too small to show                0 of 18 wells
+    Mean Speed                        partly: shown in 8 of 12           about 9 to 11 fields a side; 2 too small to show                0 of 18 wells
+    Mean Speed Rolling                partly: shown in 8 of 12           about 10 to 12 fields a side; 2 too small to show               0 of 18 wells
+    Total Distance Traveled Rolling   partly: shown in 8 of 12           about 10 to 12 fields a side; 2 too small to show               0 of 18 wells
+    Spatial Coverage Rolling          partly: shown in 7 of 12           about 11 to 12 fields a side; 3 too small to show               0 of 18 wells
+    Min Speed Rolling Rolling         partly: shown in 6 of 12           about 10 to 20 fields a side; 2 too small to show               0 of 18 wells
+    Max Speed Rolling                 partly: shown in 5 of 12           about 14 to 18 fields a side; 4 too small to show               0 of 18 wells
+    Speed Standard Deviation Rolling  partly: shown in 4 of 12           about 10 to 17 fields a side; 4 too small to show               0 of 18 wells
+    Speed Standard Deviation          partly: shown in 3 of 12           about 15 to 25 fields a side; 6 too small to show               1 of 18 wells
+    Directionality Rolling            partly: shown in 5 of 12           2 not projected (no candidate difference); 5 too small to show  14 of 18 wells
 
   Within each repeat, does the difference from the control show? Tortuosity Rolling, each condition
     against the control of the same repeat, 95% interval of d from the fields resampled as acquired:
@@ -418,11 +418,11 @@ What this acquisition was asked to preserve
 
   Analysis groups: condition · biological repeat · technical repeat.
   Each rule by its own threshold (not a held-out check), in 18 groups:
-    rule                                met with the fields acquired  fields needed in random orders: median (10-90%)
+    rule                                met with the fields acquired  fields needed in random orders: median (10 to 90%)
     mean-precision rule, per field, 5%  0 of 18                       never
     nothing new (≤5%)                   0 of 18                       never
-  Fields when first met in random orders; random: the median of the groups' medians, 10-90% from the
-    lowest to the highest group.
+  Fields when first met in random orders; random: the median of the groups' medians, 10 to 90% from
+    the lowest to the highest group.
   Rules: mean-precision rule, per field, 5% (scalar_precision_fov_upper95: averaging_cv <= 0.05;
     config d757b01eda57fc1e); nothing new (≤5%) (support_novelty: lofo_novel_fov_upper <= 0.05;
     config 3270f42ad71a05ec).
@@ -431,117 +431,117 @@ What this acquisition was asked to preserve
     without them; only where the acquired fields are enough).
 
   siCCT7#3 · repeat CCT7_1 · B5 — 7 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 1 of 7 fields hold a state seen in 2 to 3 fields; together 14% of fields
-      (95% interval 0.4%-58%): to see it once with 95% probability, about 20 independent
+      (95% interval 0.4% to 58%): to see it once with 95% probability, about 20 independent
       representative fields, up to 829 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none
       shows anything new (52 at the current rate of new fields).
 
   siCCT7#3 · repeat CCT7_2 · B5 — 8 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields
-      (95% interval 3%-65%): to see it once with 95% probability, about 11 independent
+      (95% interval 3% to 65%): to see it once with 95% probability, about 11 independent
       representative fields, up to 93 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none
       shows anything new (51 at the current rate of new fields).
 
   siCCT7#3 · repeat CCT7_3 · B5 — 7 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields
-      (95% interval 4%-71%): to see it once with 95% probability, about 9 independent representative
-      fields, up to 81 at the low end of the interval.
+      (95% interval 4% to 71%): to see it once with 95% probability, about 9 independent
+      representative fields, up to 81 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 86 more fields if none
       shows anything new (never, at the current rate of new fields).
 
   siCCT7#6 · repeat CCT7_1 · B6 — 7 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 3 of 7 fields hold a state seen in 2 to 3 fields; together 43% of fields
-      (95% interval 10%-82%): to see it once with 95% probability, about 6 independent
+      (95% interval 10% to 82%): to see it once with 95% probability, about 6 independent
       representative fields, up to 29 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 86 more fields if none
       shows anything new (never, at the current rate of new fields).
 
   siCCT7#6 · repeat CCT7_2 · B6 — 8 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 13% (nominal 95% bound 47%); 1 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields
-      (95% interval 0.3%-53%): to see it once with 95% probability, about 23 independent
+      (95% interval 0.3% to 53%): to see it once with 95% probability, about 23 independent
       representative fields, up to 947 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 85 more fields if none
       shows anything new (never, at the current rate of new fields).
 
   siCCT7#6 · repeat CCT7_3 · B6 — 6 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 17% (nominal 95% bound 58%); 1 of 6 fields showed a state counted as new.
     Not yet seen: at most 39% of fields (95% confidence, about 3 / 6).
     Seen in few fields: 2 of 6 fields hold a state seen in 2 to 3 fields; together 33% of fields
-      (95% interval 4%-78%): to see it once with 95% probability, about 8 independent representative
-      fields, up to 68 at the low end of the interval.
+      (95% interval 4% to 78%): to see it once with 95% probability, about 8 independent
+      representative fields, up to 68 at the low end of the interval.
     Fields still needed: at least 53 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 87 more fields if none
       shows anything new (never, at the current rate of new fields).
 
   siCTRL · repeat CCT7_1 · B4 — 8 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 13% (nominal 95% bound 47%); 1 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 3 of 8 fields hold a state seen in 2 to 3 fields; together 38% of fields
-      (95% interval 9%-76%): to see it once with 95% probability, about 7 independent representative
-      fields, up to 34 at the low end of the interval.
+      (95% interval 9% to 76%): to see it once with 95% probability, about 7 independent
+      representative fields, up to 34 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 85 more fields if none
       shows anything new (never, at the current rate of new fields).
 
   siCTRL · repeat CCT7_2 · B4 — 7 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields
-      (95% interval 4%-71%): to see it once with 95% probability, about 9 independent representative
-      fields, up to 81 at the low end of the interval.
+      (95% interval 4% to 71%): to see it once with 95% probability, about 9 independent
+      representative fields, up to 81 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none
       shows anything new (52 at the current rate of new fields).
 
   siCTRL · repeat CCT7_3 · B4 — 5 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 0% (nominal 95% bound 45%); 0 of 5 fields showed a state counted as new.
     Not yet seen: at most 45% of fields (95% confidence, about 3 / 5).
     Seen in few fields: 4 of 5 fields hold a state seen in 2 to 3 fields; together 80% of fields
-      (95% interval 28%-99.5%): to see it once with 95% probability, about 2 independent
+      (95% interval 28% to 99.5%): to see it once with 95% probability, about 2 independent
       representative fields, up to 9 at the low end of the interval; they may hold several states,
       each rarer: one seen in only 2 fields needs about 6.
     Fields still needed: at least 54 more fields with nothing new to rule out unseen states in more
@@ -549,39 +549,39 @@ What this acquisition was asked to preserve
       shows anything new (54 at the current rate of new fields).
 
   siCCT8#5 · repeat CCT8_1 · B2 — 8 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields
-      (95% interval 3%-65%): to see it once with 95% probability, about 11 independent
+      (95% interval 3% to 65%): to see it once with 95% probability, about 11 independent
       representative fields, up to 93 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none
       shows anything new (51 at the current rate of new fields).
 
   siCCT8#5 · repeat CCT8_2 · B2 — 8 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields
-      (95% interval 0.3%-53%): to see it once with 95% probability, about 23 independent
+      (95% interval 0.3% to 53%): to see it once with 95% probability, about 23 independent
       representative fields, up to 947 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none
       shows anything new (51 at the current rate of new fields).
 
   siCCT8#5 · repeat CCT8_3 · B2 — 7 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 4 of 7 fields hold a state seen in 2 to 3 fields; together 57% of fields
-      (95% interval 18%-90%): to see it once with 95% probability, about 4 independent
+      (95% interval 18% to 90%): to see it once with 95% probability, about 4 independent
       representative fields, up to 15 at the low end of the interval; they may hold several states,
       each rarer: one seen in only 2 fields needs about 9.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
@@ -589,13 +589,13 @@ What this acquisition was asked to preserve
       shows anything new (52 at the current rate of new fields).
 
   siCCT8#8 · repeat CCT8_1 · B3 — 8 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 4 of 8 fields hold a state seen in 2 to 3 fields; together 50% of fields
-      (95% interval 16%-84%): to see it once with 95% probability, about 5 independent
+      (95% interval 16% to 84%): to see it once with 95% probability, about 5 independent
       representative fields, up to 18 at the low end of the interval; they may hold several states,
       each rarer: one seen in only 2 fields needs about 11.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
@@ -603,65 +603,65 @@ What this acquisition was asked to preserve
       shows anything new (51 at the current rate of new fields).
 
   siCCT8#8 · repeat CCT8_2 · B3 — 8 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields
-      (95% interval 0.3%-53%): to see it once with 95% probability, about 23 independent
+      (95% interval 0.3% to 53%): to see it once with 95% probability, about 23 independent
       representative fields, up to 947 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none
       shows anything new (51 at the current rate of new fields).
 
   siCCT8#8 · repeat CCT8_3 · B3 — 7 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields
-      (95% interval 4%-71%): to see it once with 95% probability, about 9 independent representative
-      fields, up to 81 at the low end of the interval.
+      (95% interval 4% to 71%): to see it once with 95% probability, about 9 independent
+      representative fields, up to 81 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none
       shows anything new (52 at the current rate of new fields).
 
   siCTRL · repeat CCT8_1 · B1 — 7 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 3 of 7 fields hold a state seen in 2 to 3 fields; together 43% of fields
-      (95% interval 10%-82%): to see it once with 95% probability, about 6 independent
+      (95% interval 10% to 82%): to see it once with 95% probability, about 6 independent
       representative fields, up to 29 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 86 more fields if none
       shows anything new (never, at the current rate of new fields).
 
   siCTRL · repeat CCT8_2 · B1 — 9 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 0% (nominal 95% bound 28%); 0 of 9 fields showed a state counted as new.
     Not yet seen: at most 28% of fields (95% confidence, about 3 / 9).
     Seen in few fields: 2 of 9 fields hold a state seen in 2 to 3 fields; together 22% of fields
-      (95% interval 3%-60%): to see it once with 95% probability, about 12 independent
+      (95% interval 3% to 60%): to see it once with 95% probability, about 12 independent
       representative fields, up to 105 at the low end of the interval.
     Fields still needed: at least 50 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 50 more fields if none
       shows anything new (50 at the current rate of new fields).
 
   siCTRL · repeat CCT8_3 · B1 — 8 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per field, 5%  no      never                                    –
-    nothing new (≤5%)                   no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10 to 90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                       –
+    nothing new (≤5%)                   no      never                                       –
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields
-      (95% interval 3%-65%): to see it once with 95% probability, about 11 independent
+      (95% interval 3% to 65%): to see it once with 95% probability, about 11 independent
       representative fields, up to 93 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none
@@ -689,8 +689,8 @@ What this acquisition was asked to preserve
       calling the sample settled.
     - Fields that cluster a state need more fields than the planning numbers.
     - Mean-precision rule, per field, 5%: in simulations its upper bound, a bootstrap of whole
-      fields, covered the true averaging error about 85-95% of the time with uneven field sizes and
-      93-99% with Poisson sizes.
+      fields, covered the true averaging error about 85 to 95% of the time with uneven field sizes
+      and 93 to 99% with Poisson sizes.
     - The next-field bound is approximate: the leave-one-field-out outcomes share their reference
       fields.
     - The novelty bounds treat fields as independent, representative draws: neighbouring fields
@@ -706,7 +706,7 @@ What this acquisition was asked to preserve
   Measured quantities (the sampling profile), each with where it holds:
   - a mean from whole fields varies 1.0 times as much as one from as many random tracks (design
     effect of the variance between the fields of each group (condition, biological_repeat,
-    technical_repeat), range 1.0-2.7); 6% of fields differ more than random tracks would (5%
+    technical_repeat), range 1.0 to 2.7); 6% of fields differ more than random tracks would (5%
     expected) [median of 18 groups]
   - unusual tracks: clustered in a few fields (q <= 0.05) in 0 of the 2 groups where it could be
     tested, of 9 where it was seen [all groups]
@@ -741,9 +741,9 @@ What this acquisition was asked to preserve
     siCTRL · repeat CCT8_3 · B1               39        2     5%              100%       4.23  leave-one-group-out
   Background: the controls' own tracks, scored the same way against the other control groups, are 3%
     unusual, 5 of 184; a condition's share reads against it.
-  ⚠️ Refits with other reference samples agree on only 0-80% of the unusual tracks in 5 of 9 groups
-     (siCTRL · repeat CCT7_1 · B4, siCCT8#5 · repeat CCT8_1 · B2, siCCT8#5 · repeat CCT8_3 · B2 and
-     2 more; below 90%): treat those labels as unstable.
+  ⚠️ Refits with other reference samples agree on only 0 to 80% of the unusual tracks in 5 of 9
+     groups (siCTRL · repeat CCT7_1 · B4, siCCT8#5 · repeat CCT8_1 · B2, siCCT8#5 · repeat
+     CCT8_3 · B2 and 2 more; below 90%): treat those labels as unstable.
 
   Are the unusual tracks spread over the fields? Clustered in a few fields (q ≤ 0.05 after
     Benjamini-Hochberg over the 2 tests of every group and state) in none of 2 groups where tested.
@@ -979,11 +979,11 @@ What this acquisition was asked to preserve
       median over 100 draws taking the same number of tracks from each repeat, p from the condition
       and control labels shuffled within each repeat, the same statistic on the same draws for each
       shuffle. In data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells of
-      the others, the test as provided gives 22-46% false positives where equal repeats give 16% (s
-      = 0.25), and the balanced test 15-19%; with the control pooled from repeats the condition was
-      not imaged in, the raw test as provided gives 46% even when the repeats agree, the balanced
-      test about 5%. Balancing removes the weight of the repeats holding more, not the independence
-      assumption.
+      the others, the test as provided gives 22 to 46% false positives where equal repeats give 16%
+      (s = 0.25), and the balanced test 15 to 19%; with the control pooled from repeats the
+      condition was not imaged in, the raw test as provided gives 46% even when the repeats agree,
+      the balanced test about 5%. Balancing removes the weight of the repeats holding more, not the
+      independence assumption.
     - Within a repeat the conditions are described by their effect sizes; they are tested across
       repeats (the first table).
     - The test and the effect sizes compare means: a difference confined to a subpopulation of

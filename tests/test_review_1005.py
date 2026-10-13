@@ -311,7 +311,7 @@ def test_the_declared_labels_group_is_tested_once_as_the_label(labelled):
 def test_counts_are_each_conditions_own(designs):
     contrast, discovery = designs["E2"]
     text = " ".join(contrast_summary(contrast, "full").split())
-    assert "Across the biological repeats, 1-4 per condition (each repeat's value" in text
+    assert "Across the biological repeats, 1 to 4 per condition (each repeat's value" in text
     assert "With 2 and 1 biological repeats holding both sides, cond2 and cond4 are" in text
     assert "the control as provided is pooled from biological repeats the condition was not" in (
         text
@@ -324,7 +324,7 @@ def test_counts_are_each_conditions_own(designs):
     result = Result()
     result.discovery, result.results = discovery, {}
     words = significant_summary(result, str)
-    assert "significant across the biological repeats, 1-4 per condition" in words
+    assert "significant across the biological repeats, 1 to 4 per condition" in words
 
 
 def test_one_repeat_is_read_as_one_repeat(designs):

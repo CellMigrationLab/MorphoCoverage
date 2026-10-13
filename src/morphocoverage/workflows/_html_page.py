@@ -13,13 +13,13 @@ import pandas as pd
 
 from ._html_data import LINKED, json_island
 from ._html_fields import NEW_STATES, has_new_states
-from ._html_plan import PLAN_TITLE
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
 from ._html_render import chip
 from ._html_script import SCRIPT
 from ._html_sections import ORDER, hidden
 from ._html_style import CSS
+from ._results import PLAN_TITLE
 from .retrospective import Report
 
 

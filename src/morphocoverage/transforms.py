@@ -41,15 +41,11 @@ import numpy as np
 
 from ._checks import is_integer
 from ._frozen import owned
+from ._robust_sd import CONSTANT_RELATIVE_SPREAD, constant_columns
 from ._wording import listing
 from .provenance import class_identity, config_hash, describe
 from .schema import ValidatedInput
 from .statistics import MAD_TO_SD
-
-# The spread, relative to a feature's magnitude, below which it is rounding noise:
-# about the precision of single-precision floats (2**-23 = 1.2e-7), in which feature
-# tables are often stored, so noise of 1e-9 is never standardised to full weight.
-CONSTANT_RELATIVE_SPREAD = 1e-7
 
 
 class FeatureTransform(ABC):
@@ -203,22 +199,6 @@ class Standardize(FeatureTransform):
     def apply_matrix(self, state: Mapping[str, Any], matrix: np.ndarray) -> np.ndarray:
         """``(x - mean) / sd``."""
         return (matrix - np.asarray(state["mean"])) / np.asarray(state["sd"])
-
-
-def constant_columns(matrix: np.ndarray) -> np.ndarray:
-    """Which columns do not vary: identical values, or a spread that is rounding noise.
-
-    A constant such as 0.1 gives an SD of about 1e-17 from rounding rather than 0,
-    so ``sd > 0`` alone would standardise by noise; and a value stored in single
-    precision carries rounding of about 1e-7 of its magnitude, which
-    standardising would blow up to full weight. A column counts as constant
-    when its range is 0 or its SD is at most ``CONSTANT_RELATIVE_SPREAD``
-    (1e-7) of its absolute mean.
-    """
-    spread = np.ptp(matrix, axis=0)
-    sd = matrix.std(axis=0, ddof=1) if len(matrix) > 1 else np.zeros(matrix.shape[1])
-    scale = np.abs(matrix.mean(axis=0))
-    return (spread == 0) | (sd <= CONSTANT_RELATIVE_SPREAD * scale)
 
 
 def missing_values_reason(matrix: np.ndarray, names: Sequence[str]) -> str | None:

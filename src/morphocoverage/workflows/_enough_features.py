@@ -240,11 +240,12 @@ def _fields(features: FeatureEnough) -> str:
 
 
 def _needed(row: dict[str, Any], fields: str) -> str:
-    """``about 42-56 cells a side`` (and those too small), ``–`` when nothing is needed."""
+    """``about 42 to 56 cells a side`` (and those too small), ``–`` when nothing is
+    needed."""
     parts = []
     if row["needing"] and row.get("flagged", True):
         low, high = int(row["fields_low"]), int(row["fields_high"])
-        about = f"{low}" if low == high else f"{low}-{high}"
+        about = f"{low}" if low == high else f"{low} to {high}"
         parts.append(f"about {about} {fields} a side")
     elif row["needing"]:  # counted, not projected: the counts add up (audit A4)
         parts.append(f"{row['needing']} not projected (no candidate difference)")

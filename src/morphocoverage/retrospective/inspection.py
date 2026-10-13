@@ -57,7 +57,7 @@ from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..metadata import column_names
 from ..schema import ValidatedInput, fov_positions
-from ..statistics import MAD_TO_SD
+from ..statistics import robust_sd
 from ..strategies.support_novelty import SupportNoveltyEstimator
 from ..sufficiency_text import novelty_definition
 from ._field_reasons import _counts, _Gathered, _neighbour_found, _new_state_found
@@ -142,8 +142,9 @@ def _weighted(values: np.ndarray, weights: np.ndarray, statistic: str) -> float 
 
 def stands_out(changes: np.ndarray, spread: float | None = INFLUENCE_SPREAD) -> np.ndarray:
     """Whether each field's leave-one-out change stands out from the others' of its group:
-    more than ``spread`` robust SDs (``MAD_TO_SD`` times the median absolute deviation) from
-    the group's median change (all ``True`` with ``spread=None``, the threshold alone).
+    more than ``spread`` robust SDs (``MAD_TO_SD`` times the median absolute deviation, their
+    SD where that is 0: ``statistics.robust_sd``'s detector rule) from the group's median
+    change (all ``True`` with ``spread=None``, the threshold alone).
 
     Why not a multiple of the median absolute change: leaving a field out moves a mean by the
     field's difference from it divided by the others' number, so a lone aberrant field moves
@@ -155,7 +156,9 @@ def stands_out(changes: np.ndarray, spread: float | None = INFLUENCE_SPREAD) -> 
     with a CV of 30-50%, 1-7% of ordinary fields were flagged (24-48% by the 10% threshold
     alone), and a field 4 times the others 66-97% of the time. With fewer than
     ``INFLUENCE_MIN_FIELDS`` fields one of the two others sets the spread, so such groups are
-    not judged (the callers say where).
+    not judged (the callers say where). With most changes tied, as for a discrete summary,
+    the MAD is 0 and would flag every field off the median: 11 to 23% of null fields in
+    simulations (audit 12), so the SD scales them there.
     """
     changes = np.asarray(changes, dtype=float)
     if spread is None:
@@ -163,7 +166,7 @@ def stands_out(changes: np.ndarray, spread: float | None = INFLUENCE_SPREAD) -> 
     if not len(changes):
         return np.zeros(0, dtype=bool)
     typical = float(np.median(changes))
-    scale = MAD_TO_SD * float(np.median(np.abs(changes - typical)))
+    scale = robust_sd(changes, "detector")
     return np.abs(changes - typical) > spread * scale
 
 

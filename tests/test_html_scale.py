@@ -252,7 +252,7 @@ def _contrast(fields):
 
 def test_the_fields_to_show_the_rest_are_a_range_with_many_values():
     many = _needs(_contrast([6, 6, 7, 9, 12, 24]), "fields")
-    assert many == "6 need about 6-24 fields a side in their repeat"
+    assert many == "6 need about 6 to 24 fields a side in their repeat"
     few = _needs(_contrast([6, 7, 7]), "fields")
     assert few == "1 needs about 6 and 2 about 7 fields a side in their repeat"
 

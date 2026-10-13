@@ -115,7 +115,7 @@ def _cautions(
         cautions.append(
             f"the point estimate from {filled} FOVs with {plural(unit)} is optimistic; the "
             "paper advises the upper-95 bound for small samples (the point rule stopped at "
-            "2-3 FOVs in 39% of simulated homogeneous wells, and 18% of its stops were "
+            "2 to 3 FOVs in 39% of simulated homogeneous wells, and 18% of its stops were "
             "more than 9.8% off the well mean)"
         )
     return [text for text in cautions if text]

@@ -23,7 +23,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._style import MARKERS, Status, group_label, span
+from .._style import MARKER_LINE, MARKERS, Status, group_label, span
 from .._wording import change, count, listing, p_value
 from ..retrospective.inspection_text import _fields, _keys
 from ..sampling_unit._experiments import not_compared
@@ -36,7 +36,6 @@ from ._distribution import split_words
 from ._enough_features import NOT_YET
 from ._populations import only_labelled
 
-_MARKER_LINE = re.compile(r"^\s*(✅|⚠️|❌|➖)\s+(.*)$")
 # The chip of a check: its kind (the page's colours) and its word.
 _CHECK_WORDS = {
     Status.OK: ("ok", "OK"),
@@ -71,7 +70,7 @@ def _marker_lines(text: str) -> list[tuple[Status, str]]:
     """The lines of ``text`` that open with a marker, their wrapped continuations joined."""
     found: list[tuple[Status | None, str]] = []
     for line in text.splitlines():
-        match = _MARKER_LINE.match(line)
+        match = MARKER_LINE.match(line)
         if match:
             found.append((MARKERS[match.group(1)], match.group(2).strip()))
         elif found and line.startswith("   ") and line.strip():

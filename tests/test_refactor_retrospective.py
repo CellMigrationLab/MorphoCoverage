@@ -240,7 +240,7 @@ def test_overview_full_names_planes_and_a_missing_condition_or_repeat_column():
         planes, fovs, feature_cols=list(FEATURE_COLS), observation_unit="slice"
     ).summary(detail="full")
     assert text.splitlines()[2] == (
-        "'z' takes 3 to 3 values per field: slices of several planes, channels or frames of one "
+        "'z' takes 3 values per field: slices of several planes, channels or frames of one "
         "field (declared as plane-level rows)."
     )
     no_condition = dataset_overview(
@@ -425,8 +425,8 @@ def test_conditions_status_from_contrasts_alone_and_from_a_ranking_alone(monkeyp
     assert module.conditions_status(contrast, None) == (
         Status.CAUTION,
         (
-            "2 contrasts, |d| on field means 0.5-1.2; 1 of 2 tested differ (Bonferroni p ≤ 0.05); "
-            "opposite signs between repeats"
+            "2 contrasts, |d| on field means 0.5 to 1.2; 1 of 2 tested differ (Bonferroni "
+            "p ≤ 0.05); opposite signs between repeats"
         ),
     )
     contrast = SimpleNamespace(table=table, repeats=pd.DataFrame({"x": [1]}), settings=settings)

@@ -150,7 +150,9 @@ def _resampled(
             f"whole {_pooled_name(layout)} with all their fields ({_span(by_top)} per {cluster})"
         )
         if any(n in (2, 3) for n in by_top):
-            caveat = f"\nwith 2-3 {_pooled_name(layout)} per {cluster} the interval is only a guide"
+            caveat = (
+                f"\nwith 2 to 3 {_pooled_name(layout)} per {cluster} the interval is only a guide"
+            )
     if single or not by_top:
         if layout.technical_col:
             caveat = _technical_resampled(phrases, caveat, layout, cluster, single, by_top)
@@ -184,7 +186,7 @@ def _technical_resampled(
     elif any(n == 1 for n in single):
         phrases.append(f"the fields, where a {cluster} has one {technical_word}")
     if any(n in (2, 3) for n in several):
-        caveat = f"\nwith 2-3 {technicals} the interval is only a guide"
+        caveat = f"\nwith 2 to 3 {technicals} the interval is only a guide"
     if any(n == 1 for n in single):
         caveat += (
             f"\nwith one {technical_word} the interval shows field-to-field "

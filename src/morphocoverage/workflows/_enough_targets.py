@@ -31,7 +31,7 @@ import numpy as np
 import pandas as pd
 
 from .._seeds import group_key, group_rng
-from .._style import Status, span, worst, wrap
+from .._style import Status, low_to_high, span, worst, wrap
 from .._wording import count, listing, percent, plural, rate
 from ..evaluator import FovSubsets, iter_analysis_groups
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
@@ -405,8 +405,9 @@ def fingerprint_lines(
         tolerance = _number(judged["tolerance"].iloc[0])
         text = (
             f"{title}: its error with the {fields} acquired, estimated "
-            f"from random halves of each {word}'s {fields}, is {_number(errors.min())}-"
-            f"{_number(errors.max())} (median {_number(errors.median())}; the tolerance "
+            f"from random halves of each {word}'s {fields}, is "
+            f"{low_to_high(_number(errors.min()), _number(errors.max()))} "
+            f"(median {_number(errors.median())}; the tolerance "
             f"{tolerance}): within it in {met} of {count(len(judged), word)}"
         )
         if met == len(judged):

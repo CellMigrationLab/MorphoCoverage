@@ -38,7 +38,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._style import wrap
+from .._style import low_to_high, wrap
 from .._wording import (
     change,
     column_word,
@@ -193,7 +193,8 @@ def limited_words(row: Any, values: str) -> str:
     named = "fold_change" if values == "normalised" else "mean_difference"
     effect = row["change"] if "change" in row else row.get(named)
     interval = (
-        f", 95% t interval {change(row['ci_low'], values)} to {change(row['ci_high'], values)}"
+        ", 95% t interval "
+        + low_to_high(change(row["ci_low"], values), change(row["ci_high"], values))
         if pd.notna(row.get("ci_low"))
         else ""
     )
@@ -478,7 +479,7 @@ def readings_headline(contrast: Any) -> str | None:
     each = (
         count(n_repeats, word)
         if held.min() == n_repeats
-        else f"{held.min()}-{count(n_repeats, word)}"
+        else f"{held.min()} to {count(n_repeats, word)}"
     )
     table = getattr(contrast, "table", pd.DataFrame())
     repeat_col = contrast.settings.get("repeat_col")

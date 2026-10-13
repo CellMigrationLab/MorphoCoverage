@@ -54,7 +54,7 @@ from .._style import check_detail, group_label, table, wrap
 from .._wording import count, listing, number, percent_fine
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..schema import fov_values, observation_words, one_per_field
-from ..statistics import MAD_TO_SD_ROUNDED
+from ..statistics import MAD_TO_SD_ROUNDED, robust_sd
 from ._common import validated
 
 # SDs from the other fields of the group: the quality-control threshold (see module).
@@ -203,12 +203,12 @@ def _field_words(row: dict[str, Any]) -> str:
 
 def _scale(residuals: np.ndarray) -> float:
     """The robust SD of the pooled differences, or their SD where the median absolute
-    deviation is 0 (most differences tied, see the module); 0 when undefined."""
+    deviation is 0 (most differences tied, see the module; ``statistics.robust_sd``'s
+    detector rule); 0 when undefined."""
     residuals = residuals[~np.isnan(residuals)]
     if len(residuals) < 2:
         return 0.0
-    mad = MAD_TO_SD_ROUNDED * float(np.median(np.abs(residuals - np.median(residuals))))
-    return mad if mad > 0 else float(np.std(residuals, ddof=1))
+    return float(robust_sd(residuals, "detector", MAD_TO_SD_ROUNDED))
 
 
 def _residuals(medians: np.ndarray) -> np.ndarray:

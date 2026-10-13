@@ -5,10 +5,11 @@ order they were revealed, table order within each FOV), which is the order in
 which a live ``OnlineSession`` receives them; estimators that draw objects by
 row position therefore see the same rows in a replay and at the microscope.
 
-Shared-private helpers: ``_evaluate_prefixes``, ``_check_order_values``,
-``_in_acquisition_order``, ``_Acquisition``, ``_replay_strategies``,
-``_strategy_units`` and ``_interleave`` are also used by ``benchmark`` and
-``retrospective.replay``, so that every replay reveals FOVs the same way.
+Shared-private helpers: ``_evaluate_prefixes``, ``_in_acquisition_order``,
+``_Acquisition``, ``_replay_strategies``, ``_strategy_units`` and ``_interleave`` are also
+used by ``benchmark`` and ``retrospective.replay``, so that every replay reveals FOVs the
+same way; both check the order column with ``strategies.base.check_order_col``,
+``REPLAY_PURPOSE`` and ``REPLAY_ARGUMENT``.
 They are private to the package (not part of its public API) and may change
 with it.
 """
@@ -36,7 +37,11 @@ from .metadata import column_names
 from .objectives import ObjectiveConfig
 from .results import StrategyResult
 from .schema import ValidatedInput, fov_positions
-from .strategies.base import SamplingStrategy
+from .strategies.base import SamplingStrategy, check_order_col
+
+# What needs the acquisition order and the argument naming it, for ``check_order_col``.
+REPLAY_PURPOSE = "the replay of the acquisition order"
+REPLAY_ARGUMENT = "acquisition_order_col"
 
 
 @dataclass(frozen=True)
@@ -143,7 +148,7 @@ def _evaluate_prefixes(
         observation_unit=observation_unit,
     )
     # The values after validation, which refuses a column named twice before it is read.
-    _check_order_values(data.fovs, acquisition_order_col)
+    check_order_col(data.fovs, acquisition_order_col, REPLAY_PURPOSE, REPLAY_ARGUMENT)
     strategy_list = list(strategies)
     groups = list(iter_analysis_groups(data))
     _check_min_fovs(groups, min_fovs)
@@ -231,32 +236,13 @@ def _check_order_column(
     fovs: pd.DataFrame, order_col: str, feature_cols: Sequence[str] | None
 ) -> None:
     """The acquisition-order column exists and is not a phenotype feature (its values are
-    checked by ``_check_order_values`` once the tables are validated)."""
+    checked by ``strategies.base.check_order_col`` once the tables are validated)."""
     if not isinstance(fovs, pd.DataFrame):
         raise TypeError("fovs must be a pandas DataFrame")
     if order_col not in fovs.columns:
         raise ValueError(f"fovs is missing required columns: {[order_col]}")
     if feature_cols is not None and order_col in feature_cols:
         raise ValueError("acquisition order cannot also be a phenotype feature")
-
-
-def _check_order_values(fovs: pd.DataFrame, order_col: str) -> None:
-    """The acquisition order is complete and numeric, a date-time or a duration.
-
-    Text is refused rather than sorted as text, where ``"10"`` comes before
-    ``"2"`` and the replayed history would silently differ from the recorded one.
-    """
-    values = fovs[order_col]
-    if values.isna().any():
-        raise ValueError("acquisition order contains missing values")
-    dtype, types = values.dtype, pd.api.types
-    numeric = types.is_numeric_dtype(dtype) and not types.is_bool_dtype(dtype)
-    if not (numeric or types.is_datetime64_any_dtype(dtype) or types.is_timedelta64_dtype(dtype)):
-        raise ValueError(
-            f"acquisition order column {order_col!r} holds {dtype} values, not numbers or "
-            "date-times; text would sort '10' before '2'. Convert it first, for example "
-            f"fovs[{order_col!r}] = pd.to_numeric(fovs[{order_col!r}]) or pd.to_datetime(...)."
-        )
 
 
 def _check_min_fovs(groups: list[tuple[dict, ValidatedInput]], min_fovs: int) -> None:

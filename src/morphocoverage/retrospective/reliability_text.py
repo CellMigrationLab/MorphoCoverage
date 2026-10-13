@@ -232,7 +232,8 @@ def _merged(texts: Sequence[str]) -> list[str]:
 
 
 def _cell(values: Sequence[float], judged: int, total: int) -> str:
-    """The range of shares over the groups that judged it: ``90-99%``, ``100% (3 of 12)``."""
+    """The range of shares over the groups that judged it: ``90 to 99%``,
+    ``100% (3 of 12)``."""
     if not values:
         return "–"
     text = span(values, "percent")

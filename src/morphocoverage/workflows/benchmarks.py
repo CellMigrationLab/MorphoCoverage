@@ -19,7 +19,7 @@ import pandas as pd
 from .._caveats import caveat_lines
 from .._checks import check_seed
 from .._frozen import owned
-from .._style import Status, check_detail, group_columns, headline, worst, wrap
+from .._style import Status, check_detail, group_columns, headline, low_to_high, worst, wrap
 from .._wording import count, listing, percent
 from .._wording import fields as fields_text
 from ..retrospective.frontier import FrontierResult, frontier, sweep
@@ -200,7 +200,8 @@ def _grid_problems(result: Benchmark) -> list[tuple[str, str, str]]:
         grid = grids.get(name, {})
         thresholds = grid.get("thresholds") or []
         span = (
-            f" ({grid.get('quantity')} {min(thresholds):g} to {max(thresholds):g})"
+            f" ({grid.get('quantity')} "
+            f"{low_to_high(f'{min(thresholds):g}', f'{max(thresholds):g}')})"
             if thresholds
             else ""
         )

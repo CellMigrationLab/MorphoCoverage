@@ -17,6 +17,7 @@ from .._style import (
     check_detail,
     group_columns,
     group_label,
+    low_to_high,
     merge_numbers,
     number_pattern,
     table,
@@ -277,7 +278,11 @@ def _comparison_table(compared: pd.DataFrame, samples: str) -> str | None:
         return None
     rows = []
     for row in compared.itertuples(index=False):
-        interval = "–" if pd.isna(row.ratio_low) else f"{row.ratio_low:.3g}-{row.ratio_high:.3g}"
+        interval = (
+            "–"
+            if pd.isna(row.ratio_low)
+            else low_to_high(f"{row.ratio_low:.3g}", f"{row.ratio_high:.3g}")
+        )
         rows.append(
             [
                 row.samples,

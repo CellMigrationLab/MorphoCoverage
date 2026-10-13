@@ -78,6 +78,8 @@ class Status(Enum):
 _RANKS = {Status.NOT_ASSESSED: 0, Status.OK: 1, Status.CAUTION: 2, Status.PROBLEM: 3}
 # Each marker's status, to read an answer's line back.
 MARKERS = {status.marker: status for status in Status}
+# A line that opens with a marker, after any indent: the marker, then the words.
+MARKER_LINE = re.compile(rf"^\s*({'|'.join(map(re.escape, MARKERS))})\s+(.*)$")
 
 
 def worst(statuses: Iterable[Status]) -> Status:
@@ -140,18 +142,24 @@ def among(k: int, n: int, word: str = "group") -> str:
 
 
 def span(values: Iterable[float], kind: str = "number") -> str:
-    """The lowest and the highest of ``values``: ``8`` or ``3-5``; with ``kind="percent"``,
-    ``4%`` or ``0-20%`` (through ``_wording``, so the guard on inline percentages holds)."""
+    """The lowest and the highest of ``values``: ``8`` or ``3 to 5``; with
+    ``kind="percent"``, ``4%`` or ``0 to 20%``, the unit said once (through ``_wording``, so
+    the guard on inline percentages holds)."""
     found = sorted(float(value) for value in values)
     if not found:
         raise ValueError("span needs at least one value")
     write = percent if kind == "percent" else number
     low, high = write(found[0]), write(found[-1])
-    if low == high:
-        return low
-    if kind == "percent" and low.endswith("%") and high.endswith("%"):
-        return f"{low[:-1]}-{high}"
-    return f"{low} to {high}" if found[0] < 0 else f"{low}-{high}"
+    if kind == "percent" and low != high and low.endswith("%") and high.endswith("%"):
+        low = low[:-1]
+    return low_to_high(low, high)
+
+
+def low_to_high(low: Any, high: Any) -> str:
+    """``3 to 5``, the ends written as given, or one of them alone when they read the same: a
+    range whose ends are equal is one number (owner, 2026-10-12)."""
+    low, high = str(low), str(high)
+    return low if low == high else f"{low} to {high}"
 
 
 # --- Rule names ---------------------------------------------------------------
@@ -420,6 +428,7 @@ __all__ = [
     "DASH",
     "DETAILS",
     "MARKERS",
+    "MARKER_LINE",
     "NOT_ASSESSED",
     "OK",
     "PROBLEM",
@@ -432,6 +441,7 @@ __all__ = [
     "headline",
     "indent_width",
     "indented",
+    "low_to_high",
     "merge_numbers",
     "number_pattern",
     "rule_label",

@@ -180,9 +180,9 @@ def test_conditions_compared_in_different_numbers_of_repeats_give_the_range():
 
     contrast = _contrast([_row("A", 0, 4, 0.01, 0.01, n=4), _row("B", 0, 2, None, None, n=2)])
     contrast.settings["feature"] = "area"
-    assert readings_headline(contrast).startswith("area, 2 conditions across 2-4 biological")
+    assert readings_headline(contrast).startswith("area, 2 conditions across 2 to 4 biological")
     head = across_headline(contrast.repeats.assign(p_paired_t=np.nan), "biological_repeat")
-    assert head.startswith("2 conditions across 2-4 biological repeats:")
+    assert head.startswith("2 conditions across 2 to 4 biological repeats:")
     same = _contrast([_row("A", 0, 3, 0.01, 0.01), _row("B", 3, 0, 0.01, 0.01)])
     same.settings["feature"] = "area"
     assert readings_headline(same).startswith("area, 2 conditions across 3 biological repeats")

@@ -191,7 +191,9 @@ def effort_status(effort: Any) -> Answer:
     if resolved == total:
         return Status.OK, f"a better split of the same fields found in {among(total, total, word)}"
     units = sorted({int(u) for u in effort.comparisons["units"]})
-    few = count(units[0], sample) if len(units) == 1 else f"{units[0]}-{count(units[-1], sample)}"
+    few = (
+        count(units[0], sample) if len(units) == 1 else f"{units[0]} to {count(units[-1], sample)}"
+    )
     where = "" if resolved == 0 else f" in {among(total - resolved, total, word)}"
     if units[-1] < FEW_UNITS:
         # Few samples is the design: answered as far as it goes, with the estimates' reading.

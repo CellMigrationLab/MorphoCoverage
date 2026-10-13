@@ -8,6 +8,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from .._style import low_to_high
 from .._wording import p_value, percent
 from .contrast_cells import ALPHA
 
@@ -40,7 +41,7 @@ def chance_words(low: float, high: float) -> str:
         return ""
     if np.isclose(low, high):
         return f"about {percent(low)}"
-    return f"{percent(low)}–{percent(high)}"
+    return low_to_high(percent(low), percent(high))
 
 
 def _chance_sentence(chance: str, single: bool = False) -> str:

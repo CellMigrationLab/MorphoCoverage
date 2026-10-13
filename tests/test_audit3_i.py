@@ -396,4 +396,4 @@ def test_j2_j16_j17_shared_helpers_are_named_listed_and_word_percentages_once():
     }
     text = plan_settings(settings)
     assert "when 99.9% of random acquisitions" in text  # not "100%"
-    assert "2-3 fields of each group held back (reservoir_fraction 33%" in text
+    assert "2 to 3 fields of each group held back (reservoir_fraction 33%" in text

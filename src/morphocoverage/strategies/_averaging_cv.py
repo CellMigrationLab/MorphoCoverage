@@ -301,8 +301,8 @@ def _shape_warning(n: int, m2: float, m3: float, m4: float, rows: str) -> str | 
     return (
         f"the upper-95 SD bound assumes normal values, and these {rows} have "
         f"{' and '.join(tripped)}, so the bound can be optimistic (with 10% of "
-        f"{rows} at four times the level of the rest it covered the true SD 68-88% of the "
-        "time, not 97.5%)"
+        f"{rows} at four times the level of the rest it covered the true SD 68 to 88% of "
+        "the time, not 97.5%)"
     )
 
 

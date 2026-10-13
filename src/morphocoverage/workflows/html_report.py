@@ -81,7 +81,7 @@ from ._html_page import (
     settings_line,
     shown_sections,
 )
-from ._html_plan import PLAN_TITLE, plan_card
+from ._html_plan import plan_card
 from ._html_render import Terms, adjusted_p, chip, first_sentence, in_units, text_html
 from ._html_sections import (
     INTROS,
@@ -95,6 +95,7 @@ from ._html_sections import (
     what_checked,
 )
 from ._html_tests import figure_legends, page_assumptions, tests_section
+from ._results import PLAN_TITLE
 from ._source import verify_source
 from ._whole_table import whole_summary_html, whole_table_html, whole_table_lines
 from .retrospective import REPORT_QUESTIONS, Report

@@ -7,7 +7,7 @@ What the dataset is
     CCT7_1, CCT7_2 and CCT7_3: siCCT7#3 and siCCT7#6 with the control
     CCT8_1, CCT8_2 and CCT8_3: siCCT8#5 and siCCT8#8 with the control
   Technical repeats: 1 per condition and biological repeat.
-  133 fields, 1-12 tracks per field (median 4).
+  133 fields, 1 to 12 tracks per field (median 4).
   Targets with several conditions: CCT7 (siCCT7#3 and siCCT7#6); CCT8 (siCCT8#5 and siCCT8#8).
   Features: 13 features declared (Mean Speed, Median Speed, Speed Standard Deviation and 10 more).
   Tracks per condition and biological repeat:

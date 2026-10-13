@@ -29,7 +29,7 @@ import pandas as pd
 
 from .._caveats import caveat_lines, once
 from .._control import control_name
-from .._style import among, group_label, span, wrap
+from .._style import among, group_label, low_to_high, span, wrap
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..sampling_unit._state_text import (
@@ -250,7 +250,7 @@ def unstable_labels(unusual: Any) -> str | None:
 
 def _variance_line(effort: Any, observations: str) -> tuple[str | None, list[str]]:
     """``Largest share of the variance of the mean: between samples in LATS1, YAP and ARAP2
-    (79-99%); ...``, by level over the strata, and the caveat of a share not established."""
+    (79 to 99%); ...``, by level over the strata, and the caveat of a share not established."""
     if effort is None or effort.components.empty:
         return None, []
     hierarchy = effort.settings.get("hierarchy", {})
@@ -293,7 +293,8 @@ def _fields_line(profile: pd.DataFrame, variability: Any, observations: str) -> 
             if len(shares)
             else ""
         )
-        spread = f"{effects.min():.1f}-{effects.max():.1f} over {count(len(ok), 'group')}"
+        ends = low_to_high(f"{effects.min():.1f}", f"{effects.max():.1f}")
+        spread = f"{ends} over {count(len(ok), 'group')}"
         text = (
             f"Fields: a mean from whole fields varies {effects.median():.1f} times as much as one "
             f"from as many random {observations} (median; {spread}){differ}."

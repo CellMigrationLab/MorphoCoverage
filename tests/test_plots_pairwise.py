@@ -118,7 +118,12 @@ def test_one_condition_draws_no_panel_and_p_values_read_in_a_cell():
     figure.add_subplot(111)
     add_pairwise(figure, table, ["ctrl"])
     assert len(figure.axes) == 1
-    assert [format_p(p) for p in (0.0004, 0.004, 0.04, 0.4)] == ["<0.001", "0.004", "0.040", "0.40"]
+    assert [format_p(p) for p in (0.0004, 0.004, 0.04, 0.4)] == [
+        "< 0.001",
+        "0.004",
+        "0.040",
+        "0.40",
+    ]
 
 
 @pytest.mark.parametrize(

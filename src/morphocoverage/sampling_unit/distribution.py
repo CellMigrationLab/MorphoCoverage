@@ -55,6 +55,7 @@ from .._checks import check_seed, is_number
 from .._control import check_comparisons
 from .._frozen import owned
 from .._seeds import group_rng
+from .._style import low_to_high
 from .._wording import count, listing, plural
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
@@ -426,26 +427,27 @@ def distribution_contrast(
 
 
 def spread_words(row: Mapping[str, Any]) -> str:
-    """``SD 0.73x the control (0.70-0.78)``: the spread on the ratio scale."""
+    """``SD 0.73x the control (0.70 to 0.78)``: the spread on the ratio scale."""
     mean, low, high = (float(np.exp(row[k])) for k in ("mean", "low", "high"))
-    return f"SD {mean:.2f}x the control ({low:.2f}-{high:.2f})"
+    return f"SD {mean:.2f}x the control ({low_to_high(f'{low:.2f}', f'{high:.2f}')})"
 
 
 def shift_words(row: Mapping[str, Any]) -> str:
     """``10% quantile +0.36 SD (+0.29 to +0.51)``."""
     name = f"{row['statistic'][1:]}% quantile"
-    return f"{name} {row['mean']:+.2f} SD ({row['low']:+.2f} to {row['high']:+.2f})"
+    spread = low_to_high(f"{row['low']:+.2f}", f"{row['high']:+.2f}")
+    return f"{name} {row['mean']:+.2f} SD ({spread})"
 
 
 def tests_words(result: DistributionContrast) -> str:
     """The correction family counted: ``40 tests``, ``40 tests in each of 2 sub-experiments``,
-    ``16-48 tests in each of 2 sub-experiments`` when their sizes differ."""
+    ``16 to 48 tests in each of 2 sub-experiments`` when their sizes differ."""
     tests = result.tests
     sizes = tests.loc[tests["p"].notna()].groupby("experiment").size() if len(tests) else []
     if len(sizes) <= 1:
         return count(result.n_tests, "test")
     low, high = int(min(sizes)), int(max(sizes))
-    per = count(low, "test") if low == high else f"{low}-{high} tests"
+    per = count(low, "test") if low == high else f"{low} to {high} tests"
     return f"{per} in each of {len(sizes)} {family_noun(result.settings, plural=True)}"
 
 

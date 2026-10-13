@@ -50,7 +50,6 @@ from ._html_render import text_html
 from ._html_tabs import NOTHING_LIVE, choose
 from ._populations import rule_words
 
-PLAN_TITLE = "Plan the next experiment"
 # Seeing a phenotype: the chance asked (a rule's risk is its complement) and the fields.
 DETECTION = 0.95
 OCCURRENCES = 3
@@ -544,4 +543,4 @@ def plan_card(
     return annotate(body)
 
 
-__all__ = ["PLAN_TITLE", "plan_card"]
+__all__ = ["plan_card"]

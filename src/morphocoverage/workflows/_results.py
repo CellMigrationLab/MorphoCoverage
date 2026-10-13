@@ -18,7 +18,8 @@ from ..sampling_unit import FeatureDiscovery, FeatureRanking
 from ._document import plan_settings, report_settings
 from .setup import Setup
 
-PLAN_TITLE = "Plan for the next experiment"
+# The plan's title, in the text and on the page (owner, 2026-10-12).
+PLAN_TITLE = "Plan the next experiment"
 CALIBRATION_TITLE = (
     "Would a simple rule have been sufficient, and how reliable is each stopping rule?"
 )
