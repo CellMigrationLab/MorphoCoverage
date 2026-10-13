@@ -11,6 +11,7 @@ import pandas as pd
 from morphocoverage._style import low_to_high, span
 from morphocoverage.retrospective.calibration import _not_preserved_cell
 from morphocoverage.sampling_unit.distribution import spread_words
+from morphocoverage.workflows._html_across import d_per_repeat
 from morphocoverage.workflows._scan_text import _layout_lines
 
 
@@ -36,3 +37,5 @@ def test_hand_written_ranges_with_equal_ends_are_one_number():
     assert spread_words(same) == "SD 0.73x the control (0.70)"
     row = SimpleNamespace(premature=0.2, not_preserved_by_stream=0.0004, not_preserved_at_stop=None)
     assert _not_preserved_cell(row) == "20%, 20% too early"
+    alike = SimpleNamespace(d_per_repeat_mean=0.05, d_per_repeat_min=0.049, d_per_repeat_max=0.051)
+    assert d_per_repeat(alike) == "+0.05"  # not "+0.05 (+0.05 to +0.05)"

@@ -186,7 +186,10 @@ def d_per_repeat(row: Any) -> str:
     mean, low, high = row.d_per_repeat_mean, row.d_per_repeat_min, row.d_per_repeat_max
     if pd.isna(mean):
         return "–"
-    return f"{mean:+.2f}" if low == high else f"{mean:+.2f} ({low:+.2f} to {high:+.2f})"
+    low_text, high_text = f"{low:+.2f}", f"{high:+.2f}"
+    if low_text == high_text:
+        return f"{mean:+.2f}"
+    return f"{mean:+.2f} ({low_to_high(low_text, high_text)})"
 
 
 def _declared(result: Any) -> str:
