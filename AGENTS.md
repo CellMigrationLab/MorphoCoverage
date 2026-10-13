@@ -532,7 +532,8 @@ docs/                      # README.md: start here, the three workflows and a re
     live/                  # LIVE: live_session.md (O1-O9), stopping_rules.md, online_acquisition.md
     common/                # setup.md, what_happens.md, data_format.md, glossary.md (generated from glossary.py),
                            # project_aim.md, scientific_contract.md, architecture.md, morphobricks_fov_contract.md,
-                           # open_work.md, validation.md (the pre-registered benchmark)
+                           # roadmap.md (phases, audits, clean-up rules), open_work.md,
+                           # validation.md (the pre-registered benchmark)
     audit/, proposals/, preliminary_findings.md  # records, kept as written
 
 `tests/test_contracts.py` checks that every module under `src/morphocoverage/` is listed above, as it checks section 9's scenarios. A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.

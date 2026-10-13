@@ -1,8 +1,9 @@
 # Open work, in order
 
 What is not yet built or not yet shown, across REPORT, OPTIMISE and LIVE, most important
-first. The question codes are those of [the report](../report/questions.md),
-[optimise](../optimise/optimise.md) and [the live session](../live/live_session.md).
+first; [the roadmap](roadmap.md) gives the order in which they are taken up. The question
+codes are those of [the report](../report/questions.md), [optimise](../optimise/optimise.md)
+and [the live session](../live/live_session.md).
 
 1. The benchmark behind the remaining **Benchmark** rows: the distribution
    questions of R2, P1 (a method's recommended number against the realized
