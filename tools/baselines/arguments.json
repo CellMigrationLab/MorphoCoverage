@@ -12,7 +12,6 @@
  "normalize:normalize_to_own": 9,
  "plots:plots_of_data": 20,
  "plots_pairwise:pairwise_contrasts": 12,
- "retrospective.controls:_draws": 10,
  "retrospective.controls:representation_control": 14,
  "retrospective.effect_preservation:effect_preservation": 18,
  "retrospective.effort:effort_projection": 9,

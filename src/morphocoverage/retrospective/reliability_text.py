@@ -104,6 +104,59 @@ def _row_cells(row: Any, stream: int, n_splits: int, over_word: str, per: str) -
     ]
 
 
+def _ceiling_parts(
+    result: ReliabilityResult,
+    match: pd.DataFrame,
+    stream: int,
+    shortest: int | None,
+    over_word: str,
+) -> tuple[float | None, str | None, str | None]:
+    """How often every available field together was enough (``match``: the curve's ceiling
+    row), in words, or why it was not computed."""
+    unequal = shortest is not None and shortest < stream
+    if len(match) and match["whole_stream_preserved"].notna().iloc[0]:
+        row = match.iloc[0]
+        ceiling = float(row["whole_stream_preserved"])
+        defined = int(row["defined_splits"])
+        judged = f" of the {defined} that could judge it" if defined < int(row["splits"]) else ""
+        longest = int(row["stream_fovs"])
+        fields_span = f"{shortest} to {longest}" if unequal else f"{longest}"
+        ceiling_text = (
+            f"All {fields_span} available fields together were enough in "
+            f"{percent(ceiling)} of {over_word}{judged}: {_CAP}."
+        )
+        return ceiling, ceiling_text, None
+    if result.ceiling.empty:
+        # A result rebuilt without its ceiling table (for example from a saved curve)
+        # would otherwise read as if every field count could reach 100%.
+        missing_text = (
+            f"How often all {stream} available fields together were enough was not "
+            "computed: the held-back fields are themselves a sample, so a flat curve may "
+            "be capped by them rather than by the fields."
+        )
+        return None, None, missing_text
+    return None, None, None
+
+
+def _repeat_warning(splits: int, distinct: int) -> str:
+    """The splits repeat hold-outs: what the spread across them and the curve rest on."""
+    return (
+        f"the {splits} splits repeat hold-outs (too few fields or blocks to hold back a "
+        "different set each time): splits of the same hold-out differ only by the "
+        "random draws, so the spread across splits is partly draw noise, and the curve "
+        f"rests on {count(distinct, 'reference')}, not {splits}"
+    )
+
+
+def _partial(rows: pd.DataFrame, n_splits: int) -> bool:
+    """Whether some listed count of the curve was not judged in every split or draw."""
+    return bool(
+        ((rows["splits"] > 0) & rows["preserved"].isna()).any()
+        or rows["undefined_draws"].fillna(0).gt(0).any()
+        or (n_splits and (rows["defined_splits"] < n_splits)[rows["splits"] > 0].any())
+    )
+
+
 def _curves(result: ReliabilityResult) -> list[dict[str, Any]]:
     """Every group and criterion: its rows, its ceiling and what it rests on, in words."""
     keys = list(result.group_cols)
@@ -123,42 +176,11 @@ def _curves(result: ReliabilityResult) -> list[dict[str, Any]]:
         # A share over splits that repeat hold-outs is not a share of distinct hold-outs.
         per, over_word = ("split", "splits") if repeated else ("hold-out", "hold-outs")
         shortest = _ceiling_value(match, "shortest_stream_fovs")
-        unequal = shortest is not None and shortest < stream
-        ceiling, ceiling_text, missing_text = None, None, None
-        if len(match) and match["whole_stream_preserved"].notna().iloc[0]:
-            row = match.iloc[0]
-            ceiling = float(row["whole_stream_preserved"])
-            defined = int(row["defined_splits"])
-            judged = (
-                f" of the {defined} that could judge it" if defined < int(row["splits"]) else ""
-            )
-            longest = int(row["stream_fovs"])
-            fields_span = f"{shortest} to {longest}" if unequal else f"{longest}"
-            ceiling_text = (
-                f"All {fields_span} available fields together were enough in "
-                f"{percent(ceiling)} of {over_word}{judged}: {_CAP}."
-            )
-        elif result.ceiling.empty:
-            # A result rebuilt without its ceiling table (for example from a saved curve)
-            # would otherwise read as if every field count could reach 100%.
-            missing_text = (
-                f"How often all {stream} available fields together were enough was not "
-                "computed: the held-back fields are themselves a sample, so a flat curve may "
-                "be capped by them rather than by the fields."
-            )
-        warning = None
-        if repeated:
-            warning = (
-                f"the {splits} splits repeat hold-outs (too few fields or blocks to hold back a "
-                "different set each time): splits of the same hold-out differ only by the "
-                "random draws, so the spread across splits is partly draw noise, and the curve "
-                f"rests on {count(distinct, 'reference')}, not {splits}"
-            )
-        partial = bool(
-            ((rows["splits"] > 0) & rows["preserved"].isna()).any()
-            or rows["undefined_draws"].fillna(0).gt(0).any()
-            or (n_splits and (rows["defined_splits"] < n_splits)[rows["splits"] > 0].any())
+        ceiling, ceiling_text, missing_text = _ceiling_parts(
+            result, match, stream, shortest, over_word
         )
+        warning = _repeat_warning(splits, distinct) if repeated else None
+        partial = _partial(rows, n_splits)
         curves.append(
             {
                 "group": group,
@@ -250,13 +272,12 @@ def _bases(curves: Sequence[Mapping[str, Any]]) -> list[str]:
     return [c["basis"] for c in curves if c["basis"].startswith("Judged")]
 
 
-def _share_table(
-    curves: Sequence[Mapping[str, Any]], criteria: Sequence[str], total: int, indent: int
-) -> list[str]:
-    """Rows: the listed field counts, then all fields; columns: the criteria."""
-    labels = {c["criterion"]: c["label"] for c in curves}
+def _count_rows(
+    curves: Sequence[Mapping[str, Any]], criteria: Sequence[str], total: int, ceilings: bool
+) -> tuple[list[list[str]], list[int]]:
+    """The table's rows of the listed field counts, and the counts beyond every group's
+    fields (said below the table)."""
     counts = sorted({int(f) for c in curves for f in c["rows"]["fovs"]})
-    ceilings = any(c["ceiling"] is not None for c in curves)
     rows, beyond = [], []
     for fovs in counts:
         at = [(c, c["rows"][c["rows"]["fovs"] == fovs]) for c in curves]
@@ -276,17 +297,32 @@ def _share_table(
             ]
             cells.append(_cell(values, len(values), total))
         rows.append(cells)
+    return rows, beyond
+
+
+def _ceiling_cells(
+    curves: Sequence[Mapping[str, Any]], criteria: Sequence[str], total: int
+) -> list[str]:
+    """The table's last row: every available field together."""
+    streams = [c["stream"] for c in curves] + [c["shortest"] or c["stream"] for c in curves]
+    cells = [f"all {span(streams)}"]
+    for criterion in criteria:
+        values = [
+            c["ceiling"] for c in curves if c["criterion"] == criterion and c["ceiling"] is not None
+        ]
+        cells.append(_cell(values, len(values), total))
+    return cells
+
+
+def _share_table(
+    curves: Sequence[Mapping[str, Any]], criteria: Sequence[str], total: int, indent: int
+) -> list[str]:
+    """Rows: the listed field counts, then all fields; columns: the criteria."""
+    labels = {c["criterion"]: c["label"] for c in curves}
+    ceilings = any(c["ceiling"] is not None for c in curves)
+    rows, beyond = _count_rows(curves, criteria, total, ceilings)
     if ceilings:
-        streams = [c["stream"] for c in curves] + [c["shortest"] or c["stream"] for c in curves]
-        cells = [f"all {span(streams)}"]
-        for criterion in criteria:
-            values = [
-                c["ceiling"]
-                for c in curves
-                if c["criterion"] == criterion and c["ceiling"] is not None
-            ]
-            cells.append(_cell(values, len(values), total))
-        rows.append(cells)
+        rows.append(_ceiling_cells(curves, criteria, total))
     columns = ["fields", *(labels[c] for c in criteria)]
     text = table(rows, columns, indent=indent, align="l" + "r" * len(criteria))
     after = []

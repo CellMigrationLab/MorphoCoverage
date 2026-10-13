@@ -67,6 +67,46 @@ def _words(controls: ControlResult) -> str:
     return observation_words(controls.settings)[1]
 
 
+def _detection_words(controls: ControlResult, kind: str, detection: float) -> tuple[str, str]:
+    """The detection rate in words (planted objects, or whole positive fields), and what it
+    holds for ('' for planted objects)."""
+    if kind == "planted_lofo":
+        planted = controls.settings["control"]["planted_objects"]
+        what = (
+            f"for {planted} planted positive-control {_words(controls)}: {percent(detection)} of "
+            "ordinary "
+            "reference fields with them recognized against the other reference fields of "
+            "their analysis group"
+        )
+        return what, ""
+    what = (
+        f"{percent(detection)} of its fields recognized against the reference fields of an "
+        "analysis group"
+    )
+    scope = (
+        "  This holds for whole-field phenotypes like the control only: a small state in "
+        "an ordinary field is recognized less often (declare planted_objects to measure it)."
+    )
+    return what, scope
+
+
+def _adjusted_lines(frame: pd.DataFrame, keys: list[str], low: float) -> list[str]:
+    """Each group's unseen-state bound divided by the low end of the detection rate."""
+    lines = []
+    for row in frame.itertuples(index=False):
+        bound = row.unseen_state_max_frequency
+        if bound is None or pd.isna(bound):
+            continue
+        adjusted = min(1.0, float(bound) / low)
+        label = ", ".join(f"{k}={getattr(row, k)}" for k in keys) or "all FOVs (pooled)"
+        lines.append(
+            f"  {label}: up to {percent(adjusted)} of FOVs (the {percent(float(bound))} "
+            f"bound above divided by {percent(low)}), if detection is independent "
+            "between fields."
+        )
+    return lines
+
+
 def _detection_adjusted_bounds(
     sufficiency: SufficiencyReport, controls: ControlResult | None
 ) -> str | None:
@@ -114,24 +154,7 @@ def _detection_adjusted_bounds(
     frame = sufficiency.next_fov
     confidence = float(frame["confidence"].iloc[0]) if "confidence" in frame else _CONFIDENCE
     detection, low = recognized / checks, lower_bound(recognized, checks, confidence)
-    if kind == "planted_lofo":
-        planted = controls.settings["control"]["planted_objects"]
-        what = (
-            f"for {planted} planted positive-control {_words(controls)}: {percent(detection)} of "
-            "ordinary "
-            "reference fields with them recognized against the other reference fields of "
-            "their analysis group"
-        )
-        scope = ""
-    else:
-        what = (
-            f"{percent(detection)} of its fields recognized against the reference fields of an "
-            "analysis group"
-        )
-        scope = (
-            "  This holds for whole-field phenotypes like the control only: a small state in "
-            "an ordinary field is recognized less often (declare planted_objects to measure it)."
-        )
+    what, scope = _detection_words(controls, kind, detection)
     # One rate for every group: pooled over the control's strata, and said so (#253).
     pooled = pooled_over(controls)
     heading = (
@@ -140,19 +163,7 @@ def _detection_adjusted_bounds(
         f"{pooled}): a phenotype seen as well as the control, and shown by no FOV yet, could "
         "still be in"
     )
-    lines = [heading]
-    keys = list(sufficiency.group_cols)
-    for row in frame.itertuples(index=False):
-        bound = row.unseen_state_max_frequency
-        if bound is None or pd.isna(bound):
-            continue
-        adjusted = min(1.0, float(bound) / low)
-        label = ", ".join(f"{k}={getattr(row, k)}" for k in keys) or "all FOVs (pooled)"
-        lines.append(
-            f"  {label}: up to {percent(adjusted)} of FOVs (the {percent(float(bound))} "
-            f"bound above divided by {percent(low)}), if detection is independent "
-            "between fields."
-        )
+    lines = [heading, *_adjusted_lines(frame, list(sufficiency.group_cols), low)]
     if len(lines) == 1:
         return None
     return "\n".join([*lines, scope] if scope else lines)
@@ -373,6 +384,63 @@ def _not_measured(rows: pd.DataFrame) -> str:
     return f"; {len(rows)} more not assessed ({'; '.join(reasons)})" if len(rows) else ""
 
 
+def _alike_part(alike: pd.DataFrame, of: str, unit: str, tested: bool) -> list[str]:
+    """The groups whose neighbouring fields are alike up to a distance, in words."""
+    if not len(alike):
+        return []
+    tested_text = (
+        "beyond what shuffling the positions within each group gives"
+        if tested
+        else "not tested against chance"
+    )
+    text = (
+        f"in {len(alike)} {of}, fields closer than about "
+        f"{np.median(alike['redundancy_distance']):.0f} {unit} (the median of point "
+        f"estimates, {tested_text}{_pairs(alike)}) are more alike than "
+        "random pairs"
+    )
+    return [text]
+
+
+def _always_part(always: pd.DataFrame, of: str, unit: str) -> list[str]:
+    """The groups whose fields are alike at every distance measured, in words."""
+    if not len(always):
+        return []
+    largest = float(always["largest_lag"].max()) if "largest_lag" in always else None
+    reach = f" (up to {largest:.0f} {unit})" if largest is not None else ""
+    text = (
+        f"in {len(always)} {of}, fields are more alike than "
+        f"random pairs at every distance measured{reach}"
+    )
+    return [text]
+
+
+def _chance_part(chance: pd.DataFrame | None, of: str) -> list[str]:
+    """The groups whose point estimate suggested redundancy that the shuffles do not
+    support, in words."""
+    suggested = (
+        chance[
+            chance["null_share"].notna()
+            & (
+                chance["redundancy_distance"].isna()
+                | (chance["redundancy_distance"] > chance["smallest_lag"])
+            )
+        ]
+        if chance is not None
+        else pd.DataFrame()
+    )
+    if not len(suggested):
+        return []
+    typical = float(suggested["null_share"].median())
+    text = (
+        f"in {len(suggested)} {of} the point estimate suggested "
+        "that closer fields are more alike, but shuffling their positions within the "
+        f"group gave as large a distance in a median of {percent(typical)} of shuffles, "
+        "so no spatial redundancy is shown there"
+    )
+    return [text]
+
+
 def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     """The distance over which neighbouring fields are alike, when it was measured.
 
@@ -402,46 +470,11 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     alike = found[found["redundancy_distance"] > found["smallest_lag"]]
     smallest = float(measured["smallest_lag"].min()) if len(measured) else None
     unit = str(redundancy["unit"].iloc[0]) if "unit" in redundancy.columns else "stage units"
-    parts = []
-    if len(alike):
-        tested_text = (
-            "beyond what shuffling the positions within each group gives"
-            if tested
-            else "not tested against chance"
-        )
-        parts.append(
-            f"in {len(alike)} {of}, fields closer than about "
-            f"{np.median(alike['redundancy_distance']):.0f} {unit} (the median of point "
-            f"estimates, {tested_text}{_pairs(alike)}) are more alike than "
-            "random pairs"
-        )
-    if len(always):
-        largest = float(always["largest_lag"].max()) if "largest_lag" in always else None
-        reach = f" (up to {largest:.0f} {unit})" if largest is not None else ""
-        parts.append(
-            f"in {len(always)} {of}, fields are more alike than "
-            f"random pairs at every distance measured{reach}"
-        )
-    # Groups whose point estimate suggested redundancy that the shuffles do not support.
-    suggested = (
-        chance[
-            chance["null_share"].notna()
-            & (
-                chance["redundancy_distance"].isna()
-                | (chance["redundancy_distance"] > chance["smallest_lag"])
-            )
-        ]
-        if chance is not None
-        else pd.DataFrame()
-    )
-    if len(suggested):
-        typical = float(suggested["null_share"].median())
-        parts.append(
-            f"in {len(suggested)} {of} the point estimate suggested "
-            "that closer fields are more alike, but shuffling their positions within the "
-            f"group gave as large a distance in a median of {percent(typical)} of shuffles, "
-            "so no spatial redundancy is shown there"
-        )
+    parts = [
+        *_alike_part(alike, of, unit, tested),
+        *_always_part(always, of, unit),
+        *_chance_part(chance, of),
+    ]
     if parts:
         statement = "; ".join(parts) + apart
     elif smallest is not None:

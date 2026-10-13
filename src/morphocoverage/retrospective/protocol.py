@@ -264,6 +264,97 @@ _TABLE_COLUMNS = (
 )
 
 
+def _count_rows(
+    block: pd.DataFrame,
+    where: dict[str, Any],
+    sample_cols: list[str],
+    n_boot: int,
+    rng: np.random.Generator,
+    protocol_share: float,
+) -> tuple[list[dict], list[dict]]:
+    """One stratum's rows per FOV count (adequate samples, with the interval resampled from
+    ``rng``) and per FOV count and independent unit."""
+    table, per_unit = [], []
+    n_samples = block[sample_cols].drop_duplicates().shape[0]
+    n_units = int(block["unit"].nunique())
+    for k, rows in block.groupby("fovs", sort=True):
+        eligible = rows[rows["preserved"].notna()]
+        low, high = _bootstrap(eligible, n_boot, rng, protocol_share)
+        beyond = int(rows["beyond_stream"].sum())
+        table.append(
+            {
+                **where,
+                "fovs": int(k),
+                "eligible": len(eligible),
+                "adequate": int(eligible["adequate"].sum()),
+                "partly_judged": int(eligible["partly_judged"].sum()),
+                "not_evaluated": n_samples - len(eligible),
+                "beyond_stream": beyond,
+                "undefined": n_samples - len(eligible) - beyond,
+                "share": float(eligible["adequate"].mean()) if len(eligible) else None,
+                "share_low": low,
+                "share_high": high,
+                "units": int(eligible["unit"].nunique()),
+                "all_units": n_units,
+            }
+        )
+        for unit, own in eligible.groupby("unit", sort=False):
+            per_unit.append(
+                {
+                    **where,
+                    "fovs": int(k),
+                    "unit": unit,
+                    "eligible": len(own),
+                    "adequate": int(own["adequate"].sum()),
+                }
+            )
+    return table, per_unit
+
+
+def _difficulty_rows(
+    block: pd.DataFrame, where: dict[str, Any], sample_cols: list[str]
+) -> list[dict]:
+    """One stratum's rows per sample: the fields it needed and the most it was judged at."""
+    difficulty = []
+    for sample, own in block.groupby(sample_cols, sort=False, dropna=False):
+        sample = sample if isinstance(sample, tuple) else (sample,)
+        evaluated = own[own["preserved"].notna()]
+        difficulty.append(
+            {
+                **where,
+                **dict(zip(sample_cols, sample, strict=True)),
+                "unit": own["unit"].iloc[0],
+                "fields_needed": _fields_needed(evaluated),
+                "max_fovs": int(evaluated["fovs"].max()) if len(evaluated) else None,
+            }
+        )
+    return difficulty
+
+
+def _validation_rows(
+    block: pd.DataFrame, where: dict[str, Any], protocol_share: float
+) -> list[dict]:
+    """One stratum's leave-one-unit-out rows: the count chosen on the other units, and how
+    the unit left out fared at it."""
+    validation = []
+    eligible = block[block["preserved"].notna()]
+    for unit in eligible["unit"].unique():
+        others = eligible[eligible["unit"] != unit]
+        left_out = eligible[eligible["unit"] == unit]
+        chosen = _chosen(others, protocol_share) if len(others) else None
+        at = left_out[left_out["fovs"] == chosen] if chosen is not None else left_out.iloc[:0]
+        validation.append(
+            {
+                **where,
+                "left_out": unit,
+                "chosen_fovs": chosen,
+                "eligible": len(at),
+                "adequate": int(at["adequate"].sum()),
+            }
+        )
+    return validation
+
+
 def protocol_reliability(
     per_sample: ReliabilityResult,
     hierarchy: SamplingHierarchy,
@@ -300,66 +391,11 @@ def protocol_reliability(
         where = dict(zip(stratum_keys, key, strict=True))
         # One generator per stratum, so adding a stratum never changes another's interval.
         rng = group_rng(random_state, where)
-        n_samples = block[sample_cols].drop_duplicates().shape[0]
-        n_units = int(block["unit"].nunique())
-        for k, rows in block.groupby("fovs", sort=True):
-            eligible = rows[rows["preserved"].notna()]
-            low, high = _bootstrap(eligible, n_boot, rng, float(protocol_share))
-            beyond = int(rows["beyond_stream"].sum())
-            table.append(
-                {
-                    **where,
-                    "fovs": int(k),
-                    "eligible": len(eligible),
-                    "adequate": int(eligible["adequate"].sum()),
-                    "partly_judged": int(eligible["partly_judged"].sum()),
-                    "not_evaluated": n_samples - len(eligible),
-                    "beyond_stream": beyond,
-                    "undefined": n_samples - len(eligible) - beyond,
-                    "share": float(eligible["adequate"].mean()) if len(eligible) else None,
-                    "share_low": low,
-                    "share_high": high,
-                    "units": int(eligible["unit"].nunique()),
-                    "all_units": n_units,
-                }
-            )
-            for unit, own in eligible.groupby("unit", sort=False):
-                per_unit.append(
-                    {
-                        **where,
-                        "fovs": int(k),
-                        "unit": unit,
-                        "eligible": len(own),
-                        "adequate": int(own["adequate"].sum()),
-                    }
-                )
-        for sample, own in block.groupby(sample_cols, sort=False, dropna=False):
-            sample = sample if isinstance(sample, tuple) else (sample,)
-            evaluated = own[own["preserved"].notna()]
-            difficulty.append(
-                {
-                    **where,
-                    **dict(zip(sample_cols, sample, strict=True)),
-                    "unit": own["unit"].iloc[0],
-                    "fields_needed": _fields_needed(evaluated),
-                    "max_fovs": int(evaluated["fovs"].max()) if len(evaluated) else None,
-                }
-            )
-        eligible = block[block["preserved"].notna()]
-        for unit in eligible["unit"].unique():
-            others = eligible[eligible["unit"] != unit]
-            left_out = eligible[eligible["unit"] == unit]
-            chosen = _chosen(others, float(protocol_share)) if len(others) else None
-            at = left_out[left_out["fovs"] == chosen] if chosen is not None else left_out.iloc[:0]
-            validation.append(
-                {
-                    **where,
-                    "left_out": unit,
-                    "chosen_fovs": chosen,
-                    "eligible": len(at),
-                    "adequate": int(at["adequate"].sum()),
-                }
-            )
+        counted, units = _count_rows(block, where, sample_cols, n_boot, rng, float(protocol_share))
+        table += counted
+        per_unit += units
+        difficulty += _difficulty_rows(block, where, sample_cols)
+        validation += _validation_rows(block, where, float(protocol_share))
     # Explicit columns, so a result with nothing eligible anywhere still has them.
     stratum_cols = [*strata, "criterion"]
     difficulty_table = pd.DataFrame(

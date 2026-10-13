@@ -72,25 +72,15 @@ from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import check_seed, is_integer
 from .._former_repeat import one_warning, read_former
 from .._frozen import owned
-from .._parallel import check_n_jobs, map_units, worker_pool
-from .._seeds import group_rng
+from .._parallel import check_n_jobs
 from ..data_check import validate_input_tables
-from ..evaluator import FovSubsets, restrict_input
+from ..evaluator import FovSubsets
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, column_names, empty_values
-from ..schema import ValidatedInput, fov_positions, observation_words
+from ..schema import ValidatedInput
 from ..strategies.support_novelty import SupportNoveltyEstimator
 from ..sufficiency_text import novelty_definition
-from ._text import where
+from ._control_draws import CANDIDATES, _ControlRun, _measure_strata
 from .controls_text import control_summary
-
-CANDIDATES = (
-    "reference",
-    "positive",
-    "planted",
-    "reference_lofo",
-    "positive_lofo",
-    "planted_lofo",
-)
 
 
 def _selector(value: Mapping[str, Any] | None, label: str) -> dict[str, tuple] | None:
@@ -202,112 +192,6 @@ def _select(fovs: pd.DataFrame, selector: dict[str, tuple]) -> pd.Series:
     return mask
 
 
-def _planted(
-    subsets: FovSubsets,
-    host_rows: np.ndarray,
-    donors: list[pd.DataFrame],
-    size: int,
-    rng: np.random.Generator,
-) -> ValidatedInput | None:
-    """Each host FOV with ``size`` objects of a random donor FOV (with enough objects) added."""
-    usable = [cells for cells in donors if len(cells) >= size]
-    if not usable:
-        return None
-    data = subsets.data
-    hosts_input = subsets.take(host_rows)
-    hosts = hosts_input.fovs
-    key = list(data.fov_key)
-    added = []
-    for _, host in hosts.iterrows():
-        cells = usable[rng.integers(len(usable))]
-        picked = cells.iloc[np.sort(rng.choice(len(cells), size=size, replace=False))].copy()
-        for column in key:
-            picked[column] = host[column]
-        added.append(picked)
-    objects = pd.concat([hosts_input.objects, *added], ignore_index=True)
-    return restrict_input(data, objects, hosts)
-
-
-def _judge(
-    novelty: SupportNoveltyEstimator, seen: ValidatedInput, candidates: Mapping[str, ValidatedInput]
-) -> dict[str, tuple[int, int, int]]:
-    """Per candidate kind: FOVs judged new, FOVs judged, FOVs that could not be judged."""
-    counts = {}
-    for kind, table in candidates.items():
-        flags = novelty.novel_fovs_against(seen, table)
-        if flags is None:
-            # Missing values or too few FOVs: this check could not be made.
-            counts[kind] = (0, 0, len(table.fovs))
-        else:
-            counts[kind] = (int(np.sum(flags)), len(flags), 0)
-    return counts
-
-
-def _leave_one_out(
-    novelty: SupportNoveltyEstimator,
-    subsets: FovSubsets,
-    groups: list[np.ndarray],
-    positive: np.ndarray,
-    with_reference: bool,
-) -> dict[str, tuple[int, int, int]]:
-    """Per kind: fields judged new, judged, not judged, within each reference group of ``groups``.
-
-    ``groups`` are the reference fields (FOV rows) of each analysis group of
-    the stratum. Reference fields are judged leave one field out within their
-    group, as ``inspect_fovs`` judges a field (a field with a new state is
-    new; empty fields count, as there); each positive field against the
-    reference fields of each group, one check per field and group.
-    """
-    counts = {kind: [0, 0, 0] for kind in ("reference_lofo", "positive_lofo")}
-    positive_input = subsets.take(positive) if len(positive) else None
-    for rows in groups:
-        reference = subsets.take(rows)
-        if with_reference:
-            members = novelty.novel_observation_flags(reference, new_states_only=True)
-            if members is None:
-                counts["reference_lofo"][2] += len(rows)
-            else:
-                positions = fov_positions(reference, reference.fovs)
-                counts["reference_lofo"][0] += len(np.unique(positions[members]))
-                counts["reference_lofo"][1] += len(rows)
-        if positive_input is not None:
-            flags = novelty.novel_fovs_against(reference, positive_input)
-            if flags is None:
-                counts["positive_lofo"][2] += len(positive)
-            else:
-                counts["positive_lofo"][0] += int(np.sum(flags))
-                counts["positive_lofo"][1] += len(flags)
-    return {kind: (new, total, unjudged) for kind, (new, total, unjudged) in counts.items()}
-
-
-def _planted_leave_one_out(
-    novelty: SupportNoveltyEstimator,
-    subsets: FovSubsets,
-    groups: list[np.ndarray],
-    donors: list[pd.DataFrame],
-    size: int,
-    rng: np.random.Generator,
-) -> list[tuple]:
-    """The ``planted_lofo`` checks: each reference field of a group, with ``size`` objects
-    of a random positive field planted, against the other reference fields of its group."""
-    jobs = []
-    for rows in groups:
-        for host in rows:
-            planted = _planted(subsets, np.array([host]), donors, size, rng)
-            if planted is not None:
-                seen = subsets.take(rows[rows != host])
-                jobs.append((novelty, seen, {"planted_lofo": planted}))
-    return jobs
-
-
-def _planting_skipped(donors: list[pd.DataFrame], size: int) -> str | None:
-    """Why no objects can be planted in this stratum (no donor field holds enough), or None."""
-    largest = max((len(cells) for cells in donors), default=0)
-    if largest >= size:
-        return None
-    return f"no positive-control field holds {size} objects to plant (the largest holds {largest})"
-
-
 def _lofo_columns(data: ValidatedInput, lofo_group_cols: Sequence[str] | None) -> list[str]:
     """The analysis-group columns the leave-one-field-out rates are measured within.
 
@@ -323,35 +207,84 @@ def _lofo_columns(data: ValidatedInput, lofo_group_cols: Sequence[str] | None) -
     return columns
 
 
-def _groups_of(fovs: pd.DataFrame, rows: np.ndarray, columns: list[str]) -> list[np.ndarray]:
-    """The FOV rows ``rows`` split by the values of ``columns`` (one part without columns)."""
-    if not len(rows):
-        return []
-    if not columns:
-        return [rows]
-    parts = fovs.iloc[rows].groupby(columns, sort=False, dropna=False).indices
-    return [rows[np.asarray(index)] for index in parts.values()]
+def _check_declaration(
+    novelty: Any, control: Any, fovs_seen: Any, draws: Any, random_state: Any
+) -> None:
+    """Raise when the estimator, the control, the counts or the seed are not usable."""
+    if not isinstance(novelty, SupportNoveltyEstimator):
+        raise TypeError("novelty must be a SupportNoveltyEstimator")
+    if not isinstance(control, RepresentationControl):
+        raise TypeError("control must be a RepresentationControl")
+    for value, label in ((fovs_seen, "fovs_seen"), (draws, "draws")):
+        if not is_integer(value) or value < 1:
+            raise ValueError(f"{label} must be a positive integer")
+    if not is_integer(random_state):
+        raise TypeError("random_state must be an integer seed")
 
 
-def _stratum_rows(
-    stratum: Mapping[str, Any],
-    counts: Mapping[str, Sequence[int]],
-) -> list[dict]:
-    """One table row per candidate kind that was measured or could not be judged."""
-    label = where(stratum) if stratum else "all FOVs"
-    return [
-        {
-            **stratum,
-            "stratum": label,
-            "candidate": kind,
-            "judged_new": new,
-            "candidates": total,
-            "not_judged": not_judged,
-            "rate": new / total if total else None,
-        }
-        for kind, (new, total, not_judged) in counts.items()
-        if total or not_judged
+def _check_pairing(data: ValidatedInput, pair_cols: list[str]) -> None:
+    """Raise when a pairing column is missing from the FOV table or has missing values."""
+    missing = [c for c in pair_cols if c not in data.fovs.columns]
+    if missing:
+        raise ValueError(f"pair_cols missing from the FOV table: {missing}")
+    unpaired = [c for c in pair_cols if empty_values(data.fovs[c]).any()]
+    if unpaired:  # a missing value equals nothing, so those fields would silently drop out
+        raise ValueError(f"pair_cols {unpaired} have missing values: those fields cannot be paired")
+
+
+def _control_run(
+    data: ValidatedInput,
+    novelty: SupportNoveltyEstimator,
+    control: RepresentationControl,
+    lofo_cols: list[str],
+    counts: tuple[int, int, int, int],
+) -> _ControlRun:
+    """The control's fields and what every stratum is measured with; ``counts`` are
+    ``fovs_seen``, ``draws``, ``random_state`` and ``n_jobs``."""
+    positive_mask = _select(data.fovs, control.positive)
+    if control.reference is not None:
+        base_mask = _select(data.fovs, control.reference)
+        if (base_mask & positive_mask).any():
+            raise ValueError("a FOV cannot be both a positive and a reference control")
+    else:
+        base_mask = ~positive_mask
+    subsets = FovSubsets(data)
+    observed = np.bincount(subsets.positions[subsets.positions >= 0], minlength=len(data.fovs)) > 0
+    fovs_seen, draws, random_state, n_jobs = counts
+    return _ControlRun(
+        novelty=novelty,
+        data=data,
+        subsets=subsets,
+        observed=observed,
+        positive_mask=positive_mask,
+        base_mask=base_mask,
+        lofo_cols=lofo_cols,
+        planted_objects=control.planted_objects,
+        with_reference=control.reference is not None,
+        fovs_seen=fovs_seen,
+        draws=draws,
+        random_state=random_state,
+        n_jobs=n_jobs,
+    )
+
+
+def _pooled(table: pd.DataFrame) -> tuple[pd.DataFrame, str]:
+    """The rates over strata, and the status: what was actually measured."""
+    pooled = (
+        table.groupby("candidate", sort=False)[["judged_new", "candidates", "not_judged"]]
+        .sum()
+        .reset_index()
+    )
+    pooled["rate"] = [
+        new / total if total else None
+        for new, total in zip(pooled["judged_new"], pooled["candidates"], strict=True)
     ]
+    measured = set(pooled.loc[pooled["candidates"] > 0, "candidate"])
+    # The status says what was actually measured, not what was declared.
+    status = "assessed" if {"positive", "reference"} <= measured else "positive only"
+    if "positive" not in measured:
+        status = "not assessed"
+    return pooled, status
 
 
 @one_warning
@@ -391,15 +324,7 @@ def representation_control(
     (bit for bit when BLAS is single-threaded; see ``morphocoverage._parallel``).
     """
     check_n_jobs(n_jobs)
-    if not isinstance(novelty, SupportNoveltyEstimator):
-        raise TypeError("novelty must be a SupportNoveltyEstimator")
-    if not isinstance(control, RepresentationControl):
-        raise TypeError("control must be a RepresentationControl")
-    for value, label in ((fovs_seen, "fovs_seen"), (draws, "draws")):
-        if not is_integer(value) or value < 1:
-            raise ValueError(f"{label} must be a positive integer")
-    if not is_integer(random_state):
-        raise TypeError("random_state must be an integer seed")
+    _check_declaration(novelty, control, fovs_seen, draws, random_state)
     fovs_seen, draws, random_state = int(fovs_seen), int(draws), check_seed(random_state)
     feature_cols = column_names(feature_cols, "feature_cols")  # read once: may be a generator
     pair_cols, identity_cols, lofo_group_cols = read_former(
@@ -431,164 +356,25 @@ def representation_control(
         group_cols=list(identity_cols),
         observation_unit=observation_unit,
     )
-    missing = [c for c in pair_cols if c not in data.fovs.columns]
-    if missing:
-        raise ValueError(f"pair_cols missing from the FOV table: {missing}")
-    unpaired = [c for c in pair_cols if empty_values(data.fovs[c]).any()]
-    if unpaired:  # a missing value equals nothing, so those fields would silently drop out
-        raise ValueError(f"pair_cols {unpaired} have missing values: those fields cannot be paired")
+    _check_pairing(data, pair_cols)
     lofo_cols = _lofo_columns(data, lofo_group_cols)
-    positive_mask = _select(data.fovs, control.positive)
-    if control.reference is not None:
-        base_mask = _select(data.fovs, control.reference)
-        if (base_mask & positive_mask).any():
-            raise ValueError("a FOV cannot be both a positive and a reference control")
-    else:
-        base_mask = ~positive_mask
+    run = _control_run(data, novelty, control, lofo_cols, (fovs_seen, draws, random_state, n_jobs))
     strata = data.fovs[pair_cols].drop_duplicates().to_dict("records") if pair_cols else [{}]
-    subsets = FovSubsets(data)
-    observed = np.bincount(subsets.positions[subsets.positions >= 0], minlength=len(data.fovs)) > 0
-    rows, skipped, planted_skipped = [], [], []
-    positive_empty = 0
-    # Every random choice is made here, in stratum and draw order; only the novelty checks,
-    # which use none, go to worker processes. One stratum's draws at a time keeps memory low.
-    with worker_pool(n_jobs) as pool:
-        for stratum in strata:
-            # One generator per stratum, so adding a plate never changes another plate's rates.
-            rng = group_rng(random_state, stratum)
-            inside = pd.Series(True, index=data.fovs.index)
-            for column, value in stratum.items():
-                inside &= data.fovs[column].eq(value)
-            base = np.flatnonzero((inside & base_mask).to_numpy())
-            declared = np.flatnonzero((inside & positive_mask).to_numpy())
-            # An empty positive field cannot show the phenotype: it is counted apart,
-            # never as a miss (P1-2).
-            positive = declared[observed[declared]]
-            positive_empty += len(declared) - len(positive)
-            label = where(stratum) if stratum else "all FOVs"
-            counts = {kind: [0, 0, 0] for kind in CANDIDATES}  # new, judged, not judged
-            # Judged as inspect_fovs judges a field, within its analysis group; measured
-            # wherever the fields exist, also in a stratum the draws below cannot use.
-            reference_groups = _groups_of(data.fovs, base, lofo_cols)
-            lofo = _leave_one_out(
-                novelty, subsets, reference_groups, positive, control.reference is not None
-            )
-            planted_lofo = []
-            if control.planted_objects is not None and len(positive):
-                donors = [data.objects.loc[subsets.positions == row] for row in positive]
-                if _planting_skipped(donors, control.planted_objects) is None:
-                    # Its own generator, so the draws below keep their random choices.
-                    jobs = _planted_leave_one_out(
-                        novelty,
-                        subsets,
-                        reference_groups,
-                        donors,
-                        control.planted_objects,
-                        group_rng(random_state, stratum, 1),
-                    )
-                    planted_lofo = map_units(_judge, jobs, n_jobs, pool)
-            # The seen fields hold observations: an empty field adds nothing to the reference.
-            seeing = base[observed[base]]
-            if len(positive) == 0 or len(seeing) <= fovs_seen:
-                reason = (  # not imaged there, or imaged empty: apart (audit 10, A24)
-                    "the positive control was not imaged here"
-                    if len(declared) == 0
-                    else f"no positive-control field with {_observations(data)}"
-                    if len(positive) == 0
-                    else f"{len(seeing)} reference fields with {_observations(data)}, not more "
-                    f"than the {fovs_seen} seen"
-                )
-                skipped.append({**stratum, "stratum": label, "reason": reason})
-                judged = []
-            else:
-                jobs, gap = _draws(
-                    novelty, subsets, data, control, seeing, base, positive, fovs_seen, draws, rng
-                )
-                if gap is not None:
-                    # Said, not silently absent: the planted rate was declared.
-                    planted_skipped.append({**stratum, "stratum": label, "reason": gap})
-                judged = map_units(_judge, jobs, n_jobs, pool)
-            for draw in [*judged, lofo, *planted_lofo]:
-                for kind, (new, total, not_judged) in draw.items():
-                    counts[kind][0] += new
-                    counts[kind][1] += total
-                    counts[kind][2] += not_judged
-            rows += _stratum_rows(stratum, counts)
-    table = pd.DataFrame(rows, columns=[*pair_cols, *columns])
-    pooled = (
-        table.groupby("candidate", sort=False)[["judged_new", "candidates", "not_judged"]]
-        .sum()
-        .reset_index()
-    )
-    pooled["rate"] = [
-        new / total if total else None
-        for new, total in zip(pooled["judged_new"], pooled["candidates"], strict=True)
-    ]
-    measured = set(pooled.loc[pooled["candidates"] > 0, "candidate"])
-    # The status says what was actually measured, not what was declared.
-    status = "assessed" if {"positive", "reference"} <= measured else "positive only"
-    if "positive" not in measured:
-        status = "not assessed"
+    measured = _measure_strata(run, strata)
+    table = pd.DataFrame(measured.rows, columns=[*pair_cols, *columns])
+    pooled, status = _pooled(table)
     settings = {
         **settings,
         ACQUISITION: acquisition_identity(data),
         "lofo_group_cols": lofo_cols,
-        "skipped_strata": skipped,
-        "planted_skipped": planted_skipped,
-        "positive_empty": positive_empty,
-        "reason": "unusable" if skipped else None,
+        "skipped_strata": measured.skipped,
+        "planted_skipped": measured.planted_skipped,
+        "positive_empty": measured.positive_empty,
+        "reason": "unusable" if measured.skipped else None,
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
     }
     return ControlResult(table, pooled, status, tuple(pair_cols), settings)
-
-
-def _observations(data: ValidatedInput) -> str:
-    """``cells``, ``objects``: the plural of the observation unit."""
-    return observation_words(data)[1]
-
-
-def _draws(
-    novelty: SupportNoveltyEstimator,
-    subsets: FovSubsets,
-    data: ValidatedInput,
-    control: RepresentationControl,
-    seeing: np.ndarray,
-    base: np.ndarray,
-    positive: np.ndarray,
-    fovs_seen: int,
-    draws: int,
-    rng: np.random.Generator,
-) -> tuple[list[tuple], str | None]:
-    """The novelty checks of one stratum's draws, and why nothing was planted there (or None).
-
-    Each draw sees ``fovs_seen`` reference fields holding observations; the
-    other reference fields, empty ones included, are the reference candidates
-    and the hosts of planted objects.
-    """
-    positive_input = subsets.take(positive)
-    donors = [data.objects.loc[subsets.positions == row] for row in positive]
-    plant = control.planted_objects is not None
-    gap = None
-    if plant:
-        gap = _planting_skipped(donors, control.planted_objects)
-        plant = gap is None
-    jobs = []
-    for _ in range(draws):
-        order = rng.permutation(len(seeing))
-        seen_rows = seeing[order[:fovs_seen]]
-        seen = subsets.take(seen_rows)
-        # The unseen fields holding observations, in the draw's order, then the empty ones.
-        rest = np.concatenate([seeing[order[fovs_seen:]], base[~np.isin(base, seeing)]])
-        candidates = {"positive": positive_input}
-        if control.reference is not None:
-            candidates["reference"] = subsets.take(rest)
-        if plant:
-            planted = _planted(subsets, rest, donors, control.planted_objects, rng)
-            if planted is not None:
-                candidates["planted"] = planted
-        jobs.append((novelty, seen, candidates))
-    return jobs, gap
 
 
 __all__ = [

@@ -352,6 +352,29 @@ def _add_gain(
     return curve
 
 
+def _usable_groups(
+    data: ValidatedInput, reservoir_fraction: float, block_col: str | None
+) -> tuple[list[tuple[dict[str, Any], ValidatedInput]], list[dict]]:
+    """The analysis groups that can be split, and those that cannot, with the reason."""
+    groups, skipped = [], []
+    for group, group_data in iter_analysis_groups(data):
+        reason = _skip_reason(group_data, reservoir_fraction, block_col)
+        if reason is None:
+            groups.append((group, group_data))
+        else:
+            skipped.append({**group, "fovs": len(group_data.fovs), "reason": reason})
+    return groups, skipped
+
+
+def _curve_rows(draw_table: pd.DataFrame, keys: list[str]) -> list[dict[str, Any]]:
+    """One curve row per group, criterion and FOV count, aggregated over its draws."""
+    curve_rows = []
+    for key, runs in draw_table.groupby([*keys, "criterion", "fovs"], sort=False, dropna=False):
+        values = dict(zip([*keys, "criterion", "fovs"], key, strict=True))
+        curve_rows.append({**values, **_curve_row(runs)})
+    return curve_rows
+
+
 def sampling_reliability(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -403,13 +426,7 @@ def sampling_reliability(
     # is an independent unit of work. Splits are sent apart only when the
     # groups are fewer than the workers; otherwise a group's splits stay
     # together, which sends its data once.
-    groups, skipped = [], []
-    for group, group_data in iter_analysis_groups(data):
-        reason = _skip_reason(group_data, float(reservoir_fraction), block_col)
-        if reason is None:
-            groups.append((group, group_data))
-        else:
-            skipped.append({**group, "fovs": len(group_data.fovs), "reason": reason})
+    groups, skipped = _usable_groups(data, float(reservoir_fraction), block_col)
     apart = len(groups) < check_n_jobs(n_jobs)
     blocks = [[split] for split in range(n_splits)] if apart else [list(range(n_splits))]
     jobs = [
@@ -427,10 +444,7 @@ def sampling_reliability(
         columns=[*keys, "split", "fovs", "draw", "criterion", "value", "status"]
         + ["reservoir_fovs", "stream_fovs", "holdout"],
     )
-    curve_rows = []
-    for key, runs in draw_table.groupby([*keys, "criterion", "fovs"], sort=False, dropna=False):
-        values = dict(zip([*keys, "criterion", "fovs"], key, strict=True))
-        curve_rows.append({**values, **_curve_row(runs)})
+    curve_rows = _curve_rows(draw_table, keys)
     # The hold-out identity only clusters the Monte Carlo error; the ceiling reports it.
     draw_table = draw_table.drop(columns="holdout")
     curve_rows += _beyond_every_stream(ceiling_rows, curve_rows, criteria, counts, keys)

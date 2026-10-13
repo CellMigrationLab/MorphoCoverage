@@ -294,6 +294,7 @@ src/morphocoverage/
         reliability_text.py  # its sentences
         effect_preservation.py  # k fields a side against held-back fields: is each repeat's difference from the control kept?
         replay.py          # replayed orders against a fixed reservoir: decisions and outcomes
+        _replay_parts.py   # private: one run's decisions and scores, the groups that can be replayed, the checks of the tables
         calibration.py     # stopping-rule calibration: how often a rule's stop was premature
         adequacy.py        # first and sustained apparent and realized adequacy points
         adequacy_text.py   # its words: "what did the extra fields buy?", short and full
@@ -304,10 +305,12 @@ src/morphocoverage/
         frontier_text.py   # its sentences
         inspection.py      # inspect-these-fields: one traceable reason per FOV and line
         inspection_text.py # its words: the fields in a table (short), every reason per group (full)
+        _field_reasons.py  # private: its count and new-state reasons, and what its groups gather beside their fields
         _stage_neighbours.py  # private: its stage-neighbour reason (a field unlike its nearest fields on the stage)
         _run_identity.py   # private: the typed fingerprint of one replayed run (stream, reservoir, labels), required to score a frontier family
         controls.py        # representation controls: detection and false-alarm rates
         controls_text.py   # their sentences
+        _control_draws.py  # private: the controls' checks one stratum at a time: draws, leave one field out, planted objects
         effort.py          # nested variance components and projected SE at equal FOVs
         effort_design.py   # its standard errors and allocations: acquired and balanced designs
         effort_text.py     # the effort projection in words (technical repeats, samples, caveats)
@@ -315,6 +318,7 @@ src/morphocoverage/
         spatial.py         # acquisition-order efficiency and redundancy distance
         order_text.py      # its words: a table per order kind (short), per group and order (full)
         report.py          # the microscopist's report, question by question
+        _report_assembly.py  # private: its steps: each answer's text, the notes, the control's gate, the sections and statuses
         report_profile.py  # its sampling profile, one helper per source
         _control_rates.py  # private: the control's rates as other answers read them, and why a rate does not apply
         _new_states.py     # private: the fields holding new states beside the count chance alone gives

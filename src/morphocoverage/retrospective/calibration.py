@@ -284,6 +284,89 @@ def _calibration_row(row: Any, label: str | None, min_fovs: int) -> list[Any]:
     return cells
 
 
+def _calibration_head(
+    result: StoppingCalibration, labels: dict[Any, str], full: dict[Any, str]
+) -> tuple[str, list[Any], bool]:
+    """The groups, the rules (``full``: their names with settings) and the opening sentence
+    of the full form, with the criteria it shows and whether there are several (then a
+    "for" column names each)."""
+    keys, frame = list(result.group_cols), result.table
+    head = [f"Analysis groups: {group_columns(keys)}."] if keys else []
+    configs = list(dict.fromkeys(frame["config_id"]))
+    listed = "; ".join(full.get(c, str(c)) for c in configs)
+    head.append(wrap(f"Rules: {listed}.", 0, hang=2))
+    criteria = list(dict.fromkeys(frame["criterion"]))
+    several = len(criteria) > 2
+    if not several:
+        criteria = [c for c in criteria if c != ALL_CRITERIA] or criteria
+        judged = listing([labels.get(c, c) for c in criteria])
+        head.append(
+            wrap(
+                f"If you had let each rule stop the acquisition, judged on held-back fields "
+                f"the rule never saw, for {judged}:",
+                0,
+                hang=2,
+            )
+        )
+    else:
+        head.append(
+            "If you had let each rule stop the acquisition, judged on held-back fields the "
+            "rule never saw:"
+        )
+    return "\n".join(head), criteria, several
+
+
+def _calibration_groups(
+    result: StoppingCalibration,
+    labels: dict[Any, str],
+    names: dict[Any, str],
+    min_fovs: int,
+    criteria: list[Any],
+    several: bool,
+) -> list[str]:
+    """One block per group: per rule (by its readable name in ``names``), a table with a row
+    per order kind (and criterion)."""
+    keys, frame = list(result.group_cols), result.table
+    header = ["order", *(["for"] if several else []), "stopped", "median (MC SE)"]
+    header += ["not preserved", "preserved", "never stopped"]
+    parts = frame.groupby(keys, sort=False, dropna=False) if keys else [((), frame)]
+    blocks = []
+    for key, rows in parts:
+        key = key if isinstance(key, tuple) else (key,)
+        lines = [f"{group_label(dict(zip(keys, key, strict=True)))}:"]
+        for config, mine in rows.groupby("config_id", sort=False):
+            lines.append(f"  {names.get(config, mine['strategy'].iloc[0])}:")
+            cells = [
+                _calibration_row(
+                    row, labels.get(row.criterion, row.criterion) if several else None, min_fovs
+                )
+                for row in mine.itertuples(index=False)
+                if row.criterion in criteria
+            ]
+            lines.append(table(cells, header, indent=4))
+        blocks.append("\n".join(lines))
+    return blocks
+
+
+def _calibration_cautions(frame: pd.DataFrame) -> list[str]:
+    """What every row of the full form rests on, and the range "too early" is, if any."""
+    cautions = [
+        assumption(
+            "each acquisition is one hold-out and one order of the same fields, not an "
+            "independent experiment"
+        )
+    ]
+    if len(frame) and (frame["not_preserved_by_stream"].fillna(0) > 0).any():
+        cautions.append(
+            assumption(
+                "'too early' is a range: its low end counts the stops that later fields of the "
+                "stream fixed; in the rest not even every available field together preserved "
+                "it, which the held-back fields' own noise can also cause"
+            )
+        )
+    return cautions
+
+
 def calibration_summary(result: StoppingCalibration) -> str:
     """ "If you had let this rule stop the acquisition": the full form, in tables.
 
@@ -303,60 +386,10 @@ def calibration_summary(result: StoppingCalibration) -> str:
     min_fovs = int(result.settings.get("min_fovs", 1) or 1)
     blocks = []
     if len(frame):
-        head = [f"Analysis groups: {group_columns(keys)}."] if keys else []
-        configs = list(dict.fromkeys(frame["config_id"]))
-        listed = "; ".join(full.get(c, str(c)) for c in configs)
-        head.append(wrap(f"Rules: {listed}.", 0, hang=2))
-        criteria = list(dict.fromkeys(frame["criterion"]))
-        several = len(criteria) > 2
-        if not several:
-            criteria = [c for c in criteria if c != ALL_CRITERIA] or criteria
-            judged = listing([labels.get(c, c) for c in criteria])
-            head.append(
-                wrap(
-                    f"If you had let each rule stop the acquisition, judged on held-back fields "
-                    f"the rule never saw, for {judged}:",
-                    0,
-                    hang=2,
-                )
-            )
-        else:
-            head.append(
-                "If you had let each rule stop the acquisition, judged on held-back fields the "
-                "rule never saw:"
-            )
-        blocks.append("\n".join(head))
-        header = ["order", *(["for"] if several else []), "stopped", "median (MC SE)"]
-        header += ["not preserved", "preserved", "never stopped"]
-        parts = frame.groupby(keys, sort=False, dropna=False) if keys else [((), frame)]
-        for key, rows in parts:
-            key = key if isinstance(key, tuple) else (key,)
-            lines = [f"{group_label(dict(zip(keys, key, strict=True)))}:"]
-            for config, mine in rows.groupby("config_id", sort=False):
-                lines.append(f"  {names.get(config, mine['strategy'].iloc[0])}:")
-                cells = [
-                    _calibration_row(
-                        row, labels.get(row.criterion, row.criterion) if several else None, min_fovs
-                    )
-                    for row in mine.itertuples(index=False)
-                    if row.criterion in criteria
-                ]
-                lines.append(table(cells, header, indent=4))
-            blocks.append("\n".join(lines))
-    cautions = [
-        assumption(
-            "each acquisition is one hold-out and one order of the same fields, not an "
-            "independent experiment"
-        )
-    ]
-    if len(frame) and (frame["not_preserved_by_stream"].fillna(0) > 0).any():
-        cautions.append(
-            assumption(
-                "'too early' is a range: its low end counts the stops that later fields of the "
-                "stream fixed; in the rest not even every available field together preserved "
-                "it, which the held-back fields' own noise can also cause"
-            )
-        )
+        head, criteria, several = _calibration_head(result, labels, full)
+        blocks.append(head)
+        blocks += _calibration_groups(result, labels, names, min_fovs, criteria, several)
+    cautions = _calibration_cautions(frame)
     if len(frame):
         blocks.append("\n".join(caveat_lines(cautions, indent=0, detail="full")))
     blocks += skipped_lines(result.skipped, keys)
