@@ -108,18 +108,7 @@ def _interval(row: object, saved: float, units: int | None = None) -> str:
         )
     if row.saved_low is None or pd.isna(row.saved_low):
         return ""
-    # The interval reads in the verdict's direction: fields saved, or fields it costs.
-    if saved < -0.05:
-        interval = (
-            f", approximate {percent(0.95)} interval {_number(-row.saved_high)} to "
-            f"{_number(-row.saved_low)}"
-        )
-    else:
-        of = "" if saved > 0.05 else " of the fields saved"
-        interval = (
-            f", approximate {percent(0.95)} interval{of} {_number(row.saved_low)} to "
-            f"{_number(row.saved_high)}"
-        )
+    interval = _interval_words(row, saved)
     notes = []
     # A saving (or cost) whose interval includes no change is not resolved.
     if abs(saved) > 0.05 and row.saved_low <= 0 <= row.saved_high:
@@ -129,6 +118,21 @@ def _interval(row: object, saved: float, units: int | None = None) -> str:
             f"from the {percent(reached)} of the resamples in which both reached this risk"
         )
     return interval + (f" ({'; '.join(notes)})" if notes else "")
+
+
+def _interval_words(row: object, saved: float) -> str:
+    """``, approximate 95% interval 1 to 3``: the interval in the verdict's direction."""
+    # The interval reads in the verdict's direction: fields saved, or fields it costs.
+    if saved < -0.05:
+        return (
+            f", approximate {percent(0.95)} interval {_number(-row.saved_high)} to "
+            f"{_number(-row.saved_low)}"
+        )
+    of = "" if saved > 0.05 else " of the fields saved"
+    return (
+        f", approximate {percent(0.95)} interval{of} {_number(row.saved_low)} to "
+        f"{_number(row.saved_high)}"
+    )
 
 
 def _resampled(result: FrontierResult) -> list[str]:

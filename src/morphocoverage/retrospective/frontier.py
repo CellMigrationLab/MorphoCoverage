@@ -72,7 +72,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -354,6 +354,113 @@ class FrontierResult:
         return frontier_summary(self, detail)
 
 
+def _family_rows(
+    families: Sequence[pd.DataFrame],
+    keys: list[str],
+    statuses: Mapping[tuple, Any],
+    streams: Mapping[tuple, tuple[int, str]],
+    fingerprints: Mapping[tuple, Any],
+) -> tuple[list[dict], set]:
+    """Every family's runs, checked against the replay's runs, and the families' names."""
+    rows: list[dict] = []
+    names: set = set()
+    for decisions in families:
+        own = decisions["family"].unique()
+        _check_runs(decisions, keys, fingerprints)
+        if BASELINE in own:
+            raise ValueError(f"{BASELINE!r} is the baseline's name; name families otherwise")
+        overlap = names & set(own)
+        if overlap:
+            raise ValueError(f"family names used twice: {sorted(overlap)}")
+        names |= set(own)
+        rows += _family_runs(decisions, keys, statuses, streams)
+    return rows, names
+
+
+def _realized_needed(replay: ReplayResult, criterion: str, keys: list[str]) -> pd.DataFrame:
+    """Per run, the fields its sustained realized adequacy of ``criterion`` needed."""
+    realized = adequacy_points(replay).realized
+    realized = realized[realized["criterion"] == criterion]
+    # Not reached within the stream counts as one field beyond it.
+    needed = realized["sustained_realized"].astype("Float64")
+    fill = realized["stream_fovs"].astype(float) + 1
+    return realized.assign(needed=needed.fillna(fill).astype(float))[[*keys, "needed"]]
+
+
+class _Scoring(NamedTuple):
+    """What every family is scored with: the curves (the baseline's apart), the runs, the
+    fields each run needed, the run keys, the resampled savings and the units."""
+
+    curve: pd.DataFrame
+    baseline_curve: pd.DataFrame
+    runs: pd.DataFrame
+    realized: pd.DataFrame
+    keys: list[str]
+    boot: Mapping[tuple[str, float], np.ndarray]
+    units: int
+
+
+def _lapse_cells(lapse: tuple[pd.Series, pd.Series] | None) -> dict[str, Any]:
+    """The setting that met ``alpha`` but not from there on, and the one that exceeded it."""
+    return {
+        "met_setting": None if lapse is None else lapse[0]["setting"],
+        "met_risk": None if lapse is None else float(lapse[0]["risk"]),
+        "exceeded_setting": None if lapse is None else lapse[1]["setting"],
+        "exceeded_risk": None if lapse is None else float(lapse[1]["risk"]),
+    }
+
+
+def _saved_cells(
+    fields_saved: float | None, draws: np.ndarray | None, units: int
+) -> dict[str, float | None]:
+    """The interval of the fields saved and the share of resamples that reached ``alpha``."""
+    cells: dict[str, float | None] = {"saved_low": None, "saved_high": None, "saved_reached": None}
+    # An interval only around a score that exists, only from (nearly) every
+    # resample (the few that reached alpha would be a selected subset), and
+    # only from at least FEW_UNITS units, widened for their number.
+    if fields_saved is not None and draws is not None:
+        finite = draws[np.isfinite(draws)]
+        cells["saved_reached"] = float(len(finite) / len(draws))
+        if len(finite) and cells["saved_reached"] >= MIN_BOOT_SUCCESS:
+            low, high = _saved_interval(fields_saved, finite, units)
+            cells["saved_low"], cells["saved_high"] = low, high
+    return cells
+
+
+def _score_row(
+    scoring: _Scoring, name: str, alpha: float, base: pd.Series | None
+) -> dict[str, Any]:
+    """One family's score at ``alpha``, against the baseline's setting ``base``."""
+    own_curve = scoring.curve[scoring.curve["family"] == name]
+    chosen = _needed(own_curve, alpha)
+    row = {
+        "family": name,
+        "alpha": alpha,
+        "setting": None if chosen is None else chosen["setting"],
+        "effort": None if chosen is None else float(chosen["effort"]),
+        "risk": None if chosen is None else float(chosen["risk"]),
+        # The risk's denominator: the runs whose outcome could be judged, of all.
+        "judged": None if chosen is None else int(chosen["judged"]),
+        "runs": None if chosen is None else int(chosen["runs"]),
+        "baseline_setting": None if base is None else base["setting"],
+        "baseline_effort": None if base is None else float(base["effort"]),
+    }
+    lapse = _met_not_sustained(own_curve, alpha) if chosen is None else None
+    row.update(_lapse_cells(lapse))
+    reached = chosen is not None and base is not None
+    row["fields_saved"] = float(base["effort"] - chosen["effort"]) if reached else None
+    row.update(_saved_cells(row["fields_saved"], scoring.boot.get((name, alpha)), scoring.units))
+    row["baseline_risk_at_same_effort"] = (
+        None if chosen is None else _interpolate_baseline(scoring.baseline_curve, chosen["effort"])
+    )
+    row["adaptivity"] = None
+    if chosen is not None and name != BASELINE:
+        runs, keys = scoring.runs, scoring.keys
+        own_runs = runs[(runs["family"] == name) & (runs["setting"] == chosen["setting"])]
+        row["adaptivity"] = _adaptivity(own_runs[[*keys, "effort"]], scoring.realized, keys)
+    return row
+
+
 def frontier(
     replay: ReplayResult,
     families: Sequence[pd.DataFrame],
@@ -396,74 +503,20 @@ def frontier(
         tuple(row[k] for k in keys): row[RUN_FINGERPRINT] for _, row in replay.streams.iterrows()
     }
     rows = _baseline_runs(keys, statuses, streams)
-    names = set()
-    for decisions in families:
-        own = decisions["family"].unique()
-        _check_runs(decisions, keys, fingerprints)
-        if BASELINE in own:
-            raise ValueError(f"{BASELINE!r} is the baseline's name; name families otherwise")
-        overlap = names & set(own)
-        if overlap:
-            raise ValueError(f"family names used twice: {sorted(overlap)}")
-        names |= set(own)
-        rows += _family_runs(decisions, keys, statuses, streams)
-    runs = pd.DataFrame(rows)
+    family_rows, names = _family_rows(families, keys, statuses, streams, fingerprints)
+    runs = pd.DataFrame(rows + family_rows)
     curve = _curve(runs)
-    realized = adequacy_points(replay).realized
-    realized = realized[realized["criterion"] == criterion]
-    # Not reached within the stream counts as one field beyond it.
-    needed = realized["sustained_realized"].astype("Float64")
-    fill = realized["stream_fovs"].astype(float) + 1
-    realized = realized.assign(needed=needed.fillna(fill).astype(float))[[*keys, "needed"]]
+    realized = _realized_needed(replay, criterion, keys)
     rng = np.random.default_rng(random_state)
     boot = _bootstrap(runs, unit_cols, alphas, n_boot, rng)
     baseline_curve = curve[curve["family"] == BASELINE]
     units = int(_unit_ids(runs, unit_cols).nunique())
+    scoring = _Scoring(curve, baseline_curve, runs, realized, keys, boot, units)
     scores = []
     for alpha in alphas:
         base = _needed(baseline_curve, alpha)
         for name in [BASELINE, *sorted(names)]:
-            own_curve = curve[curve["family"] == name]
-            chosen = _needed(own_curve, alpha)
-            row = {
-                "family": name,
-                "alpha": alpha,
-                "setting": None if chosen is None else chosen["setting"],
-                "effort": None if chosen is None else float(chosen["effort"]),
-                "risk": None if chosen is None else float(chosen["risk"]),
-                # The risk's denominator: the runs whose outcome could be judged, of all.
-                "judged": None if chosen is None else int(chosen["judged"]),
-                "runs": None if chosen is None else int(chosen["runs"]),
-                "baseline_setting": None if base is None else base["setting"],
-                "baseline_effort": None if base is None else float(base["effort"]),
-            }
-            lapse = _met_not_sustained(own_curve, alpha) if chosen is None else None
-            row["met_setting"] = None if lapse is None else lapse[0]["setting"]
-            row["met_risk"] = None if lapse is None else float(lapse[0]["risk"])
-            row["exceeded_setting"] = None if lapse is None else lapse[1]["setting"]
-            row["exceeded_risk"] = None if lapse is None else float(lapse[1]["risk"])
-            reached = chosen is not None and base is not None
-            row["fields_saved"] = float(base["effort"] - chosen["effort"]) if reached else None
-            draws = boot.get((name, alpha))
-            row["saved_low"] = row["saved_high"] = row["saved_reached"] = None
-            # An interval only around a score that exists, only from (nearly) every
-            # resample (the few that reached alpha would be a selected subset), and
-            # only from at least FEW_UNITS units, widened for their number.
-            if reached and draws is not None:
-                finite = draws[np.isfinite(draws)]
-                row["saved_reached"] = float(len(finite) / len(draws))
-                if len(finite) and row["saved_reached"] >= MIN_BOOT_SUCCESS:
-                    low, high = _saved_interval(row["fields_saved"], finite, units)
-                    row["saved_low"], row["saved_high"] = low, high
-            row["baseline_risk_at_same_effort"] = (
-                None if chosen is None else _interpolate_baseline(baseline_curve, chosen["effort"])
-            )
-            if chosen is not None and name != BASELINE:
-                own_runs = runs[(runs["family"] == name) & (runs["setting"] == chosen["setting"])]
-                row["adaptivity"] = _adaptivity(own_runs[[*keys, "effort"]], realized, keys)
-            else:
-                row["adaptivity"] = None
-            scores.append(row)
+            scores.append(_score_row(scoring, name, alpha, base))
     settings = {
         **dict(replay.settings),
         "criterion": criterion,
