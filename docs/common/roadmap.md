@@ -37,7 +37,7 @@ The tracks run in parallel. Each item says what it needs; nothing waits for anyt
 
 ```
 ENG   ──M0──────────────────────────────────────────────────────────────┐
-BENCH ──prerequisites──VP1-VP5──M1──AUD-1──VP6-VP11──M2──AUD-2          │
+BENCH ──prerequisites, benchmark app──VP1-VP5──M1──AUD-1──VP6-VP11──M2  │
 DATA  ──spec──acquire deep held-out data──process──register, lock───┐   │
 BRICK ──upstream FOV table──end-to-end test──installer beta──bridge─┼───┤
 VAL   ─────────────────────────────── (needs M1 and DATA) ──────────M3──AUD-3
@@ -109,8 +109,8 @@ milestone, by the protocol of that milestone.
 
 | Id | What | Pass condition |
 |---|---|---|
-| BENCH-1 | Before any confirmatory run: DATA-8; the provenance table of the protocol filled from `real_parameters.csv` and the owner's ECM summaries; the VP4 estimand settled (DEC-5); the protocol deposited publicly with a timestamp (DEC-6); each module's pilot run, with its cost recorded. | All five done. The pilots' cost recorded in #381. |
-| BENCH-2 | Confirmatory runs of VP1 to VP5 at full size and the confirmatory seed (`runner.CONFIRMATORY_SEED`). Compute: the pilots on this 4-CPU machine extrapolate to about 160 CPU-hours for VP1 to VP5, mostly VP1 and VP3, about 80 wall-clock hours on a 2-CPU Colab runtime (DEC-7). | The protocol's gates (below), applied by `summarise`; `summary.md`, `summary.csv` and `selection_<question>.csv` archived for the paper. |
+| BENCH-1 | Before any confirmatory run: DATA-8; the provenance table of the protocol filled from `real_parameters.csv` and the owner's ECM summaries; the VP4 estimand settled (DEC-5); the protocol deposited publicly with a timestamp (DEC-6); the benchmark app installed (BRICK-0); each module's pilot run with it, with its cost recorded. | All six done. The pilots' cost recorded in #381. |
+| BENCH-2 | Confirmatory runs of VP1 to VP5 at full size and the confirmatory seed (`runner.CONFIRMATORY_SEED`), on the owner's machine with the benchmark app of BRICK-0, every core a worker (`--workers`), resuming from the chunks on disk. Compute: the pilots on a 4-CPU machine extrapolate to about 160 CPU-hours for VP1 to VP5, mostly VP1 and VP3: about 10 hours on 16 cores, against about 80 on a 2-CPU Colab runtime (DEC-7). | The protocol's gates (below), applied by `summarise`; `summary.md`, `summary.csv` and `selection_<question>.csv` archived for the paper. |
 | BENCH-3 | Per module, a pull request ships the winner, or, when no method passes, the limitation in the report as a recorded deviation. Each PR does three more things. It lists every changed output with the reference script (ENG-5). It updates the exploratory labels (`workflows._exploratory`, the docs). It re-versions and re-locks the real-data stopping benchmark (`data/crick_idr/benchmark_protocol.py`) when it changes a rule that benchmark replays, rerun on development data only. | Per module, the owner verifies the implementation; the full suite passes. |
 | BENCH-4 | The six rotation-invariance xfails of `tests/test_validation_p0.py` go to their modules. VP3 resolves the centring of the tables and the whole-table test's scaling, and the robust scaling where that test uses it. VP7 resolves the populations' distance space. VP10 resolves the unusual-observation score and MFA's robust scaling. VP11 resolves the separation score. | Each xfail removed in its module's PR, by an operation that passes, or kept with the reason. |
 | BENCH-5 | VP6 to VP11. First an ADEMP section per module, committed as a deviation, with the owner's sign-off; VP9 needs its claim defined first (DEC-8). Then candidates, scripts, pilots and runs. VP7 and VP8 are high cost. | The same gates. A module's result is "validated in simulation" until VAL-5. |
@@ -139,6 +139,7 @@ fiberfeatures; MorphoRelate is named in #404), then MorphoCoverage.
 
 | Id | What | Needs | Pass condition |
 |---|---|---|---|
+| BRICK-0 | The benchmark app, packaged early with LabConstrictor: an installer that brings MorphoCoverage with its `validation` extra and the benchmark scripts (`data/simulations/decisions/`), and a notebook or command that runs a module at a chosen size on every local core, resumes, and summarises. It is also the first test of LabConstrictor packaging for BRICK-4. | BRICK-3, DEC-15 | On the owner's machine, the installed app runs each module's pilot, resumes after being stopped, and its `summary.csv` equals that of a run from the repository at the same seed. |
 | BRICK-1 | The FOV table and identities upstream: the CellPatcher and fiberfeatures changes listed in [the FOV contract](morphobricks_fov_contract.md), section 2. CellPatcher's technical-repeat PR #9 lands when the owner says so (DEC-9). MorphoRelate is added to AGENTS.md section 18. | DEC-9 | Each upstream main emits the per-image table: zero-object and failed images listed, `position_id` where file ≠ position, the shared column names. |
 | BRICK-2 | An end-to-end test on H3: raw images → CellPatcher → feature extraction → MorphoCoverage `report` and `html_report`, every tool at a pinned commit. It also becomes a job of the reference script. | BRICK-1, DATA-6 | The FOV table holds every image, with failed images marked, not dropped. `check_tables` reports no error. The report runs. A second run is identical. An image removed from the inputs shows as a missing field. H1 is processed only after this passes. |
 | BRICK-3 | MorphoCoverage ready to package: a version (`__version__` and git tags, DEC-14), and the notebook installable when the repository is private (DEC-15). | DEC-14, DEC-15 | `pip install` from a tag works; the notebook runs from a clean Colab. |
@@ -240,7 +241,7 @@ protocol, not here.
 | DEC-4 | The deep held-out specification of DATA-1 | DATA-2 |
 | DEC-5 | VP4's estimand: the protocol says "given its wells". A change is a deviation, and the package's own well bootstrap may then fail the estimand gate | the VP4 pilot |
 | DEC-6 | Where the protocol is deposited with a timestamp (Zenodo or OSF), since the repository is private | BENCH-2 |
-| DEC-7 | The compute for BENCH-2: Colab sessions, a paid runner or a lab machine | BENCH-2 |
+| DEC-7 | The machine for BENCH-2: the owner's multi-core computer with the benchmark app (BRICK-0), else Colab sessions or a paid runner | BENCH-2 |
 | DEC-8 | VP9's claim: the variance, or named quantiles | VP9's ADEMP section |
 | DEC-9 | When CellPatcher PR #9 (the technical repeat) lands | BRICK-1 |
 | DEC-10 | The MorphoBricks app repository: a new one, and how LabConstrictor installs three packages in it | BRICK-4 |
@@ -248,7 +249,7 @@ protocol, not here.
 | DEC-12 | Who the external auditors of VAL-6 are | VAL-6 |
 | DEC-13 | The multi-group outcome contract and its registry | VAL-7 |
 | DEC-14 | The version scheme and the 1.0 scope: which workflows ship validated, whether LIVE is in 1.0, whether the `repeat` alias is removed | BRICK-3, REL 1.0 |
-| DEC-15 | The repository's visibility, and the licences, since the `validation` extra holds the GPL-3.0 harmonypy | BRICK-3 |
+| DEC-15 | The repository's visibility, and the licences: the `validation` extra holds the GPL-3.0 harmonypy, which the benchmark app would bundle | BRICK-0, BRICK-3 |
 | DEC-16 | The sampling-frame input contract, with CellPatcher | LIVE-6 |
 
 Decisions are batched: the open ones are put to the owner together at each milestone, and
@@ -282,7 +283,7 @@ An audit follows each of M1 to M4 (AUD-1 to AUD-4), and AUD-5 precedes release 1
 | One owner decides, verifies, runs the benchmark and supplies data | decisions batched per milestone; a second reviewer named for verifying implementations |
 | The deep data come late | DATA starts now; nothing else waits for it except VAL, LIVE-3, LIVE-7 and 1.0 |
 | A held-out dataset stops being held out | ENG-6 first; DATA-4 locks before any read; audits read development data only |
-| Compute for the benchmark | measured by the pilots (BENCH-1); DEC-7 |
+| Compute for the benchmark | run locally on every core with the benchmark app (BRICK-0), measured by the pilots (BENCH-1); DEC-7 |
 | CI stays blocked | ENG-1's local gate; ENG-4's guard runs locally |
 | The bridge changes, being experimental | its version pinned in the installer; BRICK-5 after M1, BRICK-6 after M4 |
 | Upstream repositories change the FOV contract | BRICK-2 is a reference job, run on every MorphoBricks pin change |
