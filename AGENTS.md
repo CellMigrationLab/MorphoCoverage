@@ -695,9 +695,9 @@ python tools/audit.py --check-against <base>
 
 run on the pull request's last commit, `<base>` being its base branch (for example `origin/main`), and, before merge, the result of the whole suite (`pytest`: passed, failed, xfailed). A documentation-only pull request runs the gate too.
 
-When Actions run, `.github/workflows/tests.yml` checks a pull request for lint, formatting, the install, the import, the same guard tests and the baseline check (`--check-against HEAD^1`), also when it changes only the generated index, and skips one that changes only documentation; the whole suite runs on demand from the Actions tab (owner 2026-10-05; guards owner 2026-10-12).
+Beside the gate, a change that must not change behaviour (a refactor, a clean-up, a move) and an audit run the reference check of [`data/reference`](data/reference/README.md): every committed analysis on main and on the change, outputs outside the repository, compared file for file (`python data/reference/reference.py compare`); 0 differences is the proof, and a change that alters outputs on purpose lists them with it. Its README gives the run time of the whole committed tier and the subsets (`--only`, `--skip`).
 
-A change that must not change behaviour (a refactor, a clean-up, a move) and an audit run the reference check of [`data/reference`](data/reference/README.md): every committed analysis on main and on the change, outputs outside the repository, compared file for file (`python data/reference/reference.py compare`); 0 differences is the proof, and a change that alters outputs on purpose lists them with it. Its README gives the run time of the whole committed tier and the subsets (`--only`, `--skip`).
+When Actions run, `.github/workflows/tests.yml` checks a pull request for lint, formatting, the install, the import, the same guard tests and the baseline check (`--check-against HEAD^1`), also when it changes only the generated index, and skips one that changes only documentation; the whole suite runs on demand from the Actions tab (owner 2026-10-05; guards owner 2026-10-12).
 
 Never claim a command passed unless it actually ran successfully.
 
