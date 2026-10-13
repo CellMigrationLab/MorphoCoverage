@@ -42,7 +42,7 @@ This page's own ids:
 - **Datasets to be made:** DS-1 to DS-5.
 - **Milestones:** M0 to M5.
 - **Audits:** AUD-1 to AUD-5.
-- **Decisions:** DEC-1 to DEC-19, listed in "Decisions".
+- **Decisions:** DEC-1 to DEC-20, listed in "Decisions".
 
 ## How the tracks fit together
 
@@ -141,7 +141,7 @@ Packaging uses LabConstrictor, whose installer builds one app per repository.
 
 | Id | What | Needs | Pass condition |
 |---|---|---|---|
-| BRICK-0 | The benchmark app, packaged early with the design of DEC-10: a LabConstrictor installer that pip-installs MorphoCoverage with its `validation` extra and brings the benchmark scripts of `data/simulations/decisions/`, which are not part of the package. It comes with a notebook or command that runs a module at a chosen size on every local core, resumes, and summarises. It is the first test of LabConstrictor packaging. | BRICK-3, DEC-10, DEC-15 | On the owner's machine, the installed app runs each module's pilot and resumes after being stopped. Its `summary.csv` equals that of a run from the repository at the same seed. |
+| BRICK-0 | The benchmark app, packaged early with the design of DEC-10. A LabConstrictor installer pip-installs MorphoCoverage with its `validation` extra. The benchmark scripts of `data/simulations/decisions/` are not part of the package, so the app's `src/` carries them, copied from a pinned MorphoCoverage commit that each summary records. A notebook or command runs a module at a chosen size on every local core, resumes, and summarises. VP0 stays a repository run, since it is a test file. LabConstrictor builds installers with GitHub Actions, so the app repository needs Actions that run: public, or with DEC-1. It is the first test of LabConstrictor packaging. | BRICK-3, DEC-1, DEC-10, DEC-15 | On the owner's machine, the installed app runs each module's pilot and resumes after being stopped. Its `summary.csv` equals that of a run from the repository at the same seed in every column but the run times, and it selects the same methods. |
 | BRICK-1 | The FOV table and identities upstream: the CellPatcher and fiberfeatures changes in [the FOV contract](morphobricks_fov_contract.md), section 2. CellPatcher's technical-repeat PR #9 lands when the owner says so (DEC-9). MorphoRelate is added to AGENTS.md section 18. | DEC-9 | Each upstream main emits the per-image table: zero-object and failed images listed, `position_id` where a file is not one position, the shared column names. |
 | BRICK-2 | The end-to-end test on DS-3: raw images, then CellPatcher, then feature extraction, then MorphoCoverage's `report` and `html_report`, every tool at a pinned commit. It also becomes a job of ENG-5's script, run on every pin change. | BRICK-1, DATA-3 | The FOV table lists every image: the zero-object image with 0 objects, the failed image marked failed, not dropped. Repeated file names stay distinct fields. `check_tables` reports no error. A second run is identical. An image removed from the inputs shows as a missing field. |
 | BRICK-3 | Each module pip-installable at a pinned version: MorphoCoverage, CellPatcher and the feature extraction each get a version (`__version__` and git tags, DEC-14) and are installable from where DEC-10 says, PyPI or a git tag, which needs the repositories public or a token on the user's machine (DEC-15). | DEC-10, DEC-14, DEC-15 | `pip install` of each module at its pinned version works in a clean environment. The MorphoCoverage notebook runs from a clean Colab. |
@@ -195,7 +195,7 @@ sections 8 and 11).
 |---|---|---|
 | 0.2 | M1 | REPORT and OPTIMISE with VP1 to VP5's rules; the exploratory labels say what is not validated. |
 | 0.3 | M2 | VP6 to VP11's results, and BRICK-5's REPORT tools. |
-| 1.0 | M3, M4, AUD-5 | The scope of DEC-14. |
+| 1.0 | M3, M4, AUD-5 | The scope of DEC-20. |
 
 **M5**, release 1.0, passes when:
 
@@ -253,12 +253,13 @@ three of them (DEC-2, DEC-5, DEC-6), and at each milestone.
 | DEC-11 | How LIVE reaches the microscope. Through a `LiveFolder` filled per field only, or also by a direct integration such as Micro-Manager, which the bridge does not provide and AGENTS.md section 4 excludes today. Also whether the bridge hosts a long-running watch, or the tool is one-shot, replaying the folder and deciding now | BRICK-6, LIVE-7 |
 | DEC-12 | Who the external auditors of VAL-5 are | VAL-5 |
 | DEC-13 | The multi-group outcome contract and its registry | VAL-6 |
-| DEC-14 | The version scheme and the 1.0 scope: which workflows ship validated, whether LIVE is in 1.0, whether the `repeat` alias is removed | BRICK-3, release 1.0 |
+| DEC-14 | The version scheme: how versions are numbered and tagged, and from which version the interface is stable | BRICK-3 |
 | DEC-15 | The repository's visibility, and the licences: the `validation` extra holds the GPL-3.0 harmonypy, which the benchmark app would bundle | BRICK-0, BRICK-3 |
 | DEC-16 | The sampling-frame input contract, with CellPatcher | DATA-1 |
 | DEC-17 | AGENTS.md sections 3 and 18 gain the bridge's hosts and its command line as usage contexts; today they defer a command line | BRICK-5 |
 | DEC-18 | Who the second reviewer is, verifying implementations beside the owner | BENCH-3 |
 | DEC-19 | The cost-model inputs `C_sample` and `C_FOV` | OW 10 |
+| DEC-20 | The 1.0 scope: which workflows ship validated, whether LIVE is in 1.0, whether the `repeat` alias is removed | AUD-5 |
 
 ## Audits
 
@@ -288,7 +289,7 @@ An audit follows each of M1 to M4 (AUD-1 to AUD-4), and AUD-5 precedes release 1
 | The deep data come late | DATA starts now; only VAL, LIVE-3, LIVE-7 and 1.0 wait for it |
 | A held-out dataset stops being held out | ENG-6 first; DATA-4 locks before any read |
 | Compute for the benchmark | the benchmark app on every local core (BRICK-0); measured by the pilots |
-| CI stays blocked | ENG-1's local gate, which includes ENG-4's guard |
+| CI stays blocked | ENG-1's local gate, which includes ENG-4's guard; the installers of BRICK-0 and BRICK-4 need Actions that run (DEC-1, DEC-15) |
 | The bridge changes, being experimental; its Windows hook has not run on a real Windows computer | its version pinned in the installer; BRICK-5 after M1, BRICK-6 after M4 |
 | Upstream repositories change the FOV contract | BRICK-2 rerun on every MorphoBricks pin change |
 
