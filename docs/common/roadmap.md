@@ -227,6 +227,8 @@ These depend on nothing above:
 - OW 12, a drift diagnostic;
 - OW 13, uncertainty semantics;
 - #264 (iNEXT) and #268 (SciKit-GStat, GSTools): external numerical references;
+- OW 22, library references for the hand-written statistics (#101);
+- OW 23, the assessment-state rule (#373);
 - #404, `patch_id`, with MorphoRelate;
 - #398, the lasso export, which BRICK-5 then uses.
 
