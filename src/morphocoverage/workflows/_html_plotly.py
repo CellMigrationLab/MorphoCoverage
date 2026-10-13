@@ -81,44 +81,7 @@ def _pairwise(table: pd.DataFrame, names: list[Any]) -> dict[str, Any] | None:
             pair = lookup.get((row, column)) or lookup.get((column, row))
             if i == j or pair is None:
                 continue
-            if pair.status == APART:  # normalised to different controls
-                d[i][j], p[i][j] = (0.0, None) if i > j else (None, 0.0)
-                text[i][j] = APART_MARK if i > j else "–"
-                hover[i][j] = f"{row} and {column}: normalised to different controls, {APART}"
-                continue
-            if i > j:
-                value = pair.d if pair.first == row else -pair.d
-                d[i][j] = _number(value, 3)
-                apart = pair.shared_repeats == 0
-                text[i][j] = "–" if d[i][j] is None else f"{value:+.2f}" + ("†" if apart else "")
-                # A cell without a value is still drawn, at the middle colour, to show "–".
-                d[i][j] = 0.0 if d[i][j] is None else d[i][j]
-                mine, theirs = (pair.observations, pair.second_observations)
-                if pair.first != row:
-                    mine, theirs = theirs, mine
-                hover[i][j] = (
-                    f"{row} minus {column}: Cohen's d {text[i][j]} ({mine} vs {theirs} "
-                    "observations)"
-                    + ("; imaged in different repeats, so d holds the batch too" if apart else "")
-                )
-            else:
-                q = float(pair.q)
-                apart = pair.shared_repeats == 0
-                p[i][j] = round(p_shade(q), 3) if np.isfinite(q) else 0.0
-                text[i][j] = "–" if not np.isfinite(q) else (format_p(q) + ("†" if apart else ""))
-                paired = (
-                    f"; the paired t-test on {pair.shared_repeats} repeats' means gives p "
-                    f"{format_p(float(pair.p_paired))}"
-                    if np.isfinite(float(pair.p_paired))
-                    else ""
-                )
-                hover[i][j] = (
-                    f"{row} and {column}: randomization test on d, p {format_p(float(pair.p))},"
-                    f" adjusted p {format_p(q)} (Benjamini-Hochberg over the pairs){paired}"
-                    + ("; imaged in different repeats, so the batch is in it" if apart else "")
-                    if np.isfinite(q)
-                    else f"{row} and {column}: not tested ({pair.status})"
-                )
+            d[i][j], p[i][j], text[i][j], hover[i][j] = _pair_cell(pair, row, column, i > j)
     panel_b = {"lower": d, "upper": p, "text": text, "hover": hover, "lower_scale": "d"}
     return {
         "names": [str(c) for c in names],
@@ -127,6 +90,61 @@ def _pairwise(table: pd.DataFrame, names: list[Any]) -> dict[str, Any] | None:
         "alpha": ALPHA,
         "cap": D_CAP,
     }
+
+
+# A cell of panel B: its d (lower-left), its shade of p (upper-right), its text and hover.
+_Cell = tuple[float | None, float | None, str, str]
+
+
+def _pair_cell(pair: Any, row: Any, column: Any, lower: bool) -> _Cell:
+    """The cell of ``row`` and ``column`` in panel B: d in the ``lower`` triangle, the
+    corrected p above, or the mark of two conditions normalised to different controls."""
+    if pair.status == APART:  # normalised to different controls
+        hover = f"{row} and {column}: normalised to different controls, {APART}"
+        return (0.0, None, APART_MARK, hover) if lower else (None, 0.0, "–", hover)
+    if lower:
+        return _d_cell(pair, row, column)
+    return _q_cell(pair, row, column)
+
+
+def _d_cell(pair: Any, row: Any, column: Any) -> _Cell:
+    """A lower-left cell: Cohen's d of ``row`` minus ``column``."""
+    value = pair.d if pair.first == row else -pair.d
+    d = _number(value, 3)
+    apart = pair.shared_repeats == 0
+    text = "–" if d is None else f"{value:+.2f}" + ("†" if apart else "")
+    # A cell without a value is still drawn, at the middle colour, to show "–".
+    d = 0.0 if d is None else d
+    mine, theirs = (pair.observations, pair.second_observations)
+    if pair.first != row:
+        mine, theirs = theirs, mine
+    hover = f"{row} minus {column}: Cohen's d {text} ({mine} vs {theirs} observations)" + (
+        "; imaged in different repeats, so d holds the batch too" if apart else ""
+    )
+    return d, None, text, hover
+
+
+def _q_cell(pair: Any, row: Any, column: Any) -> _Cell:
+    """An upper-right cell: the randomization test's corrected p, the paired t-test's p in
+    its hover."""
+    q = float(pair.q)
+    apart = pair.shared_repeats == 0
+    p = round(p_shade(q), 3) if np.isfinite(q) else 0.0
+    text = "–" if not np.isfinite(q) else (format_p(q) + ("†" if apart else ""))
+    paired = (
+        f"; the paired t-test on {pair.shared_repeats} repeats' means gives p "
+        f"{format_p(float(pair.p_paired))}"
+        if np.isfinite(float(pair.p_paired))
+        else ""
+    )
+    hover = (
+        f"{row} and {column}: randomization test on d, p {format_p(float(pair.p))},"
+        f" adjusted p {format_p(q)} (Benjamini-Hochberg over the pairs){paired}"
+        + ("; imaged in different repeats, so the batch is in it" if apart else "")
+        if np.isfinite(q)
+        else f"{row} and {column}: not tested ({pair.status})"
+    )
+    return None, p, text, hover
 
 
 def _paired_panel(lookup: dict, names: list[Any]) -> dict[str, Any]:

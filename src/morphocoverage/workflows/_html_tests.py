@@ -110,61 +110,45 @@ def _cells(result: Any, folder: Path) -> str:
     )
     readout = result.setup.readout
     if discovery is not None and len(discovery.tests):
-        tests = _order(discovery.tests, discovery)
-        frame = pd.DataFrame(
-            {
-                "feature": tests["feature"],
-                **({"table": tests["table"]} if "table" in tests else {}),
-                "condition": tests["condition"],
-                "cells": tests["observations"],
-                "control_cells": tests["control_observations"],
-                "version": [
-                    _version(n, b)
-                    for n, b in zip(tests["normalised"], tests["balanced"], strict=True)
-                ],
-                "d": tests["d"],
-                "p": tests["p_cells"],
-                "adjusted_p": tests["q_cells"],
-                "candidate": tests["passes"],
-            }
-        )
+        frame = _discovery_frame(discovery)
     elif by_condition:
-        from ..sampling_unit.reading_text import _cell_version
-
-        rows = []
-        for condition, row in by_condition.items():
-            label, d, q, _low, _high, p = _cell_version(row)
-            balanced = label.startswith("balanced")
-            # The balanced test draws as many from each repeat: its own counts.
-            repeats = row.get("balanced_repeats", np.nan)
-            cells = row["balanced_cells"] * repeats if balanced else row["observations"]
-            controls = (
-                row["balanced_control_cells"] * repeats if balanced else row["control_observations"]
-            )
-            rows.append(
-                {
-                    "feature": readout,
-                    "condition": condition,
-                    "cells": cells,
-                    "control_cells": controls,
-                    "version": _LABELS.get(label, label),
-                    "d": d,
-                    "p": p,
-                    "adjusted_p": q,
-                    "candidate": bool(pd.notna(q) and q <= ALPHA),
-                }
-            )
-        frame = pd.DataFrame(rows)
+        frame = _readout_frame(by_condition, readout)
     else:
         return ""
+    chance = _chances(frame, by_condition, readout)
+    frame["p_le_0.05_with_no_effect"] = chance
+    many = frame["feature"].nunique() > 1
+    rows = _cells_rows(frame, chance, many)
+    columns = (["feature"] if many else []) + [
+        "condition",
+        f"{result.setup.unit_words} (vs control)",
+        f"d ({result.setup.unit_words})",
+        "p",
+        "adjusted p",
+        "candidate",
+    ]
+    columns += [] if many else ["p ≤ 0.05 with no effect"]
+    caption = _cells_caption(result, frame, chance, many)
+    files = [(write_csv(frame, folder, "tests_cell_level.csv"), "Data (CSV)")]
+    body = caption + _table(columns, rows, "rows") + f'<p class="tools">{data_buttons(files)}</p>'
+    return body + _other_versions(by_condition, frame, readout, result.setup.unit_words)
+
+
+def _chances(frame: pd.DataFrame, by_condition: dict, readout: str) -> list[str]:
+    """Per row, how often the readout's version gives p <= 0.05 with no effect; "–" for
+    another feature or without it."""
     chance = []
     for r in frame.itertuples():
         row = by_condition.get(r.condition) if r.feature == readout else None
         columns = next((c for label, _, c in _VERSIONS if label == r.version), None)
         chance.append(_chance(row, columns) if row is not None and columns else "–")
-    frame["p_le_0.05_with_no_effect"] = chance
-    many = frame["feature"].nunique() > 1
-    rows = [
+    return chance
+
+
+def _cells_rows(frame: pd.DataFrame, chance: list[str], many: bool) -> list[list[str]]:
+    """The screen's table rows: the feature with ``many``, else how often the test gives
+    p <= 0.05 with no effect, last."""
+    return [
         ([r.feature] if many else [])
         + [
             r.condition,
@@ -177,15 +161,64 @@ def _cells(result: Any, folder: Path) -> str:
         + ([] if many else [c])
         for r, c in zip(frame.itertuples(), chance, strict=True)
     ]
-    columns = (["feature"] if many else []) + [
-        "condition",
-        f"{result.setup.unit_words} (vs control)",
-        f"d ({result.setup.unit_words})",
-        "p",
-        "adjusted p",
-        "candidate",
-    ]
-    columns += [] if many else ["p ≤ 0.05 with no effect"]
+
+
+def _discovery_frame(discovery: Any) -> pd.DataFrame:
+    """The screen's rows from the feature discovery: every feature and condition."""
+    tests = _order(discovery.tests, discovery)
+    return pd.DataFrame(
+        {
+            "feature": tests["feature"],
+            **({"table": tests["table"]} if "table" in tests else {}),
+            "condition": tests["condition"],
+            "cells": tests["observations"],
+            "control_cells": tests["control_observations"],
+            "version": [
+                _version(n, b) for n, b in zip(tests["normalised"], tests["balanced"], strict=True)
+            ],
+            "d": tests["d"],
+            "p": tests["p_cells"],
+            "adjusted_p": tests["q_cells"],
+            "candidate": tests["passes"],
+        }
+    )
+
+
+def _readout_frame(by_condition: dict, readout: str) -> pd.DataFrame:
+    """The screen's rows of the readout alone (one feature), in the version the reading
+    trusts."""
+    from ..sampling_unit.reading_text import _cell_version
+
+    rows = []
+    for condition, row in by_condition.items():
+        label, d, q, _low, _high, p = _cell_version(row)
+        balanced = label.startswith("balanced")
+        # The balanced test draws as many from each repeat: its own counts.
+        repeats = row.get("balanced_repeats", np.nan)
+        cells = row["balanced_cells"] * repeats if balanced else row["observations"]
+        controls = (
+            row["balanced_control_cells"] * repeats if balanced else row["control_observations"]
+        )
+        rows.append(
+            {
+                "feature": readout,
+                "condition": condition,
+                "cells": cells,
+                "control_cells": controls,
+                "version": _LABELS.get(label, label),
+                "d": d,
+                "p": p,
+                "adjusted_p": q,
+                "candidate": bool(pd.notna(q) and q <= ALPHA),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _cells_caption(result: Any, frame: pd.DataFrame, chance: list[str], many: bool) -> str:
+    """What the screen's table holds, the balance of the repeats, and with several features
+    how often the test gives p <= 0.05 with no effect, for the readout."""
+    readout = result.setup.readout
     versions = list(dict.fromkeys(frame["version"]))
     caption = (
         f"<p>Every {result.setup.unit_word} against the control's, "
@@ -193,7 +226,9 @@ def _cells(result: Any, folder: Path) -> str:
         "adjusted p ≤ 0.05.</p>"
     )
     # The balance of the repeats, once, here (owner, 2026-10-02).
-    caption += "".join(f"<p>{html.escape(line)}</p>" for line in balance_lines(contrast))
+    caption += "".join(
+        f"<p>{html.escape(line)}</p>" for line in balance_lines(result.results.get("contrast"))
+    )
     known = [(r.condition, c) for r, c in zip(frame.itertuples(), chance, strict=True) if c != "–"]
     if known and many:
         rates = "; ".join(f"{condition}: {c}" for condition, c in known)
@@ -202,9 +237,7 @@ def _cells(result: Any, folder: Path) -> str:
             f"for the readout ({html.escape(readout)}): {html.escape(rates)}. With independent "
             f"{result.setup.unit_words} it would be 5%; above it, its p is too small.</p>"
         )
-    files = [(write_csv(frame, folder, "tests_cell_level.csv"), "Data (CSV)")]
-    body = caption + _table(columns, rows, "rows") + f'<p class="tools">{data_buttons(files)}</p>'
-    return body + _other_versions(by_condition, frame, readout, result.setup.unit_words)
+    return caption
 
 
 def _other_versions(

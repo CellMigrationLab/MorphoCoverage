@@ -109,49 +109,16 @@ def flagged_fields(result: Any) -> tuple[list[tuple[str, str]], list[tuple[Any, 
     fields' identities (their values of the key) and the key's columns. The new states are
     exploratory and listed apart (``new_state_fields``), never among the fields to remove."""
     results = getattr(result, "results", {}) or {}
-    rows: list[tuple[str, str]] = []
     identities: list[tuple[Any, ...]] = []
     key: list[str] = []
     integrity = results.get("integrity")
-    named: list[str] = []
-    if integrity is not None and len(integrity.findings):
-        labels = integrity.settings.get("field_labels", {})
-        for finding in integrity.findings.itertuples():
-            # Of a pair of copies one is the original: the code lists the other (the copy).
-            named.append(str(finding.other_field))
-            field = labels.get(finding.field, finding.field)
-            other = labels.get(finding.other_field, finding.other_field)
-            same = isinstance(other, str) and other and other != field
-            # The first clause of the detail; the rest is in the full text.
-            detail = re.sub(r"\s*\([^)]*\)", "", str(finding.detail).split(": ")[0])
-            why = f"{finding.check}: {detail}" + (f" (with {other})" if same else "")
-            rows.append((str(field), why))
+    rows, named = _integrity_rows(integrity)
     inspection = results.get("inspection")
     anomalies = results.get("acquisition")
     if anomalies is not None and anomalies.found:
-        key = list(anomalies.settings["fov_key"])
-        for row in anomalies.fields.to_dict("records"):
-            side = "above" if row["z"] > 0 else "below"
-            why = (
-                f"far from its condition and repeat: {row['feature']}, "
-                f"{abs(row['z']):.1f} SDs {side}, {difference_words(row)}"
-            )
-            rows.append((str(row["field"]), why))
-            identities.append(tuple(row[c] for c in key))
+        key = _add_anomalies(anomalies, rows, identities)
     if inspection is not None and not inspection.fovs.empty:
-        groups, fov_key, _ = _keys(inspection)
-        key = [*groups, *fov_key]
-        for group, name, own in _fields(inspection):
-            own = own[own["reason"] != "new state"]
-            if own.empty:
-                continue
-            label = " · ".join(p for p in (group_label(group) if groups else "", name) if p)
-            rows.append((label, "; ".join(own["detail"])))
-            # Flagged only for cells of the declared rare label: biology, never an artefact.
-            if own["detail"].astype(str).str.contains("(all labelled", regex=False).all():
-                continue
-            first = own.iloc[0]
-            identities.append(tuple(first[c] for c in key))
+        key = _add_inspected(inspection, rows, identities)
     columns = integrity.settings.get("field_columns", []) if integrity is not None else []
     key = key or list(columns)
     if named and list(columns) == key:
@@ -160,6 +127,63 @@ def flagged_fields(result: Any) -> tuple[list[tuple[str, str]], list[tuple[Any, 
         typed = integrity.settings["field_keys"]
         identities = [typed[name] for name in dict.fromkeys(named) if name in typed] + identities
     return rows, identities, key
+
+
+def _integrity_rows(integrity: Any) -> tuple[list[tuple[str, str]], list[str]]:
+    """The integrity's ``(field, why)`` rows and the fields it names, the copy of each pair."""
+    rows: list[tuple[str, str]] = []
+    named: list[str] = []
+    if integrity is None or not len(integrity.findings):
+        return rows, named
+    labels = integrity.settings.get("field_labels", {})
+    for finding in integrity.findings.itertuples():
+        # Of a pair of copies one is the original: the code lists the other (the copy).
+        named.append(str(finding.other_field))
+        field = labels.get(finding.field, finding.field)
+        other = labels.get(finding.other_field, finding.other_field)
+        same = isinstance(other, str) and other and other != field
+        # The first clause of the detail; the rest is in the full text.
+        detail = re.sub(r"\s*\([^)]*\)", "", str(finding.detail).split(": ")[0])
+        why = f"{finding.check}: {detail}" + (f" (with {other})" if same else "")
+        rows.append((str(field), why))
+    return rows, named
+
+
+def _add_anomalies(
+    anomalies: Any, rows: list[tuple[str, str]], identities: list[tuple[Any, ...]]
+) -> list[str]:
+    """Add the acquisition anomalies' fields to ``rows`` and ``identities``; their key."""
+    key = list(anomalies.settings["fov_key"])
+    for row in anomalies.fields.to_dict("records"):
+        side = "above" if row["z"] > 0 else "below"
+        why = (
+            f"far from its condition and repeat: {row['feature']}, "
+            f"{abs(row['z']):.1f} SDs {side}, {difference_words(row)}"
+        )
+        rows.append((str(row["field"]), why))
+        identities.append(tuple(row[c] for c in key))
+    return key
+
+
+def _add_inspected(
+    inspection: Any, rows: list[tuple[str, str]], identities: list[tuple[Any, ...]]
+) -> list[str]:
+    """Add the inspection's fields, but for their new states, to ``rows`` and ``identities``;
+    their key."""
+    groups, fov_key, _ = _keys(inspection)
+    key = [*groups, *fov_key]
+    for group, name, own in _fields(inspection):
+        own = own[own["reason"] != "new state"]
+        if own.empty:
+            continue
+        label = " · ".join(p for p in (group_label(group) if groups else "", name) if p)
+        rows.append((label, "; ".join(own["detail"])))
+        # Flagged only for cells of the declared rare label: biology, never an artefact.
+        if own["detail"].astype(str).str.contains("(all labelled", regex=False).all():
+            continue
+        first = own.iloc[0]
+        identities.append(tuple(first[c] for c in key))
+    return key
 
 
 def new_state_fields(result: Any) -> tuple[list[tuple[str, str]], list[str]]:
