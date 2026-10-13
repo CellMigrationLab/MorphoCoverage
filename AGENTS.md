@@ -517,6 +517,9 @@ data/
                            # dataset; run_lab.py runs the report, FINDINGS.md logs each run (rules in data/lab/README.md:
                            # only pinned public or owner-released sources, never a manuscript)
     morphobricks/          # small tables as the other MorphoBricks tools write them (fiberfeatures_patches.csv), with provenance
+    reference/             # the reference check (README.md): reference.py runs every committed analysis (jobs.txt) on a
+                           # commit or the working tree, outputs outside the repository, and compares two runs
+                           # file for file, the run's stamps removed (reference_compare.py); reference_job.py, one job
     simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py,
                            # unusual_calibration.py, whole_table.py, beyond_the_mean.py) and results;
                            # decisions/: the benchmark fixed before its runs (docs/common/validation.md, owner 2026-10-06)
@@ -672,6 +675,8 @@ python -m ruff format --check src tests data
 ```
 
 The whole suite runs locally before every push. On GitHub a pull request runs only lint, formatting, the install, the import, the guard tests (`tests/test_guards.py`, `tests/test_function_guards.py`, `tests/test_function_tools.py`) and the baseline check against the base branch (`python tools/audit.py --check-against HEAD^1`), also when it changes only the generated index; the whole suite runs on demand from the Actions tab (`.github/workflows/tests.yml`, owner 2026-10-05; guards owner 2026-10-12).
+
+A change that must not change behaviour (a refactor, a clean-up, a move) and an audit run the reference check of [`data/reference`](data/reference/README.md): every committed analysis on main and on the change, outputs outside the repository, compared file for file (`python data/reference/reference.py compare`); 0 differences is the proof, and a change that alters outputs on purpose lists them with it. Its README gives the run time of the whole committed tier and the subsets (`--only`, `--skip`).
 
 Never claim a command passed unless it actually ran successfully.
 

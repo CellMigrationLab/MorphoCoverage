@@ -191,6 +191,7 @@
     "data.lab.cct8_cdm_morphology.convert = Path(__file__).resolve().parent",
     "data.lab.cct8_filopodia_screen.convert = Path(__file__).resolve().parent",
     "data.lab.run_lab = Path(__file__).resolve().parent",
+    "data.reference.reference = Path(__file__).resolve().parent",
     "data.scenarios.make_scenarios = Path(__file__).resolve().parent",
     "data.simulations.decisions.real_parameters = Path(__file__).resolve().parent",
     "data.synthetic.make_synthetic = Path(__file__).resolve().parent"
