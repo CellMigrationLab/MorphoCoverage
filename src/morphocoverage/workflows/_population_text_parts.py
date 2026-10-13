@@ -1,6 +1,6 @@
-"""Parts of question 10's text (private; ``_populations``): how the groups were searched (the
-method), the answer when none could be or none was found, the conditions not compared and
-the assumptions.
+"""Parts of question 10's text (private; ``_populations``, whose ``PopulationsResult`` they
+read): how the groups were searched (the method), the answer when none could be or none was
+found, the conditions not compared and the assumptions.
 """
 
 from __future__ import annotations
@@ -13,11 +13,10 @@ from ._population_context import EXPERIMENTS_DIFFER
 from ._population_spaces import no_own_control_words, spaces_method
 
 if TYPE_CHECKING:
-    from ._populations import PopulationsResult
     from .setup import Setup
 
 
-def population_method(result: PopulationsResult, setup: Setup) -> str:
+def population_method(result: Any, setup: Setup) -> str:
     """How the groups were searched: the observations pooled, the clustering and the check,
     with the observations left out for want of their own control and the normalisation."""
     pops = result.populations
@@ -82,7 +81,7 @@ def no_group_answer(method: str, pops: Any, setup: Setup) -> tuple[Status, str, 
     return None
 
 
-def unpaired_lines(result: PopulationsResult) -> list[str]:
+def unpaired_lines(result: Any) -> list[str]:
     """The conditions not compared, imaged in no biological repeat of the control."""
     unpaired = result.enrichment.attrs.get("unpaired", []) if result.enrichment is not None else []
     if not unpaired:
