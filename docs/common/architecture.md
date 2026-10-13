@@ -156,7 +156,7 @@ Leakage guards enforced by the runner:
 
 - the complete linked tables are validated once, so observations from FOVs missing from the FOV table raise rather than never being revealed;
 - acquisition order must have no ties within an analysis group; a pooled analysis therefore needs an order defined across the pooled FOVs;
-- the acquisition order column cannot be a phenotype feature, and must be numeric, datetime or timedelta (text would sort `'10'` before `'2'`);
+- the acquisition order column cannot be a phenotype feature, and must be complete and numeric, datetime or timedelta (text would sort `'10'` before `'2'`; a categorical column is refused, since a field revealed alone keeps only its own category; owner, 2026-10-12);
 - visible tables are re-indexed and categorical columns drop unused categories, so neither row labels nor category levels reveal withheld FOVs or other groups.
 
 The runner cannot detect leakage introduced upstream, such as features normalized or projected over the whole dataset before they reach MorphoCoverage. That must be recorded as provenance.

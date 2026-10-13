@@ -202,10 +202,10 @@ def check_order_col(fovs: pd.DataFrame, order_col: str, purpose: str) -> None:
     A field with no order value has no place in the order: sorting would put it
     last without saying so, and the full and the incremental evaluation could
     place it differently. Text is refused rather than sorted as text, where
-    ``"10"`` comes before ``"2"``; booleans are not an order either. This is the
-    rule ``sequential._check_order_values`` applies to the acquisition order
-    (kept there as its own function), so a pilot or a plateau window follows the
-    order a replay would. A categorical column is refused (``TypeError``): a
+    ``"10"`` comes before ``"2"``; booleans are not an order either. The replay
+    checks its acquisition order with it too (``sequential.REPLAY_PURPOSE``; owner,
+    2026-10-12), so a pilot or a plateau window follows the order a replay would.
+    A categorical column is refused (``TypeError``): a
     newly revealed FOV carries only its own category (the framework hides the
     categories of FOVs not yet seen), so its category order cannot be kept FOV
     by FOV. ``purpose`` names what needs the order, for the message.
