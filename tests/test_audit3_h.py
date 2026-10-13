@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import morphocoverage._plots_clusters as intervals_module  # where the intervals are drawn
 import morphocoverage.plots as plots_module
 from morphocoverage import schema
 from morphocoverage._seeds import group_identity
@@ -66,13 +67,13 @@ def _without_technical(objects, fovs):
 def _spy(monkeypatch):
     """The units every plotted interval resampled: per call, the fields of each unit."""
     calls = []
-    original = plots_module.bootstrap_nested
+    original = intervals_module.bootstrap_nested
 
     def spy(units, *args, **kwargs):
         calls.append([len(unit) for unit in units])
         return original(units, *args, **kwargs)
 
-    monkeypatch.setattr(plots_module, "bootstrap_nested", spy)
+    monkeypatch.setattr(intervals_module, "bootstrap_nested", spy)
     return calls
 
 

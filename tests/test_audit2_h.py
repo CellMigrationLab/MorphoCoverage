@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 from matplotlib.collections import LineCollection
 
-import morphocoverage.plots as plots_module
+import morphocoverage._plots_clusters as intervals_module  # where the intervals are drawn
 from morphocoverage.plots import plots_of_data
 from morphocoverage.sampling_unit import (
     condition_contrast,
@@ -465,13 +465,13 @@ def test_j8_plot_intervals_include_empty_fields(monkeypatch):
                 for v in rng.normal(10 + 2 * j, 1, size=20)
             ]
     captured = []
-    original = plots_module.bootstrap_nested
+    original = intervals_module.bootstrap_nested
 
     def spy(units, *args, **kwargs):
         captured.append([len(unit) for unit in units])
         return original(units, *args, **kwargs)
 
-    monkeypatch.setattr(plots_module, "bootstrap_nested", spy)
+    monkeypatch.setattr(intervals_module, "bootstrap_nested", spy)
     plots_of_data(
         pd.DataFrame(rows), pd.DataFrame(fov_rows), features=["x"], group_cols=[], n_boot=20
     )
