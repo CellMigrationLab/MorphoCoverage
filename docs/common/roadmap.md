@@ -88,6 +88,12 @@ can shorten.
 
 **M0:** ENG-1 to ENG-8 pass.
 
+Added after M0 (owner, 2026-10-13), due before AUD-1:
+
+| Id | What | Pass condition |
+|---|---|---|
+| ENG-9 | Every test file and test function is checked for whether it is still useful. Each test is classified:<br>- keep;<br>- merge with a test that checks the same thing;<br>- remove, because the behaviour it pins is gone, or another test pins it more directly;<br>- rename, when its name carries an audit, review or issue id such as `test_a3_…` or `test_issue_160_…`, so that it says what it guards against.<br>Removals and merges are listed with their reason. Renames get an old-to-new table, since they change the test ids. | Coverage of `src/` by the suite does not drop: every line covered before is covered after, measured with `coverage` before and after. The full suite passes. The suite's run time is recorded before and after. Every removal names the test, or the change, that makes it redundant. |
+
 ## DATA: the data the plan needs (starts now)
 
 ### What exists
