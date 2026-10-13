@@ -3,7 +3,7 @@ mean of a feature differs from the means of its nearest fields on the stage.
 
 Split from ``inspection`` (owner, 2026-10-06, audit 10) to keep that module under 600
 lines; the reason and its thresholds are described there. Shared-private: used by
-``retrospective.inspection``.
+``retrospective._field_reasons``, which holds inspection's reasons.
 """
 
 from __future__ import annotations

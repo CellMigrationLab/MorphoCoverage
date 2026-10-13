@@ -461,7 +461,7 @@
    "_POPULATION": [
     "_next_fov = ObjectiveConfig(SamplingObjective.POPULATION)",
     "calibration = ObjectiveConfig(SamplingObjective.POPULATION)",
-    "retrospective.inspection = ObjectiveConfig(SamplingObjective.POPULATION)"
+    "retrospective._field_reasons = ObjectiveConfig(SamplingObjective.POPULATION)"
    ],
    "_RUN": [
     "retrospective.frontier = ['split', 'order_id']",
