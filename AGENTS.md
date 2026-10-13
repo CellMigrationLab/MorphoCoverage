@@ -287,6 +287,7 @@ src/morphocoverage/
         reliability_text.py  # its sentences
         effect_preservation.py  # k fields a side against held-back fields: is each repeat's difference from the control kept?
         replay.py          # replayed orders against a fixed reservoir: decisions and outcomes
+        _replay_parts.py   # private: one run's decisions and scores, the groups that can be replayed, the checks of the tables
         calibration.py     # stopping-rule calibration: how often a rule's stop was premature
         adequacy.py        # first and sustained apparent and realized adequacy points
         adequacy_text.py   # its words: "what did the extra fields buy?", short and full
