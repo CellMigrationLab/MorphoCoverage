@@ -101,6 +101,21 @@ JOBS = {"explainable": explainable}
 Each entry becomes the job `owner <name>`, run and compared like the others (`--skip owner`
 leaves them out). The file is imported in the tree under test, so it uses that commit's package.
 
+## Run time
+
+Two runs of the whole committed tier (56 jobs) on main at 787472b, 2026-10-13, on a machine of
+4 CPUs shared with other work, with `nice` and `--parallel 2`:
+
+| run | wall clock | of which the `idr` job |
+|---|---|---|
+| first | 49 min (2943 s) | 42 min (2498 s) |
+| second | 37 min (2198 s) | 31 min (1857 s) |
+
+The `idr` job sets the wall clock. The 55 report jobs take 2 s (a user mistake) to 1.5 min
+each, 56 and 42 min in all in these runs, so `--skip idr` should take about 25 min at
+`--parallel 2` (estimated, not timed). The two runs agreed file for file: 1584 files compared,
+391 of them different byte for byte before the stamps were removed, `0 differences` after.
+
 ## Notes
 
 A `TMPDIR` path longer than about 70 characters breaks the worker pools of the `idr` scripts
