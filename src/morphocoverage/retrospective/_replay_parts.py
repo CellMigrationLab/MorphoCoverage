@@ -14,7 +14,7 @@ from .._stage_coordinates import stage_matrix, stage_names
 from ..evaluator import iter_analysis_groups
 from ..objectives import ObjectiveConfig
 from ..schema import ValidatedInput
-from ..sequential import REPLAY_PURPOSE, _Acquisition, _replay_strategies
+from ..sequential import REPLAY_ARGUMENT, REPLAY_PURPOSE, _Acquisition, _replay_strategies
 from ..strategies.base import SamplingStrategy, check_order_col
 from ._run_identity import RUN_FINGERPRINT, run_fingerprint
 from .criteria import OutcomeCriterion
@@ -143,7 +143,7 @@ def _check_tables(
     if acquisition_order_col is not None:
         if acquisition_order_col not in data.fovs.columns:
             raise ValueError(f"fovs is missing required columns: {[acquisition_order_col]}")
-        check_order_col(data.fovs, acquisition_order_col, REPLAY_PURPOSE)
+        check_order_col(data.fovs, acquisition_order_col, REPLAY_PURPOSE, REPLAY_ARGUMENT)
     if stage_cols is not None:
         stage_cols = stage_names(stage_cols)
         stage_matrix(data.fovs, stage_cols)  # real, finite, complete: before any order is made

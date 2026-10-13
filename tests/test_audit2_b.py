@@ -165,12 +165,14 @@ def test_b3_text_acquisition_order_is_refused():
 
 
 def test_a_categorical_or_incomplete_acquisition_order_is_refused_naming_the_replay():
-    # Owner, 2026-10-12: the replay checks its order as a pilot does (check_order_col).
+    # Owner, 2026-10-12: the replay checks its order as a pilot does (check_order_col), its
+    # messages naming the replay's argument.
     fovs = pd.DataFrame({"position_id": [f"p{i}" for i in range(1, 13)], "order": range(12)})
     objects = pd.DataFrame({"position_id": np.repeat(fovs.position_id, 2), "f": np.arange(24.0)})
     categorical = fovs.assign(order=pd.Categorical(range(12), ordered=True))
     replay = "the replay of the acquisition order"
-    with pytest.raises(TypeError, match=f"'order' is categorical.*give {replay} its order"):
+    named = "acquisition_order_col 'order'"  # the replay's own argument, not order_col
+    with pytest.raises(TypeError, match=f"{named} is categorical.*give {replay} its order"):
         evaluate_acquisition_prefixes(
             objects,
             categorical,
@@ -179,7 +181,7 @@ def test_a_categorical_or_incomplete_acquisition_order_is_refused_naming_the_rep
             acquisition_order_col="order",
             objective=POPULATION,
         )
-    with pytest.raises(TypeError, match=f"'order' is categorical.*give {replay} its order"):
+    with pytest.raises(TypeError, match=f"{named} is categorical.*give {replay} its order"):
         replay_acquisitions(
             objects,
             categorical,
@@ -191,7 +193,7 @@ def test_a_categorical_or_incomplete_acquisition_order_is_refused_naming_the_rep
             acquisition_order_col="order",
         )
     gap = fovs.assign(order=[np.nan, *range(1, 12)])
-    with pytest.raises(ValueError, match=f"missing values; {replay} needs an order value"):
+    with pytest.raises(ValueError, match=f"{named} has missing values; {replay} needs an"):
         evaluate_acquisition_prefixes(
             objects,
             gap,

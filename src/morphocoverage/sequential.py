@@ -8,8 +8,8 @@ row position therefore see the same rows in a replay and at the microscope.
 Shared-private helpers: ``_evaluate_prefixes``, ``_in_acquisition_order``,
 ``_Acquisition``, ``_replay_strategies``, ``_strategy_units`` and ``_interleave`` are also
 used by ``benchmark`` and ``retrospective.replay``, so that every replay reveals FOVs the
-same way; both check the order column with ``strategies.base.check_order_col`` and
-``REPLAY_PURPOSE``.
+same way; both check the order column with ``strategies.base.check_order_col``,
+``REPLAY_PURPOSE`` and ``REPLAY_ARGUMENT``.
 They are private to the package (not part of its public API) and may change
 with it.
 """
@@ -39,8 +39,9 @@ from .results import StrategyResult
 from .schema import ValidatedInput, fov_positions
 from .strategies.base import SamplingStrategy, check_order_col
 
-# What needs the acquisition order, for the messages of ``check_order_col``.
+# What needs the acquisition order and the argument naming it, for ``check_order_col``.
 REPLAY_PURPOSE = "the replay of the acquisition order"
+REPLAY_ARGUMENT = "acquisition_order_col"
 
 
 @dataclass(frozen=True)
@@ -147,7 +148,7 @@ def _evaluate_prefixes(
         observation_unit=observation_unit,
     )
     # The values after validation, which refuses a column named twice before it is read.
-    check_order_col(data.fovs, acquisition_order_col, REPLAY_PURPOSE)
+    check_order_col(data.fovs, acquisition_order_col, REPLAY_PURPOSE, REPLAY_ARGUMENT)
     strategy_list = list(strategies)
     groups = list(iter_analysis_groups(data))
     _check_min_fovs(groups, min_fovs)
