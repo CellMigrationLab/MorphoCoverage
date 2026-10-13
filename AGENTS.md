@@ -379,6 +379,7 @@ src/morphocoverage/
         __init__.py        # the subpackage's public names
         setup.py           # Setup: every scientific choice of the workflows, declared once
         _setup_parts.py    # private: the positive control, the default definition of new and the presets' checks, re-exported by setup
+        _setup_checks.py   # private: the checks Setup.__post_init__ runs, in its order, with the messages the user reads
         _feature_space.py  # private: the Setup's feature tables: explainable ones by table, the weighted combined space, the centred view, the tables attached, the space of unusual observations
         _fingerprint_space.py  # private: a wide table's fingerprint on its first k principal components (k at most a fifth of the median judged group), or not assessable
         _whole_table.py    # private: the whole-table test in the report: the comparisons, the words in question 9, the page's block and CSV
@@ -392,6 +393,7 @@ src/morphocoverage/
         _one_per_field.py    # private: one observation per field: the field questions on the rows, new judged across fields
         scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
+        _scan_parts.py     # private: parts of the scan: the controls as declared, the feature tables by tag, planes, targets, observations per condition and repeat
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)
         html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
         _html_render.py    # private: the report's text as HTML, glossary term links, status chips
@@ -423,6 +425,7 @@ src/morphocoverage/
         _declaration.py    # private: the Setup's declaration in sentences, every preset printed
         _declaration_rare.py  # private: the rare phenotype's sentences of the declaration (split out of _declaration)
         retrospective.py   # report, optimise, document: the analyses in question order
+        _report_steps.py   # private: steps of report and optimise: the overview, the positive control, the questions between conditions, the document, the replay's analyses
         benchmarks.py      # benchmark, Family, default_families: the rule families at matched risk
         _document.py       # private: the assembled report of the workflows, its parts and settings
         _enough_features.py  # private: "Did I image enough?" for every feature alike (light contrasts, precision)
@@ -441,8 +444,10 @@ src/morphocoverage/
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
         _manifest.py       # private: the live folder's files (write_fov, the manifest reader), re-exported by live
         _live_order.py     # private: the live session that runs the order check of each group's fields so far
+        _live_watch.py     # private: when LiveFolder.watch stops: its arguments checked, a field's results ending its group
         _live_text.py      # private: the text of one live update (LiveUpdate.summary)
         _shared.py         # private: input checks, orders, rule replays on raw values, outcomes on normalised ones
+        _shared_parts.py   # private: steps of the analyses in _shared: unusual observations and their clustering, the feature discovery and ranking
     strategies/
         __init__.py        # the exported strategies, estimators and policies
         base.py            # Estimator interface; SamplingStrategy = estimators + policies

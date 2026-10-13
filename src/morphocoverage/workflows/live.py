@@ -87,10 +87,11 @@ from ..metadata import (
 from ..objectives import ObjectiveConfig
 from ..online import OnlineSession
 from ..order_check import OrderCheck
-from ..results import Decision, StrategyResult, _target_decisions
+from ..results import StrategyResult
 from ..strategies.base import SamplingStrategy
 from ._live_order import _CheckedSession, _order_check, embedding_columns
 from ._live_text import live_summary
+from ._live_watch import check_watch, done
 from ._manifest import (
     MANIFEST,
     OBJECTS_DIR,
@@ -349,12 +350,7 @@ class LiveFolder:
 
         Stop with Ctrl-C at any time; the updates so far are kept in ``updates``.
         """
-        if interval <= 0:
-            raise ValueError("interval must be positive")
-        if until_stop not in (False, True, "all_groups", "latest_group"):
-            raise ValueError("until_stop must be False, True, 'all_groups' or 'latest_group'")
-        if stop_on not in ("decision", "rule"):
-            raise ValueError(f"stop_on must be 'decision' or 'rule', not {stop_on!r}")
+        check_watch(interval, until_stop, stop_on)
         started = time.monotonic()
         seen: list[LiveUpdate] = []
         latest: dict[tuple, bool] = {}  # each group's latest field: done
@@ -365,7 +361,7 @@ class LiveFolder:
                     if on_update is not None:
                         on_update(update)
                     group = tuple(update.results[0].group.items()) if update.results else ()
-                    latest[group] = _done(update.results, stop_on)
+                    latest[group] = done(update.results, stop_on)
                     if until_stop == "latest_group" and latest[group]:
                         return seen
                     if until_stop in (True, "all_groups") and all(latest.values()):
@@ -377,15 +373,6 @@ class LiveFolder:
                 time.sleep(interval)
         except KeyboardInterrupt:  # fallback: Ctrl-C stops watching; the FOVs seen are kept
             return seen
-
-
-def _done(results: Sequence[StrategyResult], stop_on: str) -> bool:
-    """Whether one field's results end its group's acquisition (see ``LiveFolder.watch``)."""
-    if not results:
-        return False
-    if stop_on == "rule":
-        return all(r.rule_decision is Decision.STOP for r in results)
-    return _target_decisions(results)[-1].decision is Decision.STOP
 
 
 class LiveTables:
@@ -536,45 +523,55 @@ class LiveTables:
         # Before any field is added: a key that names two fields would pool their objects.
         self._check_fov_keys(fovs, new_fovs, key)
         if not new_objects.empty:
-            late = [k for k in self._keys(new_objects, key) if k in self._added]
-            if late:
-                raise ValueError(
-                    f"objects appended for field(s) already added {sorted(set(late))[:3]}; "
-                    "append a field's objects before its FOV row"
-                )
+            self._check_late(new_objects, key)
             self._buffer = self._appended(new_objects)
         self._n_objects = len(objects)
         updates = []
         # Records keep each column's type; iterrows would turn integers into floats
         # when every other column is numeric.
         for metadata in new_fovs.to_dict("records"):
-            started = time.perf_counter()
-            fov_key = tuple(metadata[c] for c in key)
-            if self._buffer is not None and len(self._buffer):
-                mine = [k == fov_key for k in self._keys(self._buffer, key)]
-                selected = self._buffer.loc[mine] if any(mine) else self._buffer.iloc[:0]
-            else:
-                mine, selected = [], objects.iloc[:0]
-            read = time.perf_counter() - started
-            results = self.session.add_fov(selected.reset_index(drop=True), metadata)
-            # Consume the row and its objects only once the session has the field: a field
-            # that raises stays in place and is tried again on the next update.
-            if any(mine):
-                self._buffer = self._buffer.loc[[not m for m in mine]]
-            self._added.add(fov_key)
-            self._n_fovs += 1
-            update = LiveUpdate(
-                metadata,
-                len(selected),
-                results,
-                read,
-                self.pending_objects,
-                self.session.observation_unit,
-                _order_check(self.session, results),
-            )
-            updates.append(update)
-            self.updates.append(update)
+            updates.append(self._add_field(metadata, key, objects))
         return updates
+
+    def _check_late(self, new_objects: pd.DataFrame, key: tuple[str, ...]) -> None:
+        """Refuse objects appended for a field already added."""
+        late = [k for k in self._keys(new_objects, key) if k in self._added]
+        if late:
+            raise ValueError(
+                f"objects appended for field(s) already added {sorted(set(late))[:3]}; "
+                "append a field's objects before its FOV row"
+            )
+
+    def _add_field(
+        self, metadata: dict[str, Any], key: tuple[str, ...], objects: pd.DataFrame
+    ) -> LiveUpdate:
+        """Add the field of one FOV row with its buffered objects, and return its update."""
+        started = time.perf_counter()
+        fov_key = tuple(metadata[c] for c in key)
+        if self._buffer is not None and len(self._buffer):
+            mine = [k == fov_key for k in self._keys(self._buffer, key)]
+            selected = self._buffer.loc[mine] if any(mine) else self._buffer.iloc[:0]
+        else:
+            mine, selected = [], objects.iloc[:0]
+        read = time.perf_counter() - started
+        results = self.session.add_fov(selected.reset_index(drop=True), metadata)
+        # Consume the row and its objects only once the session has the field: a field
+        # that raises stays in place and is tried again on the next update.
+        if any(mine):
+            self._buffer = self._buffer.loc[[not m for m in mine]]
+        self._added.add(fov_key)
+        self._n_fovs += 1
+        update = LiveUpdate(
+            metadata,
+            len(selected),
+            results,
+            read,
+            self.pending_objects,
+            self.session.observation_unit,
+            _order_check(self.session, results),
+        )
+        self.updates.append(update)
+        return update
 
     def _appended(self, new_objects: pd.DataFrame) -> pd.DataFrame:
         """The buffer with ``new_objects`` appended."""

@@ -47,31 +47,18 @@ import pandas as pd
 from .._checks import is_share
 from .._integrity_tables import integrity_by_table
 from ..feature_tables import any_explainable
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..retrospective import (
     MicroscopistReport,
-    RepresentationControl,
     Summary,
-    adequacy_points,
-    dataset_overview,
-    effort_projection,
     inspect_fovs,
-    order_efficiency,
     protocol_reliability,
-    redundancy_distance,
-    representation_control,
-    sampling_reliability,
-    stopping_calibration,
 )
+from ..retrospective.hierarchy import SamplingHierarchy
 from ..sampling_unit import (
     fov_variability,
 )
 from ..schema import resolve_observation_unit
 from ..sufficiency import sufficiency_report
-from ._acquisition_block import acquisition_in_report, gap_moved, with_acquisition
-from ._acquisition_gap import with_gap_caution, with_gaps
-from ._contrasts import experiments
-from ._distribution import distribution_by_feature
 from ._document import (
     assemble,
     no_hierarchy_reasons,
@@ -82,23 +69,23 @@ from ._document import (
     with_settings,
 )
 from ._embedding_report import embedding_plan, embedding_report, plan_document
-from ._enough_features import enough_by_feature
-from ._enough_targets import NO_TARGET, fingerprint_precision
 from ._feature_space import (
-    analysed_tables,
     attached,
-    centring_line,
     copy_tables,
     novelty_space,
-    separation_in_report,
-    table_columns,
-    table_lines,
 )
 from ._fingerprint_space import fingerprint_space
 from ._label_control import label_control
 from ._one_per_field import field_setup, listed_once, one_per_field, one_per_field_reasons
-from ._populations import populations_in_report
-from ._rare_share import unlabelled_note
+from ._report_steps import (
+    check_criteria,
+    comparisons,
+    overview,
+    positive_control,
+    reliability,
+    replay_results,
+    report_document,
+)
 from ._result_influence import influence_on_result, with_result_influence
 from ._results import (
     CALIBRATION_SHORT,
@@ -111,7 +98,6 @@ from ._results import (
 )
 from ._shared import (
     check_workflow_inputs,
-    conditions,
     control_checks,
     rare_clustering,
     replay_rules,
@@ -121,7 +107,6 @@ from ._shared import (
 )
 from ._shared import orders as _orders
 from ._source import same_source, source_identity
-from ._whole_table import whole_table_in_report
 from .benchmarks import Benchmark, Family, benchmark, default_families
 from .setup import Setup
 
@@ -184,29 +169,14 @@ def report(
         return replace(
             embedding_report(objects, fovs, setup, data_check, tables, integrity), source=source
         )
-    common = setup.common
-    readout = setup.readout
     # One observation per field (one cell per image): the field questions run on the rows as
     # fields, new judged across fields; only the ideas within a field are said not to apply
     # (owner, 2026-10-06, plan v2).
     per_field = not one_per_field(objects, fovs, setup)
     reasons: dict[str, str] = {} if per_field else one_per_field_reasons(setup)
     declared, setup = setup, setup if per_field else field_setup(setup)
-    novelty = setup.novelty
-    results: dict[str, Any] = {
-        "overview": dataset_overview(
-            objects,
-            fovs,
-            feature_cols=setup.columns,
-            normalized=setup.normalized_sentence(fovs, objects),
-            control=setup.single_control,
-            data_check=data_check,
-            feature_tables=table_lines(setup, tables, centring_line(objects, fovs, setup)),
-            control_experiments=experiments(setup),
-            **common,
-        ),
-    }
-    results["variability"] = fov_variability(objects, fovs, feature=readout, **common)
+    results: dict[str, Any] = {"overview": overview(objects, fovs, setup, data_check, tables)}
+    results["variability"] = fov_variability(objects, fovs, feature=setup.readout, **setup.common)
     prepared = setup.prepared(objects, fovs)
     # The definition of new reads the normalised values when normalize is declared (plan v2).
     novel = prepared if setup.normalize is not None else objects
@@ -216,129 +186,100 @@ def report(
         # The labelled rare state is a positive control of its own (owner, 2026-10-02).
         results["label_control"] = label_control(objects, fovs, setup)
     # "New" is judged on the declared features alone, whatever the tables (owner, 2026-10-06).
-    combined, novelty_cols = novelty_space(setup)
+    space = novelty_space(setup)
     # Setup guarantees features and novelty with it; judged only where novelty is.
-    if setup.positive is not None and novelty is not None:
-        positive = setup.positive
-        results["controls"] = representation_control(
-            novel,
-            fovs,
-            feature_cols=novelty_cols,
-            novelty=combined,
-            control=RepresentationControl(
-                positive=positive.selector,
-                reference=setup.reference_control,
-                planted_objects=positive.planted_objects,
-            ),
-            pair_cols=list(positive.resolved_pair_cols(fovs)),
-            fovs_seen=positive.fovs_seen,
-            draws=positive.draws,
-            random_state=setup.random_state,
-            fov_col=setup.fov_col,
-            observation_unit=setup.observation_unit,
-            n_jobs=setup.n_jobs,
-            # Group columns beyond condition and repeat (a well, say) still name the FOV.
-            identity_cols=[
-                c for c in (setup.group_cols or ()) if c not in MORPHOBRICKS_GROUP_COLUMNS
-            ],
-            # The leave-one-field-out rates within the inspection's analysis groups.
-            lofo_group_cols=common["group_cols"],
-        )
+    if setup.positive is not None and setup.novelty is not None:
+        results["controls"] = positive_control(novel, fovs, setup, space)
     if integrity:  # on each feature table apart, the union said (owner, 2026-10-06)
         tables_read = copy_tables(setup)
-        results["integrity"] = integrity_by_table(objects, fovs, tables=tables_read, **common)
+        results["integrity"] = integrity_by_table(objects, fovs, tables=tables_read, **setup.common)
     if setup.rare_label is not None:
         results["rare_clustering"] = rare_clustering(objects, fovs, setup)
-    # The tests read the raw values and normalise to each condition's own control
-    # themselves, so their raw columns are raw (owner, 2026-10-05); the populations read
-    # the figures' values.
-    compared = objects
-    results.update(conditions(compared, fovs, setup, reasons))
-    gaps = with_gaps(results, objects, fovs, setup)  # several controls apart in intensity
-    gap_moved(results)  # said in the acquisition block, beside the fields far from their group
-    results["acquisition"] = acquisition_in_report(objects, fovs, setup)
-    if "contrast" in results:
-        # Question 2 for every feature alike: the report is neutral (owner, 2026-10-01).
-        results["enough_features"] = enough_by_feature(
-            objects, fovs, compared, setup, results.get("discovery")
-        )
-        results["distribution"] = distribution_by_feature(objects, fovs, setup)
-    # Every other table tested whole, beside the features (owner, 2026-10-06).
-    results["whole_table"] = whole_table_in_report(objects, fovs, setup)
-    if setup.fingerprint:
-        results["fingerprint_precision"] = fingerprint_precision(objects, fovs, setup)
-    # Question 10: populations on every condition pooled, then their enrichment.
-    # The tables centred per repeat with normalize, as the features are divided.
-    analysed = analysed_tables(prepared, fovs, setup)
-    results["populations"] = populations_in_report(analysed, fovs, setup, objects)
-    # Per feature table, how far the conditions separate (descriptive, owner 2026-10-05).
-    results["separation"] = separation_in_report(analysed, fovs, setup, raw=objects)
-    rules, novelty_target = sufficiency_rules(setup)
-    if novelty is None:
-        novelty_target = None
-    # No rule and no definition of new (tolerances=() without novelty): nothing to judge.
-    if rules or novelty is not None:
-        sufficiency = sufficiency_report(
-            objects,
-            fovs,
-            # The rules read the same columns, and the same raw values, in report,
-            # optimise, benchmark and live.
-            feature_cols=list(dict.fromkeys([*setup.columns, *(novelty_cols if novelty else [])])),
-            strategies=rules,
-            objective=setup.objective(),
-            # sufficiency_report seeds a permutation by its order's seed alone.
-            orders=_orders(setup, permuted=REPORT_ORDERS, dispersed=0, seed_permuted=True),
-            novelty=combined if novelty is not None else None,
-            novelty_target=novelty_target,
-            few_fovs=setup.resolved_few_fovs if novelty is not None else None,
-            acquisition_order_col=setup.acquisition_order_col,
-            # "New" is judged on the declared features only, as in the controls and the
-            # inspection; the rules read the readout.
-            novelty_cols=novelty_cols if novelty is not None else None,
-            # The order check beside every stop: the readout against order and stage.
-            readout=setup.readout,
-            stage_cols=setup.stage_cols,
-            n_jobs=setup.n_jobs,
-            **common,
-        )
+    gaps = comparisons(objects, fovs, setup, prepared, reasons, results)
+    sufficiency = _sufficiency(objects, fovs, setup, space)
+    if sufficiency is not None:
         results["sufficiency"] = report_only(sufficiency, setup)
-    # Every reason at once: new states on the declared features, influence, empty
-    # or crowded fields and stage neighbours on the readout.
-    judged = novelty is not None and bool(setup.features)
-    # With a contrast, a field's influence is on the result (the repeat means the paired
-    # test compares, on the values it compares, _result_influence); without one, on the
-    # field-weighted mean.
-    on_result = influence_on_result(results.get("contrast"))
-    results["inspection"] = inspect_fovs(
-        novel,
-        fovs,
-        feature_cols=[readout],
-        summaries=[] if on_result else [Summary(readout, "mean")],
-        novelty=combined if judged else None,
-        novelty_cols=novelty_cols if judged else None,
-        stage_cols=setup.stage_cols,
-        label_col=setup.rare_label,
-        **common,
-    )
-    if on_result:
-        results["inspection"] = with_result_influence(
-            results["inspection"], compared, fovs, results["contrast"], setup
-        )
-    if not per_field:  # one per field: a field the acquisition names is not listed again
-        results["inspection"] = listed_once(results["inspection"], results["acquisition"], setup)
+    results["inspection"] = _inspection(novel, objects, fovs, setup, space, results, per_field)
     settings = {
         "recorded_order": setup.acquisition_order_col is not None,
         "permuted_orders": REPORT_ORDERS,
         "random_state": setup.random_state,
     }
-    document = assemble(results, setup, per_field)
-    document = with_gap_caution(with_reasons(document, reasons), gaps)
-    document = with_acquisition(document, results.get("acquisition"), gaps)
-    unlabelled = unlabelled_note(objects, setup)
-    if unlabelled:
-        # Said once, where the label is used: the notes every answer is read with.
-        document = replace(document, notes=(*document.notes, unlabelled))
+    document = report_document(results, setup, per_field, reasons, gaps, objects)
     return Report(results, document, declared, reasons, settings, source)
+
+
+def _sufficiency(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, space: tuple[Any, list[str]]
+) -> Any:
+    """R2, R3: the setup's rules in the recorded and the report's random orders, with
+    next-field novelty when ``novelty`` is set; ``None`` without a rule or a definition of
+    new (``tolerances=()`` without novelty: nothing to judge)."""
+    combined, novelty_cols = space
+    novelty = setup.novelty
+    rules, novelty_target = sufficiency_rules(setup)
+    if novelty is None:
+        novelty_target = None
+    if not (rules or novelty is not None):
+        return None
+    return sufficiency_report(
+        objects,
+        fovs,
+        # The rules read the same columns, and the same raw values, in report,
+        # optimise, benchmark and live.
+        feature_cols=list(dict.fromkeys([*setup.columns, *(novelty_cols if novelty else [])])),
+        strategies=rules,
+        objective=setup.objective(),
+        # sufficiency_report seeds a permutation by its order's seed alone.
+        orders=_orders(setup, permuted=REPORT_ORDERS, dispersed=0, seed_permuted=True),
+        novelty=combined if novelty is not None else None,
+        novelty_target=novelty_target,
+        few_fovs=setup.resolved_few_fovs if novelty is not None else None,
+        acquisition_order_col=setup.acquisition_order_col,
+        # "New" is judged on the declared features only, as in the controls and the
+        # inspection; the rules read the readout.
+        novelty_cols=novelty_cols if novelty is not None else None,
+        # The order check beside every stop: the readout against order and stage.
+        readout=setup.readout,
+        stage_cols=setup.stage_cols,
+        n_jobs=setup.n_jobs,
+        **setup.common,
+    )
+
+
+def _inspection(
+    novel: pd.DataFrame,
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    setup: Setup,
+    space: tuple[Any, list[str]],
+    results: dict[str, Any],
+    per_field: bool,
+) -> Any:
+    """R5: the fields to inspect, every reason at once: new states on the declared
+    features, influence, empty or crowded fields and stage neighbours on the readout."""
+    combined, novelty_cols = space
+    judged = setup.novelty is not None and bool(setup.features)
+    # With a contrast, a field's influence is on the result (the repeat means the paired
+    # test compares, on the values it compares, _result_influence); without one, on the
+    # field-weighted mean.
+    on_result = influence_on_result(results.get("contrast"))
+    inspection = inspect_fovs(
+        novel,
+        fovs,
+        feature_cols=[setup.readout],
+        summaries=[] if on_result else [Summary(setup.readout, "mean")],
+        novelty=combined if judged else None,
+        novelty_cols=novelty_cols if judged else None,
+        stage_cols=setup.stage_cols,
+        label_col=setup.rare_label,
+        **setup.common,
+    )
+    if on_result:
+        inspection = with_result_influence(inspection, objects, fovs, results["contrast"], setup)
+    if not per_field:  # one per field: a field the acquisition names is not listed again
+        inspection = listed_once(inspection, results["acquisition"], setup)
+    return inspection
 
 
 def optimise(
@@ -387,62 +328,18 @@ def optimise(
     # One observation per field: the field version of new, as the report and the estimator
     # read it (plan v2); the Plan keeps the declared Setup.
     declared, setup = setup, field_setup(setup) if one_per_field(objects, fovs, setup) else setup
-    common = setup.common
     hierarchy = setup.resolved_hierarchy(objects, fovs)
     strata = setup.resolved_effort_strata(fovs)
     prepared = setup.compared_values(objects, fovs)
     # A wide table's fingerprint on its first components, as the report reads it.
     space = fingerprint_space(prepared, fovs, setup)
-    criteria = space.setup.criteria()
-    if not criteria:  # an embedding-only Setup whose targets cannot be judged
-        unread = space.unread()
-        if unread:  # declared, as the report says it (tolerances=() or no readout)
-            raise ValueError(
-                f"optimise judges the declared targets on held-back fields. {NO_TARGET} "
-                + " ".join(unread)
-            )
-        raise ValueError(
-            "optimise judges the declared targets on held-back fields, and this Setup has "
-            "none it can judge: without a readout, declare the fingerprint of a table or a "
-            "labelled phenotype (rare, rare_label)"
-        )
+    criteria = check_criteria(space)
     reasons: dict[str, str] = {}
     results: dict[str, Any] = {}
-    results["reliability"] = sampling_reliability(
-        prepared,
-        fovs,
-        feature_cols=setup.judged_columns or table_columns(setup),
-        criteria=criteria,
-        fov_counts=fov_counts,
-        reservoir_fraction=reservoir_fraction,
-        n_splits=n_splits,
-        draws=draws,
-        random_state=setup.random_state,
-        n_jobs=setup.n_jobs,
-        **common,
+    results["reliability"] = reliability(
+        prepared, fovs, setup, criteria, fov_counts, reservoir_fraction, n_splits, draws
     )
-    settings = {
-        "protocol_threshold": protocol_threshold,
-        "reservoir_fraction": reservoir_fraction,
-        "n_splits": n_splits,
-        "draws": draws,
-        "random_state": setup.random_state,
-    }
-    if hierarchy is None:
-        reasons.update(no_hierarchy_reasons(setup, fovs))
-    else:
-        groups = results["reliability"].group_cols
-        reason = protocol_reason(hierarchy, strata, groups)
-        if reason is not None:
-            reasons["next_time"] = reason
-        else:
-            results["protocol"] = protocol_reliability(
-                results["reliability"],
-                hierarchy,
-                threshold=protocol_threshold,
-                strata=strata,
-                random_state=setup.random_state,
-            )
+    _protocol(fovs, setup, hierarchy, strata, protocol_threshold, results, reasons)
     if not setup.stopping_rules():  # no readout, no rule (owner, 2026-10-06)
         return replace(embedding_plan(objects, fovs, setup, results, reasons, space), source=source)
     replay = replay_rules(
@@ -461,35 +358,16 @@ def optimise(
         incremental=True,
         n_jobs=setup.n_jobs,
     )
-    results["calibration"] = stopping_calibration(replay)
-    results["adequacy"] = adequacy_points(replay)
-    if setup.stage_cols is not None:
-        results["efficiency"] = order_efficiency(replay, results["adequacy"])
-        if redundancy_bins is not None:
-            results["redundancy"] = redundancy_distance(
-                objects,
-                fovs,
-                feature_cols=[setup.readout],
-                stage_cols=setup.stage_cols,
-                bin_edges=list(redundancy_bins),
-                random_state=setup.random_state,
-                **common,
-            )
-    if hierarchy is not None:
-        results["effort"] = effort_projection(
-            objects,
-            fovs,
-            feature=setup.readout,
-            hierarchy=hierarchy,
-            strata=strata,
-            random_state=setup.random_state,
-            observation_unit=setup.observation_unit,
-        )
+    results.update(replay_results(objects, fovs, setup, replay, redundancy_bins, hierarchy, strata))
     document = assemble(
         {k: v for k, v in results.items() if k != "calibration"}, setup, setup is declared
     )
     settings = {
-        **settings,
+        "protocol_threshold": protocol_threshold,
+        "reservoir_fraction": reservoir_fraction,
+        "n_splits": n_splits,
+        "draws": draws,
+        "random_state": setup.random_state,
         "reservoir_fovs": reservoir_sizes(replay),
         "recorded_order": setup.acquisition_order_col is not None,
         "permuted_orders": permuted_orders,
@@ -498,6 +376,34 @@ def optimise(
     unit = resolve_observation_unit(setup.observation_unit)[0]
     document = plan_document(document, reasons, setup, space, (objects, fovs), unit)
     return Plan(results, document, declared, reasons, settings, source)
+
+
+def _protocol(
+    fovs: pd.DataFrame,
+    setup: Setup,
+    hierarchy: SamplingHierarchy | None,
+    strata: Sequence[str],
+    threshold: float,
+    results: dict[str, Any],
+    reasons: dict[str, str],
+) -> None:
+    """P2: protocol reliability across samples, added to ``results`` (in place), when the
+    hierarchy's samples and the strata are analysis groups; else why not, in ``reasons``."""
+    if hierarchy is None:
+        reasons.update(no_hierarchy_reasons(setup, fovs))
+        return
+    groups = results["reliability"].group_cols
+    reason = protocol_reason(hierarchy, strata, groups)
+    if reason is not None:
+        reasons["next_time"] = reason
+        return
+    results["protocol"] = protocol_reliability(
+        results["reliability"],
+        hierarchy,
+        threshold=threshold,
+        strata=strata,
+        random_state=setup.random_state,
+    )
 
 
 def _same_setup(first: Setup, other: Setup) -> bool:

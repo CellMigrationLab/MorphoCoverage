@@ -151,16 +151,7 @@ def assemble(
         document = _with_integrity(document, integrity)
     rare = results.get("rare_clustering")  # clustering in fields needs several a field
     if rare is not None and per_field:
-        rows = sampling_profile(None, None, None, None, clustering=rare)
-        lines = "\n".join(f"{r.statement} [{r.where}]" for r in rows.itertuples())
-        text = "\n\n".join(part for part in (lines, rare.summary(detail="full")) if part)
-        status, glance = profile_status(rows, [rare])
-        words = observation_words(rare.settings)[1]
-        brief = [wrap(f"- {line}", 2, hang=4) for line in states_lines(rare, None, words)]
-        brief_text = "\n".join([*brief, *caveat_lines(clustering_parts(rare, 2)[1], indent=2)])
-        document = with_text(
-            document, "profile", text, rows, status=status, headline=glance, short_text=brief_text
-        )
+        document = _with_clustering(document, rare)
     controls = results.get("controls")
     if controls is not None and controls.status != "not assessed" and not controls.pair_cols:
         paired = (
@@ -192,6 +183,20 @@ def assemble(
     # Every other table tested whole, beside the features (owner, 2026-10-06).
     document = with_whole_table(document, results.get("whole_table"), bool(setup.columns))
     return with_exploratory(document, dict(results), setup)  # plan v2 (owner, 2026-10-06)
+
+
+def _with_clustering(document: MicroscopistReport, rare: Any) -> MicroscopistReport:
+    """The report with the declared rare phenotype's clustering in the sampling profile."""
+    rows = sampling_profile(None, None, None, None, clustering=rare)
+    lines = "\n".join(f"{r.statement} [{r.where}]" for r in rows.itertuples())
+    text = "\n\n".join(part for part in (lines, rare.summary(detail="full")) if part)
+    status, glance = profile_status(rows, [rare])
+    words = observation_words(rare.settings)[1]
+    brief = [wrap(f"- {line}", 2, hang=4) for line in states_lines(rare, None, words)]
+    brief_text = "\n".join([*brief, *caveat_lines(clustering_parts(rare, 2)[1], indent=2)])
+    return with_text(
+        document, "profile", text, rows, status=status, headline=glance, short_text=brief_text
+    )
 
 
 def _with_integrity(document: MicroscopistReport, integrity: Any) -> MicroscopistReport:
@@ -407,10 +412,7 @@ def with_text(
             merged = _merged(short[key], brief) if short_text else f"{short[key]}\n\n{brief}"
             short[key] = pool_assumptions(merged)
         if headline:
-            # The added answer joins the one-line answer (its parts not already in it).
-            known = headlines.get(key, "")
-            new = [p for p in headline.split("; ") if p and p not in known]
-            headlines[key] = "; ".join([known, *new]) if known else headline
+            headlines[key] = _joined(headlines.get(key, ""), headline)
         current = statuses.get(key, Status.NOT_ASSESSED)
         if key in RESULT_QUESTIONS and status is not Status.PROBLEM:
             # Its marker says what was found; a caution added here is read in the section.
@@ -430,6 +432,12 @@ def with_text(
         statuses=statuses,
         headlines=headlines,
     )
+
+
+def _joined(known: str, headline: str) -> str:
+    """The added answer joined to the one-line answer (its parts not already in it)."""
+    new = [p for p in headline.split("; ") if p and p not in known]
+    return "; ".join([known, *new]) if known else headline
 
 
 def _caution_split(text: str) -> tuple[list[str], list[str]]:

@@ -53,7 +53,21 @@ def shared_family(contrast: Any, discovery: Any, readout: str) -> Any:
     if tests is None or not len(tests) or readout not in set(tests["feature"]):
         return contrast
     mine = tests[tests["feature"] == readout].set_index("condition")
-    repeats = contrast.repeats.copy()
+    repeats = _shared_repeats(contrast.repeats.copy(), mine)
+    cells = contrast.cells.copy() if contrast.cells is not None else None
+    if cells is not None and len(cells):
+        _shared_cells(cells, mine)
+    features = int(tests["feature"].nunique())
+    # A labelled state's share is tested with the features and counted apart (audit 8).
+    share = discovery.settings.get("share")
+    share = share if share in set(tests["feature"]) else None
+    settings = {**contrast.settings, "family_features": features, "family_share": share}
+    return replace(contrast, repeats=repeats, cells=cells, settings=settings)
+
+
+def _shared_repeats(repeats: pd.DataFrame, mine: pd.DataFrame) -> pd.DataFrame:
+    """The contrast's repeat rows (a copy, set in place) with the discovery's paired p and q
+    of their condition, and its screen's q."""
     for index, row in repeats.iterrows():
         if row["condition"] not in mine.index:
             continue
@@ -67,24 +81,22 @@ def shared_family(contrast: Any, discovery: Any, readout: str) -> Any:
             repeats.loc[index, "q_paired_t"] = test["q_paired_raw"]
         if "q_screen" in test:  # over the features too (audit 10, owner, 2026-10-06)
             repeats.loc[index, "q_screen"] = test["q_screen"]
-    cells = contrast.cells.copy() if contrast.cells is not None else None
-    if cells is not None and len(cells):
-        for index, row in cells.iterrows():
-            if row["condition"] not in mine.index:
-                continue
-            test = mine.loc[row["condition"]]
-            if pd.isna(test["p_cells"]):
-                continue
-            version = _CELL_VERSIONS[(bool(test["normalised"]), bool(test["balanced"]))]
-            d, p, q = _cell_columns(version)
-            if p in cells:
-                cells.loc[index, [d, p, q]] = [test["d"], test["p_cells"], test["q_cells"]]
-    features = int(tests["feature"].nunique())
-    # A labelled state's share is tested with the features and counted apart (audit 8).
-    share = discovery.settings.get("share")
-    share = share if share in set(tests["feature"]) else None
-    settings = {**contrast.settings, "family_features": features, "family_share": share}
-    return replace(contrast, repeats=repeats, cells=cells, settings=settings)
+    return repeats
+
+
+def _shared_cells(cells: pd.DataFrame, mine: pd.DataFrame) -> None:
+    """The contrast's cell-level rows (a copy, set in place) with the discovery's d, p and q
+    of their condition, in the columns of the version it tested."""
+    for index, row in cells.iterrows():
+        if row["condition"] not in mine.index:
+            continue
+        test = mine.loc[row["condition"]]
+        if pd.isna(test["p_cells"]):
+            continue
+        version = _CELL_VERSIONS[(bool(test["normalised"]), bool(test["balanced"]))]
+        d, p, q = _cell_columns(version)
+        if p in cells:
+            cells.loc[index, [d, p, q]] = [test["d"], test["p_cells"], test["q_cells"]]
 
 
 def shared_across(

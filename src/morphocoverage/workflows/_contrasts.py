@@ -105,19 +105,44 @@ def check_controls(setup: Setup) -> None:
     if setup.contrasts is not None:
         check_contrast_table(setup.contrasts)
     spec = _several(setup)
-    parents = setup.control_parents
     if spec is None:
-        if parents:
-            raise ValueError(
-                "control_parents link several controls: declare them as "
-                "control={'condition': {control: {treatment: condition, ...}, ...}}"
-            )
-        if (
-            setup.master_control is not None
-            and (setup.control or {}).get(CONDITION_COLUMN) != setup.master_control
-        ):
-            raise ValueError("master_control names one of several declared controls")
+        _check_one_control(setup)
         return
+    _check_several(setup, spec)
+    found = links(setup)
+    reference = _references(found, setup.control_parents or {})
+    if not reference and len(spec) > 1 and setup.contrasts is None:
+        raise ValueError(_nothing_under(spec))
+    keyed = [(target, key) for _, target, key in found if key is not None]
+    twice = [k for i, k in enumerate(keyed) if k in keyed[:i]]
+    if twice:
+        raise ValueError(f"treatment {twice[0][1]!r} names two conditions of {twice[0][0]!r}")
+    _check_cycles(reference)
+    master = setup.master_control
+    if master is not None and master not in spec:
+        raise ValueError(f"master_control {master!r} is not one of the declared controls")
+    if setup.contrasts is not None:
+        _check_table_controls(setup.contrasts, reference)
+
+
+def _check_one_control(setup: Setup) -> None:
+    """Refuse parents, or a master other than the control, beside one control."""
+    if setup.control_parents:
+        raise ValueError(
+            "control_parents link several controls: declare them as "
+            "control={'condition': {control: {treatment: condition, ...}, ...}}"
+        )
+    if (
+        setup.master_control is not None
+        and (setup.control or {}).get(CONDITION_COLUMN) != setup.master_control
+    ):
+        raise ValueError("master_control names one of several declared controls")
+
+
+def _check_several(setup: Setup, spec: Mapping[Any, Any]) -> None:
+    """Refuse several controls named beside other columns or none, and parents that are not
+    a mapping of declared controls to a condition (or a condition and a treatment)."""
+    parents = setup.control_parents
     if len(setup.control) > 1 or not spec:
         raise ValueError(
             "several controls are named by the condition column alone: "
@@ -131,20 +156,23 @@ def check_controls(setup: Setup) -> None:
         ok = isinstance(parent, tuple) and len(parent) == 2 or pd.api.types.is_scalar(parent)
         if not ok:
             raise TypeError(f"the parent of {value!r} is a condition, or (condition, treatment)")
-    found = links(setup)
+
+
+def _references(found: list[Link], parents: Mapping[Any, Any]) -> dict[Any, Any]:
+    """Each linked condition's one reference; a condition linked to itself or twice is
+    refused."""
     reference: dict[Any, Any] = {}
     for child, target, _ in found:
         if child == target:
             raise ValueError(f"{child!r} is declared as its own control")
         if child in reference:
-            raise ValueError(_twice(child, reference[child], target, parents or {}))
+            raise ValueError(_twice(child, reference[child], target, parents))
         reference[child] = target
-    if not reference and len(spec) > 1 and setup.contrasts is None:
-        raise ValueError(_nothing_under(spec))
-    keyed = [(target, key) for _, target, key in found if key is not None]
-    twice = [k for i, k in enumerate(keyed) if k in keyed[:i]]
-    if twice:
-        raise ValueError(f"treatment {twice[0][1]!r} names two conditions of {twice[0][0]!r}")
+    return reference
+
+
+def _check_cycles(reference: Mapping[Any, Any]) -> None:
+    """Refuse references that lead back to a condition already met."""
     for start, first in reference.items():
         seen, node = {start}, first
         while node in reference:
@@ -152,17 +180,17 @@ def check_controls(setup: Setup) -> None:
                 raise ValueError(f"the controls form a cycle through {node!r}")
             seen.add(node)
             node = reference[node]
-    master = setup.master_control
-    if master is not None and master not in spec:
-        raise ValueError(f"master_control {master!r} is not one of the declared controls")
-    if setup.contrasts is not None:
-        for condition, given in own_pairs(check_contrast_table(setup.contrasts)):
-            if reference.get(condition, given) != given:
-                raise ValueError(
-                    f"the contrast table compares {condition!r} with {given!r} as its own "
-                    f"control, but the declared controls give {reference[condition]!r}: a "
-                    "condition's own control comes from the declaration"
-                )
+
+
+def _check_table_controls(contrasts: pd.DataFrame, reference: Mapping[Any, Any]) -> None:
+    """Refuse a contrast table that gives a declared condition another own control."""
+    for condition, given in own_pairs(check_contrast_table(contrasts)):
+        if reference.get(condition, given) != given:
+            raise ValueError(
+                f"the contrast table compares {condition!r} with {given!r} as its own "
+                f"control, but the declared controls give {reference[condition]!r}: a "
+                "condition's own control comes from the declaration"
+            )
 
 
 def _nothing_under(spec: Mapping[Any, Any]) -> str:

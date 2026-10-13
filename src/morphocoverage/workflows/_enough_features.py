@@ -143,21 +143,18 @@ def _precision(
 
 
 def _row(feature: str, contrast: Any, tally: dict[str, Any] | None) -> dict[str, Any]:
+    """One feature's row: its comparisons, those shown, its verdict, the fields to resolve the
+    rest, and its mean-precision ``tally``."""
     rows = _table(contrast)
-    shown = int(rows["resolved"].sum()) if len(rows) else 0
-    small = int(rows["too_small"].sum()) if len(rows) else 0
-    wells = int(between_wells(rows).sum()) if len(rows) else 0
+    shown, small, wells = _resolved_counts(rows)
     needing = _needing(rows) if len(rows) else rows
     counts = needing["fields_to_resolve"].astype(float) if len(needing) else pd.Series([])
     unassessed = _unassessed(rows) if len(rows) else 0
-    verdict = ENOUGH if len(rows) and shown == len(rows) else PARTLY if shown else NOT_YET
-    if len(rows) and unassessed == len(rows):
-        verdict = NOT_ASSESSABLE
     return {
         "feature": feature,
         "comparisons": len(rows),
         "shown": shown,
-        "verdict": verdict,
+        "verdict": _verdict(len(rows), shown, unassessed),
         "needing": len(needing),
         "fields_low": float(counts.min()) if len(counts) else np.nan,
         "fields_high": float(counts.max()) if len(counts) else np.nan,
@@ -168,6 +165,24 @@ def _row(feature: str, contrast: Any, tally: dict[str, Any] | None) -> dict[str,
         "precision_met": tally["met"] if tally else np.nan,
         "precision_groups": tally["groups"] if tally else np.nan,
     }
+
+
+def _resolved_counts(rows: pd.DataFrame) -> tuple[int, int, int]:
+    """The comparisons shown, too small to show and apart between wells (0 without any)."""
+    if not len(rows):
+        return 0, 0, 0
+    return (
+        int(rows["resolved"].sum()),
+        int(rows["too_small"].sum()),
+        int(between_wells(rows).sum()),
+    )
+
+
+def _verdict(comparisons: int, shown: int, unassessed: int) -> str:
+    """A feature's verdict from its comparisons, those shown and those not assessable."""
+    if comparisons and unassessed == comparisons:
+        return NOT_ASSESSABLE
+    return ENOUGH if comparisons and shown == comparisons else PARTLY if shown else NOT_YET
 
 
 def _contrast(prepared: pd.DataFrame, fovs: pd.DataFrame, feature: str, setup: Setup) -> Any:
@@ -301,6 +316,39 @@ def _for(names: list[str], total: int) -> str:
     return f"for {len(names)} ({listing(names, 3)})"
 
 
+def _too_small(small: pd.DataFrame, features: int, fields: str) -> str:
+    """The comparisons too small to show even with ``PRACTICAL`` times the fields."""
+    # Beyond PRACTICAL times the fields: these need the most, said before any projection.
+    many = count(int(small["too_small"].sum()), "comparison")
+    beyond = f"even with {PRACTICAL} times the {fields}"
+    # The comparisons are counted over the features named, not per feature.
+    names = list(small["feature"].astype(str))
+    return (
+        f"; {many} too small to show {beyond}, over all {features} features"
+        if len(small) == features and features > 2
+        else f"; {many} of {names[0]} too small to show {beyond}"
+        if len(names) == 1
+        else f"; {many} over {listing(names, 3)} too small to show {beyond}"
+    )
+
+
+def _precision_part(precise: pd.DataFrame, word: str, default: bool) -> str:
+    """For how many features each well's own mean meets the precision rule in every well."""
+    every = int((precise["precision_met"] == precise["precision_groups"]).sum())
+    rule = precise["precision_rule"].iloc[0]
+    share = (
+        f"all {len(precise)}"
+        if every == len(precise)
+        else f"none of the {len(precise)}"
+        if not every
+        else f"{every} of {len(precise)}"
+    )
+    return (
+        f"; each {word}'s own mean meets {'the default' if default else 'the'} {rule} in "
+        f"every {word} for {share} features, a different goal from the comparison"
+    )
+
+
 def features_status(
     features: FeatureEnough, word: str = "well", default: bool = False
 ) -> tuple[Status, str]:
@@ -320,18 +368,7 @@ def features_status(
     flagged = rows.get("flagged", True)
     open_ = rows[(rows["needing"] > 0) & flagged]
     if len(small):
-        # Beyond PRACTICAL times the fields: these need the most, said before any projection.
-        many = count(int(small["too_small"].sum()), "comparison")
-        beyond = f"even with {PRACTICAL} times the {fields}"
-        # The comparisons are counted over the features named, not per feature.
-        names = list(small["feature"].astype(str))
-        text += (
-            f"; {many} too small to show {beyond}, over all {len(rows)} features"
-            if len(small) == len(rows) and len(rows) > 2
-            else f"; {many} of {names[0]} too small to show {beyond}"
-            if len(names) == 1
-            else f"; {many} over {listing(names, 3)} too small to show {beyond}"
-        )
+        text += _too_small(small, len(rows), fields)
     wells = int(rows["between_wells"].sum()) if "between_wells" in rows else 0
     if wells:
         # More fields will not resolve these: the wells differ more (owner, 2026-10-05).
@@ -346,19 +383,7 @@ def features_status(
         )
     precise = rows[rows["precision_met"].notna()]
     if len(precise):
-        every = int((precise["precision_met"] == precise["precision_groups"]).sum())
-        rule = precise["precision_rule"].iloc[0]
-        share = (
-            f"all {len(precise)}"
-            if every == len(precise)
-            else f"none of the {len(precise)}"
-            if not every
-            else f"{every} of {len(precise)}"
-        )
-        text += (
-            f"; each {word}'s own mean meets {'the default' if default else 'the'} {rule} in "
-            f"every {word} for {share} features, a different goal from the comparison"
-        )
+        text += _precision_part(precise, word, default)
     status = Status.OK if (rows["verdict"] == ENOUGH).all() else Status.CAUTION
     return status, text
 
