@@ -564,12 +564,22 @@ Do not skip directly to a polished `analyze()` API.
 not a rule that operational LIVE must precede an offline release. V1 ships stable, usable
 REPORT/OPTIMISE with scientifically validated claims, end-to-end MorphoBricks tables and
 locked statistics; methods not yet validated remain visibly exploratory or unavailable.
-V1.5 studies large-image spatial coverage and low-resolution scout -> high-resolution
-FOV selection, including PhenoMe interoperability. V2 adds prospectively tested when/where
+V1 also adds native Plotly highlight and typed lasso-selection export, without an
+image viewer dependency. V1.5 studies large-image spatial coverage and
+low-resolution scout -> high-resolution FOV selection, a MorphoBricks-owned
+model-feature/embedding brick (DINO and other models), and a reusable
+phenotype explorer in the MorphoBricks application. PhenoMe is a source of
+interface ideas, not a mandatory dependency; optional interoperability needs
+a demonstrated use case and verified provenance. V2 adds prospectively tested when/where
 recommendations and separately controlled microscope adapters. The original milestone IDs
 stay in [the roadmap](docs/common/roadmap.md); M4/AUD-4 are V2 gates, not V1 blockers.
 MorphoCoverage consumes externally extracted features and spatial tables; image storage,
-patch extraction and physical microscope control remain outside its core. A feature-table
+patch extraction and physical microscope control remain outside its core.
+The shared explorer consumes read-only precomputed coordinates and canonical typed
+observation/FOV identities, resolves source images/patches outside this package, and
+must not refit scientific models, alter statistical decisions, infer independence
+from cell counts, or silently collapse missing/failed FOVs. Keep normal standalone
+REPORT independent of PhenoMe, image I/O, Torch and browser services. A feature-table
 quickstart must never infer an unobserved FOV or biological repeat silently.
 
 The schedule is [`docs/common/roadmap.md`](docs/common/roadmap.md). Its decisions, taken by the owner on 2026-10-13 (DEC-n are the roadmap's ids):
