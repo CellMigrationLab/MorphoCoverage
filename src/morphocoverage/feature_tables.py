@@ -24,10 +24,11 @@ the observation table with every table's columns attached (``FeatureTables``). O
 table is one observation, identified as the observation table identifies it
 (``observation_identity``): the FOV key columns the observation table holds (the analysis
 groups and the field identifier, as ``validate_input_tables`` resolves them), then
-``label_id`` and the within-field coordinates ``z``, ``z0``, ``z1``, ``c``, ``t`` when the
-observation table has them. Values are matched as text, a whole number written as a decimal
-read as that whole number, so ``1``, ``1.0`` and ``"1"`` are one label (owner, 2026-10-06:
-a CSV column with one empty cell is read as decimals). A table must:
+``label_id``, ``patch_id`` (CellPatcher's patch, unique within one ``patches.csv`` only, so
+always after the field key; issue #404) and the within-field coordinates ``z``, ``z0``, ``z1``,
+``c``, ``t`` when the observation table has them. Values are matched as text, a whole number
+written as a decimal read as that whole number, so ``1``, ``1.0`` and ``"1"`` are one label
+(owner, 2026-10-06: a CSV column with one empty cell is read as decimals). A table must:
 
 - hold every identity column and match every observation exactly once: no observation
   missing, no row matching none, no observation twice;
@@ -78,6 +79,9 @@ from .metadata import (
 
 # The MorphoBricks column naming an observation within its field.
 LABEL_COLUMN = "label_id"
+# CellPatcher's patch within its field: grid and random patches have no label_id, and several
+# patches share a field (#404). Unique only within one patches.csv, so never without the key.
+PATCH_COLUMN = "patch_id"
 # The names of the explainable features, of the weighted combined space, and of the
 # observation table's own declared features beside explainable tables (owner, 2026-10-06).
 EXPLAINABLE = "explainable"
@@ -95,6 +99,7 @@ _METADATA = {
     *WITHIN_FOV_METADATA_COLUMNS,
     TARGET_COLUMN,
     LABEL_COLUMN,
+    PATCH_COLUMN,
     "repeat",
 }
 # The observations named in a message, at most.
@@ -238,14 +243,14 @@ def observation_identity(
     group_cols: Sequence[str] | None = None,
 ) -> tuple[str, ...]:
     """The columns that identify one observation (see the module): the FOV key columns the
-    observation table holds, then ``label_id`` and ``z``/``z0``/``z1``/``c``/``t`` when it
-    has them."""
+    observation table holds, then ``label_id``, ``patch_id`` and ``z``/``z0``/``z1``/``c``/``t``
+    when it has them."""
     explicit = [c for c in (fov_col, *(group_cols or ())) if c is not None]
     objects, fovs = drop_empty_optional_columns(objects, fovs, explicit)
     field = resolve_fov_col(objects, fovs, fov_col)
     groups = resolve_group_cols(objects, fovs, group_cols)
     key = [*resolve_identity_cols(objects, fovs, groups, field), field]
-    within = [LABEL_COLUMN, *WITHIN_FOV_METADATA_COLUMNS]
+    within = [LABEL_COLUMN, PATCH_COLUMN, *WITHIN_FOV_METADATA_COLUMNS]
     return tuple(c for c in dict.fromkeys([*key, *within]) if c in objects.columns)
 
 

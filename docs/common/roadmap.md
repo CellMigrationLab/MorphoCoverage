@@ -235,7 +235,7 @@ These depend on nothing above:
 - #264 (iNEXT) and #268 (SciKit-GStat, GSTools): external numerical references;
 - OW 22, library references for the hand-written statistics (#101);
 - OW 23, the assessment-state rule (#373);
-- #404, `patch_id`, with MorphoRelate;
+- #404, `patch_id`, with MorphoRelate (done on `claude/pensive-ride-khcmug`: `patch_id` is an observation identity of the feature tables);
 - #398, the lasso export, which BRICK-5 then uses.
 
 Not scheduled: #401, #402, #195, OW 15 to 17 and 19 to 21, and the sampling frame (#194, OW 6, DEC-16), a new input contract with CellPatcher upstream, with DS-2.

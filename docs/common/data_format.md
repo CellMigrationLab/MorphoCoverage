@@ -351,7 +351,9 @@ Pass them by name to `report`, `html_report`, `scan_design` and `guide`;
 One row of a table is one observation, identified as the observation table
 identifies it: the field key columns the observation table holds (the analysis
 groups and the field identifier, as the validator resolves them), then
-`label_id` and `z`, `z0`, `z1`, `c`, `t` when the observation table has them.
+`label_id`, `patch_id` and `z`, `z0`, `z1`, `c`, `t` when the observation table has them
+(`patch_id` is CellPatcher's patch, unique only within one `patches.csv`, so always read after
+the field key: grid and random patches have no `label_id` and share a field, #404).
 Values are matched as text, a whole number written as a decimal read as that
 whole number, so `1`, `1.0` and `"1"` are one label (a CSV column with one empty
 cell is read as decimals; owner, 2026-10-06). The observations
