@@ -211,8 +211,8 @@
     "sampling_unit.populations = ('main', 'group')"
    ],
    "LABEL_COLUMN": [
-    "embedding = 'label_id'",
-    "feature_tables = 'label_id'"
+    "_within_identity = 'label_id'",
+    "embedding = 'label_id'"
    ],
    "LEVEL": [
     "data.simulations.test_choice = 10.0",

@@ -24,11 +24,12 @@ the observation table with every table's columns attached (``FeatureTables``). O
 table is one observation, identified as the observation table identifies it
 (``observation_identity``): the FOV key columns the observation table holds (the analysis
 groups and the field identifier, as ``validate_input_tables`` resolves them), then
-``label_id``, ``patch_id`` (CellPatcher's patch, unique within one ``patches.csv`` only, so
-always after the field key; issue #404) and the within-field coordinates ``z``, ``z0``, ``z1``,
-``c``, ``t`` when the observation table has them. Values are matched as text, a whole number
-written as a decimal read as that whole number, so ``1``, ``1.0`` and ``"1"`` are one label
-(owner, 2026-10-06: a CSV column with one empty cell is read as decimals). A table must:
+``label_id``, ``patch_id`` (CellPatcher's patch, #404; read after the field key, never
+alone) and the within-field coordinates ``z``, ``z0``, ``z1``, ``c``, ``t`` when the observation
+table has them; a ``label_id`` or ``patch_id`` empty in every row is read as absent
+(``_within_identity``). Values are matched as text, a whole number written as a decimal read as
+that whole number, so ``1``, ``1.0`` and ``"1"`` are one label (owner, 2026-10-06: a CSV column
+with one empty cell is read as decimals). A table must:
 
 - hold every identity column and match every observation exactly once: no observation
   missing, no row matching none, no observation twice;
@@ -65,6 +66,14 @@ import numpy as np
 import pandas as pd
 
 from ._former_repeat import Reader
+from ._within_identity import (
+    LABEL_COLUMN,
+    PATCH_COLUMN,
+    absent_identity_text,
+    duplicate_identity_text,
+    feature_candidates,
+    filled_within_columns,
+)
 from ._wording import count, listing
 from .metadata import (
     MORPHOBRICKS_FOV_CANDIDATES,
@@ -77,11 +86,6 @@ from .metadata import (
     resolve_identity_cols,
 )
 
-# The MorphoBricks column naming an observation within its field.
-LABEL_COLUMN = "label_id"
-# CellPatcher's patch within its field: grid and random patches have no label_id, and several
-# patches share a field (#404). Unique only within one patches.csv, so never without the key.
-PATCH_COLUMN = "patch_id"
 # The names of the explainable features, of the weighted combined space, and of the
 # observation table's own declared features beside explainable tables (owner, 2026-10-06).
 EXPLAINABLE = "explainable"
@@ -244,13 +248,14 @@ def observation_identity(
 ) -> tuple[str, ...]:
     """The columns that identify one observation (see the module): the FOV key columns the
     observation table holds, then ``label_id``, ``patch_id`` and ``z``/``z0``/``z1``/``c``/``t``
-    when it has them."""
+    when it has them; a ``label_id`` or ``patch_id`` empty in every observation is absent."""
     explicit = [c for c in (fov_col, *(group_cols or ())) if c is not None]
     objects, fovs = drop_empty_optional_columns(objects, fovs, explicit)
     field = resolve_fov_col(objects, fovs, fov_col)
     groups = resolve_group_cols(objects, fovs, group_cols)
     key = [*resolve_identity_cols(objects, fovs, groups, field), field]
-    within = [LABEL_COLUMN, PATCH_COLUMN, *WITHIN_FOV_METADATA_COLUMNS]
+    within = filled_within_columns(objects)
+    within += [c for c in WITHIN_FOV_METADATA_COLUMNS if c in objects.columns]
     return tuple(c for c in dict.fromkeys([*key, *within]) if c in objects.columns)
 
 
@@ -472,7 +477,7 @@ def _observed_keys(objects: pd.DataFrame, identity: Sequence[str]) -> pd.Series:
         raise ValueError(
             f"other feature tables are matched to observations by {list(identity)}, but "
             f"{count(twice.nunique(), 'observation')} of the observation table share theirs "
-            f"({_shown(twice)}): add a label_id column naming each observation in its field"
+            f"({_shown(twice)}): {duplicate_identity_text()}"
         )
     return observed
 
@@ -494,13 +499,10 @@ def _usable_tables(
         seen.append(label.strip().casefold())
         absent = [c for c in identity if c not in table.columns]
         if absent:
-            problems.append(
-                f"{label!r} lacks the identity columns {absent}: each row must name its "
-                f"observation by {list(identity)}"
-            )
+            problems.append(absent_identity_text(label, absent, identity))
             continue
         if not named:
-            usable[label] = (table, [c for c in table.columns if c not in identity])
+            usable[label] = (table, feature_candidates(table, identity))
     return usable
 
 

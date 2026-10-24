@@ -154,7 +154,7 @@ def test_each_table_has_a_name_of_its_own(names, expected):
 
 def test_observations_without_an_identity_of_their_own_cannot_be_matched():
     objects, fovs, embedding = _tables()
-    with pytest.raises(ValueError, match="add a label_id column"):
+    with pytest.raises(ValueError, match="tells the observations of a field apart"):
         attach_feature_tables(objects.drop(columns="label_id"), fovs, {"DINO": embedding})
 
 

@@ -47,7 +47,7 @@ result.
 | stage coordinates | FOV table | numeric, finite | Named with `stage_cols` (MorphoBricks suggests `stage_x`, `stage_y`). Used for dispersed orders, stage travel, redundancy distance and spatial blocks; an infinite coordinate raises. |
 | imaged area | FOV table | numeric, positive | Named on `FixedAreaStrategy`. The physical area of each field, for area-based stopping. A missing, infinite, zero or negative area makes the rule not applicable, and a text column raises; a benchmark record's effort refuses all of them. |
 | a rare-state label | observations | boolean or 0/1 | Named with `Setup.rare_label`. An independent label of the rare phenotype, so held-back fields can judge whether it was seen. A missing value means unknown: the observation is left out of every share (owner, 2026-10-05). |
-| `label_id`, `mask_file`, `patch_file` | observations | any | Provenance, kept for tracing an observation back to its image; never features. `check_tables` also reads CellProfiler's `ObjectNumber`, `object_id` or `label` as the object label. |
+| `label_id`, `patch_id`, `mask_file`, `patch_file` | observations | any | Provenance, kept for tracing an observation back to its image; never features. `label_id` and `patch_id` also identify an observation within its field for the other feature tables. `check_tables` also reads CellProfiler's `ObjectNumber`, `object_id` or `label` as the object label. |
 | `valid`, `reason` | observations | boolean, text | CellPatcher marks a patch it could not cut with `valid=False`. Such rows are still analysed as observations, so the validator warns (`InvalidRowsWarning`); filter them out first if they are not meant. |
 
 ## A level with one member: `single`
@@ -352,8 +352,14 @@ One row of a table is one observation, identified as the observation table
 identifies it: the field key columns the observation table holds (the analysis
 groups and the field identifier, as the validator resolves them), then
 `label_id`, `patch_id` and `z`, `z0`, `z1`, `c`, `t` when the observation table has them
-(`patch_id` is CellPatcher's patch, unique only within one `patches.csv`, so always read after
-the field key: grid and random patches have no `label_id` and share a field, #404).
+(#404). `patch_id` is CellPatcher's patch: grid and random patches have no `label_id`
+and share a field. It is positional (`image_0000_cell_00001`, the image's place in its folder)
+and repeats across the folders of a combined tree run (two folders of one image each both
+give `image_0000_cell_00001`), so it is always read after the field key, never alone. A
+`label_id` or `patch_id` column empty in every observation is read as absent, as CellPatcher
+writes an empty `label_id` for grid and random patches (an empty column of the same name in a
+feature table is then ignored too); one with a value in some observation must be in every
+feature table, which a table keyed by `label_id` alone beside cell-mode patches is refused for.
 Values are matched as text, a whole number written as a decimal read as that
 whole number, so `1`, `1.0` and `"1"` are one label (a CSV column with one empty
 cell is read as decimals; owner, 2026-10-06). The observations
