@@ -560,6 +560,18 @@ Do not skip directly to a polished `analyze()` API.
 9. Select a default estimator or decision rule only if evidence supports one.
 10. Validate continue/stop decisions prospectively before considering targeted smart-microscopy acquisition.
 
+**Release sequencing (owner, 2026-10-24):** this development sequence is a scientific dependency order,
+not a rule that operational LIVE must precede an offline release. V1 ships stable, usable
+REPORT/OPTIMISE with scientifically validated claims, end-to-end MorphoBricks tables and
+locked statistics; methods not yet validated remain visibly exploratory or unavailable.
+V1.5 studies large-image spatial coverage and low-resolution scout -> high-resolution
+FOV selection, including PhenoMe interoperability. V2 adds prospectively tested when/where
+recommendations and separately controlled microscope adapters. The original milestone IDs
+stay in [the roadmap](docs/common/roadmap.md); M4/AUD-4 are V2 gates, not V1 blockers.
+MorphoCoverage consumes externally extracted features and spatial tables; image storage,
+patch extraction and physical microscope control remain outside its core. A feature-table
+quickstart must never infer an unobserved FOV or biological repeat silently.
+
 The schedule is [`docs/common/roadmap.md`](docs/common/roadmap.md). Its decisions, taken by the owner on 2026-10-13 (DEC-n are the roadmap's ids):
 
 - DEC-1, DEC-21: the benchmark app lives in its own private repository, `guijacquemet/MorphoCoverage-Benchmark`, where GitHub Actions run; its builds read this repository with a read-only token stored as an Actions secret. This repository keeps the local gate of section 13 while its Actions are blocked.
@@ -580,7 +592,7 @@ The schedule is [`docs/common/roadmap.md`](docs/common/roadmap.md). Its decision
 - DEC-17: napari, Fiji, QuPath and the command line, through LabConstrictor's Tools bridge, are supported usage contexts (section 18).
 - DEC-18: each shipping PR of a benchmark winner gets an independent AI adversarial review beside the owner's check.
 - DEC-19: the cost-model inputs are given by the user for each experiment; the package has no defaults.
-- DEC-20: release 1.0 holds REPORT and OPTIMISE validated, LIVE (M4 passed), the bridge tools, and drops the `repeat` alias.
+- DEC-20 (superseded release timing, owner 2026-10-24): release 1.0 holds validated offline REPORT/OPTIMISE, minimal one-call and no-code user workflows, MorphoBricks end-to-end reporting and the core statistics/figure benchmarks. LIVE, M4, AUD-4, BRICK-6 and microscope control move to V2; V1.5 introduces spatial/multiscale offline planning. Exploratory analyses are labelled, never authoritative stopping claims. The planned removal of the `repeat` alias remains subject to compatibility tests.
 
 ## 9. Validation philosophy and required contract tests
 
