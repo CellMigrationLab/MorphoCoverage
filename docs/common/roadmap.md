@@ -6,7 +6,9 @@ The schedule of MorphoCoverage. For each step, this page holds:
 - how we know it passed;
 - the decisions that must be made before it.
 
-It was written on 2026-10-13 and revised the same day after two adversarial reviews. The
+It was written on 2026-10-13 and revised the same day after two adversarial reviews.
+Release scope was updated on 2026-10-24 after discussion with the owner; prior milestones,
+benchmark designs, decisions and completed work remain traceable rather than being reset. The
 tracking issue is [#407](https://github.com/CellMigrationLab/MorphoCoverage/issues/407):
 it lists this page's ids and, against each, the pull request that closed it.
 
@@ -37,41 +39,132 @@ Four sets of codes start with the same letters, so this page always prefixes the
 
 This page's own ids:
 
-- **Items:** a track name and a number. The tracks are ENG, DATA, BENCH, BRICK
-  (MorphoBricks, packaging and the bridge), VAL, LIVE and REL.
+- **Items:** a track name and a number. The original tracks are ENG, DATA, BENCH,
+  BRICK (MorphoBricks, packaging and the bridge), VAL, LIVE and REL. The release
+  additions below use QA, UX, INTEG, FEAT, STAT, SPAT and SMART.
+  Their checklist lives in #407; links to existing issues do not duplicate those issues.
 - **Datasets to be made:** DS-1 to DS-5.
-- **Milestones:** M0 to M5.
+- **Milestones:** M0 to M5 (historical IDs retained; M4 is now a V2 milestone,
+  while M5 remains the V1.0 release gate).
 - **Audits:** AUD-1 to AUD-5.
 - **Decisions:** DEC-1 to DEC-21, listed in "Decisions".
 
+## Release scope: V1, V1.5 and V2 (owner decision, 2026-10-24)
+
+The scientific aim remains FOV-aware sampling adequacy. **V1 is a stable offline REPORT
+and OPTIMISE product**, **V1.5 develops spatial and multiscale planning**, and **V2
+validates smart microscopy**. The current LIVE implementation remains available for
+development and retrospective replay, but **operational LIVE and microscope control are
+not V1 requirements**. This replaces the *release timing* of DEC-20 (see AGENTS.md
+section 8); it does not invalidate historical LIVE work. Release gates are evidence
+requirements, not assertions that an item is already complete.
+
+### V1 — robust, usable analysis with a defensible paper
+
+| Id | Deliverable | Needs / passing evidence |
+|---|---|---|
+| QA-1 | Triage existing issues into release-blocking scientific/data-integrity defects, verified fixes, performance, tests/docs and exploratory research. Resolve release blockers, including the typed-identity and bootstrap STOP risks (#319, #315, #425, #420, #596). Remove silent result-changing fallbacks and enforce quality constraints. | Each blocker reproduced against actual source, fixed with a failing-before regression and verified in the package. Open enhancement issues alone do not block release; the classification and unresolved limitations are visible. |
+| QA-2 | Optimize demonstrated bottlenecks, especially FOV covariance (#423), exact resampled quantiles (#497) and conditionally support geometry (#552), considering Numba, NumPy/SciPy, caching and memory. | Profile representative REPORT/OPTIMISE workloads, measure cold and warm latency, end-to-end wall time and peak memory, and show scientific/seeded decision parity. Numba is optional when it loses, changes boundary semantics or adds unjustified install cost. |
+| UX-1 | **Easy REPORT:** select a directory or feature tables, confirm controls/readouts, FOV/biological-repeat metadata and output directory, and obtain a standalone HTML report plus machine-readable outputs. Reuse `scan_design`, `guide`, `report` and `html_report` (#553), not a second analysis engine. | First-time users complete the path without writing Python; CLI/Python one-call entry is tested; ambiguous metadata produce actionable questions, not invented FOVs or silently inferred biological repeats. |
+| UX-2 | **One-feature advice:** select an explainable feature and a goal (mean precision, treatment effect, distribution or rare phenotype), then ask how to improve imaging. | Reports whether evidence points to additional FOVs, independent samples/wells/repeats, feature QC or insufficient evidence, with assumptions, effect/precision target, uncertainty and executable next-step guidance. Independent users validate wording and usefulness. |
+| INTEG-1 | Full MorphoBricks feature-table contract and DS-3 test: images -> preprocessing/CellPatcher -> fiberfeatures or MorphoRelate -> MorphoCoverage. | Pinned end-to-end integration, including valid zero-object fields, failures distinguished from empty FOVs, reused basenames, z/c/t nesting, patch/cell IDs, and explicit feature provenance; reproducible outputs twice (BRICK-1, BRICK-2, DATA-3). |
+| INTEG-2 | Easy install and a single user-facing MorphoBricks launcher, with each science module retaining its repository. LabConstrictor bridges are added where actually supported. | Clean Windows/macOS/Linux smoke tests for the offline table-to-report path, pinned versions and dependency/manifest checks (BRICK-3, BRICK-4). Fiji/napari/QuPath bridge breadth is not a V1 release blocker when the standalone launcher works. |
+| FEAT-1 | Decide whether general aggregation, normalization, feature selection and consensus should be reused from pycytominer or implemented; test representative table interoperability. | Written overlap matrix and a reproducible small-data comparison. Prefer reuse over duplicating pycytominer; never collapse the FOV/biological hierarchy or leak held-out data during preprocessing. |
+| FEAT-2 | Explain **MorphoBricks feature reliability**, including per-feature distribution, missingness, redundancy, sensitivity to representation and variation across FOVs, wells, biological repeats and batch. | Reports the independent units and fit scope, labels exploratory diagnostics and gives useful source-FOV inspection paths; retain extraction/segmentation QC in upstream tools. |
+| STAT-1 | **Paper Figure 1:** random individual cells from already observed images versus acquiring complete FOVs, with matched acquisition/cell effort, spatial clustering, within-FOV correlation, rare states, zero-object FOVs and real-data held-out confirmation. | Reproducible synthetic and real-data panels, uncertainty across independent samples, a regime map where cell-number guidance is sufficient/insufficient, and an explicit statement that retrospective oracle random-cell sampling is not a prospective microscope policy. The preliminary idr0139 four-FOV wells alone cannot support broad generalization. |
+| STAT-2 | **Condition-comparison benchmark:** define estimands and compare cell-level, whole-FOV, technical-repeat, biological-repeat, blocked-permutation, hierarchical/mixed and multivariate tests as appropriate. Cover paired/unpaired, incomplete, unbalanced, clustered, nonnormal, zero-inflated, missing/QC-selected and batch-confounded settings. | Locked comparison protocol and confirmatory simulations reporting type-I error, FWER/FDR, power, effect bias, interval coverage, non-estimability and compute; check independent real datasets. Extend rather than replace VP0-VP11 (#381); preserve the existing protocol's recorded-deviation rule. |
+
+**V1 validation gate:** BENCH-1 to BENCH-3 (VP0-VP5), DATA-4 and the
+relevant real-data checks under VAL/M3; STAT-1 and STAT-2; QA, UX and INTEG
+above; and the 1.0 release checks under REL/M5. **Methods without their
+scientific validation remain explicitly exploratory or "not assessed":** VP6-VP11
+and rare/population/novelty/whole-embedding decisions may be shown for
+exploration, but may not drive authoritative stopping or confident general
+claims until their own benchmark and real-data gate (BENCH-5, VAL-4) pass.
+No result is chosen on the final held-out dataset.
+
+### V1.5 — spatial sampling and multiscale imaging
+
+| Id | Deliverable | Needs / passing evidence |
+|---|---|---|
+| SPAT-1 | Large tiled images, multiscale pyramids and stage coordinates, with physical tile/FOV identity and overlap. | An upstream image reader or OME-Zarr-compatible loader provides a manifest of candidate positions; MorphoCoverage receives spatial tables, not image pixels or a new image-IO stack. Verify coordinate, scale, crop and registration round trips. |
+| SPAT-2 | Spatial coverage, clustering, representativeness and acquisition-frame diagnostics; explicit distinction between candidate, eligible, acquired, processed and analyzed FOVs (#194, DEC-16, OW 6). | Spatially structured benchmarks (#262), correct handling of absent/failed fields and spatially held-out reference regions; no claim that nearby FOVs are independent. |
+| SPAT-3 | Virtual low-resolution scouting by degrading complete high-resolution tile images. | Document blur/PSF, sampling, noise, contrast and calibration assumptions; compare virtual scouts with paired real low-/high-resolution acquisitions before making a physical-microscope claim. |
+| SPAT-4 | Use scout-level features (e.g. DINO or texture from external extractors) to choose **high-resolution** candidate FOVs; compare grid/random, representative, stratified, diversity/novelty and rare-target policies (#206). | Selection uses only scout-visible data. Score held-out high-resolution information at matched imaging cost, detection risk, effort and spatial coverage; keep population-estimation and discovery objectives distinct and record selection probabilities where needed. |
+| SPAT-5 | PhenoMe table/embedding interoperability (#401, #402) and image/source-provenance round trips. | Explicit image versus cell/patch unit mapping, valid FOV keys, source image coordinates, and no unvalidated embedding-based inferential claims. Prefer simple table adapters over reuse of PhenoMe's internal statistics/GUI. |
+| SPAT-6 | Optional compressed patch/thumbnail library for exemplar inspection, preferably reusing PhenoMe, CellPatcher or a standard image store. | Search/select/expose thumbnails by canonical object/patch/FOV key without storing a second large image archive; previews are not substituted for quantitative originals. Decision to ship depends on demonstrated added user value. |
+
+**V1.5 gate:** SPAT-1 to SPAT-5 validated with simulated and **paired real**
+multiscale images, held-out spatial regions and documented sampling bias;
+SPAT-6 is an optional feature, not a compulsory storage subsystem. V1.5 is
+offline **where-to-image planning**, not microscope actuation.
+
+### V2 — validated smart microscopy
+
+| Id | Deliverable | Needs / passing evidence |
+|---|---|---|
+| SMART-1 | Frozen, auditable acquisition plans and calibrated online **when-to-stop** decisions. | LIVE-1 to LIVE-5 and held-out benchmarking (#83, #84); agreement of replay and online outputs, calibrated false-stop risk and specified insufficient/borderline states. |
+| SMART-2 | Online **where-to-image** recommendations using V1.5's spatial sampling frame; separate representative estimation from targeted discovery. | Shadow-mode replay on unseen samples shows value over fixed/grid/random strategies at matched cost and quantifies any selection bias. |
+| SMART-3 | Prospective microscope deployment through separate, versioned adaptors and the MorphoBricks/LabConstrictor bridge; the microscope writes acquisitions, not MorphoCoverage science code. | DS-5/LIVE-7/M4 and then supervised hardware pilots; measured feature-to-decision latency below acquisition interval, deterministic recovery, safety/timeout/fallback tests and a manual override. DEC-11 settles hardware interface before direct control. |
+| SMART-4 | Optional multi-objective acquisition and adaptive resolution, channels or z-depth with explicit imaging-cost model. | Demonstrate more useful information per imaging time/dose/cost against simple baselines, without breaking scientific objectives or candidate-frame provenance. |
+
+**V2 gate:** M4 and AUD-4, prospective shadow-mode and supervised experiments,
+supported hardware adaptors, recoverable failures and unchanged scientific
+decisions under replay. Autonomous acquisition is a separately validated
+deployment mode, not a default.
+
+### Repository boundaries (one application, modular implementation)
+
+| Owner | Responsibilities |
+|---|---|
+| **MorphoCoverage** | Validating FOV/observation tables, feature reliability under sampling, statistics, inference limits, REPORT/OPTIMISE and later offline or live acquisition-decision algorithms. It does not own microscope hardware control, DINO extraction, pixel IO or a generic image viewer. |
+| **CellPatcher / fiberfeatures / MorphoRelate** | Patch geometry and provenance, pixel/compartment feature extraction, extraction QC, and feature/FOV manifests. |
+| **morphobricks-preprocessing / morphobricks-normalization** | Image reading/preparation, multiscale/pixel transformation and normalization contracts; distinguish pixel normalization from leakage-safe feature analysis. |
+| **Planned MorphoBricks app/installer** | One user-facing entry point, version pins, tables-to-report workflow, launchers, tool-bridge registration and integration acceptance tests; no duplicated scientific estimators. |
+| **PhenoMe / pycytominer** | Optional external embedding, visualization and profile-processing functionality through pinned adapters and compatible provenance; borrow capabilities only after the FEAT-1/SPAT-5 decision. |
+| **Microscope-specific adapters** | Hardware actuation, acquisition state, queueing, timeouts, emergency/manual control; consume versioned plans but never determine a scientific stop on their own. |
+
+The MorphoBricks schema is one versioned, tested logical contract, not a
+copy-and-pasted set of inconsistent rules. All stages must distinguish an
+acquired empty field from a failed, skipped or unanalysable field.
+
 ## How the tracks fit together
 
-The tracks run in parallel. An item waits only for what its "Needs" names.
+Tracks proceed in parallel. The work named under a release is a gate only when
+its "passing evidence" is satisfied; checkboxes in #407 reflect actual merged
+work rather than the intended schedule.
 
 ```
-ENG    ENG-1..8 ─────────────────────────────────────────────── M0
-BENCH  BENCH-1 (needs BRICK-0) ── BENCH-2, BENCH-3 ── M1 ── AUD-1
-                                  BENCH-5 ───────────────── M2 ── AUD-2
-DATA   DATA-1 ── DATA-2 acquire DS-1, DS-2 ── processed after BRICK-2 ── DATA-4 register
-BRICK  DEC-21 ── BRICK-0 (benchmark app, its own repository)
-       DEC-10 ── BRICK-3
-       BRICK-1 ── BRICK-2 (needs DS-3) ── BRICK-4 installer beta (needs M1) ── BRICK-5
-VAL    VAL-1, VAL-2, VAL-3 (need M1, DATA-4) · VAL-4 (needs M2) · VAL-5, VAL-6 ──── M3 ── AUD-3
-LIVE   LIVE-1 (needs M1) · LIVE-3 (needs DATA-4) · LIVE-5 (needs VP4) ── DATA-7 ── LIVE-7 ── M4 ── AUD-4
-REL    0.2 after M1 · 0.3 after M2 · AUD-5 after M3 and M4 ── 1.0 = M5
+ENG M0 + QA-1/QA-2 ───────────────────────────────────────────┐
+BENCH-1..3 (VP0..VP5) ── M1 ── AUD-1 ─────────────────────────┤
+DATA DS-1 (DATA-2/4) ── VAL core/M3 ── AUD-3 ────────────────┤
+STAT-1 (Figure 1) + STAT-2 (condition comparisons) ─────────┤
+BRICK-1..4 + UX-1/2 + INTEG-1/2 + FEAT-1/2 ─────────────────┤
+                                              AUD-5 ── V1/M5
+BENCH-5 (VP6..VP11) ── M2/AUD-2 ── method-specific promotion, not V1 blanket gate
+
+V1 + DS-2 + SPAT-1..5 ── spatial/paired validation ───────── V1.5
+V1.5 + LIVE-1..7 + DS-5 + SMART-1..3 ── M4/AUD-4 ─────────── V2
+                                            SMART-4 optional
 ```
 
-The critical path runs through the data. The acquisitions are the steps no software work
-can shorten.
+The original milestone and audit IDs remain unchanged even though AUD-5
+(V1) can now precede AUD-4 (V2). Historical M0/DEC completions in #407 are
+preserved. V1's critical dependencies are deep held-out DS-1 data, an actual
+end-to-end DS-3 producer/consumer test, completed core simulation benchmarks,
+two independent user paths and the two statistical paper studies. No amount
+of code cleanup substitutes for those acquisitions or confirmatory runs.
 
-1. DATA-1, the specification. DS-1 and DS-3 are acquired now.
-2. DATA-2: DS-1 acquired. Meanwhile BRICK-1 and BRICK-2 make MorphoBricks emit the FOV
-   table.
-3. DS-1 processed through MorphoBricks, then registered (DATA-4).
-4. Two branches:
-   - VAL, with M2 for VAL-4, leading to M3;
-   - LIVE-3, then the pilot acquisition DATA-7, then LIVE-7, leading to M4.
-5. AUD-5, then release 1.0.
+1. Lock DATA-4 and execute BENCH-1..3 before promoting rules; do not use DS-1
+   for tuning. Finish core real-data VAL checks and the scientific blockers.
+2. Make BRICK-1/2/3 real with DS-3, using upstream manifests to distinguish
+   zero-object, failed and missing fields. Complete UX-1/2 and the installer.
+3. Run STAT-1/2 with predeclared comparisons; evaluate and report null results.
+4. Close V1 through M3 and AUD-5, then release M5 if all V1 gates pass.
+5. Develop SPAT-1..5 on DS-2/paired multiscale images; do not use high-resolution
+   answers to train or tune a supposedly scout-only selection policy.
+6. Continue LIVE/SMART in shadow mode, acquire DS-5, pass M4/AUD-4, and only
+   then claim prospective microscope readiness.
 
 ## ENG: a clean, enforced repository (now)
 
@@ -142,9 +235,18 @@ and VP11 run or kept "later". AUD-2 follows.
 
 ## BRICK: MorphoBricks end to end, packaging and the bridge
 
-MorphoCoverage is step 3 of MorphoBricks: first CellPatcher, then feature extraction, then
-MorphoCoverage. The feature extraction is fiberfeatures today; #404 names MorphoRelate.
-Packaging uses LabConstrictor, whose installer builds one app per repository.
+MorphoCoverage consumes outputs of upstream MorphoBricks tools; it does not
+extract the image features. As checked on 2026-10-24, CellPatcher exports an
+`images.csv` table that can preserve zero-patch images, and MorphoRelate
+documents `fov_manifest.csv` (including failures) plus a processed-only
+`fov_table.csv`. These are **not** evidence that BRICK-1/2 end-to-end
+acceptance has passed. The [upstream FOV contract](morphobricks_fov_contract.md)
+requires a fresh reconciliation, including failures and repeated spatial
+positions; fiberfeatures, morphobricks-preprocessing and
+morphobricks-normalization must also be checked at pinned commits. Packaging
+uses LabConstrictor; a dedicated MorphoBricks installer repo is planned, not
+assumed to exist. For V1, the simple standalone table-to-report launcher is
+mandatory; all experimental host-specific bridges are not. BRICK-6 moves to V2.
 
 | Id | What | Needs | Pass condition |
 |---|---|---|---|
@@ -167,11 +269,17 @@ Packaging uses LabConstrictor, whose installer builds one app per repository.
 | VAL-5 | OW 8: external audits of OPT-P2 and OPT-P6. Each auditor is asked for a dataset on which the answer misleads while every test passes. | DEC-12 | Each audit's findings answered: fixed, or recorded as limits. |
 | VAL-6 | OW 2 with #81: the multi-group outcome, and #84's test 5, biological fidelity. | DEC-13, DATA-4 | #81's protocol and #84's test 5 hold on DS-1. |
 
-**M3:**
+**M3 (V1 core real-data gate):**
 
-- VAL-1 to VAL-6 pass.
-- A written verdict on [the project aim](project_aim.md)'s six success criteria and its
-  falsification list. The prospective criteria are completed at M4.
+- VAL-1 to VAL-3, VAL-5 and applicable VAL-6 outcomes pass for every V1
+  recommendation that relies on them. An unestimable outcome is named; it is
+  never quietly scored as zero. VAL-4 is the **method-specific** gate for
+  removing exploratory labels from VP6-VP11 and is not a blanket V1 gate.
+- A written verdict on [the project aim](project_aim.md)'s applicable
+  retrospective success and falsification criteria is published; truly
+  prospective criteria remain for M4/V2.
+- Independent users complete the report/advice reading test and the report
+  states its limits for unsupported scientific claims.
 
 AUD-3 follows.
 
@@ -186,39 +294,72 @@ AUD-3 follows.
 | LIVE-5 | OW 4 and 14: O5, a borderline state in the decision; O6, the calibration attached to the live session; the LIVE wording rule. | BENCH-3 for VP4 | The decision has a borderline state, O6's calibration is attached, and every live sentence follows the rule. |
 | LIVE-7 | The prospective pilot on one microscope, DS-5: `live_session` over a `LiveFolder`, run from a notebook. | LIVE-1, LIVE-3, LIVE-5, DATA-7 | On every DS-5 sample the session reaches a decision. The stop's error on the fields past it is recorded beside O6's calibrated false-stop rate for that rule. The O7 latency, from field to decision and including feature extraction, is below the time between two acquisitions. |
 
-**M4:**
+**M4 (V2 prospective gate, not a V1 dependency):**
 
-- LIVE-1, LIVE-3, LIVE-5 and LIVE-7 pass.
-- LIVE offers only a rule that was frozen, replayed on development data, scored on held-out
-  samples and compared with fixed FOVs.
+- LIVE-1, LIVE-3, LIVE-5 and LIVE-7 pass on DS-5; a rule was frozen,
+  replayed on development data, scored on held-out samples and compared with
+  fixed-FOV baselines before prospectively controlling acquisition.
+- SMART-1 to SMART-3 demonstrate shadow-mode and supervised operation,
+  measured latency and safe recovery; SMART-4 remains optional.
 
-AUD-4 follows. #206, scout and target, comes after M4, with the sampling frame (AGENTS.md
-sections 8 and 11).
+AUD-4 follows. #206's **offline** scout-and-target work belongs to V1.5
+(SPAT-3/4, sampling-frame DEC-16); only microscope execution waits for V2.
 
 ## REL: releases and the paper
 
 | Release | After | Holds |
 |---|---|---|
-| 0.2 | M1 | REPORT and OPTIMISE with VP1 to VP5's rules; the exploratory labels say what is not validated. |
-| 0.3 | M2 | VP6 to VP11's results, and BRICK-5's REPORT tools. |
-| 1.0 | M3, M4, AUD-5 | REPORT and OPTIMISE validated, LIVE, the bridge tools including BRICK-6's, and no `repeat` alias (DEC-20). |
+| 0.2 | M1 | REPORT/OPTIMISE core VP1-VP5 decisions or explicit limitations. |
+| 0.3 | Before 1.0, when the additional exploratory status is ready | Preview of added benchmark/report workflows; M2 and BENCH-5 may finish later, without pretending that an exploratory method is validated. |
+| **1.0 = M5** | M1, M3, AUD-5, QA-1/2, UX-1/2, INTEG-1/2, FEAT-1/2, STAT-1/2 | A stable **offline** REPORT + feature-targeted OPTIMISE, scientifically defended Figure 1 and condition-comparison benchmark, end-to-end MorphoBricks integration, clear validated/exploratory labels. **LIVE, BRICK-6, M4 and AUD-4 are not required.** |
+| **1.5** | V1, SPAT-1..5 and their spatial/multiscale validation | Large tiled-image and virtual-scout analysis, offline spatial field-selection advice, PhenoMe interoperability; SPAT-6 patch library optional. |
+| **2.0** | V1.5, SMART-1..3, M4 and AUD-4 | Frozen and prospectively validated online **when/where** decisions via safe, modular microscope adapters; SMART-4 optional. |
 
 **M5**, release 1.0, passes when:
 
-- the full suite passes;
-- `__all__` is frozen;
-- a tag, a CHANGELOG, a CITATION file and an archived DOI exist;
-- the exploratory labels match the module status table;
-- the notebook runs from a clean Colab;
-- the release installer has passed BRICK-4.
+- all V1 science/data-integrity blockers are fixed and regression-tested in
+  the actual package; a recorded open-issue triage separates real release
+  blockers from enhancements and exploratory research;
+- the full regression suite, lint/type/architecture gates and reference
+  report comparisons pass; no unsupported implementation defaults or silent
+  identity repairs alter a scientific result;
+- V1's real-data and locked statistical benchmark gates pass; Figure 1 and
+  the condition-comparison study have versioned, reproducible scripts/results,
+  explicit units/assumptions and independent-data checks;
+- feature tables can be supplied through a no-code entry point and a single
+  documented CLI/Python call, returning validated metadata and a complete
+  offline HTML report plus machine-readable evidence; feature-focused advice
+  passes a separate independent-user test;
+- the MorphoBricks integration test passes on DS-3, including failed,
+  empty, missing and repeated-name FOV cases, and the stable installer runs
+  the offline path on Windows, macOS and Linux;
+- `__all__`/public interfaces are versioned and frozen where promised, the
+  legacy `repeat` alias follows DEC-20's deprecation policy, and a tag,
+  CHANGELOG, CITATION file and archived DOI exist;
+- all exploratory/inapplicable/not-assessable claims are labelled, the clean
+  Colab notebook works, and the benchmark environment/provenance are
+  preserved. Do not delay this gate for microscope control or optional
+  exploratory VP6-VP11 methods.
 
 **The paper:**
 
-- **Main claim:** the regime map, which says when fields, not objects, limit an answer. It
-  needs OW 11, VAL-2 and LIVE-3.
-- **Supplementary information:** the archived summaries of BENCH-2 and BENCH-5.
-- **Before submission:** figure owners named. Data availability settled, since the ECM
-  tables stay outside the repository and each dataset has its own licence.
+- **Figure 1 (STAT-1):** actual whole-FOV acquisition versus retrospective
+  random cells, including clustering, independent-sample uncertainty and
+  where simple cell-number guidance remains sufficient. Preliminary real
+  results are documented in [preliminary findings](../preliminary_findings.md),
+  section 1, not presented as confirmatory proof.
+- **Statistical benchmark (STAT-2):** assumptions, type-I error, power,
+  interval coverage and validity of biological-condition comparisons;
+  integrate with VP0-VP5's locked protocol (#381), amending it only with
+  dated deviations and predeclared confirmatory analyses.
+- **Sampling regime map:** when fixed FOVs, object-count guidance or richer
+  FOV-aware methods improve held-out scientific outcomes; OW 11 and VAL-2
+  are central. LIVE-3 provides **later prospective validation**, not a
+  precondition for publishing defensible retrospective findings.
+- **Supplementary information:** archived decisions/results from
+  BENCH-2 and the BENCH-5 modules actually run, with exploratory ones clearly
+  designated. Name figure owners and resolve source data licences before
+  submission, particularly the ECM tables outside the repo.
 
 ## Any time
 
@@ -238,7 +379,12 @@ These depend on nothing above:
 - #404, `patch_id`, with MorphoRelate (done: `patch_id` is an observation identity of the feature tables);
 - #398, the lasso export, which BRICK-5 then uses.
 
-Not scheduled: #401, #402, #195, OW 15 to 17 and 19 to 21, and the sampling frame (#194, OW 6, DEC-16), a new input contract with CellPatcher upstream, with DS-2.
+Scheduled for V1.5 rather than "not scheduled": #401 (PhenoMe interoperability),
+#402 (subset highlighting), and #194/OW 6/DEC-16 (spatial sampling-frame
+contract), with DS-2 and SPAT-1..5. These are not V1 blockers.
+
+Not scheduled: #195 and OW 15 to 17 and 19 to 21, unless selected by a
+specific benchmark or scientific need.
 
 ## Decisions
 
@@ -263,16 +409,18 @@ all of them on 2026-10-13; the three left for later are put again at the step th
 | DEC-13 | The multi-group outcome contract and its registry | VAL-6 | decided: after M1 |
 | DEC-14 | The version scheme: how versions are numbered and tagged, and from which version the interface is stable | BRICK-0, BRICK-3 | decided |
 | DEC-15 | The repositories' visibility, and the licences: the `validation` extra holds the GPL-3.0 harmonypy, which the benchmark app bundles and the MorphoBricks installer does not | BRICK-0, BRICK-3 | decided: public at paper submission |
-| DEC-16 | The sampling-frame input contract, with CellPatcher | DS-2's format | later: not scheduled |
+| DEC-16 | The candidate-FOV sampling-frame input contract with CellPatcher and other upstream producers | Before SPAT-2 / DS-2 spatial tests | scheduled for V1.5; exact schema requires a separate approved decision |
 | DEC-17 | AGENTS.md sections 3 and 18 gain the bridge's hosts and its command line as usage contexts; today they defer a command line | BRICK-5 | decided: all four |
 | DEC-18 | Who the second reviewer is, verifying implementations beside the owner | BENCH-3 | decided: an AI review per PR |
 | DEC-19 | The cost-model inputs `C_sample` and `C_FOV` | OW 10 | decided: user-supplied |
-| DEC-20 | The 1.0 scope: which workflows ship validated, whether LIVE is in 1.0, whether the `repeat` alias is removed | AUD-5 | decided |
+| DEC-20 | Revised on 2026-10-24: 1.0 ships validated offline REPORT/OPTIMISE and clear exploratory limits, **not LIVE or microscope-control**; retain the planned `repeat` alias removal subject to compatibility tests | AUD-5 / M5 | decided by owner; supersedes 2026-10-13 LIVE-in-1.0 timing, not previous scientific decisions |
 | DEC-21 | The benchmark app's repository: its name, proposed `MorphoCoverage-Benchmark`, and its visibility, public when reviewers are to rerun it | BRICK-0 | decided |
 
 ## Audits
 
-An audit follows each of M1 to M4 (AUD-1 to AUD-4), and AUD-5 precedes release 1.0.
+An audit follows each of M1 to M4 (AUD-1 to AUD-4). AUD-5 is the V1
+release audit after M3; AUD-4 is the later V2 prospective audit after M4.
+These historic IDs are retained even when AUD-5 occurs earlier.
 
 - **Scope:** what changed since the last audit, every report question it touches followed
   from the tables to the sentence, and a fixed regression set: ENG-5's script and the code
@@ -300,7 +448,12 @@ An audit follows each of M1 to M4 (AUD-1 to AUD-4), and AUD-5 precedes release 1
 | Compute for the benchmark | the benchmark app on every local core (BRICK-0); measured by the pilots |
 | CI stays blocked | ENG-1's local gate, which includes ENG-4's guard; BRICK-0 builds on the owner's account; BRICK-4's repository needs Actions that run, chosen when it is created |
 | The bridge changes, being experimental; its Windows hook has not run on a real Windows computer | its version pinned in the installer; BRICK-5 after M1, BRICK-6 after M4 |
-| Upstream repositories change the FOV contract | BRICK-2 rerun on every MorphoBricks pin change |
+| Upstream repositories change the FOV contract | BRICK-2 rerun on every MorphoBricks pin change; versioned manifests and no conflation of failed vs empty fields |
+| Easy-entry wrappers hide malformed metadata | UX-1 refuses ambiguous controls/units and incomplete acquisition frames, while retaining a minimal user-facing path |
+| Numba microbenchmark is faster but changes decisions | QA-2 accepts end-to-end improvements only with numerical/statistical parity, tested cold-start overhead and a non-JIT option |
+| Spatial targeting biases prevalence or source-level inference | SPAT-4 explicitly labels representative versus discovery objectives, logs candidate frames/selection probabilities and validates on held-out regions |
+| Virtual low-resolution images are not optical low-magnification scans | SPAT-3 requires physically measured paired low/high data before any practical scanner claims |
+| Too many sibling repositories drift apart | INTEG-1 uses one pinned contract and CI-style consumer/provider tests; the MorphoBricks app owns UX/orchestration only |
 
 ## Keeping the repository clean
 
