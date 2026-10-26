@@ -7,8 +7,9 @@ The schedule of MorphoCoverage. For each step, this page holds:
 - the decisions that must be made before it.
 
 It was written on 2026-10-13 and revised the same day after two adversarial reviews.
-Release scope was updated on 2026-10-24 after discussion with the owner; prior milestones,
-benchmark designs, decisions and completed work remain traceable rather than being reset. The
+Release scope was updated on 2026-10-24 after discussion with the owner, and on 2026-10-26
+for model features (DEC-22); prior milestones, benchmark designs, decisions and completed work
+remain traceable rather than being reset. The
 tracking issue is [#407](https://github.com/CellMigrationLab/MorphoCoverage/issues/407):
 it lists this page's ids and, against each, the pull request that closed it.
 
@@ -47,7 +48,7 @@ This page's own ids:
 - **Milestones:** M0 to M5 (historical IDs retained; M4 is now a V2 milestone,
   while M5 remains the V1.0 release gate).
 - **Audits:** AUD-1 to AUD-5.
-- **Decisions:** DEC-1 to DEC-21, listed in "Decisions".
+- **Decisions:** DEC-1 to DEC-22, listed in "Decisions".
 
 ## Release scope: V1, V1.5 and V2 (owner decision, 2026-10-24)
 
@@ -59,13 +60,23 @@ not V1 requirements**. This replaces the *release timing* of DEC-20 (see AGENTS.
 section 8); it does not invalidate historical LIVE work. Release gates are evidence
 requirements, not assertions that an item is already complete.
 
+**Model features in V1 (owner decision, 2026-10-26, DEC-22):** MorphoFeature's V1 is
+offline batch extraction with classical providers **and** DINO embeddings, so INTEG-3,
+consuming those embeddings offline, moves from V1.5 into V1. LIVE stays in V2 (DEC-20),
+as does MorphoFeature's LIVE ingestion. VIEW-1 to VIEW-3 stay in V1.5. The decisions are
+recorded in MorphoFeature's
+[M0 decision ledger](https://github.com/CellMigrationLab/MorphoFeature/blob/main/docs/decisions/m0-decision-ledger.md)
+(D04, D18, D20).
+
 **Viewer direction (owner discussion, 2026-10-24):** MorphoBricks is the intended
 owner of conventional and model-based feature extraction, including DINO and other
-image embeddings. MorphoCoverage remains the statistical/sampling engine.
+image embeddings: [MorphoFeature](https://github.com/CellMigrationLab/MorphoFeature)
+orchestrates it, and MorphoEmbed computes the model features (2026-10-26).
+MorphoCoverage remains the statistical/sampling engine.
 PhenoMe's interactivity is a design and selectively reusable MIT-licensed code
 reference, **not** a required image-processing pipeline, statistics backend,
 viewer dependency or default interoperability target. Replacement parity is a
-hypothesis to validate once MorphoBricks' embedding extraction is actually
+hypothesis to validate once MorphoEmbed's embedding extraction is actually
 available, not a claim of completed functionality. The shared phenotype explorer
 belongs to the MorphoBricks user-facing application (or a small shared frontend
 only if reuse warrants one); it consumes immutable, validated coordinates,
@@ -82,8 +93,9 @@ remains functional without that application.
 | UX-1 | **Easy REPORT:** select a directory or feature tables, confirm controls/readouts, FOV/biological-repeat metadata and output directory, and obtain a standalone HTML report plus machine-readable outputs. Reuse `scan_design`, `guide`, `report` and `html_report` (#553), not a second analysis engine. | First-time users complete the path without writing Python; CLI/Python one-call entry is tested; ambiguous metadata produce actionable questions, not invented FOVs or silently inferred biological repeats. |
 | UX-2 | **One-feature advice:** select an explainable feature and a goal (mean precision, treatment effect, distribution or rare phenotype), then ask how to improve imaging. | Reports whether evidence points to additional FOVs, independent samples/wells/repeats, feature QC or insufficient evidence, with assumptions, effect/precision target, uncertainty and executable next-step guidance. Independent users validate wording and usefulness. |
 | UX-3 | **Lightweight interactive REPORT:** add metadata subset highlighting while keeping other points in view (#402) and export lasso-selected **displayed** observations with exact source/FOV/observation provenance (#398). Reuse current offline Plotly maps; do not introduce PhenoMe, ipywidgets or an alternate viewer. | Browser-tested from standalone `report.html`; stable coordinates on highlight, no changed statistical results, correct selection reset across views, distinct FOV/well/repeat support counts, typed-ID collision tests and honest shown-points-only export limitation. |
-| INTEG-1 | Full MorphoBricks feature-table contract and DS-3 test: images -> preprocessing/CellPatcher -> fiberfeatures or MorphoRelate -> MorphoCoverage. | Pinned end-to-end integration, including valid zero-object fields, failures distinguished from empty FOVs, reused basenames, z/c/t nesting, patch/cell IDs, and explicit feature provenance; reproducible outputs twice (BRICK-1, BRICK-2, DATA-3). |
+| INTEG-1 | Full MorphoBricks feature-table contract and DS-3 test: images -> preprocessing/CellPatcher -> MorphoFeature (orchestrating fiberfeatures, MorphoRelate and other providers; planned, so until it exists the providers directly) -> MorphoCoverage. | Pinned end-to-end integration, including valid zero-object fields, failures distinguished from empty FOVs, reused basenames, z/c/t nesting, patch/cell IDs, and explicit feature provenance; reproducible outputs twice (BRICK-1, BRICK-2, DATA-3). |
 | INTEG-2 | Easy install and a single user-facing MorphoBricks launcher, with each science module retaining its repository. LabConstrictor bridges are added where actually supported. | Clean Windows/macOS/Linux smoke tests for the offline table-to-report path, pinned versions and dependency/manifest checks (BRICK-3, BRICK-4). Fiji/napari/QuPath bridge breadth is not a V1 release blocker when the standalone launcher works. |
+| INTEG-3 | **DINO embeddings consumed offline** (moved from V1.5, DEC-22): MorphoEmbed, an optional MorphoFeature plugin, extracts them; MorphoFeature writes them as a non-explainable feature table. Keep segmentation, patching, model inference, GPU/checkpoints and preprocessing outside MorphoCoverage. | A pinned image/crop -> embedding-table example with model/weights/transform/channel provenance, original source IDs, a complete FOV/processing manifest and end-to-end tests, read through `feature_tables` (#599). Verify result reproducibility and practical deployment before claiming PhenoMe extraction parity; no Torch/PhenoMe dependency on basic REPORT. |
 | FEAT-1 | Decide whether general aggregation, normalization, feature selection and consensus should be reused from pycytominer or implemented; test representative table interoperability. | Written overlap matrix and a reproducible small-data comparison. Prefer reuse over duplicating pycytominer; never collapse the FOV/biological hierarchy or leak held-out data during preprocessing. |
 | FEAT-2 | Explain **MorphoBricks feature reliability**, including per-feature distribution, missingness, redundancy, sensitivity to representation and variation across FOVs, wells, biological repeats and batch. | Reports the independent units and fit scope, labels exploratory diagnostics and gives useful source-FOV inspection paths; retain extraction/segmentation QC in upstream tools. |
 | STAT-1 | **Paper Figure 1:** random individual cells from already observed images versus acquiring complete FOVs, with matched acquisition/cell effort, spatial clustering, within-FOV correlation, rare states, zero-object FOVs and real-data held-out confirmation. | Reproducible synthetic and real-data panels, uncertainty across independent samples, a regime map where cell-number guidance is sufficient/insufficient, and an explicit statement that retrospective oracle random-cell sampling is not a prospective microscope policy. The preliminary idr0139 four-FOV wells alone cannot support broad generalization. |
@@ -108,12 +120,11 @@ No result is chosen on the final held-out dataset.
 | SPAT-4 | Use scout-level features (e.g. DINO/model embeddings or texture from MorphoBricks extraction components) to choose **high-resolution** candidate FOVs; compare grid/random, representative, stratified, diversity/novelty and rare-target policies (#206). | Selection uses only scout-visible data. Score held-out high-resolution information at matched imaging cost, detection risk, effort and spatial coverage; keep population-estimation and discovery objectives distinct and record selection probabilities where needed. |
 | SPAT-5 | **PhenoMe replacement/interoperability decision**, not mandatory PhenoMe integration (#401). Audit whether MorphoBricks feature/model extraction plus the shared explorer cover useful PhenoMe workflows; retain a small optional export adapter only if a reproducible use case requires it. | A feature-by-feature parity and migration matrix, actual DINO/custom-model output/provenance comparison and a documented **reuse / reimplement / ignore** verdict. If nothing incremental remains, close #401 as unnecessary rather than treating PhenoMe compatibility as a V1.5 release dependency. |
 | SPAT-6 | Optional compressed patch/thumbnail index for exemplar inspection, preferably reusing CellPatcher outputs or a standard multiscale image store; **do not assume PhenoMe is a suitable compressed patch archive**. | Search/select/expose bounded previews by canonical observation/patch/FOV key without duplicating high-resolution images; originals remain the quantitative source. Ship the cache/library only if real usability and storage benchmarks justify it. |
-| INTEG-3 | **MorphoBricks-owned DINO/custom-model embedding extraction**, as an optional upstream brick. Keep segmentation, patching, model inference, GPU/checkpoints and preprocessing outside MorphoCoverage. | A pinned image/crop -> embedding-table example with model/weights/transform/channel provenance, original source IDs, a complete FOV/processing manifest and end-to-end tests. Verify result reproducibility and practical deployment before claiming PhenoMe extraction parity; no Torch/PhenoMe dependency on basic REPORT. |
 | VIEW-1 | **Shared, viewer-neutral phenotype explorer** in the MorphoBricks application: reuse precomputed PCA/UMAP coordinates, metadata, feature values and population IDs from MorphoCoverage or other validated tables. Take PhenoMe's interaction design as a reference; prefer small browser-side reuse over forking its coupled Jupyter explorer. | One browser UI accepts a versioned static data contract with no PhenoMe processing object, backend refit, notebook kernel or scientific state mutation. Highlight/filter, search, colour and selection work across feature tables without silently changing coordinates or results; independent end users can find a specified phenotype. |
 | VIEW-2 | **Point -> cell/patch -> original FOV image:** click an embedding observation, display bounded thumbnail/mask overlay and navigate to the parent FOV; box/lasso -> source-keyed gallery/export, reusing the V1 selection contract (#398). | Exact typed observation + FOV keys survive sorting, duplicate basenames, reused label IDs and view switches; image unavailable/failed has explicit error; selected points vs independent FOVs/repeats are displayed distinctly. Support local/offline previews with capped payloads and optional external full-resolution lookup, not an embedded massive image archive. |
 | VIEW-3 | **Spatial navigation** between the selected cell/patch, original FOV, tile and specimen-wide scout coordinates (uses SPAT-1/2). | Validated pixel-to-stage transforms and scale/registration, nested z/c/t semantics, overlap and missing-tile behavior; never mistake a patch for an independent FOV or a selected candidate for an acquired field. |
 
-**V1.5 gate:** SPAT-1 to SPAT-4, INTEG-3 and VIEW-1 to VIEW-3
+**V1.5 gate:** SPAT-1 to SPAT-4 and VIEW-1 to VIEW-3
 validated with simulated and **paired real** multiscale images, held-out spatial
 regions, exact source identity and documented sampling bias. SPAT-5 is a
 **documented architecture decision**, not a requirement to install or import
@@ -141,9 +152,10 @@ deployment mode, not a default.
 | Owner | Responsibilities |
 |---|---|
 | **MorphoCoverage** | Validating FOV/observation tables, feature reliability under sampling, statistics, inference limits, REPORT/OPTIMISE and later offline or live acquisition-decision algorithms. It does not own microscope hardware control, DINO extraction, pixel IO or a generic image viewer. |
+| **[MorphoFeature](https://github.com/CellMigrationLab/MorphoFeature)** (planned) | The MorphoBricks feature-generation and orchestration stage between images/CellPatcher and MorphoCoverage: runs the feature providers and merges their tables and manifests. V1 is offline batch, classical providers and DINO embeddings (DEC-22). |
 | **CellPatcher / fiberfeatures / MorphoRelate** | Patch geometry and provenance, pixel/compartment feature extraction, extraction QC, and feature/FOV manifests. |
 | **morphobricks-preprocessing / morphobricks-normalization** | Image reading/preparation, multiscale/pixel transformation and normalization contracts; distinguish pixel normalization from leakage-safe feature analysis. |
-| **MorphoBricks model-feature brick(s), planned** | DINO and other learned/image representations, inference, GPU, checkpoints, channel/crop transforms and auditable embedding exports. This functionality is **planned and must be validated**, not assumed available or equivalent to PhenoMe today. |
+| **MorphoEmbed** (`CellMigrationLab/MorphoEmbed`, private; planned) | The model-feature brick, an optional MorphoFeature plugin: DINO and other learned/image representations, inference, GPU, checkpoints, channel/crop transforms and auditable embedding exports. This functionality is **planned and must be validated**, not assumed available or equivalent to PhenoMe today. |
 | **Planned MorphoBricks app/installer** | One user-facing entry point, version pins, tables-to-report workflow, launchers and **shared browser phenotype explorer** (VIEW-1/2/3, SMART-5), image preview resolution and integration tests; no duplicated scientific estimators. Initially keep the viewer here, not a new repository; split only if multiple actual consumers justify it. |
 | **PhenoMe (external inspiration, not a dependency)** | Reference for point-to-image, highlight, thumbnail grid and keyboard/lightbox UX. Evaluate selective reuse of small MIT-licensed frontend parts with notices if it meaningfully reduces work; **do not fork the 3,509-line Jupyter explorer or import its pipeline/statistical engine**. Optional table adapter only on demonstrated value (SPAT-5/#401). |
 | **pycytominer (separate FEAT-1 decision)** | Optional external aggregation, annotation, normalization and profile-processing; validate independence/leakage before reusing, and do not confuse this decision with the PhenoMe viewer. |
@@ -152,6 +164,17 @@ deployment mode, not a default.
 The MorphoBricks schema is one versioned, tested logical contract, not a
 copy-and-pasted set of inconsistent rules. All stages must distinguish an
 acquired empty field from a failed, skipped or unanalysable field.
+
+**Producer contract (owner, 2026-10-26; MorphoFeature ledger D02, D09, D19):**
+every producer keys a field by `condition`, `biological_repeat`,
+`technical_repeat` and `position_id` (the image file stem only when one file is
+one position), object rows adding the object set and the original `label_id`,
+patches `patch_id`; names columns MorphoRelate's way,
+`{channel}__{object_set}__{feature}` or `{object_set}__{feature}`; and writes
+MorphoRelate's `feature_manifest.json` schema v2, which MorphoFeature merges.
+These are producer decisions; MorphoCoverage's validation is unchanged by them.
+How a MorphoFeature output becomes MorphoCoverage's offline and LIVE inputs is
+#599.
 
 **Browser explorer contract:** feed it **precomputed, read-only** coordinates
 and one selected row per canonical typed observation key, parent FOV, biological
@@ -178,11 +201,11 @@ ENG M0 + QA-1/QA-2 ────────────────────�
 BENCH-1..3 (VP0..VP5) ── M1 ── AUD-1 ─────────────────────────┤
 DATA DS-1 (DATA-2/4) ── VAL core/M3 ── AUD-3 ────────────────┤
 STAT-1 (Figure 1) + STAT-2 (condition comparisons) ─────────┤
-BRICK-1..4 + UX-1..3 + INTEG-1/2 + FEAT-1/2 ─────────────────┤
+BRICK-1..4 + UX-1..3 + INTEG-1..3 + FEAT-1/2 ────────────────┤
                                               AUD-5 ── V1/M5
 BENCH-5 (VP6..VP11) ── M2/AUD-2 ── method-specific promotion, not V1 blanket gate
 
-V1 + DS-2 + SPAT-1..5 + INTEG-3 + VIEW-1..3 ── validation ─ V1.5
+V1 + DS-2 + SPAT-1..5 + VIEW-1..3 ── validation ─ V1.5
 V1.5 + LIVE-1..7 + DS-5 + SMART-1..3/5 ── M4/AUD-4 ───────── V2
                                             SMART-4 optional
 ```
@@ -198,10 +221,11 @@ of code cleanup substitutes for those acquisitions or confirmatory runs.
 1. Lock DATA-4 and execute BENCH-1..3 before promoting rules; do not use DS-1
    for tuning. Finish core real-data VAL checks and the scientific blockers.
 2. Make BRICK-1/2/3 real with DS-3, using upstream manifests to distinguish
-   zero-object, failed and missing fields. Complete UX-1..3 and the installer.
+   zero-object, failed and missing fields. Complete UX-1..3, INTEG-3 and the
+   installer.
 3. Run STAT-1/2 with predeclared comparisons; evaluate and report null results.
 4. Close V1 through M3 and AUD-5, then release M5 if all V1 gates pass.
-5. Develop SPAT-1..5 on DS-2/paired multiscale images and INTEG-3/VIEW-1..3
+5. Develop SPAT-1..5 on DS-2/paired multiscale images and VIEW-1..3
    with upstream validated feature/embedding and image manifests. Do not use
    high-resolution answers to train or tune a supposedly scout-only policy;
    do not count optional PhenoMe import as a release gate.
@@ -354,8 +378,8 @@ AUD-4 follows. #206's **offline** scout-and-target work belongs to V1.5
 |---|---|---|
 | 0.2 | M1 | REPORT/OPTIMISE core VP1-VP5 decisions or explicit limitations. |
 | 0.3 | Before 1.0, when the additional exploratory status is ready | Preview of added benchmark/report workflows; M2 and BENCH-5 may finish later, without pretending that an exploratory method is validated. |
-| **1.0 = M5** | M1, M3, AUD-5, QA-1/2, UX-1..3, INTEG-1/2, FEAT-1/2, STAT-1/2 | A stable **offline** REPORT + feature-targeted OPTIMISE, scientifically defended Figure 1 and condition-comparison benchmark, end-to-end MorphoBricks integration, clear validated/exploratory labels. **LIVE, BRICK-6, M4 and AUD-4 are not required.** |
-| **1.5** | V1, SPAT-1..5, INTEG-3, VIEW-1..3 and spatial/multiscale validation | Large tiled-image and virtual-scout analysis, offline spatial field-selection advice and a source-linked shared phenotype/image explorer. PhenoMe replacement/optional interoperability decision recorded; no compulsory PhenoMe dependency. SPAT-6 archive optional. |
+| **1.0 = M5** | M1, M3, AUD-5, QA-1/2, UX-1..3, INTEG-1..3, FEAT-1/2, STAT-1/2 | A stable **offline** REPORT + feature-targeted OPTIMISE, scientifically defended Figure 1 and condition-comparison benchmark, end-to-end MorphoBricks integration, clear validated/exploratory labels. **LIVE, BRICK-6, M4 and AUD-4 are not required.** |
+| **1.5** | V1, SPAT-1..5, VIEW-1..3 and spatial/multiscale validation | Large tiled-image and virtual-scout analysis, offline spatial field-selection advice and a source-linked shared phenotype/image explorer. PhenoMe replacement/optional interoperability decision recorded; no compulsory PhenoMe dependency. SPAT-6 archive optional. |
 | **2.0** | V1.5, SMART-1..3/5, M4 and AUD-4 | Frozen and prospectively validated online **when/where** decisions via safe, modular microscope adapters, with read-only candidate/acquired FOV visualization; SMART-4 optional. |
 
 **M5**, release 1.0, passes when:
@@ -426,7 +450,7 @@ These depend on nothing above:
   may reuse that selection contract.
 
 Scheduled for V1.5: #194/OW 6/DEC-16 (spatial sampling frame), plus
-MorphoBricks embedding production and the shared VIEW-1..3 explorer.
+the shared VIEW-1..3 explorer. Embedding production moved to V1 (INTEG-3, DEC-22).
 #401 is **only** a PhenoMe interoperability/replacement parity decision (SPAT-5);
 direct PhenoMe integration is optional, not a release blocker. #402 moved to
 V1 UX-3 alongside #398. Neither a full PhenoMe fork nor an image viewer
@@ -440,6 +464,7 @@ specific benchmark or scientific need.
 The owner makes each one before the step it names. The answers are recorded in AGENTS.md
 section 8 and, for the benchmark, in the protocol's deviations, not here. The owner answered
 all of them on 2026-10-13; the three left for later are put again at the step they name.
+DEC-22 was added and answered on 2026-10-26.
 
 | Id | Decision | Before | Status |
 |---|---|---|---|
@@ -464,6 +489,7 @@ all of them on 2026-10-13; the three left for later are put again at the step th
 | DEC-19 | The cost-model inputs `C_sample` and `C_FOV` | OW 10 | decided: user-supplied |
 | DEC-20 | Revised on 2026-10-24: 1.0 ships validated offline REPORT/OPTIMISE and clear exploratory limits, **not LIVE or microscope-control**; retain the planned `repeat` alias removal subject to compatibility tests | AUD-5 / M5 | decided by owner; supersedes 2026-10-13 LIVE-in-1.0 timing, not previous scientific decisions |
 | DEC-21 | The benchmark app's repository: its name, proposed `MorphoCoverage-Benchmark`, and its visibility, public when reviewers are to rerun it | BRICK-0 | decided |
+| DEC-22 | Whether DINO embeddings are consumed in V1 (MorphoFeature V1 = offline batch with classical providers and DINO embeddings, its ledger D18) | INTEG-3 | decided by owner, 2026-10-26: INTEG-3 moves to V1; LIVE stays in V2 |
 
 ## Audits
 

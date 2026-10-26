@@ -565,10 +565,11 @@ not a rule that operational LIVE must precede an offline release. V1 ships stabl
 REPORT/OPTIMISE with scientifically validated claims, end-to-end MorphoBricks tables and
 locked statistics; methods not yet validated remain visibly exploratory or unavailable.
 V1 also adds native Plotly highlight and typed lasso-selection export, without an
-image viewer dependency. V1.5 studies large-image spatial coverage and
-low-resolution scout -> high-resolution FOV selection, a MorphoBricks-owned
-model-feature/embedding brick (DINO and other models), and a reusable
-phenotype explorer in the MorphoBricks application. PhenoMe is a source of
+image viewer dependency. V1 also consumes DINO embeddings offline from
+MorphoEmbed, the MorphoBricks model-feature brick and an optional plugin of
+MorphoFeature (roadmap INTEG-3, moved from V1.5 by DEC-22). V1.5 studies
+large-image spatial coverage and low-resolution scout -> high-resolution FOV
+selection, and a reusable phenotype explorer in the MorphoBricks application. PhenoMe is a source of
 interface ideas, not a mandatory dependency; optional interoperability needs
 a demonstrated use case and verified provenance. V2 adds prospectively tested when/where
 recommendations and separately controlled microscope adapters. The original milestone IDs
@@ -603,6 +604,7 @@ The schedule is [`docs/common/roadmap.md`](docs/common/roadmap.md). Its decision
 - DEC-18: each shipping PR of a benchmark winner gets an independent AI adversarial review beside the owner's check.
 - DEC-19: the cost-model inputs are given by the user for each experiment; the package has no defaults.
 - DEC-20 (superseded release timing, owner 2026-10-24): release 1.0 holds validated offline REPORT/OPTIMISE, minimal one-call and no-code user workflows, MorphoBricks end-to-end reporting and the core statistics/figure benchmarks. LIVE, M4, AUD-4, BRICK-6 and microscope control move to V2; V1.5 introduces spatial/multiscale offline planning. Exploratory analyses are labelled, never authoritative stopping claims. The planned removal of the `repeat` alias remains subject to compatibility tests.
+- DEC-22 (owner, 2026-10-26): MorphoFeature's V1 is offline batch extraction with classical providers and DINO embeddings (its decision ledger, D18), so the roadmap's INTEG-3, consuming those embeddings offline, moves into V1; LIVE stays in V2.
 
 ## 9. Validation philosophy and required contract tests
 
@@ -794,6 +796,7 @@ Scientific and computational benchmarking are separate dimensions. Runtime is fi
 ```text
 [Step 1] raw_data/ + masks/  ->  CellPatcher                  ->  patches/
 [Step 2] patches/            ->  Feature extraction            ->  features.csv
+                                 (MorphoFeature, planned)
 [Step 3] features.csv        ->  Analysis & applications       ->  results
                                  **[MorphoCoverage]**
 ```
@@ -801,7 +804,7 @@ Scientific and computational benchmarking are separate dimensions. Runtime is fi
 | Step | Repo | Description | Link |
 | --- | --- | --- | --- |
 | 1 | CellPatcher | Image patching | https://github.com/CellMigrationLab/CellPatcher |
-| 2 | fiberfeatures (and other extractors, e.g. DINO, Nyxus, CellProfiler) | Feature extraction | https://github.com/CellMigrationLab/fiberfeatures |
+| 2 | MorphoFeature (planned), orchestrating fiberfeatures and other extractors (e.g. MorphoEmbed for DINO, Nyxus, CellProfiler) | Feature extraction | https://github.com/CellMigrationLab/MorphoFeature, https://github.com/CellMigrationLab/fiberfeatures |
 | 3 | MorphoCoverage | FOV-aware sampling adequacy | https://github.com/CellMigrationLab/MorphoCoverage |
 
 Inputs: a phenotype-observation feature table from any step-2 tool, plus a FOV table that lists every acquired spatial position, including positions without observations. Current step-1/step-2 outputs do not yet emit such a table; `docs/common/morphobricks_fov_contract.md` lists what they need to change.
