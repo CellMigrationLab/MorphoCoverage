@@ -55,7 +55,14 @@ from ..metadata import (
     sorted_labels,
 )
 from ..sampling_unit.contrast_cells import IMBALANCE, sparse
-from ._scan_parts import declared_controls, observation_layout, planes, tagged_tables, targets
+from ._scan_parts import (
+    declared_controls,
+    observation_layout,
+    planes,
+    tagged_tables,
+    targets,
+    with_fov_groups,
+)
 from .setup import Setup
 
 T = TypeVar("T")
@@ -267,10 +274,9 @@ def reagent_groups(conditions: Sequence[Any], control: Any = None) -> dict[str, 
     return {t: members for t, members in groups.items() if len(members) > 1}
 
 
-def _fov_column(
-    objects: pd.DataFrame, fovs: pd.DataFrame | None, fov_col: str | None
-) -> str | None:
-    """The field identifier: ``fov_col``, else the first MorphoBricks candidate with values."""
+def _fov_column(objects: pd.DataFrame, fov_col: str | None) -> str | None:
+    """The field identifier: ``fov_col``, else the first MorphoBricks candidate with values in
+    the observations (the column that links them to the FOV table)."""
     if fov_col is not None:
         return fov_col
     for name in MORPHOBRICKS_FOV_CANDIDATES:
@@ -332,13 +338,12 @@ def _design(
     """The facts of the design and the observations per condition and repeat; with the FOV
     table (``fovs``), its conditions and repeats, those held only by empty fields included."""
     design: dict[str, Any] = {"observations": len(objects)}
-    has_condition = column_has_values(objects, CONDITION_COLUMN)
-    has_repeat = column_has_values(objects, REPEAT_COLUMN)
     listed = fovs is not None and set(fov_key) <= set(fovs.columns)
-    groups = fovs if listed else objects
-    fields, *per_field = (
-        _per_field(objects, fov_key, fovs) if fov_key else (len(objects), 1, 1.0, 1)
-    )
+    groups = fovs if listed else objects  # the FOV table is the authority (#363)
+    has_condition = column_has_values(groups, CONDITION_COLUMN)
+    has_repeat = column_has_values(groups, REPEAT_COLUMN)
+    rows = (len(objects), 1, 1.0, 1) if len(objects) else (0, 0, 0.0, 0)  # each row a field
+    fields, *per_field = _per_field(objects, fov_key, fovs) if fov_key else rows
     design["fields"], design["per_field"] = fields, tuple(per_field)
     conditions: list[Any] = []
     design["control_guesses"], design["control_guess"] = [], None
@@ -354,7 +359,7 @@ def _design(
     design["control"] = control if control_declared else None
     design["repeats"] = sorted_labels(groups[REPEAT_COLUMN]) if has_repeat else []
     keys = [c for c, has in ((CONDITION_COLUMN, has_condition), (REPEAT_COLUMN, has_repeat)) if has]
-    design["technical"] = _technical(objects, keys)
+    design["technical"] = _technical(groups, keys)  # wells of empty fields included
     design["repeat_sets"] = _repeat_sets(groups, conditions) if has_condition and has_repeat else []
     design["planes"] = planes(objects, fov_key)
     design["targets"] = targets(objects, has_condition)
@@ -480,7 +485,7 @@ def scan_design(
         integrity = _copy_checks(objects, fovs, read, known.column, observation_unit)
     # A FOV table that passed the data check lists every field acquired, empty ones included.
     listed = fovs if known.given and data_check.ok else None
-    design, layout = _design(objects, known.key, control_value, control_declared, listed)
+    design, layout = _design(known.observations, known.key, control_value, control_declared, listed)
     design["controls"] = controls or ([control_value] if control_declared else [])
     design["balance"] = _balance(layout, design["repeats"])
     design["constant"] = _constant(objects, features) if data_check.ok and features_declared else []
@@ -499,36 +504,45 @@ def scan_design(
 
 class _Fields(NamedTuple):
     """How the scan identifies the fields: the identifier ``column`` (``added`` when the
-    tables had none), the group columns, the field ``key`` (groups, then the identifier) and
-    the FOV table (``given``, or built from the objects)."""
+    observations name none), the group columns, the field ``key`` (groups, then the
+    identifier; empty when a declared identifier is missing: each row then counts as one
+    field), the FOV table (``given``, or built from the objects) and the ``observations``
+    the design reads (with the FOV table's group columns attached when it holds them)."""
 
     column: str
     added: bool
     groups: list[str]
     key: list[str]
-    fovs: pd.DataFrame
+    fovs: pd.DataFrame | None
     given: bool
+    observations: pd.DataFrame
 
 
 def _fields(objects: pd.DataFrame, fovs: pd.DataFrame | None, fov_col: str | None) -> _Fields:
-    """The fields of the tables; without an identifier, each row its own image
-    (``ADDED_FOV_COLUMN``, added to ``objects`` in place) and no FOV table given."""
-    found_fov = _fov_column(objects, fovs, fov_col)
+    """The fields of the tables (#363). Without an identifier in the observations each row is
+    its own image (``ADDED_FOV_COLUMN``, added to ``objects`` in place); a FOV table given is
+    kept even then, never read as "no FOV table": that it cannot be linked is the data
+    check's finding. A declared ``fov_col`` the observations lack stays the identifier the data
+    check names, and the design counts rows. The groups are those of either table."""
+    given = fovs is not None
+    if fov_col is not None and fov_col not in objects.columns:
+        return _Fields(fov_col, True, [], [], fovs, given, objects)
+    found_fov = _fov_column(objects, fov_col)
     added_fov = found_fov is None
     if added_fov:
         found_fov = ADDED_FOV_COLUMN
         objects[found_fov] = [f"row {i + 1}" for i in range(len(objects))]
-        fovs = None
     groups = [
         c
         for c in (CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN)
-        if column_has_values(objects, c)
+        if column_has_values(objects, c) or (given and column_has_values(fovs, c))
     ]
+    observations = objects if added_fov else with_fov_groups(objects, fovs, found_fov, groups)
+    groups = [c for c in groups if c in observations.columns]
     fov_key = [*groups, found_fov]
-    fovs_given = fovs is not None
-    if not fovs_given:
+    if not given:
         fovs = objects[fov_key].drop_duplicates().reset_index(drop=True)
-    return _Fields(found_fov, added_fov, groups, fov_key, fovs, fovs_given)
+    return _Fields(found_fov, added_fov, groups, fov_key, fovs, given, observations)
 
 
 def _copy_checks(

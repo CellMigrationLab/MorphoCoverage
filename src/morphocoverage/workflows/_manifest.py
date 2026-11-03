@@ -126,6 +126,32 @@ def read_coordinates(typed: Mapping[str, Any], stage_cols: Sequence[str]) -> dic
     return found
 
 
+def object_file(folder: Path, entry: str, line: int, *, outside: bool = False) -> Path:
+    """The object file a manifest line names, refused before it is read when it is not inside
+    ``folder`` (#360): the contract is a path relative to the watched folder, so an absolute
+    path, a ``..`` that leaves it or a symbolic link resolving outside it would feed another
+    run's field into this acquisition. ``outside=True`` (``LiveFolder(outside_files=True)``)
+    is the explicit opt-in of an acquisition that writes such paths on purpose. A file that
+    does not exist raises too (an empty field has an empty entry or an empty file)."""
+    path = folder / entry
+    inside = folder.resolve()
+    target = path.resolve()
+    if not outside and (Path(entry).is_absolute() or not target.is_relative_to(inside)):
+        raise ValueError(
+            f"{MANIFEST} line {line} names the object file {entry!r}, which is not inside the "
+            f"watched folder {folder} (it resolves to {target}); the manifest's objects_file is "
+            "a path relative to that folder (write_fov writes them so). Move the file into the "
+            "folder, or pass LiveFolder(..., outside_files=True) if the acquisition writes "
+            "such paths on purpose"
+        )
+    if not path.exists():
+        raise FileNotFoundError(
+            f"the manifest names {path}, which does not exist; an empty field has an "
+            f"empty {OBJECTS_FILE!r} entry or an empty file"
+        )
+    return path
+
+
 class ManifestReader:
     """The lines of a live folder's manifest, each read once, in order.
 
