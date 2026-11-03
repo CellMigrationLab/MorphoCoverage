@@ -464,6 +464,10 @@
     "_former_repeat = ContextVar('former_repeat_scope', default=None)",
     "workflows._acquisition_gap = 'the maps on raw values or centred per repeat, the separation of the conditions "
    ],
+   "_SHOWN": [
+    "_observation_keys = 3",
+    "feature_tables = 3"
+   ],
    "_UNITS": [
     "strategies.incidence_coverage = {'incidence_coverage': 'fraction of incidence in observed states', 'chao2_comple",
     "strategies.scalar_precision = ('object', 'fov')",

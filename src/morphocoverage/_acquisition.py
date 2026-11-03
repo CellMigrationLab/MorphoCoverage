@@ -24,11 +24,17 @@ ACQUISITION = "acquisition"
 def acquisition_identity(data: ValidatedInput) -> str:
     """The SHA-256 of the sorted typed FOV keys of ``data``.
 
-    The key is the FOV column with the MorphoBricks group columns the FOV table holds, never
-    the analysis's own ``group_cols``: the same acquisition read with other groups (or with
-    identity columns only) must give the same identity."""
-    columns = [c for c in data.fovs.columns if c in MORPHOBRICKS_GROUP_COLUMNS]
-    columns = [c for c in columns if c != data.fov_key[-1]] + [data.fov_key[-1]]
+    The key is the FOV column with the MorphoBricks group columns the FOV table holds, whether
+    or not the analysis groups by them, so the same acquisition read with other MorphoBricks
+    groups (or with identity columns only) gives the same identity; and with every other
+    column of ``data.fov_key`` (a custom ``experiment``, ``plate`` or ``well`` named in
+    ``group_cols``), since such a column tells fields apart that share a FOV name (#416): two
+    acquisitions with field ``f1`` of ``experiment`` ``run_A`` and ``run_B`` must not share
+    an identity. Results read with and without a custom identity column therefore differ."""
+    fov_col = data.fov_key[-1]
+    named = [c for c in data.fovs.columns if c in MORPHOBRICKS_GROUP_COLUMNS or c in data.fov_key]
+    # Sorted by name, so the column order of the FOV table does not change the identity.
+    columns = sorted((c for c in named if c != fov_col), key=str) + [fov_col]
     keys = sorted([list(part) for part in key] for key in row_keys(data.fovs, columns))
     text = json.dumps(keys, separators=(",", ":"))
     return hashlib.sha256(text.encode("utf-8")).hexdigest()

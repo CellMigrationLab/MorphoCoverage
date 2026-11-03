@@ -54,9 +54,20 @@ def _check_unit(data: ValidatedInput) -> None:
 
 def check_input(data: ValidatedInput) -> None:
     """Refuse a ``ValidatedInput`` the validator could not have produced: missing or repeated
-    columns, a FOV table that is not one row per FOV, observations of FOVs it does not list,
-    missing identifiers, non-numeric or infinite features."""
-    from .schema import _check_feature_values, _check_identity_values, _validated_fov_table
+    columns, a column in two roles or a plane coordinate as a feature, identity values that
+    are lists or that would be taken for one another, a FOV table that is not one row per FOV,
+    observations of FOVs it does not list, missing identifiers, the planes of a field counted
+    as observations or a position's files without their plane, non-numeric or infinite
+    features (#422: the validator's own rules, in its order)."""
+    from .schema import (
+        _check_column_roles,
+        _check_feature_values,
+        _check_hashable_identity,
+        _check_identity_values,
+        _check_planes_within_fields,
+        _check_within_fov_axes,
+        _validated_fov_table,
+    )
 
     for name in ("objects", "fovs"):
         if not isinstance(getattr(data, name), pd.DataFrame):
@@ -70,9 +81,15 @@ def check_input(data: ValidatedInput) -> None:
         absent = [c for c in columns if c not in table.columns]
         if absent:
             _fail(f"{name} lacks the column(s) {absent}")
-    _check_identity_values(data.objects, data.fov_key)
-    _validated_fov_table(data.objects, data.fovs, data.fov_key)  # one row per FOV, all listed
-    _check_feature_values(data.objects, data.feature_cols)
+    objects, fovs, key, features = data.objects, data.fovs, data.fov_key, data.feature_cols
+    _check_column_roles(features, key[:-1], data.fov_col)
+    _check_hashable_identity(objects, fovs, key)
+    _check_identity_values(objects, key)
+    # The FOV column is the caller's own here, as an explicit fov_col is to the validator.
+    _check_within_fov_axes(objects, key, features, fov_col_was_chosen=False, fovs=fovs)
+    _check_planes_within_fields(objects, key, features, data.observation_unit)
+    _validated_fov_table(objects, fovs, key)  # one row per FOV, all listed
+    _check_feature_values(objects, features)
 
 
 def trusted_input(cls: type[ValidatedInput], **fields: Any) -> ValidatedInput:

@@ -27,6 +27,46 @@ def test_the_identity_ignores_row_order_and_values_but_not_the_fields():
     assert acquisition_identity(one) != acquisition_identity(other)
 
 
+def _experiment(name: str, group_cols: list | None = None):
+    objects = pd.DataFrame({"experiment": name, "fov_id": "f1", "x": [1.0, 2.0]})
+    fovs = pd.DataFrame({"experiment": [name], "fov_id": ["f1"]})
+    groups = ["experiment"] if group_cols is None else group_cols
+    return validate_input_tables(
+        objects, fovs=fovs, feature_cols=["x"], fov_col="fov_id", group_cols=groups
+    )
+
+
+def test_a_custom_identity_column_is_part_of_the_acquisition_identity():
+    """Field f1 of experiment run_A and of run_B are two acquisitions (#416).
+
+    Only the MorphoBricks group columns and the FOV column were hashed, so a custom
+    identity column named in ``group_cols`` was invisible and the two collided.
+    """
+    run_a, run_b = _experiment("run_A"), _experiment("run_B")
+    assert acquisition_identity(run_a) != acquisition_identity(run_b)
+    with pytest.raises(ValueError, match="different acquisitions"):
+        check_one_acquisition(
+            {"a": _variability_settings(run_a), "b": _variability_settings(run_b)}
+        )
+
+
+def test_the_identity_ignores_column_order_and_morphobricks_group_selection():
+    """Reordered FOV-table columns, and grouping by fewer MorphoBricks columns, keep it."""
+    objects, fovs = _one_condition_tables()
+    base = validate_input_tables(objects, fovs=fovs, feature_cols=["x"])
+    columns = list(reversed(fovs.columns))
+    reordered = validate_input_tables(objects, fovs=fovs[columns], feature_cols=["x"])
+    pooled = validate_input_tables(objects, fovs=fovs, feature_cols=["x"], group_cols=[])
+    assert acquisition_identity(base) == acquisition_identity(reordered)
+    assert acquisition_identity(base) == acquisition_identity(pooled)
+
+
+def _variability_settings(data):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(settings={"acquisition": acquisition_identity(data)})
+
+
 def test_a_result_without_an_identity_is_named_not_assumed_compatible():
     objects, fovs = _one_condition_tables()
     result = _variability(objects, fovs)

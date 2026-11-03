@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from ._former_repeat import Reader, caller_stacklevel
-from ._identity import canonical_order
+from ._identity import canonical_order, check_one_type
 from ._input_invariants import check_input, trusted_input
 from ._input_traps import warn_invalid_rows
 from ._observation_units import (  # noqa: F401  (re-exported: the observation unit)
@@ -57,6 +57,7 @@ from .metadata import (
     column_names,
     drop_empty_optional_columns,
     empty_values,
+    repeated_names,
     resolve_fov_col,
     resolve_group_cols,
     resolve_identity_cols,
@@ -309,7 +310,7 @@ def unhashable_values(values: pd.Series) -> pd.Series:
 def _check_hashable_identity(
     objects: pd.DataFrame, fovs: pd.DataFrame | None, columns: Sequence[str]
 ) -> None:
-    """Refuse identity columns holding lists or arrays: they cannot be matched or grouped."""
+    """Refuse identity values that are lists or arrays, or that equality merges (True, 1)."""
     for name, table in _tables(objects, fovs):
         for column in dict.fromkeys(columns):
             if column in table.columns and unhashable_values(table[column]).any():
@@ -317,6 +318,7 @@ def _check_hashable_identity(
                     f"{name}[{column!r}] holds values such as lists, which cannot identify a "
                     "field or group; store one text or number per row"
                 )
+    check_one_type(_tables(objects, fovs), columns)
 
 
 def _check_identity_values(objects: pd.DataFrame, fov_key: tuple[str, ...]) -> None:
@@ -366,8 +368,7 @@ def _validated_fov_table(
             raise ValueError(f"fovs[{column!r}] contains missing values")
     if fovs.duplicated(key).any():
         raise ValueError(f"fovs must contain exactly one row per acquired FOV (key: {key})")
-    # Key tuples as Python sets: several times faster than MultiIndex set
-    # operations at these sizes, and identity columns contain no missing values.
+    # Key tuples as Python sets (fast): no missing value, and one type per value (#420).
     listed = set(zip(*(fovs[c].tolist() for c in key)))
     observed = set(zip(*(objects[c].tolist() for c in key)))
     missing = observed - listed
@@ -541,7 +542,9 @@ def fov_table_from_observations(
     count, which makes every sampling answer optimistic. Provide the real FOV
     table whenever it exists.
     """
-    key = list(fov_key)
+    key, carry = list(column_names(fov_key, "fov_key")), column_names(carry, "carry")  # once
+    if repeated := repeated_names(key) + repeated_names(carry):
+        raise ValueError(f"columns named twice in fov_key or carry: {repeated}")
     columns = key + [c for c in carry if c not in key]
     missing = [c for c in columns if c not in objects.columns]
     if missing:

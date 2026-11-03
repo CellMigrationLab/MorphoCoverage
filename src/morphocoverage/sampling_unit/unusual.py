@@ -80,7 +80,7 @@ from .._frozen import owned
 from .._seeds import group_key, group_rng
 from .._style import check_detail
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
-from ..schema import ValidatedInput, observation_words
+from ..schema import ValidatedInput, fov_positions, observation_words
 from ..transforms import Standardize
 from ._common import groups, matching_groups, validated
 from ._experiments import repeat_experiments, same_experiment
@@ -222,14 +222,11 @@ def _observation_groups(
     data: ValidatedInput, all_groups: list[tuple[dict[str, Any], ValidatedInput]]
 ) -> np.ndarray:
     """Each observation's analysis group, by its position in ``all_groups``."""
-    # map each group's observations back to rows of the validated table
+    # Each observation's field by the validated lookup (one type and spelling per identity
+    # value, #420), then each field's group.
     key = list(data.fov_key)
     row_of = {fov: i for i, fov in enumerate(zip(*(data.fovs[c].tolist() for c in key)))}
-    observation_fov = np.fromiter(
-        (row_of[f] for f in zip(*(data.objects[c].tolist() for c in key))),
-        dtype=np.int64,
-        count=len(data.objects),
-    )
+    observation_fov = fov_positions(data, data.fovs)
     fov_group = np.empty(len(data.fovs), dtype=np.int64)
     for g_index, (_, group_data) in enumerate(all_groups):
         members = [row_of[f] for f in zip(*(group_data.fovs[c].tolist() for c in key))]

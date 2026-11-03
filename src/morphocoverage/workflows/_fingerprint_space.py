@@ -42,6 +42,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
+from .._identity import identity_key
 from .._seeds import group_key
 from .._style import group_label
 from .._wording import count, listing
@@ -224,17 +225,18 @@ class FingerprintSpace:
 
 def _judged(
     data: Any, columns: list[str], min_fields: int
-) -> list[tuple[Any, str, int, tuple[tuple[str, str], ...], int]]:
+) -> list[tuple[Any, str, int, tuple[tuple[str, str], ...], int, tuple[str, ...]]]:
     """Each analysis group of at least ``min_fields`` fields: its key, its name, the
-    observations holding every value of ``columns``, its ``(column, value)`` pairs and its
-    observations."""
+    observations holding every value of ``columns``, its ``(column, value)`` pairs, its
+    observations and its values' types."""
     sizes = []
     for group, members in iter_analysis_groups(data):
         if len(members.fovs) >= min_fields:
             held = ~members.objects[columns].isna().any(axis=1)
             name = group_label(group)  # "b1 · repeat R3 · W07" (audit 10, C28)
             pairs = tuple((str(c), str(v)) for c, v in group.items())
-            sizes.append((group_key(group), name, int(held.sum()), pairs, len(held)))
+            kinds = tuple(identity_key(v)[1] for v in group.values())  # 1 is not "1" (#420)
+            sizes.append((group_key(group), name, int(held.sum()), pairs, len(held), kinds))
     return sizes
 
 
@@ -274,6 +276,7 @@ def _read(
     small = tuple(item[:3] for item in judged if item[2] < SHARE * k)
     unvalued = tuple(item[1] for item in judged if item[2] < SHARE * k <= item[4])
     excluded = tuple(item[3] for item in judged if item[2] < SHARE * k)
+    excluded_types = tuple(item[5] for item in judged if item[2] < SHARE * k)
     complete = data.objects[columns].dropna()
     centre, scale, loadings = robust_components(complete.to_numpy(dtype=float), k)
     prefix = table_of(columns, setup) if other else "explainable"
@@ -281,7 +284,13 @@ def _read(
     inner = replace(metric, features=names, standardize=False, weights=None)
     # The groups too small for k are not judged, in the report and in optimise (audit 8).
     read = ComponentsError(
-        inner, tuple(columns), tuple(centre), tuple(scale), tuple(loadings), excluded
+        inner,
+        tuple(columns),
+        tuple(centre),
+        tuple(scale),
+        tuple(loadings),
+        excluded,
+        excluded_types,
     )
     reading = Reading(k, len(columns), median, small=small, unvalued=unvalued)
     return replace(criterion, metric=read), reading
