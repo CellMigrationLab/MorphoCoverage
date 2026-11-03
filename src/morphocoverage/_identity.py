@@ -165,10 +165,23 @@ def _ambiguity(present: Sequence[pd.Series]) -> tuple[Any, ...] | None:
             if len(held):
                 return (held.iloc[0],)
         return None
+    if kinds == {"floating"}:  # only 0.0 and -0.0 collide: a vectorised check
+        return _signed_zeros(present)
     values = [v for series in present for v in series.astype(object).tolist()]
     found = [(v,) for v in values if isinstance(v, str) and KEY_SEPARATOR in v]
     groups = ambiguous_values(values)
     return groups[0] if groups else found[0] if found else None
+
+
+def _signed_zeros(present: Sequence[pd.Series]) -> tuple[float, float] | None:
+    """``(0.0, -0.0)`` in order of first appearance when the float values of ``present``
+    hold both zeros, which equality merges; else ``None``."""
+    values = np.concatenate([s.to_numpy(dtype=float, na_value=np.nan) for s in present])
+    signs = np.signbit(values[values == 0])
+    if signs.any() and not signs.all():
+        first = float(values[values == 0][0])
+        return first, -first
+    return None
 
 
 def check_one_type(tables: Sequence[tuple[str, pd.DataFrame]], columns: Sequence[str]) -> None:

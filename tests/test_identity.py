@@ -11,6 +11,7 @@ from morphocoverage import validate_input_tables
 from morphocoverage._identity import (
     ambiguous_values,
     canonical_codes,
+    check_one_type,
     display,
     identity_key,
     typed_frame,
@@ -115,3 +116,14 @@ def test_typed_frames_match_rows_by_typed_value():
     assert keys["position_id"].nunique() == 2 and keys["condition"].nunique() == 1
     with pytest.raises(ValueError, match="never missing"):
         typed_frame(one.assign(condition=[np.nan, "a"]), ["condition"])
+
+
+@pytest.mark.parametrize("dtype", ["float64", "Float64", "float32"])
+def test_float_identifiers_are_refused_only_when_both_zeros_appear(dtype: str) -> None:
+    """Float identifiers take a vectorised path: only 0.0 and -0.0 collide (#420)."""
+    objects = pd.DataFrame({"fov_id": pd.Series([0.0, 1.5, 2.0], dtype=dtype)})
+    fovs = pd.DataFrame({"fov_id": pd.Series([2.0, 1.5, 0.0], dtype=dtype)})
+    check_one_type([("objects", objects), ("fovs", fovs)], ["fov_id"])
+    fovs.loc[2, "fov_id"] = -0.0
+    with pytest.raises(ValueError, match=r"\(0.0 \(float\), -0.0 \(float\)\)"):
+        check_one_type([("objects", objects), ("fovs", fovs)], ["fov_id"])
