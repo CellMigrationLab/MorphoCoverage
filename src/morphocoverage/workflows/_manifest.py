@@ -134,11 +134,9 @@ def object_file(folder: Path, entry: str, line: int, *, outside: bool = False) -
     is the explicit opt-in of an acquisition that writes such paths on purpose. A file that
     does not exist raises too (an empty field has an empty entry or an empty file)."""
     path = folder / entry
-    if outside:
-        return path
     inside = folder.resolve()
     target = path.resolve()
-    if Path(entry).is_absolute() or not target.is_relative_to(inside):
+    if not outside and (Path(entry).is_absolute() or not target.is_relative_to(inside)):
         raise ValueError(
             f"{MANIFEST} line {line} names the object file {entry!r}, which is not inside the "
             f"watched folder {folder} (it resolves to {target}); the manifest's objects_file is "

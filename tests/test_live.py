@@ -414,6 +414,17 @@ def test_an_object_file_outside_the_folder_is_refused_before_it_is_read(tmp_path
     assert len(opted.poll()) == 1 and _fields_in(opted) == 1
 
 
+def test_a_missing_object_file_outside_the_folder_is_named_when_opted_in(tmp_path):
+    """outside_files=True lifts the folder check only: a missing file is still named."""
+    folder = tmp_path / "live"
+    folder.mkdir()
+    live = _pointed(folder, "../gone.csv")
+    opted = LiveFolder(folder, live.session, outside_files=True)
+    with pytest.raises(FileNotFoundError, match="gone.csv, which does not exist"):
+        opted.poll()
+    assert _fields_in(opted) == 0
+
+
 def test_a_nested_relative_object_file_inside_the_folder_is_read(tmp_path):
     folder = tmp_path / "live"
     (folder / "objects" / "well").mkdir(parents=True)
