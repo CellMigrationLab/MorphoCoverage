@@ -92,6 +92,16 @@ def display(keys: Sequence[IdentityKey]) -> dict[IdentityKey, str]:
     return {key: key[0] if texts.count(key[0]) == 1 else f"{key[0]} ({key[1]})" for key in keys}
 
 
+def typed_frame(table: pd.DataFrame, columns: Sequence[str]) -> pd.DataFrame:
+    """``table[columns]`` with each value as its typed key in one text (``"1\x1eint"``), for
+    matching rows of two tables by text without joining ``1`` and ``"1"`` (#420); never shown.
+    Missing values are refused, as identities are never missing."""
+    return pd.DataFrame(
+        {c: ["\x1e".join(identity_key(v)) for v in table[c].tolist()] for c in columns},
+        index=table.index,
+    )
+
+
 def typed_labels(values: pd.Series) -> np.ndarray:
     """One text per row of ``values`` that tells typed identities apart: the value's text, with
     its type added when two distinct values of ``values`` print alike (``display``), so
@@ -201,5 +211,6 @@ __all__ = [
     "identity_key",
     "key_labels",
     "row_keys",
+    "typed_frame",
     "typed_labels",
 ]

@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 
 from ._caveats import assumption, is_assumption
+from ._identity import typed_labels
 from ._seeds import group_key
 from ._style import rule_label
 from ._wording import rows_of
@@ -185,7 +186,9 @@ def group_major(table: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
     """Rows group by group in first-seen order, keeping each group's row order."""
     if not group_cols or table.empty:
         return table
-    key = table[group_cols].astype(str).agg("\x1f".join, axis=1)
+    # Typed labels: group 1 is not group "1" (#420); no identifier holds the separator.
+    labels = {c: typed_labels(table[c]) for c in group_cols}
+    key = pd.DataFrame(labels, index=table.index).agg("\x1f".join, axis=1)
     rank = {value: i for i, value in enumerate(dict.fromkeys(key))}
     order = key.map(rank).sort_values(kind="stable").index
     return table.loc[order].reset_index(drop=True)

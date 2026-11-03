@@ -13,6 +13,7 @@ from morphocoverage._identity import (
     canonical_codes,
     display,
     identity_key,
+    typed_frame,
     typed_labels,
 )
 from morphocoverage.sampling_unit._units import resolve_unit
@@ -105,3 +106,12 @@ def test_separation_tells_conditions_that_print_alike_apart():
     )
     blocks = _blocks(meta, np.arange(4))
     assert len(set(blocks)) == 4 and all(b.startswith("well") for b in blocks)
+
+
+def test_typed_frames_match_rows_by_typed_value():
+    """Field 1 and field "1" never match by text where two tables are compared (#420)."""
+    one = pd.DataFrame({"condition": ["a", "a"], "position_id": pd.Series([1, "1"], dtype=object)})
+    keys = typed_frame(one, ["condition", "position_id"])
+    assert keys["position_id"].nunique() == 2 and keys["condition"].nunique() == 1
+    with pytest.raises(ValueError, match="never missing"):
+        typed_frame(one.assign(condition=[np.nan, "a"]), ["condition"])
