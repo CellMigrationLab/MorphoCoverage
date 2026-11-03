@@ -43,6 +43,43 @@ def test_a_separator_inside_a_value_does_not_join_two_keys() -> None:
     assert attached["d0"].tolist() == [10.0, 20.0]
 
 
+def test_a_separator_inside_a_within_field_identifier_does_not_join_two_keys() -> None:
+    """The within-field columns are matched as untyped text, so only the escaping keeps
+    label ``"a\\x1fb"`` of patch ``"c"`` apart from label ``"a"`` of patch ``"b\\x1fc"``."""
+    objects = pd.DataFrame(
+        {
+            "position_id": ["f1", "f1"],
+            "label_id": ["a\x1fb", "a"],
+            "patch_id": ["c", "b\x1fc"],
+            "area": [1.0, 2.0],
+        }
+    )
+    table = objects[["position_id", "label_id", "patch_id"]].iloc[::-1].assign(d0=[20.0, 10.0])
+    attached = attach_feature_tables(objects, None, {"dino": table}).objects
+    assert attached["d0"].tolist() == [10.0, 20.0]
+
+
+def test_a_feature_table_writing_the_field_key_with_another_type_is_told_so() -> None:
+    """A CSV read of a feature table turns repeat ``"1"`` into the number 1: its rows print
+    like the observations', so the refusal names the column and both types (#420)."""
+    objects = pd.DataFrame(
+        {
+            "biological_repeat": ["1", "2"],
+            "position_id": ["001", "001"],
+            "label_id": [1, 1],
+            "area": [1.0, 2.0],
+        }
+    )
+    table = objects[["biological_repeat", "position_id", "label_id"]].assign(
+        biological_repeat=[1, 2], d0=[3.0, 4.0]
+    )
+    with pytest.raises(ValueError, match="writes 'biological_repeat' as int where") as error:
+        attach_feature_tables(objects, None, {"dino": table})
+    assert "observation table writes it as str" in str(error.value)
+    assert "dtype={'biological_repeat': str}" in str(error.value)
+    assert "'position_id' as" not in str(error.value)  # its types agree
+
+
 def test_whole_numbers_written_as_decimals_still_match_within_a_field() -> None:
     """The CSV compatibility of label_id is kept: 1.0 in the feature table is label 1."""
     objects, fovs, embedding = _tables()

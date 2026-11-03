@@ -183,7 +183,35 @@ def match_problems(
             f"{name!r} holds {count(len(extra), 'row')} matching no observation "
             f"({shown_keys(extra)})"
         )
+    if len(absent) and len(extra):
+        problems += _type_problems(name, identity, extra, observed)
     return problems, keys
+
+
+def _key_types(keys: pd.Series, position: int) -> set[str]:
+    """The value types of the FOV key component at ``position`` of ``keys`` (typed texts)."""
+    return {k.split(_SEPARATOR)[position].rsplit(_TYPE, 1)[-1] for k in keys}
+
+
+def _type_problems(
+    name: str, identity: Sequence[str], extra: pd.Series, observed: pd.Series
+) -> list[str]:
+    """Why rows that print like observations match none: a FOV key column written with other
+    value types than the observation table's, ``1`` against ``"1"`` (#420)."""
+    problems = []
+    for position, column in enumerate(identity):
+        if column in WITHIN_COLUMNS:
+            continue
+        theirs, own = _key_types(extra, position), _key_types(observed, position)
+        if theirs - own:
+            problems.append(
+                f"{name!r} writes {column!r} as {listing(sorted(theirs), _SHOWN)} where the "
+                f"observation table writes it as {listing(sorted(own), _SHOWN)}: a field is "
+                "matched by its typed identifier, so 1 and '1' are two fields. Write it with "
+                f"the observation table's type (a CSV read with dtype={{{column!r}: str}} "
+                "keeps text such as '001')"
+            )
+    return problems
 
 
 def metadata_columns(table: pd.DataFrame, objects: pd.DataFrame) -> list[str]:
