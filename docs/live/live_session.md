@@ -92,7 +92,17 @@ twice (an object file appended twice), is added with a warning, as
 A field with no objects is either an empty object file or an empty
 `objects_file` entry. It still counts as acquisition effort. An
 `objects_file` that names a missing file raises an error; it is never read as
-an empty field.
+an empty field. `objects_file` is a path relative to the watched folder: an
+absolute path, a `..` that leaves the folder or a symbolic link resolving
+outside it raises before the file is read, naming the line, so a typo such as
+`../old_run/field.csv` cannot feed another run's field into this acquisition;
+`LiveFolder(folder, session, outside_files=True)` is the explicit opt-in of an
+acquisition that writes such paths on purpose (#360).
+
+`watch()` checks its controls before reading any field: `interval` a finite
+number of seconds above 0, `timeout` `None` or a finite number of at least 0,
+`max_fovs` `None` or an integer of at least 0 (`0` adds no field); a boolean is
+none of them. An invalid control never consumes a field.
 
 Metadata are read as text by default, so an identifier such as `001` keeps
 its leading zeros. Pass `metadata_dtypes=` to cast a column to another type.

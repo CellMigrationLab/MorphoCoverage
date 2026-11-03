@@ -1,6 +1,7 @@
 """Parts of the design scan (private; split out of ``workflows.scan``): the controls as
 declared, the feature tables by tag, the planes per field, the targets' reagents and the
-observations per condition and repeat.
+observations per condition and repeat, and the FOV table's group columns attached to lean
+observation tables.
 
 Shared-private: used by ``workflows.scan`` (``scan_design`` and its ``_design``).
 """
@@ -20,6 +21,7 @@ from ..metadata import (
     column_has_values,
     sorted_labels,
 )
+from ..schema import _attach_fov_metadata
 
 
 def declared_controls(control: Mapping[str, Any] | None) -> tuple[list[Any], Any, Any]:
@@ -32,6 +34,20 @@ def declared_controls(control: Mapping[str, Any] | None) -> tuple[list[Any], Any
     checked_control = {CONDITION_COLUMN: tuple(controls)} if controls else control
     control_value = controls[0] if controls else control_value
     return controls, checked_control, control_value
+
+
+def with_fov_groups(
+    objects: pd.DataFrame, fovs: pd.DataFrame | None, fov_col: str, groups: list[str]
+) -> pd.DataFrame:
+    """``objects`` with the group columns only the FOV table holds, attached as the validator
+    attaches them (lean observation tables, #363); ``objects`` as given when they cannot be
+    attached unambiguously, which the data check reports."""
+    if fovs is None or all(c in objects.columns for c in groups):
+        return objects
+    try:
+        return _attach_fov_metadata(objects, fovs, fov_col, groups)
+    except (ValueError, TypeError, KeyError):  # fallback: the data check names the problem
+        return objects
 
 
 def tagged_tables(tables: Any) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -81,4 +97,11 @@ def observation_layout(
     return pd.DataFrame()
 
 
-__all__ = ["declared_controls", "observation_layout", "planes", "tagged_tables", "targets"]
+__all__ = [
+    "declared_controls",
+    "observation_layout",
+    "planes",
+    "tagged_tables",
+    "targets",
+    "with_fov_groups",
+]

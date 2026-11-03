@@ -76,6 +76,7 @@ from typing import Any
 
 import pandas as pd
 
+from .._checks import check_flag
 from .._former_repeat import Reader, one_warning
 from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -97,6 +98,7 @@ from ._manifest import (
     OBJECTS_DIR,
     OBJECTS_FILE,
     ManifestReader,
+    object_file,
     read_coordinates,
     value_kind,
     write_fov,
@@ -185,7 +187,8 @@ class LiveFolder:
     ``metadata_dtypes`` types manifest columns (default: every metadata value
     is read as text, so identifiers such as ``001`` keep their zeros; the
     session only compares them; the session's stage columns are read as numbers). ``reader``
-    reads one object file (default ``pandas.read_csv``).
+    reads one object file (default ``pandas.read_csv``). An object file must be inside the
+    folder unless ``outside_files=True`` (#360).
     """
 
     def __init__(
@@ -195,9 +198,11 @@ class LiveFolder:
         *,
         reader: Callable[[Path], pd.DataFrame] | None = None,
         metadata_dtypes: Mapping[str, Any] | None = None,
+        outside_files: bool = False,
     ) -> None:
         if not isinstance(session, OnlineSession):
             raise TypeError("session must be an OnlineSession (see live_session)")
+        self.outside_files = check_flag(outside_files, "outside_files")
         self.folder = Path(folder)
         self.session = session
         self.reader = pd.read_csv if reader is None else reader
@@ -277,12 +282,8 @@ class LiveFolder:
                 f"line {line} from {self.folder / MANIFEST} (the watcher reads it again on the "
                 "next poll; the lines already read must stay as they are)"
             )
-        path = self.folder / row[OBJECTS_FILE] if row.get(OBJECTS_FILE) else None
-        if path is not None and not path.exists():
-            raise FileNotFoundError(
-                f"the manifest names {path}, which does not exist; an empty field has an "
-                f"empty {OBJECTS_FILE!r} entry or an empty file"
-            )
+        entry = row.get(OBJECTS_FILE)  # inside the folder, checked before it is read (#360)
+        path = object_file(self.folder, entry, line, outside=self.outside_files) if entry else None
         if path is not None and path.stat().st_size > 0:
             objects = self._read(path, row)
         else:
@@ -350,7 +351,9 @@ class LiveFolder:
 
         Stop with Ctrl-C at any time; the updates so far are kept in ``updates``.
         """
-        check_watch(interval, until_stop, stop_on)
+        check_watch(interval, timeout, max_fovs, until_stop, stop_on)  # before any field
+        if max_fovs == 0:
+            return []
         started = time.monotonic()
         seen: list[LiveUpdate] = []
         latest: dict[tuple, bool] = {}  # each group's latest field: done

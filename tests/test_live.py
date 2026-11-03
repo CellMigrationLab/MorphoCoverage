@@ -290,7 +290,7 @@ def test_h14_h16_live_tables_keep_integers_and_say_the_unit():
 @pytest.mark.parametrize(
     ("arguments", "message"),
     [
-        ({"interval": 0}, "interval must be positive"),
+        ({"interval": 0}, "interval must be a finite number of seconds above 0, not 0"),
         ({"until_stop": "x"}, "until_stop must be False, True, 'all_groups' or 'latest_group'"),
         ({"stop_on": "x"}, "stop_on must be 'decision' or 'rule', not 'x'"),
     ],
@@ -382,3 +382,74 @@ def test_detail_is_checked_and_print_update_passes_it(capsys):
     assert capsys.readouterr().out.strip() == update.summary("full")
     print_update(update)
     assert capsys.readouterr().out.strip() == update.summary()
+
+
+def _pointed(folder, target: str):
+    """One field written by write_fov, its manifest line pointed at ``target`` instead."""
+    write_fov(folder, *_field("A01", 0))
+    manifest = folder / MANIFEST
+    relative = next((folder / "objects").iterdir()).relative_to(folder).as_posix()
+    manifest.write_text(manifest.read_text().replace(relative, target))
+    return _folder_session(folder)
+
+
+@pytest.mark.parametrize("where", ["parent", "absolute", "symlink"])
+def test_an_object_file_outside_the_folder_is_refused_before_it_is_read(tmp_path, where):
+    """../, an absolute path or a symbolic link out of the folder is not this acquisition's
+    field (#360): refused naming the line, nothing added, the line read again next poll."""
+    folder, outside = tmp_path / "live", tmp_path / "other_run.csv"
+    folder.mkdir()
+    pd.DataFrame({"x": [1.0, 2.0]}).to_csv(outside, index=False)
+    target = {"parent": "../other_run.csv", "absolute": str(outside)}.get(where, "objects/link.csv")
+    live = _pointed(folder, target)
+    if where == "symlink":
+        (folder / "objects" / "link.csv").symlink_to(outside)
+    read = []
+    live.reader = lambda path: read.append(path) or pd.read_csv(path)
+    for _ in range(2):
+        with pytest.raises(ValueError, match="line 2 names the object file .* not inside"):
+            live.poll()
+    assert read == [] and _fields_in(live) == 0
+    opted = LiveFolder(folder, live.session, outside_files=True)
+    assert len(opted.poll()) == 1 and _fields_in(opted) == 1
+
+
+def test_a_nested_relative_object_file_inside_the_folder_is_read(tmp_path):
+    folder = tmp_path / "live"
+    (folder / "objects" / "well").mkdir(parents=True)
+    pd.DataFrame({"label_id": [1], "area": [1.0]}).to_csv(
+        folder / "objects/well/f.csv", index=False
+    )
+    live = _pointed(folder, "objects/well/f.csv")
+    assert len(live.poll()) == 1
+
+
+@pytest.mark.parametrize(
+    "controls",
+    [
+        {"interval": 0},
+        {"interval": float("inf")},
+        {"interval": float("nan")},
+        {"interval": True},
+        {"timeout": -1},
+        {"timeout": float("nan")},
+        {"timeout": False},
+        {"max_fovs": -1},
+        {"max_fovs": 1.5},
+        {"max_fovs": True},
+    ],
+)
+def test_invalid_watch_controls_consume_no_field(tmp_path, controls):
+    """Every control is checked before the first poll (#360): no field is added."""
+    write_fov(tmp_path, *_field("A01", 0))
+    live = _folder_session(tmp_path)
+    with pytest.raises(ValueError, match="must be"):
+        live.watch(**{"interval": 0.01, "timeout": 1, **controls}, on_update=None)
+    assert _fields_in(live) == 0 and live.updates == []
+
+
+def test_max_fovs_zero_adds_no_field(tmp_path):
+    write_fov(tmp_path, *_field("A01", 0))
+    live = _folder_session(tmp_path)
+    assert live.watch(interval=0.01, timeout=1, max_fovs=0, on_update=None) == []
+    assert _fields_in(live) == 0 and len(live.poll()) == 1

@@ -243,6 +243,74 @@ def test_a_condition_or_repeat_held_only_by_empty_fields_is_counted():
     assert scan_design(objects).design["conditions"] == ["siCTRL", "drugA", "drugB"]
 
 
+def _lean_wells():
+    """Two conditions, three repeats, two wells of two fields each; the observations hold the
+    field identifier and the feature only (#86), and drugs' R3 and every R2 well w2 are empty."""
+    rng = np.random.default_rng(0)
+    fovs, rows = [], []
+    for c in ("ctrl", "drug"):
+        for r in ("R1", "R2", "R3"):
+            for w in ("w1", "w2"):
+                for f in range(2):
+                    pid = f"{c}{r}{w}{f}"
+                    fovs.append(
+                        {
+                            "position_id": pid,
+                            "condition": c,
+                            "biological_repeat": r,
+                            "technical_repeat": w,
+                        }
+                    )
+                    if not (c == "drug" and r == "R3") and not (w == "w2" and r == "R2"):
+                        rows += [{"position_id": pid, "x": rng.normal()} for _ in range(4)]
+    return pd.DataFrame(rows), pd.DataFrame(fovs)
+
+
+def test_groups_held_only_by_the_fov_table_are_the_scans_design():
+    """Lean observations and full ones describe one design: conditions, repeats, wells of
+    empty fields, group columns and layout come from the FOV table (#363)."""
+    lean, fovs = _lean_wells()
+    full = lean.merge(fovs, on="position_id")
+    a = scan_design(lean, fovs, feature_cols=["x"], control={"condition": "ctrl"})
+    b = scan_design(full, fovs, feature_cols=["x"], control={"condition": "ctrl"})
+    assert a.data_check.ok and b.data_check.ok
+    for name in ("fields", "per_field", "conditions", "repeats", "technical", "repeat_sets"):
+        assert a.design[name] == b.design[name], name
+    assert a.design["conditions"] == ["ctrl", "drug"] and a.design["fields"] == 24
+    assert a.design["technical"] == {"low": 2, "high": 2}  # R2's empty wells w2 counted
+    assert (
+        a.settings["group_cols"]
+        == b.settings["group_cols"]
+        == [
+            "condition",
+            "biological_repeat",
+            "technical_repeat",
+        ]
+    )
+    pd.testing.assert_frame_equal(a.layout, b.layout)
+    assert a.layout.loc["drug", "R3"] == 0
+
+
+def test_a_fov_table_that_cannot_be_linked_is_a_finding_not_dropped():
+    """No identifier in the observations: the FOV table is kept and its link refused (#363)."""
+    lean, fovs = _lean_wells()
+    full = lean.merge(fovs, on="position_id").rename(columns={"position_id": "pos"})
+    scan = scan_design(full, fovs.rename(columns={"position_id": "pos"}), feature_cols=["x"])
+    assert scan.settings["fovs_given"] and not scan.data_check.ok
+    assert scan.status is Status.PROBLEM
+
+
+def test_a_declared_identifier_that_is_missing_is_a_finding_not_a_crash():
+    """fov_col naming no column: a PROBLEM naming it, and a partial design (#363)."""
+    lean, fovs = _lean_wells()
+    full = lean.merge(fovs, on="position_id")
+    scan = scan_design(full, fovs, feature_cols=["x"], fov_col="field")
+    assert not scan.data_check.ok and "fov_col='field'" in scan.summary()
+    assert scan.design["observations"] == len(full) and scan.settings["fov_col"] == "field"
+    empty = scan_design(full.iloc[:0], fovs, feature_cols=["x"], fov_col="field")
+    assert empty.design["per_field"] == (0, 0.0, 0) and not empty.data_check.ok
+
+
 def test_the_scan_says_one_image_not_one_images():
     objects, fovs = _uneven_tables()
     scan = scan_design(
