@@ -65,6 +65,7 @@ import pandas as pd
 
 from ._checks import as_count, check_seed
 from ._frozen import owned
+from ._identity import typed_labels
 from ._seeds import group_rng
 from ._style import table
 from ._wording import count, listing, percent
@@ -203,10 +204,12 @@ def _blocks(meta: pd.DataFrame, fields: np.ndarray) -> np.ndarray:
     if TECHNICAL_REPEAT_COLUMN not in meta or meta[TECHNICAL_REPEAT_COLUMN].isna().all():
         return field_ids.to_numpy()
     group = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN) if c in meta]
-    keys = meta[[*group, TECHNICAL_REPEAT_COLUMN]].astype(str).agg("\x1f".join, axis=1)
+    # Typed labels (1 and "1" apart, #420); identifiers never hold the separator (validated).
+    labels = {c: typed_labels(meta[c]) for c in (*group, TECHNICAL_REPEAT_COLUMN)}
+    keys = pd.DataFrame(labels, index=meta.index).agg("\x1f".join, axis=1)
     if not group:
         return keys.to_numpy()
-    wells = keys.groupby([meta[c].astype(str) for c in group]).transform("nunique")
+    wells = keys.groupby([labels[c] for c in group]).transform("nunique")
     return np.where(wells.to_numpy() > 1, "well\x1f" + keys, "field\x1f" + field_ids)
 
 
@@ -270,7 +273,7 @@ def _group_rows(
         else (CONDITION_COLUMN, REPEAT_COLUMN)
     )
     groups = meta[within] if within in meta else pd.Series("all", index=meta.index)
-    labels_all = meta[label].astype(str).to_numpy()
+    labels_all = typed_labels(meta[label])  # 1 and "1" are two labels (#420)
     rows, single = [], 0
     for group in pd.unique(groups):
         members = np.flatnonzero((groups == group).to_numpy())

@@ -39,6 +39,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
 
+from .._identity import typed_labels
 from .._style import Status, wrap
 from .._wording import count, listing, percent, plural
 from ..embedding import robust_scale
@@ -128,7 +129,7 @@ def label_control(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> La
     positions = fov_positions(data, data.fovs)[known]
     points = _robust(matrix, setup)[known]
     conditions = (
-        data.objects[CONDITION_COLUMN][known].astype(str).to_numpy()
+        typed_labels(data.objects[CONDITION_COLUMN])[known]  # 1 is not "1" (#420)
         if CONDITION_COLUMN in data.objects
         else np.zeros(len(marked), dtype=str)
     )

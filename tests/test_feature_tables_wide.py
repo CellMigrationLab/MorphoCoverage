@@ -4,6 +4,7 @@ below 2), and the centred map view (audit 8: no repeat left out for a small cont
 
 import numpy as np
 import pandas as pd
+import pytest
 from _helpers_feature_tables import _cells, _table, _wide, _without
 
 from morphocoverage.feature_tables import attach_feature_tables
@@ -122,6 +123,27 @@ def test_components_error_is_its_metric_on_the_projected_values():
     )
     assert np.isclose(metric.evaluate(data, half), inner.evaluate(full, part))
     assert metric.parameters["components"] == 2 and metric.parameters["features"] == list("abe")
+
+
+def test_an_excluded_group_is_matched_by_its_typed_value():
+    """Group 1 too small for the components does not exclude group "1" (#420)."""
+    rng = np.random.default_rng(3)
+    objects = pd.DataFrame(rng.normal(size=(40, 3)), columns=["a", "b", "e"])
+    objects["position_id"] = np.repeat(np.arange(8), 5)
+    objects["condition"] = pd.Series([1] * 20 + ["1"] * 20, dtype=object)
+    data = validate_input_tables(objects, feature_cols=["a", "b", "e"], fov_col="position_id")
+    text, number = (
+        data.with_tables(objects=data.objects.iloc[s]) for s in (np.s_[20:], np.s_[:20])
+    )
+    loadings = ((1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
+    args = (CovarianceError(("p1", "p2"), False), ("a", "b", "e"), (0, 0, 0), (1, 1, 2), loadings)
+    typed = ComponentsError(*args, ((("condition", "1"),),), (("int",),))
+    assert typed.evaluate(number, number) is None
+    assert typed.evaluate(text, text) is not None
+    untyped = ComponentsError(*args, ((("condition", "1"),),))  # as declared: matched as text
+    assert untyped.evaluate(text, text) is None
+    with pytest.raises(ValueError, match="one type per pair"):
+        ComponentsError(*args, ((("condition", "1"),),), (("int", "str"),))
 
 
 def test_a_repeat_whose_control_is_small_is_centred_like_the_others():

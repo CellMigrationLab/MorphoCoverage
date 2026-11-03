@@ -88,6 +88,7 @@ import pandas as pd
 
 from . import distances
 from ._checks import is_integer
+from ._identity import identity_key
 from .embedding import robust_components
 from .metadata import column_names
 from .outcomes import OutcomeMetric, _check_label
@@ -440,7 +441,9 @@ class ComponentsError(OutcomeMetric):
     ``None`` when a selected value is missing, as for every metric here. ``excluded`` names
     analysis groups, each as its ``(column, value)`` pairs, too small for the number of
     components: the metric is ``None`` (not judged) on a sample of one of them (owner,
-    2026-10-06, audit 8). The parameters keep the table's columns, the number of
+    2026-10-06, audit 8). ``excluded_types`` gives, when set, each pair's value type
+    (``_identity.identity_key``), so group ``1`` is not group ``"1"`` (#420); the pairs alone
+    are matched as text. The parameters keep the table's columns, the number of
     components, the inner metric, a checksum of the projection and the groups excluded.
     """
 
@@ -450,6 +453,7 @@ class ComponentsError(OutcomeMetric):
     scale: tuple[float, ...]
     loadings: tuple[tuple[float, ...], ...]
     excluded: tuple[tuple[tuple[str, str], ...], ...] = ()
+    excluded_types: tuple[tuple[str, ...], ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "features", _feature_tuple(self.features))
@@ -474,6 +478,10 @@ class ComponentsError(OutcomeMetric):
             tuple((str(column), str(value)) for column, value in group) for group in self.excluded
         )
         object.__setattr__(self, "excluded", excluded)
+        types = tuple(tuple(str(kind) for kind in group) for group in self.excluded_types)
+        if types and [len(t) for t in types] != [len(group) for group in excluded]:
+            raise ValueError("excluded_types must give one type per pair of each excluded group")
+        object.__setattr__(self, "excluded_types", types)
 
     @property
     def name(self) -> str:
@@ -501,9 +509,10 @@ class ComponentsError(OutcomeMetric):
     def _excluded(self, data: ValidatedInput) -> bool:
         """Whether every observation of ``data`` is of one excluded group."""
         frame = data.objects
+        types = self.excluded_types or [(None,) * len(group) for group in self.excluded]
         return len(frame) > 0 and any(
-            all(c in frame and frame[c].astype(str).eq(v).all() for c, v in group)
-            for group in self.excluded
+            all(_holds_only(frame, c, v, kind) for (c, v), kind in zip(group, kinds, strict=True))
+            for group, kinds in zip(self.excluded, types, strict=True)
         )
 
     def _projected(self, data: ValidatedInput) -> ValidatedInput:
@@ -528,7 +537,11 @@ class ComponentsError(OutcomeMetric):
         try:
             centre, scale, loadings = robust_components(matrix, len(self.loadings))
         except ValueError:  # fallback: fewer complete rows than components: the group is excluded
-            group = tuple((c, str(training.objects[c].iloc[0])) for c in training.group_cols)
+            first = [training.objects[c].iloc[0] for c in training.group_cols]
+            group = tuple((c, str(v)) for c, v in zip(training.group_cols, first, strict=True))
+            if self.excluded_types or not self.excluded:
+                kinds = (*self.excluded_types, tuple(identity_key(v)[1] for v in first))
+                return replace(self, excluded=(*self.excluded, group), excluded_types=kinds)
             return replace(self, excluded=(*self.excluded, group))
         return replace(self, centre=tuple(centre), scale=tuple(scale), loadings=tuple(loadings))
 
@@ -537,6 +550,14 @@ class ComponentsError(OutcomeMetric):
         if self.excluded and self._excluded(full):
             return None
         return self.metric.evaluate(self._projected(full), self._projected(stopped))
+
+
+def _holds_only(frame: pd.DataFrame, column: str, text: str, kind: str | None) -> bool:
+    """Whether every row of ``frame`` holds ``text`` in ``column``, of type ``kind`` when it
+    is given (a group value typed as ``_identity.identity_key`` types it)."""
+    if column not in frame or not frame[column].astype(str).eq(text).all():
+        return False
+    return kind is None or all(identity_key(v)[1] == kind for v in frame[column].tolist())
 
 
 __all__ = [

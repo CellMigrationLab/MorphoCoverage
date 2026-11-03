@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from .._identity import typed_frame
 from .._wording import count
 from ..data_check import validate_input_tables
 from ..schema import OBJECT_LIKE_UNITS, resolve_observation_unit
@@ -130,8 +131,9 @@ def listed_once(
     if inspection is None or anomalies is None or not anomalies.found or inspection.fovs.empty:
         return inspection
     keys = [c for c in anomalies.settings["fov_key"] if c in inspection.fovs.columns]
-    named = set(map(tuple, anomalies.fields[keys].astype(str).to_numpy()))
-    own = pd.Series(list(map(tuple, inspection.fovs[keys].astype(str).to_numpy())))
+    # Typed keys: field 1 is not field "1" (#420).
+    named = set(map(tuple, typed_frame(anomalies.fields, keys).to_numpy()))
+    own = pd.Series(list(map(tuple, typed_frame(inspection.fovs, keys).to_numpy())))
     drop = (inspection.fovs["reason"] == "new state").to_numpy() & own.isin(named).to_numpy()
     if not drop.any():
         return inspection
