@@ -29,6 +29,7 @@ import pandas as pd
 
 from .._connected import connected_groups
 from .._control import VS
+from .._identity import typed_labels
 from .._seeds import group_key
 from .._wording import features_counted, listing
 from ..statistics import ALPHA, benjamini_hochberg
@@ -73,7 +74,7 @@ def screen_wide(p_values: pd.Series, controls: pd.Series, family: pd.Series) -> 
     finite = np.isfinite(p_values.to_numpy(dtype=float))
     return _within(
         p_values,
-        controls.astype(str).to_numpy(),
+        typed_labels(controls),  # control 1 is not control "1" (#420)
         lambda mine: len(pd.unique(families[mine & finite])) > 1,
     )
 

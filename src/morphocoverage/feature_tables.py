@@ -27,12 +27,16 @@ groups and the field identifier, as ``validate_input_tables`` resolves them), th
 ``label_id``, ``patch_id`` (CellPatcher's patch, #404; read after the field key, never
 alone) and the within-field coordinates ``z``, ``z0``, ``z1``, ``c``, ``t`` when the observation
 table has them; a ``label_id`` or ``patch_id`` empty in every row is read as absent
-(``_within_identity``). Values are matched as text, a whole number written as a decimal read as
+(``_within_identity``). The FOV key is matched by its typed value (FOV ``1`` is not FOV
+``"1"``, #420); the within-field columns as text, a whole number written as a decimal read as
 that whole number, so ``1``, ``1.0`` and ``"1"`` are one label (owner, 2026-10-06: a CSV column
-with one empty cell is read as decimals). A table must:
+with one empty cell is read as decimals; ``_observation_keys``). A table must:
 
-- hold every identity column and match every observation exactly once: no observation
+- hold every identity column, filled in every row (a ``label_id`` or ``patch_id`` empty in
+  some rows is refused, #596), and match every observation exactly once: no observation
   missing, no row matching none, no observation twice;
+- agree with the observation table on the identity metadata both hold (``patch_set``,
+  ``object_set``, ``parent_id``: MorphoFeature's patch identity, #603), never features;
 - hold numeric feature columns only (every column but the identity), none named like
   MorphoBricks metadata (``condition``, ``z``, ``label_id``, ...), and none without a value;
 - hold no infinite value; missing values are kept and counted (``missing``), never
@@ -66,13 +70,21 @@ import numpy as np
 import pandas as pd
 
 from ._former_repeat import Reader
+from ._observation_keys import (
+    IDENTITY_METADATA,
+    identity_text,
+    match_problems,
+    metadata_columns,
+    metadata_problems,
+    observation_identity,
+    observed_keys,
+)
 from ._within_identity import (
     LABEL_COLUMN,
     PATCH_COLUMN,
     absent_identity_text,
     duplicate_identity_text,
     feature_candidates,
-    filled_within_columns,
 )
 from ._wording import count, listing
 from .metadata import (
@@ -80,10 +92,6 @@ from .metadata import (
     MORPHOBRICKS_SHARED_COLUMNS,
     TARGET_COLUMN,
     WITHIN_FOV_METADATA_COLUMNS,
-    drop_empty_optional_columns,
-    resolve_fov_col,
-    resolve_group_cols,
-    resolve_identity_cols,
 )
 
 # The names of the explainable features, of the weighted combined space, and of the
@@ -104,6 +112,7 @@ _METADATA = {
     TARGET_COLUMN,
     LABEL_COLUMN,
     PATCH_COLUMN,
+    *IDENTITY_METADATA,
     "repeat",
 }
 # The observations named in a message, at most.
@@ -239,48 +248,6 @@ def _final_names(
     }
 
 
-def observation_identity(
-    objects: pd.DataFrame,
-    fovs: pd.DataFrame | None,
-    *,
-    fov_col: str | None = None,
-    group_cols: Sequence[str] | None = None,
-) -> tuple[str, ...]:
-    """The columns that identify one observation (see the module): the FOV key columns the
-    observation table holds, then ``label_id``, ``patch_id`` and ``z``/``z0``/``z1``/``c``/``t``
-    when it has them; a ``label_id`` or ``patch_id`` empty in every observation is absent."""
-    explicit = [c for c in (fov_col, *(group_cols or ())) if c is not None]
-    objects, fovs = drop_empty_optional_columns(objects, fovs, explicit)
-    field = resolve_fov_col(objects, fovs, fov_col)
-    groups = resolve_group_cols(objects, fovs, group_cols)
-    key = [*resolve_identity_cols(objects, fovs, groups, field), field]
-    within = filled_within_columns(objects)
-    within += [c for c in WITHIN_FOV_METADATA_COLUMNS if c in objects.columns]
-    return tuple(c for c in dict.fromkeys([*key, *within]) if c in objects.columns)
-
-
-def identity_text(value: Any) -> str:
-    """A value as the identity matches it: a whole number written as a decimal (``1.0``, as
-    a CSV column with an empty cell is read) as the whole number, anything else as its text."""
-    if isinstance(value, float | np.floating) and np.isfinite(value) and float(value).is_integer():
-        return str(int(value))
-    return str(value)
-
-
-def _keys(table: pd.DataFrame, identity: Sequence[str]) -> pd.Series:
-    """Each row's identity as one text, so ``1``, ``1.0`` and ``"1"`` match."""
-    text = pd.DataFrame(
-        {c: [identity_text(v) for v in table[c].tolist()] for c in identity}, index=table.index
-    )
-    return text.agg("\x1f".join, axis=1) if len(identity) > 1 else text.iloc[:, 0]
-
-
-def _shown(keys: pd.Series) -> str:
-    """The first identities of ``keys``, readable."""
-    values = [k.replace("\x1f", " · ") for k in dict.fromkeys(keys)]
-    return listing(values, _SHOWN)
-
-
 def _name_problems(name: object, seen: list[str]) -> list[str]:
     """Why ``name`` cannot name a table: empty, reserved, or another table's (any case)."""
     if not isinstance(name, str) or not name.strip():
@@ -296,32 +263,6 @@ def _name_problems(name: object, seen: list[str]) -> list[str]:
     if folded in seen:
         return [f"{name!r} names two tables (names are compared ignoring case)"]
     return []
-
-
-def _match_problems(
-    name: str, table: pd.DataFrame, identity: Sequence[str], observed: pd.Series
-) -> list[str]:
-    """Whether ``table`` matches every observation exactly once."""
-    keys = _keys(table, identity)
-    problems = []
-    twice = keys[keys.duplicated(keep=False)]
-    if len(twice):
-        problems.append(
-            f"{name!r} holds {count(twice.nunique(), 'observation')} more than once "
-            f"({_shown(twice)})"
-        )
-    absent = observed[~observed.isin(keys)]
-    if len(absent):
-        problems.append(
-            f"{name!r} lacks a row for {count(len(absent), 'observation')} of the observation "
-            f"table ({_shown(absent)})"
-        )
-    extra = keys[~keys.isin(observed)]
-    if len(extra):
-        problems.append(
-            f"{name!r} holds {count(len(extra), 'row')} matching no observation ({_shown(extra)})"
-        )
-    return problems
 
 
 def _column_problems(
@@ -424,8 +365,8 @@ def attach_feature_tables(
     }
     reader.warn()
     identity = observation_identity(objects, fovs, fov_col=fov_col, group_cols=group_cols)
-    observed = _observed_keys(objects, identity)
-    usable = _usable_tables(tables, identity, problems)
+    observed = observed_keys(objects, identity, duplicate_identity_text())
+    usable = _usable_tables(tables, objects, identity, problems)
     finals = _final_names(objects, {name: features for name, (_, features) in usable.items()})
     found = _blocks(usable, finals, identity, observed, objects, problems)
     if problems:
@@ -469,24 +410,15 @@ def _given_tables(
     return given
 
 
-def _observed_keys(objects: pd.DataFrame, identity: Sequence[str]) -> pd.Series:
-    """Each observation's identity key; ``ValueError`` when two observations share one."""
-    observed = _keys(objects, identity)
-    if observed.duplicated().any():
-        twice = observed[observed.duplicated(keep=False)]
-        raise ValueError(
-            f"other feature tables are matched to observations by {list(identity)}, but "
-            f"{count(twice.nunique(), 'observation')} of the observation table share theirs "
-            f"({_shown(twice)}): {duplicate_identity_text()}"
-        )
-    return observed
-
-
 def _usable_tables(
-    tables: Mapping[Any, Any], identity: Sequence[str], problems: list[str]
+    tables: Mapping[Any, Any],
+    objects: pd.DataFrame,
+    identity: Sequence[str],
+    problems: list[str],
 ) -> dict[str, tuple[pd.DataFrame, list[Any]]]:
     """The tables with a usable name, that are DataFrames holding the identity columns, and
-    their feature columns; the others' problems added to ``problems``."""
+    their feature columns (never the identity metadata the observation table holds, #603);
+    the others' problems added to ``problems``."""
     seen: list[str] = []
     usable: dict[str, tuple[pd.DataFrame, list[Any]]] = {}
     for name, table in tables.items():
@@ -502,7 +434,9 @@ def _usable_tables(
             problems.append(absent_identity_text(label, absent, identity))
             continue
         if not named:
-            usable[label] = (table, feature_candidates(table, identity))
+            checked = metadata_columns(table, objects)
+            features = feature_candidates(table, identity)
+            usable[label] = (table, [c for c in features if c not in checked])
     return usable
 
 
@@ -520,13 +454,15 @@ def _blocks(
     found = _Blocks([], {}, {}, {}, {})
     for label, (table, features) in usable.items():
         final = finals[label]
-        wrong = _match_problems(label, table, identity, observed)
+        wrong, keys = match_problems(label, table, identity, observed)
+        if keys is not None and not wrong:
+            wrong += metadata_problems(label, table, keys, objects, observed)
         wrong += _column_problems(label, table, features, final, objects, taken)
         taken.update({final[c]: label for c in features})
         problems += wrong
         if wrong:
             continue
-        values = table[features].set_axis(_keys(table, identity).to_numpy(), axis=0)
+        values = table[features].set_axis(keys.to_numpy(), axis=0)
         block = values.reindex(observed.to_numpy()).set_axis(objects.index, axis=0)
         block = block.set_axis([final[c] for c in features], axis=1)
         found.blocks.append(block)

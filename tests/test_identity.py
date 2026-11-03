@@ -8,7 +8,15 @@ import pytest
 from _helpers_tables import _mixed
 
 from morphocoverage import validate_input_tables
-from morphocoverage._identity import canonical_codes, display, identity_key
+from morphocoverage._identity import (
+    ambiguous_values,
+    canonical_codes,
+    check_one_type,
+    display,
+    identity_key,
+    typed_frame,
+    typed_labels,
+)
 from morphocoverage.sampling_unit._units import resolve_unit
 
 
@@ -68,3 +76,54 @@ def test_a_composite_fov_key_is_written_out_whole_in_messages():
         "condition=a, biological_repeat=R1, id=1",
         "condition=a, biological_repeat=R2, id=1",
     ]
+
+
+def test_typed_labels_equal_the_text_unless_two_values_print_alike():
+    """Separation keys labels by text; 1 and "1" must stay two labels there (#420)."""
+    plain = pd.Series(["ctrl", "drug", "ctrl"])
+    assert typed_labels(plain).tolist() == plain.astype(str).tolist()
+    numbers = pd.Series([1, 2, 10])
+    assert typed_labels(numbers).tolist() == numbers.astype(str).tolist()
+    mixed = pd.Series([1, "1", "a", np.nan], dtype=object)
+    assert typed_labels(mixed).tolist() == ["1 (int)", "1 (str)", "a", "nan"]
+
+
+def test_values_equality_would_merge_are_grouped_and_text_alike_are_not():
+    assert ambiguous_values([True, 1, 1.0, 2]) == [(True, 1, 1.0)]
+    assert ambiguous_values([0.0, -0.0, np.nan, np.nan]) == [(0.0, -0.0)]
+    assert ambiguous_values([1, "1", np.int64(2), 2]) == []
+
+
+def test_separation_tells_conditions_that_print_alike_apart():
+    """A repeat holding conditions 1 and "1" holds two conditions, not one (#420)."""
+    from morphocoverage.separation import _blocks
+
+    meta = pd.DataFrame(
+        {
+            "condition": pd.Series([1, 1, "1", "1"], dtype=object),
+            "biological_repeat": "R1",
+            "technical_repeat": ["w1", "w2", "w1", "w2"],
+        }
+    )
+    blocks = _blocks(meta, np.arange(4))
+    assert len(set(blocks)) == 4 and all(b.startswith("well") for b in blocks)
+
+
+def test_typed_frames_match_rows_by_typed_value():
+    """Field 1 and field "1" never match by text where two tables are compared (#420)."""
+    one = pd.DataFrame({"condition": ["a", "a"], "position_id": pd.Series([1, "1"], dtype=object)})
+    keys = typed_frame(one, ["condition", "position_id"])
+    assert keys["position_id"].nunique() == 2 and keys["condition"].nunique() == 1
+    with pytest.raises(ValueError, match="never missing"):
+        typed_frame(one.assign(condition=[np.nan, "a"]), ["condition"])
+
+
+@pytest.mark.parametrize("dtype", ["float64", "Float64", "float32"])
+def test_float_identifiers_are_refused_only_when_both_zeros_appear(dtype: str) -> None:
+    """Float identifiers take a vectorised path: only 0.0 and -0.0 collide (#420)."""
+    objects = pd.DataFrame({"fov_id": pd.Series([0.0, 1.5, 2.0], dtype=dtype)})
+    fovs = pd.DataFrame({"fov_id": pd.Series([2.0, 1.5, 0.0], dtype=dtype)})
+    check_one_type([("objects", objects), ("fovs", fovs)], ["fov_id"])
+    fovs.loc[2, "fov_id"] = -0.0
+    with pytest.raises(ValueError, match=r"\(0.0 \(float\), -0.0 \(float\)\)"):
+        check_one_type([("objects", objects), ("fovs", fovs)], ["fov_id"])

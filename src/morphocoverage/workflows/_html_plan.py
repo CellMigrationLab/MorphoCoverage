@@ -24,7 +24,7 @@ from typing import Any
 
 import pandas as pd
 
-from .._identity import IdentityKey, identity_key
+from .._identity import IdentityKey, identity_key, typed_frame, typed_labels
 from .._wording import count, listing, percent_fine, plural, rate
 from ..data_check import validate_input_tables
 from ..retrospective.report_status import group_word
@@ -144,13 +144,13 @@ def _incidence(
     flags = labelled.reindex(data.objects.index)
     known = flags.notna().to_numpy()
     positive = known & (flags.where(flags.notna(), False).astype(bool)).to_numpy()
-    observed = data.objects[key].astype(str)
+    observed = typed_frame(data.objects, key)  # field 1 is not field "1" (#420)
     held = pd.MultiIndex.from_frame(observed.loc[positive])
     unknown = pd.MultiIndex.from_frame(observed).difference(
         pd.MultiIndex.from_frame(observed.loc[known])
     )
-    fields = data.fovs[key].astype(str)
-    index = pd.MultiIndex.from_frame(fields)
+    index = pd.MultiIndex.from_frame(typed_frame(data.fovs, key))
+    fields = pd.DataFrame({"condition": typed_labels(data.fovs["condition"])})
     fields = fields.assign(_held=index.isin(held))[~index.isin(unknown)]
     by = fields.groupby("condition", sort=False)["_held"].mean()
     by = by[by > 0]

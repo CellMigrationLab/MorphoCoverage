@@ -205,8 +205,10 @@ with neither.
 Errors stop the analysis. They cover every rule above: misspelt MorphoBricks
 columns, a missing or unmatched field identifier, empty identifiers or group
 values, a field listed twice, observations of fields missing from the FOV
-table, missing, non-numeric or infinite features, a column with two roles,
-and planes or channels counted as fields. Where it can tell, an error says
+table, identifiers that equality would merge (`True` and `1`, `1` and `1.0`,
+`0.0` and `-0.0` in one column of the two tables, #420) or that hold the control
+character `\x1f`, missing, non-numeric or infinite features, a column with two
+roles, and planes or channels counted as fields. Where it can tell, an error says
 what was probably meant:
 - a label typed differently in the two tables (`' drug'` or `'Drug'`
   against `'drug'`);
@@ -360,14 +362,21 @@ give `image_0000_cell_00001`), so it is always read after the field key, never a
 writes an empty `label_id` for grid and random patches (an empty column of the same name in a
 feature table is then ignored too); one with a value in some observation must be in every
 feature table, which a table keyed by `label_id` alone beside cell-mode patches is refused for.
-Values are matched as text, a whole number written as a decimal read as that
-whole number, so `1`, `1.0` and `"1"` are one label (a CSV column with one empty
-cell is read as decimals; owner, 2026-10-06). The observations
-must be told apart by these columns (several cells of one field need a
-`label_id`). Each table must:
+The field key is matched by its typed value, as the validator reads it: field `1`
+and field `"1"` are two fields (#420). The within-field columns are matched as
+text, a whole number written as a decimal read as that whole number, so `1`,
+`1.0` and `"1"` are one label (a CSV column with one empty cell is read as
+decimals; owner, 2026-10-06). The observations must be told apart by these
+columns (several cells of one field need a `label_id`). Each table must:
 
-- hold every identity column and match every observation exactly once: no
-  observation missing, no row matching none, no observation twice;
+- hold every identity column, filled in every row: a `label_id` or `patch_id`
+  empty in some rows of the observation table or of a feature table is refused
+  (#596), never matched as the text `"nan"`;
+- match every observation exactly once: no observation missing, no row matching
+  none, no observation twice;
+- agree with the observation table on MorphoFeature's patch identity when both
+  hold it (`patch_set`, `object_set`, `parent_id`): checked against the matched
+  observation, never features (#603);
 - hold numeric feature columns only: every column but the identity, none named
   like MorphoBricks metadata (`condition`, `z`, `label_id`, ...), and none
   without a single value;

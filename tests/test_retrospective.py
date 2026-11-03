@@ -137,6 +137,28 @@ def test_fov_table_from_observations_warns_and_carries_fov_level_columns():
         fov_table_from_observations(objects, ["image_file"], carry=["feature_a"])
 
 
+def test_fov_table_from_observations_reads_carry_once():
+    """A generator of carried columns is still checked for constancy within each FOV (#421).
+
+    It was consumed by the column selection, so the check looped over nothing and
+    ``drop_duplicates`` kept an arbitrary first stage position of a field with two.
+    """
+    objects = pd.DataFrame({"image_file": ["A", "A"], "stage_x": [10.0, 20.0], "f": [1.0, 2.0]})
+    for carry in (["stage_x"], ("stage_x",), (c for c in ["stage_x"])):
+        with pytest.raises(ValueError, match="'stage_x' varies within FOV"):
+            fov_table_from_observations(objects, ["image_file"], carry=carry)
+    with pytest.raises(ValueError, match="named twice"):
+        fov_table_from_observations(objects, ["image_file"], carry=["stage_x", "stage_x"])
+    with pytest.raises(TypeError, match="not a string"):
+        fov_table_from_observations(objects, ["image_file"], carry="stage_x")
+    constant = objects.assign(stage_x=10.0)
+    with pytest.warns(UserWarning, match="without observations are missing"):
+        table = fov_table_from_observations(
+            constant, (c for c in ["image_file"]), carry=(c for c in ["stage_x"])
+        )
+    assert table.to_dict("list") == {"image_file": ["A"], "stage_x": [10.0]}
+
+
 # --- sampling_reliability ----------------------------------------------------------
 
 

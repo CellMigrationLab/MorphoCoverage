@@ -360,6 +360,59 @@ def test_non_numeric_infinite_and_missing_identity_are_refused():
         ValidatedInput(**_fields(objects=objects.assign(position_id=["f1", None, "f2", "f3"])))
 
 
+def test_direct_construction_runs_the_validators_role_and_plane_rules():
+    """A hand-built input is refused where the validator refuses (#422): a plane coordinate as
+    a feature, an object measured in two planes of one field, an identity list, or FOV ids
+    that equality merges."""
+    objects, fovs = _tables()
+    with pytest.raises(ValueError, match="within-field coordinate 'z'"):
+        ValidatedInput(**_fields(objects=objects.assign(z=0.0), feature_cols=("x", "z")))
+    planes = objects.assign(z=[0, 1, 0, 0])
+    with pytest.raises(ValueError, match="several 'z' values"):
+        ValidatedInput(**_fields(objects=planes))
+    assert ValidatedInput(**_fields(objects=planes, observation_unit="slice")).n_observations == 4
+    listed = objects.assign(position_id=pd.Series([["f1"], ["f1"], ["f2"], ["f3"]]))
+    with pytest.raises(TypeError, match="lists"):
+        ValidatedInput(**_fields(objects=listed))
+    typed = pd.Series([True, True, 2, 3], dtype=object)
+    with pytest.raises(ValueError, match="equal as numbers"):
+        ValidatedInput(
+            **_fields(
+                objects=objects.assign(position_id=typed),
+                fovs=fovs.assign(position_id=pd.Series([1, 2, 3], dtype=object)),
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("observed", "listed"),
+    [(True, 1), (1, 1.0), (1, "1"), (False, 0), (0.0, -0.0)],
+)
+def test_a_field_is_never_matched_to_another_typed_identifier(observed, listed):
+    """bool True is not int 1, int 1 not float 1.0 or text "1" (#420): the validator and
+    check_tables refuse such identifiers instead of placing the observation in that field."""
+    from morphocoverage.data_check import check_tables
+
+    objects = pd.DataFrame({"fov_id": pd.Series([observed], dtype=object), "x": [2.0]})
+    fovs = pd.DataFrame({"fov_id": pd.Series([listed], dtype=object)})
+    with pytest.raises(ValueError, match="equal as numbers|absent from the supplied fovs"):
+        validate_input_tables(objects, fovs=fovs, feature_cols=["x"])
+    assert not check_tables(objects, fovs, feature_cols=["x"]).ok
+
+
+def test_a_field_name_reused_in_two_repeats_stays_two_fields():
+    """The typed check refuses only values equality merges; f1 of R1 and R2 are two fields."""
+    repeats = pd.DataFrame({"biological_repeat": ["R1", "R2"], "position_id": ["f1", "f1"]})
+    data = validate_input_tables(repeats.assign(x=[1.0, 2.0]), fovs=repeats, feature_cols=["x"])
+    assert schema.fov_positions(data, data.fovs).tolist() == [0, 1]
+    with pytest.raises(ValueError, match="control character"):
+        validate_input_tables(
+            repeats.assign(x=[1.0, 2.0], position_id=["f\x1f1", "f1"]),
+            fovs=repeats.assign(position_id=["f\x1f1", "f1"]),
+            feature_cols=["x"],
+        )
+
+
 def test_the_frameworks_own_subsets_are_trusted_and_keep_their_state():
     objects, fovs = _tables()
     data = validate_input_tables(objects=objects, fovs=fovs, feature_cols=["x"])
