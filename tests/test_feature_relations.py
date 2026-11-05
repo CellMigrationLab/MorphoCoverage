@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from morphocoverage import check_tables
 from morphocoverage.retrospective import dataset_overview
@@ -271,3 +272,64 @@ def test_a_relation_in_every_experiment_with_other_coefficients_is_said_so():
         f"{NAME}: within each experiment, scaled = a × base + b, a and b differing between "
         "experiments: one measurement counted twice in each test family"
     )
+
+
+def _mixed_type_experiments():
+    """Conditions ``1`` (int), ``"1"`` (text), ``"x"`` and ``"y"``; the relation
+    ``rest = 1 - share`` holds exactly where the condition is ``1`` or ``"x"``."""
+    objects, fovs = _tables()
+    kinds = [1, "1", "x", "y"]
+    for table in (objects, fovs):
+        number = table["position_id"].str[1:].astype(int) % 4
+        table["condition"] = pd.Series([kinds[i] for i in number], dtype=object)
+    objects["share"] = objects["base"] / 20
+    exact = [type(c) is int or c == "x" for c in objects["condition"]]
+    objects["rest"] = np.where(exact, 1 - objects["share"], objects["other"] / 10)
+    return objects, fovs
+
+
+def test_541_experiments_match_conditions_by_typed_identity():
+    """``1`` and ``"1"`` are two conditions. Matching the declared ones with ``np.isin``
+    turned ``[1, "x"]`` into the text ``["1", "x"]``: the rows of condition ``1`` were left
+    out of the experiment and those of ``"1"`` put in, so its relation was missed (#541)."""
+    from morphocoverage.retrospective._feature_relations import experiment_relations
+
+    objects, fovs = _mixed_type_experiments()
+    data = _data(objects, fovs, ["share", "rest"])
+    found = experiment_relations(data, {"first": [1, "x"], "second": ["1", "y"]})
+    assert [f["experiments"] for f in found] == [["first"]]
+    assert found[0]["relations"][0][:2] == ("share", "rest")
+    swapped = experiment_relations(data, {"first": ["1", "y"], "second": [1, "x"]})
+    assert [f["experiments"] for f in swapped] == [["second"]]
+
+
+def test_541_the_experiment_relations_do_not_depend_on_the_row_order():
+    from morphocoverage.retrospective._feature_relations import experiment_relations
+
+    objects, fovs = _mixed_type_experiments()
+    experiments = {"first": [1, "x"], "second": ["1", "y"]}
+    base = experiment_relations(_data(objects, fovs, ["share", "rest"]), experiments)
+    shuffled = objects.sample(frac=1.0, random_state=3).reset_index(drop=True)
+    again = experiment_relations(
+        _data(shuffled, fovs.iloc[::-1].reset_index(drop=True), ["share", "rest"]), experiments
+    )
+    (first,), (second,) = base, again
+    assert first["experiments"] == second["experiments"] == ["first"]
+    assert first["conditions"] == second["conditions"] == [1, "x"]
+    (x, y, relation), (x2, y2, relation2) = first["relations"][0], second["relations"][0]
+    assert (x, y) == (x2, y2) == ("share", "rest")
+    assert relation["kind"] == relation2["kind"]
+    assert relation["a"] == pytest.approx(relation2["a"]) and relation["b"] == pytest.approx(
+        relation2["b"]
+    )  # the same fit up to the order the rows are summed in
+
+
+def test_541_conditions_are_typed_keys_one_per_observation():
+    from morphocoverage.retrospective._feature_relations import _conditions
+
+    objects, fovs = _mixed_type_experiments()
+    data = _data(objects, fovs, ["share", "rest"])
+    labels = _conditions(data, "condition")
+    assert len(labels) == len(objects) and all(label is not None for label in labels)
+    assert len(set(labels)) == 4  # 1, "1", "x" and "y" stay four conditions
+    assert _conditions(data, "no_such_column") is None

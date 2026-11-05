@@ -37,8 +37,10 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from .._connected import connected_groups
+from .._identity import typed_frame
 from .._wording import joined_clauses, listing
 from ..metadata import CONDITION_COLUMN
 from ..schema import ValidatedInput, fov_positions
@@ -148,11 +150,14 @@ def related_features(data: ValidatedInput) -> list[dict[str, Any]]:
 
 
 def _conditions(data: ValidatedInput, condition_col: str) -> np.ndarray | None:
-    """Each observation's condition, ``None`` without the column."""
+    """Each observation's condition as its typed key text (``typed_frame``: ``1`` is not
+    ``"1"``, whatever mixed values do to a numpy array), ``None`` where the observation has
+    no field, ``None`` without the column (#541)."""
     if condition_col not in data.fovs.columns:
         return None
     positions = fov_positions(data, data.fovs)
-    labels = data.fovs[condition_col].to_numpy()[np.maximum(positions, 0)]
+    keys = typed_frame(data.fovs, [condition_col])[condition_col].to_numpy(dtype=object)
+    labels = keys[np.maximum(positions, 0)]
     return np.where(positions >= 0, labels, None)
 
 
@@ -174,7 +179,8 @@ def experiment_relations(
     pooled = {(x, y) for x, y, _ in _related(values)}
     found: dict[tuple[int, int], tuple[dict[str, Any], list[Any]]] = {}
     for experiment, conditions in experiments.items():
-        rows = np.isin(labels, list(conditions))
+        wanted = typed_frame(pd.DataFrame({condition_col: list(conditions)}), [condition_col])
+        rows = np.isin(labels, wanted[condition_col].to_numpy(dtype=object))
         for x, y, relation in _related(values[rows]):
             if (x, y) not in pooled:
                 found.setdefault((x, y), (relation, []))[1].append(experiment)
