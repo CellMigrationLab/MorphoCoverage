@@ -37,15 +37,23 @@ def plain(value: Any) -> Any:
     return value.item() if isinstance(value, np.generic) else value
 
 
+def _typed(value: Any) -> dict[str, str]:
+    """A label JSON cannot hold (a date, a timestamp, bytes) as its type and its text, so
+    it never reads as the text it prints as (#164); ``json.dumps`` calls this for those only."""
+    kind = type(value)
+    return {"type": f"{kind.__module__}.{kind.__qualname__}", "text": str(value)}
+
+
 def group_key(group: Mapping[str, Any]) -> str:
     """A group's identity as text, for looking groups up.
 
     Unlike ``group_identity`` (a 32-bit hash, fine for seeding), two different
     groups never share a key: ``{'plate': 1}`` and ``{'plate': '1'}`` differ,
-    and a numpy value keys like the Python value it holds.
+    a date and the text it prints as differ (#164), and a numpy value keys like
+    the Python value it holds.
     """
     items = sorted(((str(k), plain(v)) for k, v in group.items()), key=lambda kv: kv[0])
-    return json.dumps(items, default=str)
+    return json.dumps(items, default=_typed)
 
 
 def _seed_label(value: Any) -> str:

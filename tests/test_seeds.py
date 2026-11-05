@@ -30,6 +30,28 @@ def test_j1_group_key_tells_every_group_apart():
     assert group_key({"biological_repeat": np.int64(1)}) == group_key({"biological_repeat": 1})
 
 
+def test_164_group_key_never_reads_a_date_or_bytes_as_the_text_it_prints_as():
+    """A label JSON cannot hold was written through ``str``, so a timestamp, a date or bytes
+    and a text label with the same print shared one key (#164)."""
+    import datetime
+
+    import pandas as pd
+
+    stamp = pd.Timestamp("2024-01-15")
+    day = datetime.date(2024, 1, 15)
+    for label, same_text in ((stamp, str(stamp)), (day, str(day)), (b"a", str(b"a"))):
+        assert group_key({"condition": label}) != group_key({"condition": same_text})
+    # Distinct values of the same type stay distinct, equal ones keep one key, and a numpy
+    # value is the Python value it holds.
+    assert group_key({"d": stamp}) != group_key({"d": pd.Timestamp("2024-01-16")})
+    assert group_key({"d": stamp}) == group_key({"d": pd.Timestamp("2024-01-15")})
+    assert group_key({"d": stamp}) != group_key({"d": day})
+    # Ordinary labels keep exactly the key they always had.
+    assert group_key({"condition": "a", "biological_repeat": 1}) == (
+        '[["biological_repeat", 1], ["condition", "a"]]'
+    )
+
+
 def test_f6_split_seeds_of_neighbouring_random_states_do_not_overlap():
     first = {split_seed(0, s) for s in range(20)}
     second = {split_seed(1, s) for s in range(20)}
