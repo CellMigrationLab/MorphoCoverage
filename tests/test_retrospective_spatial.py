@@ -365,3 +365,23 @@ def test_order_efficiency_frontier_and_redundancy_refuse_what_they_cannot_read()
             share=0,
         )
     assert str(raised.value) == "share must be in (0, 1]"
+
+
+def test_237_the_shuffled_fields_are_in_key_order_when_keys_print_alike():
+    """Fields ``1`` and ``"1"`` print alike; their order in the seeded shuffles followed the
+    row order of the FOV table, so the null draws changed with it (#237)."""
+    from types import SimpleNamespace
+
+    from morphocoverage.retrospective.spatial import _canonical
+
+    means = np.array([[10.0], [20.0], [30.0]])
+    coords = np.array([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]])
+    keys = [1, "1", "a"]
+    out = []
+    for order in ([0, 1, 2], [1, 0, 2], [2, 1, 0]):
+        fovs = pd.DataFrame({"position_id": pd.Series([keys[i] for i in order], dtype=object)})
+        data = SimpleNamespace(fovs=fovs, fov_key=["position_id"])
+        rows = np.arange(3)
+        got_means, _ = _canonical(data, rows, means[order], coords[order])
+        out.append(got_means.ravel().tolist())
+    assert out == [[10.0, 20.0, 30.0]] * 3  # 1, then "1", then "a", whatever the row order

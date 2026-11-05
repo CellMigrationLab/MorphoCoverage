@@ -488,3 +488,26 @@ def test_inspect_fovs_skips_a_summary_without_values_and_checks_the_stage_column
     with pytest.raises(ValueError) as raised:
         inspect_fovs(objects, fovs, feature_cols=list(FEATURE_COLS), stage_cols=("x", "y"))
     assert str(raised.value) == "stage columns missing from the FOV table: ['x', 'y']"
+
+
+def test_237_a_tie_between_fields_whose_keys_print_alike_never_follows_the_row_order():
+    """Fields ``1`` and ``"1"`` are two fields; sorting their keys as text left their order
+    to the row order of the FOV table, so which of two equidistant fields was compared
+    changed with it (#237)."""
+    from morphocoverage.retrospective._stage_neighbours import _nearest
+
+    xy = {"t": (0.0, 0.0), 1: (1.0, 0.0), "1": (0.0, 1.0), "far": (9.0, 9.0)}
+    chosen = []
+    for order in (["t", 1, "1", "far"], ["t", "1", 1, "far"], ["far", "1", "t", 1]):
+        fovs = pd.DataFrame({"position_id": pd.Series(order, dtype=object)})
+        coords = np.array([xy[key] for key in order])
+        _, near, tied = _nearest(fovs, coords, ["position_id"], 1)
+        target = order.index("t")
+        assert tied[target]
+        chosen.append(order[near[target][0]])
+    assert chosen == [1, 1, 1]  # the same field, whatever the row order
+    # Ordinary text keys keep their order: "p10" before "p9", as before.
+    names = ["p9", "p10", "t"]
+    fovs = pd.DataFrame({"position_id": names})
+    _, near, _ = _nearest(fovs, np.array([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0]]), ["position_id"], 1)
+    assert names[near[2][0]] == "p10"

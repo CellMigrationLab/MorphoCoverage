@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
 
+from .._identity import canonical_order
 from .._stage_coordinates import stage_matrix
 from .._wording import count
 from ..schema import ValidatedInput, fov_positions
@@ -46,13 +47,13 @@ def _nearest(
     On a regular grid several fields sit at the same distance; taking them in
     row order made which were compared depend on the order of the FOV table.
     Distances equal to 1e-9 of the largest are ties, broken by the canonical
-    order of the FOV key. Returns the distances and positions of the
-    neighbours, and whether a tie at the k-th distance was broken.
+    order of the FOV key (its typed values, so ``1`` and ``"1"`` never tie).
+    Returns the distances and positions of the neighbours, and whether a tie
+    at the k-th distance was broken.
     """
     n = len(fovs)
-    keys = fovs[list(fov_key)].astype(str).reset_index(drop=True)
     rank = np.empty(n, dtype=np.int64)
-    rank[keys.sort_values(list(keys.columns), kind="stable").index.to_numpy()] = np.arange(n)
+    rank[canonical_order(fovs, list(fov_key))] = np.arange(n)  # typed: 1 is not "1" (#237)
     distance = cdist(xy, xy)
     scale = float(distance.max()) or 1.0
     rounded = np.round(distance / scale, 9)

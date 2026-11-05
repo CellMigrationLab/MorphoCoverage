@@ -37,6 +37,7 @@ from scipy.spatial import distance as _distances
 
 from .._checks import as_count, check_seed, is_positive_finite, is_share
 from .._frozen import owned
+from .._identity import canonical_order
 from .._seeds import group_rng
 from .._stage_coordinates import stage_matrix, stage_names
 from ..data_check import validate_input_tables
@@ -280,9 +281,8 @@ def _canonical(
     group_data: ValidatedInput, rows: np.ndarray, means: np.ndarray, coords: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
     """The means and positions in FOV-key order, so a shuffle never depends on row order."""
-    keys = group_data.fovs.iloc[rows][list(group_data.fov_key)].astype(str)
-    keys = keys.reset_index(drop=True)
-    order = keys.sort_values(list(keys.columns), kind="stable").index.to_numpy()
+    # Typed keys: field 1 is not field "1", so a shuffle never follows the row order (#237).
+    order = canonical_order(group_data.fovs.iloc[rows], list(group_data.fov_key))
     return means[order], coords[order]
 
 
