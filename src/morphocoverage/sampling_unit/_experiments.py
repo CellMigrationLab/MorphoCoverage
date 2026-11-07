@@ -132,6 +132,23 @@ def not_compared(conditions: list[str], control: str, word: str = "biological re
     return f"Not compared: {listing(conditions, 4)} (none shares a {word} with {control})."
 
 
+def left_out(held: list[str], missing: list[str], control: str, word: str) -> str:
+    """``3 of its 4 biological repeats hold ctrl; 2026_01_26 left out``: a condition imaged in
+    repeats without the control (the wording of ``condition_contrast``'s reading)."""
+    n = len(held)
+    verb = "holds" if n == 1 else "hold"
+    return f"{n} of its {n + len(missing)} {word}s {verb} {control}; {listing(missing, 3)} left out"
+
+
+def control_only(repeats: list[str], control: str, word: str) -> str:
+    """The repeats holding only the control, which no comparison pools (the wording of
+    ``condition_contrast``'s balance paragraph): ``The ctrl of biological repeat R3, which
+    holds no other condition, is in no comparison.``"""
+    which = f"{word} {repeats[0]}" if len(repeats) == 1 else f"{word}s {listing(repeats, 3)}"
+    holds = "holds" if len(repeats) == 1 else "hold"
+    return f"The {control} of {which}, which {holds} no other condition, is in no comparison."
+
+
 def bridges(repeats: Mapping[Any, Iterable[Any]]) -> dict[Any, int]:
     """The conditions that join otherwise separate sets of repeats into one sub-experiment,
     each with the number of sets it joins: without it, the other conditions of its
@@ -192,12 +209,14 @@ def family_words(settings: Mapping[str, Any], own: bool = False) -> str:
 __all__ = [
     "ALPHA",
     "bridges",
+    "control_only",
     "corrected",
     "declared",
     "experiments",
     "family_noun",
     "family_sizes",
     "family_words",
+    "left_out",
     "not_compared",
     "repeat_experiments",
     "same_experiment",
