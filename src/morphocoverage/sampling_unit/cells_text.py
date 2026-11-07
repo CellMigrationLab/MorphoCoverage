@@ -26,7 +26,7 @@ from .._identity import IdentityKey, display, identity_key
 from .._style import span, table, wrap
 from .._wording import column_word, count, features_counted, listing, p_value, percent
 from ..schema import observation_words
-from ._experiments import family_noun
+from ._experiments import control_only, family_noun
 from .contrast_cells import (
     ALPHA,
     BALANCED_DRAWS,
@@ -151,9 +151,7 @@ def _control_only(contrast: Any, cells: pd.DataFrame) -> str:
         return ""
     word = column_word(contrast.settings["repeat_col"])
     control = listing(sorted(set(map(str, cells["control_condition"]))), 2)
-    which = f"{word} {repeats[0]}" if len(repeats) == 1 else f"{word}s {listing(repeats, 3)}"
-    holds = "holds" if len(repeats) == 1 else "hold"
-    return f" The {control} of {which}, which {holds} no other condition, is in no comparison."
+    return " " + control_only(repeats, control, word)
 
 
 def _sparse(contrast: Any, cells: pd.DataFrame) -> list[str]:

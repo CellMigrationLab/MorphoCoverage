@@ -345,3 +345,43 @@ def test_a_large_family_reruns_the_screen(monkeypatch):
     assert "the p-values at or below 0.05 rerun with 1680 shuffles" in " ".join(
         discovery.summary().split()
     )
+
+
+def _partly_shared(left_out):
+    """The tables with one repeat of one side removed: 'ctrl' or 'drug' in repeat r2 (K2)."""
+    objects, _ = _tables()
+    objects = objects[
+        ~((objects["condition"] == left_out) & (objects["biological_repeat"] == "r2"))
+    ]
+    fovs = objects[["condition", "biological_repeat", "position_id"]]
+    return _discovery(objects, fovs, features=("area",))
+
+
+def test_a_treated_only_repeat_is_named_as_not_compared():
+    """'drug' holds r0, r1 and r2 but the control only r0 and r1: r2 was never tested, and the
+    discovery says so, as condition_contrast does ('2 of its 3 biological repeats ...')."""
+    result = _partly_shared("ctrl")
+    assert result.settings["uncompared_repeats"] == [
+        {"condition": "drug", "compared": ["r0", "r1"], "not_compared": ["r2"]}
+    ]
+    assert result.settings["unpaired"] == [] and result.settings["control_only_repeats"] == []
+    text = " ".join(result.summary().split())
+    assert "drug: 2 of its 3 biological repeats hold ctrl; r2 left out." in text
+
+
+def test_a_control_only_repeat_is_named_as_in_no_comparison():
+    result = _partly_shared("drug")
+    assert result.settings["control_only_repeats"] == ["r2"]
+    assert result.settings["uncompared_repeats"] == []
+    text = " ".join(result.summary().split())
+    assert (
+        "The ctrl of biological repeat r2, which holds no other condition, is in no comparison."
+        in text
+    )
+
+
+def test_a_fully_shared_design_names_no_repeat_as_left_out():
+    result = _discovery(*_tables())
+    assert result.settings["uncompared_repeats"] == []
+    assert result.settings["control_only_repeats"] == []
+    assert "left out" not in result.summary() and "no comparison" not in result.summary()

@@ -64,8 +64,14 @@ from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN, colu
 from ..schema import observation_words
 from ._common import groups, validated
 from ._discovery_gate import _gated
-from ._discovery_tests import resting, resting_words, tested_rows
-from ._experiments import family_noun, not_compared
+from ._discovery_tests import (
+    control_only_repeats,
+    resting,
+    resting_words,
+    tested_rows,
+    uncompared_repeats,
+)
+from ._experiments import control_only, family_noun, left_out, not_compared
 from ._units import (
     check_arguments,
     contrasts_of,
@@ -351,12 +357,25 @@ class FeatureDiscovery:
     def _unpaired(self) -> str:
         """The conditions never compared: no biological repeat holds them and the control."""
         unpaired = [str(c) for c in self.settings.get("unpaired", [])]
-        if not unpaired:
-            return ""
         label = (
             "its own control" if self.settings.get("comparisons") else compared_name(self.settings)
         )
-        return " " + not_compared(unpaired, label, column_word(self.settings["repeat_col"]))
+        word = column_word(self.settings["repeat_col"])
+        parts = [not_compared(unpaired, label, word)] if unpaired else []
+        # A condition imaged in a repeat without the control: that repeat is not compared.
+        for item in self.settings.get("uncompared_repeats", []):
+            if item["compared"]:  # one in no repeat beside the control is named above
+                said = left_out(
+                    [str(r) for r in item["compared"]],
+                    [str(r) for r in item["not_compared"]],
+                    label,
+                    word,
+                )
+                parts.append(f"{item['condition']}: {said}.")
+        only = [str(r) for r in self.settings.get("control_only_repeats", [])]
+        if only:
+            parts.append(control_only(only, label, word))
+        return " " + " ".join(parts) if parts else ""
 
     def _table(self, max_rows: int, indent: int) -> list[str]:
         ranked = self.ranking.dropna(subset=["score"])
@@ -556,6 +575,8 @@ def feature_discovery(
     settings["unpaired"] = [
         c for c in dict.fromkeys(condition for _, condition in contrasts) if c not in held
     ]
+    settings["uncompared_repeats"] = uncompared_repeats(contrasts, held, repeat_col)
+    settings["control_only_repeats"] = control_only_repeats(described, repeat_col)
     if not rows:
         settings["reason"] = f"No condition to compare with the control, {control_name(control)}."
         empty = pd.DataFrame(columns=RANKING_COLUMNS)  # its columns, for top and the page

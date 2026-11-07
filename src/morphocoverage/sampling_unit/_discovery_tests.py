@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._identity import identity_key
 from .._parallel import UNITS_PER_WORKER, map_units, worker_pool
 from .._seeds import group_rng
 from .._wording import listing
@@ -278,4 +279,41 @@ def tested_rows(
     return rows, retests, held
 
 
-__all__ = ["NO_SPREAD", "POOLED_CONTROL", "tested_rows"]
+def uncompared_repeats(contrasts: list, held: dict, repeat_col: str | None) -> list[dict[str, Any]]:
+    """Per condition, the biological repeats it was imaged in that no test used (the repeat
+    holds no control, as ``condition_contrast`` and ``feature_ranking`` say per row) and the
+    ones it was compared in; empty without a repeat column."""
+    if repeat_col is None:
+        return []
+    imaged: dict[Any, set] = {}
+    for repeat, condition in contrasts:
+        imaged.setdefault(condition, set()).add(repeat)
+    found = []
+    for condition, repeats in imaged.items():
+        compared = held.get(condition, set())
+        if repeats - compared:
+            found.append(
+                {
+                    "condition": condition,
+                    "compared": sorted(compared, key=identity_key),
+                    "not_compared": sorted(repeats - compared, key=identity_key),
+                }
+            )
+    return sorted(found, key=lambda item: identity_key(item["condition"]))
+
+
+def control_only_repeats(described: list, repeat_col: str | None) -> list:
+    """The repeats holding only the control: in no comparison (as ``condition_contrast``)."""
+    if repeat_col is None:
+        return []
+    compared = {d["repeat"] for d in described if not d["is_control"]}
+    return sorted({d["repeat"] for d in described if d["is_control"]} - compared, key=str)
+
+
+__all__ = [
+    "NO_SPREAD",
+    "POOLED_CONTROL",
+    "control_only_repeats",
+    "tested_rows",
+    "uncompared_repeats",
+]

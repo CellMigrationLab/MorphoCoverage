@@ -51,7 +51,7 @@ from .._wording import (
 from ..metadata import REPEAT_COLUMN
 from ..schema import observation_words
 from ..statistics import repeat_values
-from ._experiments import bridges, family_words, not_compared
+from ._experiments import bridges, family_words, left_out, not_compared
 from ._reading_cells import _cell_version, _cells, _chance_sentence, chance_words
 from .across_text import own_gap_lines
 from .contrast_cells import ALPHA
@@ -114,12 +114,7 @@ def _left_out(contrast: Any, condition: Any, control: str, word: str) -> str:
     missing = without.get(condition, [])
     if not missing or condition not in held:
         return ""
-    n = len(held[condition])
-    verb = "holds" if n == 1 else "hold"
-    return (
-        f"{n} of its {n + len(missing)} {word}s {verb} {control}; "
-        f"{listing([str(r) for r in missing], 3)} left out"
-    )
+    return left_out([str(r) for r in held[condition]], [str(r) for r in missing], control, word)
 
 
 def _direction_rows(contrast: Any) -> pd.DataFrame:
