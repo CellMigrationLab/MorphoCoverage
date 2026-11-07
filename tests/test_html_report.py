@@ -344,15 +344,12 @@ def test_the_zip_leaves_out_only_itself(tmp_path):
         assert opened.namelist() == ["results/source_data.zip"]
 
 
-def test_nothing_compared_is_said_never_no_consistent_difference() -> None:
-    # F12 note (e02): the chip read "⚠️ No consistent difference" when nothing was compared.
-    result = _scenario_report("e02_control_in_other_repeats")
-    status = result.document.statuses["conditions"]
-    headline = result.document.headlines["conditions"]
-    assert status is Status.NOT_ASSESSED
-    assert headline.startswith("nothing compared: no biological repeat holds both a condition")
-    assert "Nothing compared" in chip(status, "conditions", headline)
-    assert "No consistent difference" not in chip(status, "conditions", headline)
+def test_a_condition_sharing_no_repeat_label_with_its_control_is_refused() -> None:
+    # F12 note (e02): the chip read "No consistent difference" when nothing was compared; then
+    # "nothing compared". Repeats are paired by folder label, so labels that share none are
+    # refused rather than read as either, until the Spec v1 reader lands (#617).
+    with pytest.raises(ValueError, match=r"repeat labels of 'a'.*share none.*Spec v1"):
+        _scenario_report("e02_control_in_other_repeats")
 
 
 CONFIG = re.compile(r"config [0-9a-f]{16}")

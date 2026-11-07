@@ -303,7 +303,7 @@ CONTROL_ONLY = "2026_04_06"
 DESIGNS = {
     "E1": {"ctrl": R[:1], "cond1": R[:1], "cond2": R[:1]},
     "E2": {"ctrl": R, "cond1": R[:3], "cond2": R[:2], "cond3": R, "cond4": R[:1]},
-    "E4": {"ctrl": R[:3] + [CONTROL_ONLY], "cond1": R[:3], "cond2": R[:3], "cond3": OTHER},
+    "E4": {"ctrl": R[:3] + [CONTROL_ONLY], "cond1": R[:3], "cond2": R[:3]},
     "E5": {"ctrl": R[:3], "cond1": R, "cond2": R[:3]},
     "E6": {
         "ctrl": R[:3] + SET_B,
@@ -314,6 +314,11 @@ DESIGNS = {
 }
 
 
+# Not in DESIGNS: cond3 was imaged in repeats under labels the control does not have, which a
+# contrast refuses (#617), so it has no contrast to build.
+UNSHARED_LABELS = {"ctrl": R[:3], "cond1": R[:3], "cond3": OTHER}
+
+
 EFFECTS = {"cond1": 2.0, "condA": 2.0}
 
 
@@ -321,7 +326,7 @@ def _make(design, fields=3, cells=15, seed=0):
     """Two features (area, the effect; intensity, none), a batch shift per repeat, one well
     per condition and repeat."""
     rng = np.random.default_rng(seed)
-    plan = DESIGNS[design]
+    plan = DESIGNS.get(design, UNSHARED_LABELS)
     repeats = sorted({r for held in plan.values() for r in held})
     batch = {r: rng.normal(0, 0.3, 2) for r in repeats}
     rows, fovs = [], []
