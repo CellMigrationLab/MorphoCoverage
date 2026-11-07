@@ -23,6 +23,7 @@ from _helpers_sampling_unit import (
     _flat,
     _flat_text,
     _join,
+    _make,
     _signed,
     _technical,
     _three,
@@ -817,22 +818,16 @@ def test_the_plan_gives_the_verdicts_change_over_every_paired_repeat():
     assert plan["change"] == pytest.approx(across["fold_change"])
 
 
-def test_a_condition_without_the_control_is_named_once(designs):
-    contrast, discovery = designs["E4"]
-    line = "Not compared: cond3 (no biological repeat holds both it and ctrl)."
-    reading = _flat(readings_parts(contrast))
-    assert reading.count(line) == 1
-    assert " ".join(discovery.summary().split()).count(line) == 1
-    summary = " ".join(contrast_summary(contrast, "full").split())
-    assert "No well-level test within a repeat" not in summary
-    assert summary.count("Not compared: cond3") == 1
-
-    class Result:
-        pass
-
-    result = Result()
-    result.discovery, result.results = discovery, {}
-    assert significant_summary(result, str).count(line) == 1
+def test_a_condition_with_no_repeat_label_of_the_control_is_refused_not_named_not_compared():
+    # Formerly "Not compared: cond3 (no biological repeat holds both it and ctrl)": the repeats
+    # are paired by folder label, so a pairing confirmed under other labels was read as "not
+    # compared". It is refused until the Spec v1 reader lands (#617).
+    objects, fovs = _make("unshared")
+    match = r"repeat labels of 'cond3'.*of 'ctrl'.*share none.*Spec v1"
+    with pytest.raises(ValueError, match=match):
+        condition_contrast(objects, fovs, feature="area", control=CONTROL, n_permutations=99)
+    with pytest.raises(ValueError, match=match):
+        feature_discovery(objects, fovs, features=["area"], control=CONTROL, n_permutations=99)
 
 
 def test_a_repeat_without_the_control_is_said_where_the_repeats_are(designs):

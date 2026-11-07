@@ -72,7 +72,10 @@ def two_repeats() -> Scenario:
 
 
 def control_elsewhere() -> Scenario:
-    """The control imaged in other repeats than the condition: nothing is paired."""
+    """The control imaged in other repeats than the condition: nothing is paired.
+
+    Refused (#617): the repeats are paired by folder label, so a pairing confirmed under other
+    names cannot be told from this design until the Spec v1 reader lands."""
     design = Design(
         ("ctrl", "a"),
         shifts={"a": 0.8},
@@ -82,15 +85,14 @@ def control_elsewhere() -> Scenario:
     return _scenario(
         "e02_control_in_other_repeats",
         "edge",
-        "a control imaged in other repeats than its condition: not compared across repeats",
+        "a control imaged in other repeats than its condition: refused, no repeat label shared",
         design,
         {**READOUT, **CTRL},
         {
-            "results": ["contrast"],
-            "absent": ["enough_features"],
-            "untested_across": True,
-            "untested_whole": "no repeat holds both",
-            "overview": ["in every repeat of its sub-experiment: ctrl in"],
+            "outcome": "refused",
+            "at": "report",
+            "error": "ValueError",
+            "match": "repeat labels of 'a'.*of 'ctrl'.*share none.*Spec v1",
         },
         tables={"DINO1": ("dino", None)},
     )
