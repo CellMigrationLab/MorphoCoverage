@@ -246,6 +246,8 @@ of code cleanup substitutes for those acquisitions or confirmatory runs.
 | ENG-7 | The audit history: every audit after the six on [the audit page](../audit/README.md) that the code or git history names (today audits 6, 7, 8, 10, 11 and 12) gets one paragraph, added after the existing ones, which stay as written. A table maps the old test file names to the new ones (DEC-3). | Every audit the code names has a paragraph. Every test file the page names can be found through the table. |
 | ENG-8 | Old META issues: each open item of #373 and #101 moves to open work, or to "Not scheduled" with its issue number. Then the two issues are closed. | Checked item by item: nothing of #373 or #101 is lost. |
 
+**Status check, 2026-11-07:** ENG-3 is done (commit `11b82e1` folded the audit-, review-, refactor-, plan- and date-named test files; `tests/` holds none of them) and ENG-4's naming guard exists (`tools/audit.py` calls `naming.violations()`). The other ENG rows were not re-checked in this pass; [#407](https://github.com/CellMigrationLab/MorphoCoverage/issues/407) holds the per-row pull requests.
+
 **M0:** ENG-1 to ENG-8 pass.
 
 Added after M0 (owner, 2026-10-13), due before AUD-1:

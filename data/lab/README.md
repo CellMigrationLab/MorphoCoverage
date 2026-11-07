@@ -25,7 +25,7 @@ card; `DATASET.md` in each folder is the description to read first.
 - **Reproduction:** the paper's numbers for the named figure are recomputed from the stored tables with
   tolerances fixed beforehand (counts exact, means to the stated decimals, p-values to their order of
   magnitude); every mismatch is reported to the owner and recorded, never silently fixed.
-- **Role:** lab datasets are `development` (settings may be tuned on them); `data/crick_idr/idr0139` stays the
+- **Role:** lab datasets are `development` (settings may be tuned on them); the `data/crick_idr/` idr0139 data stay the
   held-out dataset. Each card's hypotheses are written before any MorphoCoverage run; runs go to
   `results/<id>/` and `FINDINGS.md`, never into `DATASET.md`.
 - **Contract changes:** tables are written against the contract version in the card; `catalog.load`

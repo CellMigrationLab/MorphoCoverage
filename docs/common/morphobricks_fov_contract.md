@@ -1,6 +1,6 @@
 # MorphoBricks FOV contract: what upstream repositories need to provide
 
-MorphoCoverage treats the field of view (FOV) as the acquisition unit. It can only do that correctly if upstream MorphoBricks tools emit FOV identity consistently. This document states the contract MorphoCoverage relies on and lists the changes needed in sibling repositories. It is a proposal: the other repositories are not changed by this document.
+MorphoCoverage treats the field of view (FOV) as the acquisition unit. It can only do that correctly if upstream MorphoBricks tools emit FOV identity consistently. This document states the contract MorphoCoverage relies on and lists the changes needed in sibling repositories. It is a proposal: the other repositories are not changed by this document. MorphoFeature's own side of the same table interface is its [feature-handoff contract](https://github.com/CellMigrationLab/MorphoFeature/blob/main/docs/contracts/feature-handoff.md).
 
 Evidence was first gathered from CellPatcher, fiberfeatures and NucleiSky at their default branches on 2026-09-23. The CellPatcher and fiberfeatures items were last checked on 2026-10-02 against CellPatcher `783d8a1` and fiberfeatures `6651566` (both of 2026-10-01, their `main`). Work on an open branch is named as such, not counted as done. References name files and functions rather than line numbers, which move; NucleiSky was not rechecked.
 
@@ -76,12 +76,12 @@ Already compatible:
 - `position_id` is a real `PatchRegion` field and column, set per image from `image_metadata` (`_stamp_image_metadata`, `pipeline.py`), and the `t`/`z0`/`z1`/`c` of each plane are columns beside it. Planes of one position share it when the caller gives them the same value; nothing derives it from the files.
 - `label_id` exists.
 
-Needed:
+All four changes this contract once asked of CellPatcher are done (re-verified 2026-11-07 against local CellPatcher `031bba9`, not fetched; the contract of record is CellPatcher's [configuration reference](https://github.com/CellMigrationLab/CellPatcher/blob/main/docs/configuration_reference.md), which this page does not restate):
 
-1. **Emit a per-image table** (e.g. `images.csv` next to `patches.csv`). It should include images that produced zero patches and give the reason (no labels, all objects filtered by border or size). Today `patches.csv` has one row per accepted patch only (`_build_result`, `pipeline.py`), so these images disappear.
-2. **Do not present `image_id` as an FOV identifier.** It is positional within a run (`image_{idx:04d}` in `pipeline.py` and `cell_scan.py`), so it changes if the input list changes; `docs/configuration_reference.md` calls it the "identifier of the source image". The stable identifier is `position_id`, or `image_file` when one file is one position.
-3. **Populate `technical_repeat`.** It is not a `PatchRegion` field on `main`. The `<condition>/<biological_repeat>/<technical_repeat>/` folder level, with `"single"` without one, is on an open branch (CellPatcher#9), not merged.
-4. **Warn or refuse when `condition`/`biological_repeat` are unset.** Direct `run_patching()` calls leave them `None` (`CommonConfig`, `config.py`), so CellPatcher's own "Always" holds only for `run_patching_condition_repeat_tree`. MorphoCoverage rejects missing group values, so this surfaces late rather than at the source.
+1. **Per-image table:** `images.csv` is written beside every `patches.csv`, one row per image considered including images without patches (`IMAGE_TABLE_FILENAME`, `export.py`).
+2. **`image_id` is not an FOV identifier:** the reference calls it the image's place in the run, "not an identity across runs"; the stable identifier is `position_id` or `image_file`.
+3. **`technical_repeat`** is a `PatchRegion` field (`types.py`) and the `<condition>/<biological_repeat>/<technical_repeat>/` folder level exists (`io.py`).
+4. **Unset `condition`/`biological_repeat`:** `CommonConfig` now defaults them to the `"single"` labels (`config.py`) instead of `None`.
 
 ### fiberfeatures
 

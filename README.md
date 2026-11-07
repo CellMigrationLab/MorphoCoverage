@@ -76,7 +76,7 @@ section per question: its answer, a table, the cautions found in these data (⚠
 assumptions it rests on. `summary(detail="full")` gives every sentence and number. Markers: ✅ fine,
 ⚠️ look at this, ❌ a problem that changes how to read the answers, ➖ not assessed. An excerpt of the
 idr0028 report, as `workflows.report` gives it
-(`data/crick_idr/results/microscopist_report_idr0028.txt`; the full form is
+(written by `data/crick_idr/report_steps_idr0028.py` as `microscopist_report_idr0028.txt`; the full form is
 `microscopist_report_idr0028_full.txt`):
 
 ```text
