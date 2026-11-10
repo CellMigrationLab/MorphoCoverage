@@ -116,8 +116,8 @@ features.
 Every figure carries the data it draws as CSV, beside its PNG and PDF (in
 `figures/`, inside the page and in the zip), to draw it again outside: per
 feature figure `<feature>_data.csv` (every observation, raw and normalised, with
-its condition, repeats and field), `<feature>_repeats.csv` (each biological
-repeat's median and interval) and `<feature>_pairs.csv` (every pair of
+its condition, `biological_repeat`, `technical_repeat` and field), `<feature>_repeats.csv`
+(each biological repeat's median and interval, under `biological_repeat`) and `<feature>_pairs.csv` (every pair of
 conditions); for the maps `embedding_<values>.csv` (the PCA and UMAP coordinates
 of every point, with its condition, repeat, field, `observation` (its index in the
 observation table), `label_id` when the table has one, population and standardised

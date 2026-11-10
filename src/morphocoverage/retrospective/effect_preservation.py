@@ -503,7 +503,7 @@ def _summary(result: EffectPreservation) -> str:
         "of it. The table gives the share of draws that did, by fields a side."
     )
     counts = settings["fov_counts"]
-    columns = ["condition", "repeat", "d", *(str(k) for k in counts)]
+    columns = ["condition", REPEAT_COLUMN, "d", *(str(k) for k in counts)]
     lines, seen = [], set()
     by_contrast = frame.groupby([REPEAT_COLUMN, "condition"], sort=False, dropna=False)
     for (repeat, condition), rows in by_contrast:

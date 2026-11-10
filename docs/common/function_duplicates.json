@@ -441,7 +441,7 @@
    ],
    "_NAMES": [
     "workflows._distribution = {'spread': 'spread', 'q10': '10% quantile', 'q50': 'median', 'q90': '90% quantil",
-    "workflows._html_data = {'repeat': 'biological_repeat', 'technical': 'technical_repeat'}"
+    "workflows._html_data = {'technical': 'technical_repeat'}"
    ],
    "_NEGATIVE": [
     "sampling_unit.object_rules = 'not applicable: the feature takes negative values here or in the control, and a",

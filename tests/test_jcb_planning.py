@@ -320,11 +320,9 @@ def test_plan_is_provenance():
 def test_real_pilot_wells_plan_the_other_wells():
     # idr0139: plan on two DMSO control wells and two Leptomycin b wells, one
     # sample per well, then stop every other well at the planned count.
-    # The stored files name the plate by the former name "repeat".
-    plate = {"repeat": "biological_repeat"}
-    fovs = pd.read_csv(DATA / "idr0139_fovs.csv.gz", dtype={"repeat": str}).rename(columns=plate)
-    objects = pd.read_csv(DATA / "idr0139_nuclei.csv.gz", dtype={"repeat": str})
-    objects = objects.rename(columns=plate)
+    plate = {"biological_repeat": str}
+    fovs = pd.read_csv(DATA / "idr0139_fovs.csv.gz", dtype=plate)
+    objects = pd.read_csv(DATA / "idr0139_nuclei.csv.gz", dtype=plate)
     nuclear = objects["Nuclei_Intensity_MeanIntensity_Fascin"]
     objects["Fascin_Ratio"] = nuclear / (
         nuclear + objects["Cytoplasm_Intensity_MeanIntensity_Fascin"]

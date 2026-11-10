@@ -14,7 +14,8 @@ a column:
 | ``idr0139_plate`` | all 308, 1 plate | 4 | readout only | ``Fascin_Ratio`` |
 
 ``load(name)`` returns a ``Dataset``: the two tables (``condition``,
-``repeat`` and ``technical_repeat``, the well, on both), the explicit feature columns, the readout,
+``biological_repeat`` and ``technical_repeat``, the well, on both), the explicit feature
+columns, the readout,
 the negative-control condition, the grouping the analyses use (one group per
 well), the declared observation unit and the dataset's role. The readout is
 derived from two features (nuclear mean / (nuclear mean + cytoplasmic mean)
@@ -57,10 +58,9 @@ FASCIN_RATIO = "Fascin_Ratio"
 # The MorphoBricks group columns: the well is the technical repeat within a plate.
 GROUPS = ("condition", "biological_repeat", "technical_repeat")
 OBSERVATION_UNIT = "nucleus"
-# The stored files keep the names convert.py wrote: the plate as "repeat" (the former
-# MorphoBricks name of the biological repeat) and the well as "well".
-STORED_REPEAT = "repeat"
-STORED_NAMES = {"well": "technical_repeat", STORED_REPEAT: "biological_repeat"}
+# The stored files keep the names convert.py wrote: the plate is already ``biological_repeat``;
+# the well is stored as "well" and loaded as ``technical_repeat``.
+STORED_NAMES = {"well": "technical_repeat"}
 
 
 @dataclass(frozen=True)
@@ -118,15 +118,15 @@ def load(name: str) -> Dataset:
     if name not in _SPECS:
         raise ValueError(f"unknown dataset {name!r}; choose one of {list(NAMES)}")
     readout, control, role, description = _SPECS[name]
-    objects = pd.read_csv(HERE / f"{name}_nuclei.csv.gz", dtype={STORED_REPEAT: str})
-    fovs = pd.read_csv(HERE / f"{name}_fovs.csv.gz", dtype={STORED_REPEAT: str})
-    # The stored tables name the well and the plate by their stored names; the package's
-    # shared columns for them are technical_repeat and biological_repeat.
+    objects = pd.read_csv(HERE / f"{name}_nuclei.csv.gz", dtype={"biological_repeat": str})
+    fovs = pd.read_csv(HERE / f"{name}_fovs.csv.gz", dtype={"biological_repeat": str})
+    # The stored tables name the well "well"; the package's shared column for it is
+    # technical_repeat.
     objects = objects.rename(columns=STORED_NAMES)
     fovs = fovs.rename(columns=STORED_NAMES)
     if "condition" not in objects.columns:
         # The complete plates keep the metadata in the FOV table; idr0028 reuses
-        # file names across plates, so the join is on (repeat, image_file).
+        # file names across plates, so the join is on (biological_repeat, image_file).
         metadata = fovs[["biological_repeat", "image_file", "condition", "technical_repeat"]]
         objects = objects.merge(
             metadata, on=["biological_repeat", "image_file"], how="left", validate="many_to_one"

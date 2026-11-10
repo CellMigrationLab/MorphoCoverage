@@ -111,7 +111,7 @@ PLOTLY_SCRIPT = r"""
           x: mine.map(function (k) { return k.x; }),
           y: mine.map(function (k) { return k.summary; }),
           customdata: mine.map(function (k) {
-            return [k.repeat || 'repeats pooled', k.low, k.high];
+            return [k.biological_repeat || 'repeats pooled', k.low, k.high];
           }),
           marker: { symbol: 'line-ew', size: 30, line: { width: 4, color: t.text } },
           error_y: { type: 'data', symmetric: false, thickness: 2.5, width: 9, color: t.text,
@@ -125,7 +125,7 @@ PLOTLY_SCRIPT = r"""
       var xs = spec.clusters.map(function (k) { return k.x; });
       var span = Math.max.apply(null, xs) - Math.min.apply(null, xs) + 1.4;
       var longest = Math.max.apply(null, spec.clusters.map(function (k) {
-        return (k.repeat || '').length;
+        return (k.biological_repeat || '').length;
       }));
       var slant = (plot.clientWidth || 900) / span < 8 * longest + 6;
       // The slanted condition names, cut at 30 characters, take this much room below.
@@ -146,11 +146,13 @@ PLOTLY_SCRIPT = r"""
         yaxis: { title: { text: escape(spec.ylabel), font: { size: 15 } }, gridcolor: t.grid,
           zeroline: false },
         annotations: spec.clusters.filter(function (k) {
-          return k.repeat && k.repeat !== 'single';  // CellPatcher's word for no such level
+          // 'single' is CellPatcher's word for no such level.
+          return k.biological_repeat && k.biological_repeat !== 'single';
         }).map(function (k) {
           // Slanted when the slots are narrow, so neighbouring repeats' names never overlap.
           return { x: k.x, y: 1, yref: 'paper', yanchor: 'bottom', xanchor: slant ? 'left' :
-            'center', showarrow: false, textangle: slant ? -40 : 0, text: escape(k.repeat),
+            'center', showarrow: false, textangle: slant ? -40 : 0,
+            text: escape(k.biological_repeat),
             font: { size: 12, color: t.muted } };
         })
       });

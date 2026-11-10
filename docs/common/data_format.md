@@ -473,8 +473,8 @@ CellPatcher's `patches.csv` carries the shared columns: `condition`,
 `biological_repeat`, `technical_repeat` (from a `<condition>/<repeat>/<well>/`
 folder level, `single` without one), `position_id`, `image_file`, `mask_file`
 and `patch_file`; a `patches.csv` written before the renaming names the
-biological repeat `repeat`, which is still read (see
-[The former name `repeat`](#the-former-name-repeat)). It can be read
+biological repeat `repeat`, which is refused (see
+[The former name `repeat`](#the-former-name-repeat)): write it again. It can be read
 directly as the observation table, one row per patch
 (`observation_unit="patch"`), once a feature-extraction step has added
 feature columns. For the FOV table, prefer the list of every image given to

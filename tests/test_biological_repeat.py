@@ -541,6 +541,55 @@ def test_column_arguments_and_setup_fields_naming_the_former_name_are_refused():
     )
 
 
+# --- Output columns name the biological repeat the same way ----------------------------
+
+
+def test_the_output_tables_name_the_column_biological_repeat(tmp_path):
+    from morphocoverage.retrospective import effect_preservation
+    from morphocoverage.sampling_unit.distribution import (
+        SHAPE_COLUMNS,
+        distribution_contrast,
+    )
+    from morphocoverage.workflows import html_report, plots
+
+    objects, fovs = _tables()
+    setup = _setup()
+    summaries = plots(objects, fovs, setup)["area"][0].cluster_summaries
+    assert REPEAT_COLUMN in summaries.columns and FORMER not in summaries.columns
+    assert REPEAT_COLUMN in SHAPE_COLUMNS and FORMER not in SHAPE_COLUMNS
+    shapes = distribution_contrast(
+        objects,
+        fovs,
+        features=["area"],
+        control={"condition": "control"},
+        observation_unit="cell",
+    ).shapes
+    assert list(shapes.columns) == SHAPE_COLUMNS
+    preserved = effect_preservation(
+        objects,
+        fovs,
+        feature="area",
+        control={"condition": "control"},
+        fov_counts=(1, 2),
+        n_draws=10,
+        n_splits=2,
+        random_state=0,
+    )
+    header = preserved.summary().splitlines()
+    assert any(REPEAT_COLUMN in line and "condition" in line for line in header)
+    assert REPEAT_COLUMN in preserved.table.columns and FORMER not in preserved.table.columns
+    # The HTML report: the page, its figure data and its CSV files carry the same name.
+    result = report(objects, fovs, setup)
+    html_report(result, objects, fovs, tmp_path)
+    repeats = pd.read_csv(tmp_path / "figures" / "area_repeats.csv")
+    points = pd.read_csv(tmp_path / "figures" / "area_data.csv")
+    assert REPEAT_COLUMN in repeats.columns and FORMER not in repeats.columns
+    assert REPEAT_COLUMN in points.columns and FORMER not in points.columns
+    page = (tmp_path / "index.html").read_text() if (tmp_path / "index.html").exists() else ""
+    page = page or next(tmp_path.glob("*.html")).read_text()
+    assert '"biological_repeat"' in page and '"repeat":' not in page
+
+
 # --- Near misses ------------------------------------------------------------------------
 
 NEAR_MISSES = {

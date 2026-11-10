@@ -33,7 +33,7 @@ from ._feature_space import table_of, with_table
 from ._html_plotly import _observations
 
 # The columns of a feature's observations, named as the MorphoBricks tables name them.
-_NAMES = {"repeat": "biological_repeat", "technical": "technical_repeat"}
+_NAMES = {"technical": "technical_repeat"}
 
 
 def write_csv(frame: pd.DataFrame, folder: Path, name: str) -> str:

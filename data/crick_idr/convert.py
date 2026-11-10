@@ -22,8 +22,8 @@ written with 6 significant digits.
 - ``idr0028_screenB_plates`` and ``idr0139_plate``: every well of the source
   plates, with the readout ratio only, so the complete-plate analyses run
   without the 2 GB download. To keep them small, a nucleus row holds only
-  ``repeat``, ``image_file``, ``label_id`` and the ratio; ``condition`` and
-  ``well`` are in the FOV table and are joined on ``(repeat, image_file)``
+  ``biological_repeat``, ``image_file``, ``label_id`` and the ratio; ``condition`` and
+  ``well`` are in the FOV table and are joined on ``(biological_repeat, image_file)``
   (idr0028 reuses file names across plates).
 
 This is a data-preparation script, not part of the package.
@@ -178,7 +178,7 @@ def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
         index = index[index["Channel"] == index["Channel"].min()]
         fovs = pd.DataFrame(
             {
-                "repeat": plate,
+                "biological_repeat": plate,
                 "well": index["WellName"].to_numpy(),
                 "image_file": index["sourcefilename"].to_numpy(),
                 "field": index["Field"].to_numpy(),
@@ -224,7 +224,7 @@ def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
             images[["ImageNumber", "image_file"]], on="ImageNumber", validate="many_to_one"
         )
         objects = objects.merge(
-            fovs[["image_file", "condition", "repeat", "well"]],
+            fovs[["image_file", "condition", "biological_repeat", "well"]],
             on="image_file",
             validate="many_to_one",
         )
@@ -242,7 +242,7 @@ def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
     objects = _with_ratio(objects, "YAPTAZ")
     fov_cols = [
         "condition",
-        "repeat",
+        "biological_repeat",
         "well",
         "image_file",
         "field",
@@ -257,7 +257,7 @@ def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
     feature_cols = [c for c in objects.columns if c.startswith(("Nuclei_", "Cytoplasm_"))]
     object_cols = [
         "condition",
-        "repeat",
+        "biological_repeat",
         "well",
         "image_file",
         "label_id",
@@ -287,7 +287,7 @@ def convert_idr0139(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
     )
     fovs = pd.DataFrame(
         {
-            "repeat": str(IDR0139_PLATE),
+            "biological_repeat": str(IDR0139_PLATE),
             "well": images["Metadata_Well"],
             "image_file": images["FileName_DNA"],
             "field": images["Metadata_Field"],
@@ -306,7 +306,9 @@ def convert_idr0139(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
         images[["ImageNumber", "FileName_DNA"]], on="ImageNumber", validate="many_to_one"
     ).rename(columns={"FileName_DNA": "image_file"})
     objects = objects.merge(
-        fovs[["image_file", "condition", "repeat", "well"]], on="image_file", validate="many_to_one"
+        fovs[["image_file", "condition", "biological_repeat", "well"]],
+        on="image_file",
+        validate="many_to_one",
     )
     objects = objects.rename(
         columns={
@@ -319,7 +321,7 @@ def convert_idr0139(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
     feature_cols = [c for c in objects.columns if c.startswith(("Nuclei_", "Cytoplasm_"))]
     fov_cols = [
         "condition",
-        "repeat",
+        "biological_repeat",
         "well",
         "image_file",
         "field",
@@ -329,7 +331,7 @@ def convert_idr0139(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
     ]
     object_cols = [
         "condition",
-        "repeat",
+        "biological_repeat",
         "well",
         "image_file",
         "label_id",
@@ -348,7 +350,7 @@ OUTPUTS = {
     "idr0139_plate": (convert_idr0139, False),
 }
 # Nucleus columns kept for the complete plates (see the module docstring).
-PLATE_OBJECT_COLUMNS = ["repeat", "image_file", "label_id"]
+PLATE_OBJECT_COLUMNS = ["biological_repeat", "image_file", "label_id"]
 
 
 def main(raw_dir: Path, out_dir: Path) -> None:
