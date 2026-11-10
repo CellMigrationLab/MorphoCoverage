@@ -399,7 +399,7 @@ def _saved(
             "reused for this one."
         )
     unusable = saved is None or not usable
-    if unusable and not q.yes_no(ask, say, "Delete them and start over?", True):
+    if unusable and not q.yes_no(ask, say, "Delete them and start over?", False):
         return None, f"{path} was kept; choose another folder for this table"
     path.unlink()
     say("The saved answers were deleted; starting over.")

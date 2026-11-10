@@ -139,6 +139,7 @@ for another table, or with another FOV table or none, or with other feature tabl
 session offers to delete them, or stops so you can choose another folder.
 Answers saved by another version of the guided session are not read either: the
 file is reported as not written by this version and the session offers to delete it.
+That question defaults to no: Enter keeps the file, and only an explicit `y` deletes it.
 Extra `Setup` fields go through
 `guide(..., n_jobs=4, normalize="control_mean")`; `load_answers(folder)` and
 `answers.setup(scan)` rebuild the `Setup` without the questions.

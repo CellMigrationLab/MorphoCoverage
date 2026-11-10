@@ -72,6 +72,20 @@ def test_saved_answers_are_continued_or_deleted(tmp_path):
     assert load_answers(tmp_path).features == ["intensity"]
 
 
+def test_enter_keeps_an_answers_file_that_cannot_be_reused(tmp_path):
+    # The deletion prompt defaults to no: only an explicit "y" deletes the file.
+    _run(_cells(), tmp_path, ["y", "", "", "", "", "", "all", ""], run_report=False)
+    before = (tmp_path / ANSWERS_FILE).read_bytes()
+    result, script = _run(_cells(seed=1), tmp_path, [""], run_report=False)
+    assert script.prompts == ["Delete them and start over? [y/N] "]
+    assert result.stopped.endswith("choose another folder for this table")
+    assert (tmp_path / ANSWERS_FILE).read_bytes() == before
+    (tmp_path / ANSWERS_FILE).write_text("{not json")
+    result, script = _run(_cells(), tmp_path, [""], run_report=False)
+    assert result.stopped.endswith("choose another folder for this table")
+    assert (tmp_path / ANSWERS_FILE).read_text() == "{not json"
+
+
 def test_answers_for_another_table_are_never_reused(tmp_path):
     _run(_cells(), tmp_path, ["y", "", "", "", "", "", "all", ""], run_report=False)
     other = _cells(seed=1)
@@ -242,7 +256,7 @@ def test_answers_of_another_version_are_not_read_and_are_offered_for_deletion(tm
     old["version"] = 1
     del old["dataset"]["fovs_checksum"]
     path.write_text(json.dumps(old))
-    result, script = _guided(cells, None, tmp_path, ["", *POPULATION])
+    result, script = _guided(cells, None, tmp_path, ["y", *POPULATION])
     assert "was not written by this version of the guided session" in script.text
     assert "saved by an earlier version" not in script.text
     assert result.answers is not None and load_answers(tmp_path).version == 2
