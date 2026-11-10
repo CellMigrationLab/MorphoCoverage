@@ -123,11 +123,6 @@ class FittedTransform:
     reason: str | None = None
 
     @property
-    def n_fit_objects(self) -> int:
-        """Backward-compatible alias for n_fit_observations."""
-        return self.n_fit_observations
-
-    @property
     def fitted(self) -> bool:
         """Whether the transform could be fitted; see ``reason`` otherwise."""
         return self.reason is None
@@ -149,7 +144,7 @@ class FittedTransform:
             **self.transform.describe(),
             "input_features": list(self.input_features),
             "n_fit_observations": self.n_fit_observations,
-            "n_fit_objects": self.n_fit_objects,
+            "n_fit_objects": self.n_fit_observations,
             "n_fit_fovs": self.n_fit_fovs,
         }
         if self.fitted:

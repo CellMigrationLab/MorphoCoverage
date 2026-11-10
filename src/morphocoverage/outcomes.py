@@ -32,7 +32,6 @@ from typing import Any
 
 import numpy as np
 
-from . import _deprecated
 from .objectives import fov_occurrences
 from .provenance import class_identity, config_hash
 from .schema import ValidatedInput
@@ -258,8 +257,5 @@ class RareStateDetected(OutcomeMetric):
         at_stop = _positive_fovs(stopped, self.label_col)
         return None if at_stop is None else float(at_stop >= self.min_fov_occurrences)
 
-
-# Former object names, resolved with a DeprecationWarning (see morphocoverage._deprecated).
-__getattr__ = _deprecated.module_getattr(__name__, globals(), ("RandomCellRelativeError",))
 
 __all__ = ["OutcomeMetric", "RandomObjectRelativeError", "RareStateDetected", "RelativeMeanError"]

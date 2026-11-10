@@ -75,7 +75,7 @@ SamplingStrategy(estimators, policies, name=...)
 ```
 
 - **Evidence** is a set of named `Quantity` values. Each has a value, a `direction` (`lower_is_better` or `higher_is_better`), `units`, the objective `component` it is evidence about (`population`, `distribution` or `rare`), and an `availability`. `insufficient_data` means more acquisition may make it computable; `not_applicable` means it is undefined for these data. Either needs a reason, and NaN is never a value. Free-form diagnostics accompany the quantities.
-- **Policies** are `ThresholdPolicy(quantity, threshold)`, whose component is the quantity's own, and `EffortPolicy("n_fovs" | "n_observations", target)` (`n_objects` remains a compatibility alias) on framework-owned effort. Custom policies subclass `DecisionPolicy`.
+- **Policies** are `ThresholdPolicy(quantity, threshold)`, whose component is the quantity's own, and `EffortPolicy("n_fovs" | "n_observations", target)` (`n_objects` is refused) on framework-owned effort. Custom policies subclass `DecisionPolicy`.
 - **Combination** per objective is described in `docs/optimise/sampling_objectives.md`. A required component without a policy is `unsupported`, never `stop`, and `combine_decisions([])` raises: no decision is not a stop.
 - **`redecide(result, policies, name=...)`** applies other policies to stored results. It equals re-running the same estimators with those policies, which makes threshold sweeps and Pareto curves cheap.
 - **`config_id`** is a 16-hex-digit hash of the class and canonical-JSON parameters of each estimator and policy. A strategy's id combines its parts' ids and ignores names, so `scalar_precision_object` at 2.5% and at 5% share a name but not an id.
@@ -338,7 +338,8 @@ must make its observation-unit assumptions explicit.
   FOV-unit JCB variant and the FOV-unit descriptor spread resample whole FOVs
   and accept any unit;
 - `FixedObservationStrategy` is the generic row-count baseline;
-- `FixedObjectStrategy` is retained for backward compatibility; for
+- `FixedObjectStrategy` counts object-like rows only (owner, 2026-11-10: kept, with its
+  own behaviour, beside `FixedObservationStrategy`); for
   non-object units it gives no decision;
 - `observation_unit` labels are normalized (lowercase, singular, `_` for
   spaces), so `Cells`, `cell` and `cells` are one unit.

@@ -55,7 +55,7 @@ _RARE = RareTarget(
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 RARE = ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=_RARE)
 BALANCED = ObjectiveConfig(SamplingObjective.BALANCED, rare=_RARE)
-EFFORT = Effort(n_fovs=10, n_objects=100)
+EFFORT = Effort(n_fovs=10, n_observations=100)
 
 
 def _quantity(value, component=Component.POPULATION, direction=Direction.LOWER_IS_BETTER):
@@ -160,7 +160,7 @@ def test_threshold_policy_on_a_missing_quantity_raises():
 
 def test_effort_policy_uses_framework_effort():
     assert EffortPolicy("n_fovs", 10).decide(Evidence(), EFFORT)[1] is Decision.STOP
-    assert EffortPolicy("n_objects", 101).decide(Evidence(), EFFORT)[1] is Decision.CONTINUE
+    assert EffortPolicy("n_observations", 101).decide(Evidence(), EFFORT)[1] is Decision.CONTINUE
     with pytest.raises(ValueError):
         EffortPolicy("area", 10)
     with pytest.raises(TypeError):
@@ -358,7 +358,7 @@ def test_redecide_can_add_a_component_the_objective_requires():
         objective=BALANCED,
     )
     assert result.decision is Decision.UNSUPPORTED
-    both = [EffortPolicy("n_fovs", 3), EffortPolicy("n_objects", 10, component="rare")]
+    both = [EffortPolicy("n_fovs", 3), EffortPolicy("n_observations", 10, component="rare")]
     assert redecide(result, both, name="both").decision is Decision.STOP
 
 
@@ -417,7 +417,7 @@ def test_config_id_depends_on_the_seed_and_the_class():
     a = DescriptorSpreadStrategy("area", 0.1, "object", 10, 0)
     b = DescriptorSpreadStrategy("area", 0.1, "object", 10, 1)
     assert a.config_id != b.config_id
-    assert EffortPolicy("n_fovs", 3).config_id != EffortPolicy("n_objects", 3).config_id
+    assert EffortPolicy("n_fovs", 3).config_id != EffortPolicy("n_observations", 3).config_id
 
 
 def test_results_carry_config_id_and_configuration():
@@ -453,9 +453,9 @@ def test_redecide_refuses_a_result_without_recorded_configuration():
         redecide(broken, [ThresholdPolicy("averaging_cv", 0.1)], name="x")
 
 
-def test_legacy_object_effort_is_the_same_rule_as_observation_effort():
-    legacy, canonical = EffortPolicy("n_objects", 5), EffortPolicy("n_observations", 5)
-    assert legacy == canonical and legacy.config_id == canonical.config_id
+def test_the_former_n_objects_effort_is_refused():
+    with pytest.raises(ValueError, match="effort must be one of"):
+        EffortPolicy("n_objects", 5)
 
 
 @pytest.mark.parametrize(
@@ -475,7 +475,9 @@ def test_a_setup_with_no_target_has_no_component_and_nothing_decides_a_stop(name
     assert "Live decision: no target: nothing decides a stop." in text
     # Whatever a rule says, no target means no stop.
     stop = EffortPolicy("n_fovs", 1, Component.DISTRIBUTION)
-    overall, per_component = decide(Evidence(), Effort(n_fovs=10, n_objects=100), [stop], objective)
+    overall, per_component = decide(
+        Evidence(), Effort(n_fovs=10, n_observations=100), [stop], objective
+    )
     assert per_component == {"distribution": Decision.STOP}
     assert overall is Decision.UNSUPPORTED
 

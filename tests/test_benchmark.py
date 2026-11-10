@@ -162,14 +162,14 @@ def test_stop_effort_matches_the_first_stop_of_each_group():
             & objects["biological_repeat"].eq(record.group["biological_repeat"])
             & objects["image_file"].isin(first)
         )
-        assert record.n_objects == expected.sum()
+        assert record.n_observations == expected.sum()
 
 
 def test_zero_object_fovs_count_as_effort_at_the_stop():
     registry = _registry(_dataset("empty", scenario="zero_object_fovs"))
     [record] = _run(registry, "empty", strategies=[FixedObjectStrategy(25)])
     # FOV 1 is empty, FOV 2 has 25 objects.
-    assert (record.n_fovs, record.n_objects) == (2, 25)
+    assert (record.n_fovs, record.n_observations) == (2, 25)
 
 
 def test_imaged_area_at_the_stop_is_recorded():
@@ -198,7 +198,7 @@ def test_a_run_that_never_stops_is_recorded_at_the_full_acquisition():
         registry, strategies=[FixedFOVStrategy(10_000)], metrics=[RelativeMeanError("feature_a")]
     )
     assert (record.stopped, record.stop_step, record.final_decision) == (False, None, "continue")
-    assert (record.n_fovs, record.n_objects) == (record.total_fovs, record.total_objects)
+    assert (record.n_fovs, record.n_observations) == (record.total_fovs, record.total_observations)
     assert record.outcomes["relative_mean_error:feature_a"] == 0.0
 
 
@@ -383,7 +383,7 @@ def test_incremental_benchmark_records_the_same_stops_and_latencies():
     full = _run(_registry(), strategies=strategies, metrics=metrics)
     incremental = _run(_registry(), strategies=strategies, metrics=metrics, incremental=True)
     for before, after in zip(full, incremental, strict=True):
-        assert (before.stop_step, before.n_objects) == (after.stop_step, after.n_objects)
+        assert (before.stop_step, before.n_observations) == (after.stop_step, after.n_observations)
         assert before.outcomes == after.outcomes
         assert (before.incremental, after.incremental) == (False, True)
         assert 0 <= after.median_decision_seconds <= after.max_decision_seconds
@@ -441,8 +441,11 @@ def test_benchmark_records_generic_observation_effort():
     dataset = _dataset("slices", observation_unit="slice")
     [record] = _run(BenchmarkRegistry([dataset]), "slices", strategies=[FixedFOVStrategy(2)])
     assert record.observation_unit == "slice"
-    assert record.n_observations == record.n_objects
-    assert record.total_observations == record.total_objects
+    row = record.as_row()
+    assert (
+        row["n_objects"] == row["n_observations"]
+        and row["total_objects"] == row["total_observations"]
+    )
 
 
 def test_outcome_metrics_do_not_silently_drop_missing_feature_values():

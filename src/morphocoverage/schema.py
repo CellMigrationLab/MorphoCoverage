@@ -71,8 +71,8 @@ class ValidatedInput:
 
     Rows in ``objects`` are generic phenotype observations: cells, nuclei,
     patches, slices, embeddings, FOV summaries, or another declared unit.
-    ``observation_unit`` records that meaning. The attribute remains named
-    ``objects`` for backwards compatibility with the early public API.
+    ``observation_unit`` records that meaning. The attribute is named
+    ``objects``, the working name of the observation table throughout the package.
 
     ``fovs_from_observations`` is ``True`` when no FOV table was supplied and
     ``fovs`` lists only the FOVs seen in the observations: acquired FOVs
@@ -109,7 +109,7 @@ class ValidatedInput:
 
     @property
     def observations(self) -> pd.DataFrame:
-        """Generic alias for the backwards-compatible objects table."""
+        """The same table as ``objects``, under the generic name."""
         return self.objects
 
     @property

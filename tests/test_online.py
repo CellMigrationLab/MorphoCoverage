@@ -160,7 +160,6 @@ def test_online_session_carries_generic_observation_unit():
 
     assert result.observation_unit == "slice"
     assert result.n_observations == mask.sum()
-    assert result.n_objects == result.n_observations
 
 
 def test_online_session_accepts_missing_feature_values_for_strategies_that_do_not_use_them():

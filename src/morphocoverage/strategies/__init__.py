@@ -1,6 +1,5 @@
 """Interchangeable sampling strategies and the estimators they are built from."""
 
-from .. import _deprecated
 from .base import Estimator, EstimatorState, SamplingStrategy
 from .baselines import (
     FixedAreaStrategy,
@@ -58,16 +57,3 @@ __all__ = [
     "SupportNoveltyStrategy",
     "plan_objects_to_average",
 ]
-
-
-# Former object names, resolved with a DeprecationWarning (see morphocoverage._deprecated).
-__getattr__ = _deprecated.module_getattr(
-    __name__,
-    globals(),
-    (
-        "plan_cells_to_average",
-        "CellCountPlan",
-        "PlannedCellCountEstimator",
-        "PlannedCellCountStrategy",
-    ),
-)

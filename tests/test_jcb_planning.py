@@ -247,7 +247,7 @@ def test_strategy_stops_at_the_first_fov_that_reaches_the_planned_count():
     plan = _plan(*_two_dishes(), target_cv=0.05)  # 13 cells
     objects, fovs = _evaluation()
     results = _replay(objects, fovs, PlannedObjectCountStrategy(plan))
-    decisions = [(item.result.n_objects, item.result.decision) for item in results]
+    decisions = [(item.result.n_observations, item.result.decision) for item in results]
     assert decisions == [
         (10, Decision.CONTINUE),
         (20, Decision.STOP),
@@ -357,7 +357,7 @@ def test_real_pilot_wells_plan_the_other_wells():
         if well in pilot_wells:
             assert item.result.decision is None
         else:
-            reached = item.result.n_objects >= plan.required_objects
+            reached = item.result.n_observations >= plan.required_objects
             assert item.result.decision is (Decision.STOP if reached else Decision.CONTINUE)
 
 

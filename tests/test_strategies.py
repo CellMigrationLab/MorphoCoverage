@@ -137,7 +137,7 @@ def test_external_strategy_plugs_in_without_framework_changes():
     assert single.evidence.value("mean") == 2.0
     assert single.decision == "stop"  # higher is better, and 2.0 reaches the threshold
     # Framework-owned counts and provenance are filled for any strategy.
-    assert (single.n_fovs, single.n_objects) == (3, 3)
+    assert (single.n_fovs, single.n_observations) == (3, 3)
     assert single.feature_cols == ("area",)
     assert single.fov_key == ("fov_id",)
     assert single.configuration["estimators"][0]["parameters"] == {"feature": "area"}

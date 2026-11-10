@@ -156,7 +156,7 @@ Required:
 Optional:
 - object/label/patch identifiers and z/c/t coordinates for traceability.
 
-The backwards-compatible API argument is still named `objects`, but `ValidatedInput.observations` and `n_observations` are the canonical generic semantics.
+The API argument is named `objects` (owner, 2026-11-10: kept as the working name), and `ValidatedInput.observations` and `n_observations` are the generic names of the same table and count.
 
 ### Other feature tables
 
@@ -248,7 +248,6 @@ src/morphocoverage/
     bounds.py              # Clopper-Pearson bounds and intervals for probabilities from few FOVs
     framework.py           # run_strategies convenience entry point
     _areas.py              # private: the one check of an imaged-area column (benchmark, fixed-area rule)
-    _deprecated.py         # private: the former cell names, resolved with a DeprecationWarning
     _parallel.py           # private: worker pools behind n_jobs (map_units, worker_pool)
     _wording.py            # private: the one way to write percentages, rates, counts, fields, durations, groups
     _style.py              # private: the one text style: markers and Status, rule and group labels, tables, wrapping
