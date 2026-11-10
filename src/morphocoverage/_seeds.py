@@ -8,8 +8,9 @@ removing or re-sorting other groups never changes a group's result, and
 retyping a label (repeat ``1`` read as ``"1"`` or ``1.0``) is the same group,
 with the same draws. Renaming a group is a new Monte Carlo draw of its
 answers; the summaries state their Monte Carlo errors (audit 4, P9-2). The
-biological repeat seeds under its former column name, ``repeat``, so the
-renaming of that column to ``biological_repeat`` left every draw as it was.
+biological repeat seeds under the text ``repeat`` (a seed spelling, not a column name:
+the column is ``biological_repeat``), so every draw is as it was before the column was
+renamed.
 
 ``group_key`` tells groups apart for lookups (``1`` and ``"1"`` differ there);
 ``group_identity`` is a 32-bit hash for seeding only.
@@ -25,11 +26,10 @@ from typing import Any
 import numpy as np
 
 from ._checks import is_integer, is_number
-from ._former_repeat import FORMER_REPEAT_COLUMN
 from .metadata import REPEAT_COLUMN
 
 # Column names as seeding writes them: the biological repeat under its former name.
-_SEED_NAMES = {REPEAT_COLUMN: FORMER_REPEAT_COLUMN}
+_SEED_NAMES = {REPEAT_COLUMN: "repeat"}
 
 
 def plain(value: Any) -> Any:

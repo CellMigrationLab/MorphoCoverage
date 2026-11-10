@@ -15,7 +15,9 @@ rules by ``data_check``.
 
 from __future__ import annotations
 
+import os
 import re
+import sys
 import warnings
 from collections.abc import Hashable, Sequence
 
@@ -41,6 +43,24 @@ _WELL = re.compile(r"(A[A-F]|[A-Z])0*\d{1,2}", re.IGNORECASE)
 
 class InvalidRowsWarning(UserWarning):
     """Observations a producer marked as not valid (CellPatcher's ``valid=False``)."""
+
+
+_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__)) + os.sep
+
+
+def caller_stacklevel() -> int:
+    """The ``stacklevel`` that makes a warning name the first caller outside the package.
+
+    Called by the function that warns. A warning raised through several package functions
+    (``run_strategies`` validating, an analysis validating twice) then points at the user's
+    line, so it is shown once per line.
+    """
+    frame = sys._getframe(1)
+    level = 1
+    while frame is not None and os.path.abspath(frame.f_code.co_filename).startswith(_PACKAGE_DIR):
+        frame = frame.f_back
+        level += 1
+    return level
 
 
 def warn_invalid_rows(objects: pd.DataFrame, taken: Sequence[str], stacklevel: int) -> None:

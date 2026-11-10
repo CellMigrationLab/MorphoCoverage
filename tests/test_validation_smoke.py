@@ -220,6 +220,20 @@ def test_the_real_data_summary_reads_a_given_table_and_an_embedding():
     assert {"effective_rank", "repeat_shift_median", "share_field"} <= set(found["statistic"])
 
 
+def test_the_real_data_summary_refuses_the_former_repeat_name():
+    """A given table naming the biological repeat ``repeat`` is refused, not renamed."""
+    data = embed(Design(repeats=3), EmbeddingSpec(dims=6), np.random.default_rng(8))
+    former = {"biological_repeat": "repeat"}
+    with pytest.raises(ValueError, match="'biological_repeat'"):
+        real_summary(
+            "given",
+            data.objects.rename(columns=former),
+            data.fovs.rename(columns=former),
+            "control",
+            ["e0", "e1"],
+        )
+
+
 def _cells() -> list[str]:
     notebook = json.loads((DECISIONS / "benchmark_colab.ipynb").read_text())
     for cell in notebook["cells"]:

@@ -404,7 +404,7 @@ AUD-4 follows. #206's **offline** scout-and-target work belongs to V1.5
   empty, missing and repeated-name FOV cases, and the stable installer runs
   the offline path on Windows, macOS and Linux;
 - `__all__`/public interfaces are versioned and frozen where promised, the
-  legacy `repeat` alias follows DEC-20's deprecation policy, and a tag,
+  legacy `repeat` alias is removed (owner ruling 14, 2026-11-10), and a tag,
   CHANGELOG, CITATION file and archived DOI exist;
 - all exploratory/inapplicable/not-assessable claims are labelled, the clean
   Colab notebook works, and the benchmark environment/provenance are

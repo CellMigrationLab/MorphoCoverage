@@ -75,7 +75,6 @@ import pandas as pd
 
 from ._acquisition import acquisition_identity
 from ._checks import is_integer
-from ._former_repeat import one_warning
 from ._frozen import owned
 from ._next_fov import _next_fov_part, _NoveltyQuestion
 from ._parallel import check_n_jobs
@@ -200,7 +199,6 @@ def _check_report_inputs(
             raise TypeError("calibration must be CalibrationSettings")
 
 
-@one_warning
 def sufficiency_report(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,

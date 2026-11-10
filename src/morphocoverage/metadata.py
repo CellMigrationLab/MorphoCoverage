@@ -32,7 +32,7 @@ MORPHOBRICKS_SHARED_COLUMNS = (
 # biological repeat and, when present, the technical repeat (a well, a dish, a
 # coverslip within a repeat; optional in the shared contract). Each is used
 # when its column exists in the linked tables. The biological repeat's former
-# name, ``repeat``, is still read, with a warning (``_former_repeat``).
+# name, ``repeat``, is refused (``_repeat_alias``).
 MORPHOBRICKS_GROUP_COLUMNS = ("condition", "biological_repeat", "technical_repeat")
 CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN = MORPHOBRICKS_GROUP_COLUMNS
 # Optional: what each condition acts on (the gene two siRNAs silence), so the report can say
@@ -286,8 +286,8 @@ def _plain_spelling(name: str) -> str:
 # The canonical names by their squashed form, for ``canonical_spelling``, with the
 # short and former names of the repeats: ``bio_repeat`` or ``tech_rep`` would
 # otherwise be an ordinary column, and its repeats pooled. The exact former name
-# ``repeat`` is read as ``biological_repeat`` before any spelling is checked
-# (``_former_repeat``); its near misses (``Repeat``, ``repeats``) are refused.
+# ``repeat`` is refused before any spelling is checked (``_repeat_alias``); its
+# near misses (``Repeat``, ``repeats``) are refused too.
 _CANONICAL_BY_SQUASHED = (
     {_squashed(name): name for name in (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES)}
     | {

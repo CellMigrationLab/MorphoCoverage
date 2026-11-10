@@ -70,9 +70,9 @@ import pandas as pd
 
 from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import check_seed, is_integer
-from .._former_repeat import one_warning, read_former
 from .._frozen import owned
 from .._parallel import check_n_jobs
+from .._repeat_alias import refuse_repeat_alias
 from ..data_check import validate_input_tables
 from ..evaluator import FovSubsets
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, column_names, empty_values
@@ -88,7 +88,7 @@ def _selector(value: Mapping[str, Any] | None, label: str) -> dict[str, tuple] |
         return None
     if not isinstance(value, Mapping) or not value:
         raise TypeError(f"{label} must map FOV-table columns to accepted values")
-    (value,) = read_former(**{label: value})  # the former name ``repeat``
+    refuse_repeat_alias(**{label: value})
     selector = {}
     for column, accepted in value.items():
         if isinstance(accepted, str) or not isinstance(accepted, Sequence):
@@ -287,7 +287,6 @@ def _pooled(table: pd.DataFrame) -> tuple[pd.DataFrame, str]:
     return pooled, status
 
 
-@one_warning
 def representation_control(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -327,10 +326,10 @@ def representation_control(
     _check_declaration(novelty, control, fovs_seen, draws, random_state)
     fovs_seen, draws, random_state = int(fovs_seen), int(draws), check_seed(random_state)
     feature_cols = column_names(feature_cols, "feature_cols")  # read once: may be a generator
-    pair_cols, identity_cols, lofo_group_cols = read_former(
-        pair_cols=list(column_names(pair_cols, "pair_cols")),
-        identity_cols=column_names(identity_cols, "identity_cols"),
-        lofo_group_cols=lofo_group_cols,
+    pair_cols = list(column_names(pair_cols, "pair_cols"))
+    identity_cols = column_names(identity_cols, "identity_cols")
+    refuse_repeat_alias(
+        pair_cols=pair_cols, identity_cols=identity_cols, lofo_group_cols=lofo_group_cols
     )
     settings = {
         "control": control.parameters,

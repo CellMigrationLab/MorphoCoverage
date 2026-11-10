@@ -26,7 +26,7 @@ from typing import Any
 
 import pandas as pd
 
-from .._former_repeat import read_fields
+from .._repeat_alias import refuse_repeat_alias
 from ..metadata import column_names, empty_values
 
 
@@ -46,8 +46,12 @@ class SamplingHierarchy:
     def __post_init__(self) -> None:
         levels = column_names(self.technical_levels, "technical_levels")
         object.__setattr__(self, "technical_levels", () if levels is None else levels)
-        # A level named ``repeat``, the former name of the biological repeat's column.
-        read_fields(self, "fov", "sample", "biological_repeat", "technical_levels")
+        refuse_repeat_alias(
+            fov=self.fov,
+            sample=self.sample,
+            biological_repeat=self.biological_repeat,
+            technical_levels=self.technical_levels,
+        )
         names = [self.fov, self.sample, *self.technical_levels]
         if self.biological_repeat is not None:
             names.append(self.biological_repeat)

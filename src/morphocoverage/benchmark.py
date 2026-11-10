@@ -46,7 +46,6 @@ import pandas as pd
 
 from ._benchmark_data import _area, _check_metrics, _group_key, _loaded_groups, _Streams, _streams
 from ._checks import check_seed, is_integer
-from ._former_repeat import one_warning
 from ._frozen import owned
 from ._parallel import worker_pool
 from ._seeds import group_rng
@@ -430,7 +429,6 @@ def _record_run(
     )
 
 
-@one_warning
 def run_benchmark(
     registry: BenchmarkRegistry,
     dataset_name: str,

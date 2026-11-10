@@ -63,13 +63,10 @@ dataset.groups  # ("condition", "biological_repeat", "technical_repeat"): one an
 dataset.role  # "held_out"; idr0028 is "development"
 ```
 
-`load` renames the stored `well` column to `technical_repeat`, the
-MorphoBricks column for a technical repeat within a biological repeat (the
-plate here), and the stored `repeat` column (the plate) to `biological_repeat`,
-the MorphoBricks column that was named `repeat` when these files were written
-(the files keep that name, so rerunning `convert.py` still gives identical
-files). It attaches `condition` and `technical_repeat` to the nuclei of
-the complete plates, whose object tables keep only `repeat`, `image_file`,
+The stored files use the MorphoBricks column names: the plate is `biological_repeat` (not asserted to be a
+biological repeat) and the well `technical_repeat`, the MorphoBricks column for a technical
+repeat within a biological repeat, so `load` renames nothing. It attaches `condition` and `technical_repeat` to the nuclei of
+the complete plates, whose object tables keep only `biological_repeat`, `image_file`,
 `label_id` and the readout to stay small. `datasets.registry()` declares the benchmark roles
 (`idr0028_screenB` development, `idr0139` held out).
 
@@ -109,9 +106,9 @@ Common to both tables:
   uses the gene symbol, or MOCK for negative-control wells. The complete
   plates also hold untargeted `technical control` and `empty well` wells,
   labelled by their control type, so MOCK always means negative control.
-- `repeat` (`biological_repeat` once loaded): the plate (`1A`, `2A`, `2B` or
+- `biological_repeat`: the plate (`1A`, `2A`, `2B` or
   `1093711385`). It is not asserted to be a biological repeat.
-- `well` (`technical_repeat` once loaded), `image_file`: `(condition,
+- `technical_repeat` (the well), `image_file`: `(condition,
   biological_repeat, image_file)` identifies a field.
   The same well name, for example J23, occurs on several plates, and idr0028
   **reuses image file names across plates** (for example `003013-1.tif` in

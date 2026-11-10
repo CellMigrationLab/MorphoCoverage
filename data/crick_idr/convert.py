@@ -22,9 +22,9 @@ written with 6 significant digits.
 - ``idr0028_screenB_plates`` and ``idr0139_plate``: every well of the source
   plates, with the readout ratio only, so the complete-plate analyses run
   without the 2 GB download. To keep them small, a nucleus row holds only
-  ``repeat``, ``image_file``, ``label_id`` and the ratio; ``condition`` and
-  ``well`` are in the FOV table and are joined on ``(repeat, image_file)``
-  (idr0028 reuses file names across plates).
+  ``biological_repeat``, ``image_file``, ``label_id`` and the ratio; ``condition`` and
+  ``technical_repeat`` (the well) are in the FOV table and are joined on
+  ``(biological_repeat, image_file)`` (idr0028 reuses file names across plates).
 
 This is a data-preparation script, not part of the package.
 """
@@ -178,8 +178,8 @@ def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
         index = index[index["Channel"] == index["Channel"].min()]
         fovs = pd.DataFrame(
             {
-                "repeat": plate,
-                "well": index["WellName"].to_numpy(),
+                "biological_repeat": plate,
+                "technical_repeat": index["WellName"].to_numpy(),
                 "image_file": index["sourcefilename"].to_numpy(),
                 "field": index["Field"].to_numpy(),
                 "acquisition_time_s": index["AbsoluteTime@s"].to_numpy(),
@@ -194,7 +194,7 @@ def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
             }
         )
         wells = annotation[annotation["Plate"] == f"LM2_ONTARGETPlus_{plate}"].rename(
-            columns={"Well": "well"}
+            columns={"Well": "technical_repeat"}
         )
         # Condition labels as in the Crick idr0028 notebook: gene symbol, with
         # untargeted negative-control wells labelled MOCK. The complete plates
@@ -205,13 +205,13 @@ def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
             condition=wells["Gene Symbol"].fillna(untargeted),
             control_type=wells["Control Type"],
             quality_control=wells["Quality Control"],
-        )[["well", "condition", "control_type", "quality_control"]]
+        )[["technical_repeat", "condition", "control_type", "quality_control"]]
         if paper_wells:
-            fovs = fovs[fovs["well"].isin(IDR0028_PAPER_WELLS[plate])]
-        fovs = fovs.merge(wells, on="well", how="left", validate="many_to_one")
+            fovs = fovs[fovs["technical_repeat"].isin(IDR0028_PAPER_WELLS[plate])]
+        fovs = fovs.merge(wells, on="technical_repeat", how="left", validate="many_to_one")
         # Acquisition order within a well: timestamp, ties broken by field number.
-        fovs = fovs.sort_values(["well", "acquisition_time_s", "field"], kind="stable")
-        fovs["acquisition_order"] = fovs.groupby("well").cumcount() + 1
+        fovs = fovs.sort_values(["technical_repeat", "acquisition_time_s", "field"], kind="stable")
+        fovs["acquisition_order"] = fovs.groupby("technical_repeat").cumcount() + 1
 
         images = pd.read_csv(
             raw_dir / f"idr0028_{plate}_Image.csv", usecols=["ImageNumber", "Metadata_FileLocation"]
@@ -224,7 +224,7 @@ def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
             images[["ImageNumber", "image_file"]], on="ImageNumber", validate="many_to_one"
         )
         objects = objects.merge(
-            fovs[["image_file", "condition", "repeat", "well"]],
+            fovs[["image_file", "condition", "biological_repeat", "technical_repeat"]],
             on="image_file",
             validate="many_to_one",
         )
@@ -242,8 +242,8 @@ def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
     objects = _with_ratio(objects, "YAPTAZ")
     fov_cols = [
         "condition",
-        "repeat",
-        "well",
+        "biological_repeat",
+        "technical_repeat",
         "image_file",
         "field",
         "acquisition_order",
@@ -257,8 +257,8 @@ def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
     feature_cols = [c for c in objects.columns if c.startswith(("Nuclei_", "Cytoplasm_"))]
     object_cols = [
         "condition",
-        "repeat",
-        "well",
+        "biological_repeat",
+        "technical_repeat",
         "image_file",
         "label_id",
         "nucleus_x_px",
@@ -272,14 +272,16 @@ def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
 def convert_idr0139(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, pd.DataFrame]:
     """The paper's wells with every intensity feature, or every well with the readout only."""
     annotation = pd.read_csv(raw_dir / "idr0139-screenA-annotation.csv")
-    wells = annotation[annotation["Plate"] == IDR0139_PLATE].rename(columns={"Well": "well"})
-    wells = wells.assign(well=wells["well"].map(normalize_well))
+    wells = annotation[annotation["Plate"] == IDR0139_PLATE].rename(
+        columns={"Well": "technical_repeat"}
+    )
+    wells = wells.assign(technical_repeat=wells["technical_repeat"].map(normalize_well))
     control = wells["Control Type"].map(IDR0139_CONTROLS)
     wells = wells.assign(
         condition=control.fillna(wells["Proprietary Compound"]).fillna("unannotated"),
         control_type=wells["Control Type"],
         quality_control=wells["Quality Control"],
-    )[["well", "condition", "control_type", "quality_control"]]
+    )[["technical_repeat", "condition", "control_type", "quality_control"]]
 
     images = pd.read_csv(
         raw_dir / "idr0139_Image.csv",
@@ -287,17 +289,17 @@ def convert_idr0139(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
     )
     fovs = pd.DataFrame(
         {
-            "repeat": str(IDR0139_PLATE),
-            "well": images["Metadata_Well"],
+            "biological_repeat": str(IDR0139_PLATE),
+            "technical_repeat": images["Metadata_Well"],
             "image_file": images["FileName_DNA"],
             "field": images["Metadata_Field"],
             # No timestamps or stage positions in the source: field number is the
             # only available proxy for acquisition order.
             "acquisition_order": images["Metadata_Field"],
         }
-    ).merge(wells, on="well", how="left", validate="many_to_one")
+    ).merge(wells, on="technical_repeat", how="left", validate="many_to_one")
     if paper_wells:
-        keep = fovs["well"].isin(IDR0139_PAPER_WELLS).to_numpy()
+        keep = fovs["technical_repeat"].isin(IDR0139_PAPER_WELLS).to_numpy()
         fovs, images = fovs[keep], images[keep]
 
     readout = None if paper_wells else "Fascin"
@@ -306,7 +308,9 @@ def convert_idr0139(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
         images[["ImageNumber", "FileName_DNA"]], on="ImageNumber", validate="many_to_one"
     ).rename(columns={"FileName_DNA": "image_file"})
     objects = objects.merge(
-        fovs[["image_file", "condition", "repeat", "well"]], on="image_file", validate="many_to_one"
+        fovs[["image_file", "condition", "biological_repeat", "technical_repeat"]],
+        on="image_file",
+        validate="many_to_one",
     )
     objects = objects.rename(
         columns={
@@ -319,8 +323,8 @@ def convert_idr0139(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
     feature_cols = [c for c in objects.columns if c.startswith(("Nuclei_", "Cytoplasm_"))]
     fov_cols = [
         "condition",
-        "repeat",
-        "well",
+        "biological_repeat",
+        "technical_repeat",
         "image_file",
         "field",
         "acquisition_order",
@@ -329,8 +333,8 @@ def convert_idr0139(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
     ]
     object_cols = [
         "condition",
-        "repeat",
-        "well",
+        "biological_repeat",
+        "technical_repeat",
         "image_file",
         "label_id",
         "nucleus_x_px",
@@ -348,7 +352,7 @@ OUTPUTS = {
     "idr0139_plate": (convert_idr0139, False),
 }
 # Nucleus columns kept for the complete plates (see the module docstring).
-PLATE_OBJECT_COLUMNS = ["repeat", "image_file", "label_id"]
+PLATE_OBJECT_COLUMNS = ["biological_repeat", "image_file", "label_id"]
 
 
 def main(raw_dir: Path, out_dir: Path) -> None:

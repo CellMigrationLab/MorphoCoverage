@@ -20,10 +20,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._former_repeat import Reader, caller_stacklevel
 from ._identity import canonical_order, check_one_type
 from ._input_invariants import check_input, trusted_input
-from ._input_traps import warn_invalid_rows
+from ._input_traps import caller_stacklevel, warn_invalid_rows
 from ._observation_units import (  # noqa: F401  (re-exported: the observation unit)
     _UNIT_ALIASES,
     DEFAULT_OBSERVATION_UNIT,
@@ -45,6 +44,7 @@ from ._plane_rules import (  # noqa: F401  (re-exported: the plane rule)
     _within_fov_axes,
     plane_features,
 )
+from ._repeat_alias import refuse_repeat_alias
 from ._wording import count
 from .metadata import (
     CONDITION_COLUMN,
@@ -448,7 +448,7 @@ def _read_arguments(
     group_cols: Sequence[str] | None,
     fov_col: str | None,
 ) -> tuple[pd.DataFrame, pd.DataFrame | None, Any, Any, str | None]:
-    """The tables checked and read with the former name ``repeat`` as the new one, the column
+    """The tables checked and refused when they use the former name ``repeat``, the column
     names read once; ``TypeError``/``ValueError`` for tables or names that cannot be read."""
     if not isinstance(objects, pd.DataFrame):
         raise TypeError("objects must be a pandas DataFrame")
@@ -456,12 +456,7 @@ def _read_arguments(
         raise TypeError("fovs must be a pandas DataFrame when provided")
     if feature_cols is None:
         raise TypeError("feature_cols is required: name the phenotype columns explicitly")
-    # The former name of the biological repeat, read as the new one (``_former_repeat``).
-    former = Reader()
-    objects, fovs = former.table(objects, "objects"), former.table(fovs, "fovs")
-    group_cols = former.columns(group_cols, "group_cols")
-    fov_col = former.column(fov_col, "fov_col")
-    former.warn()
+    refuse_repeat_alias(objects=objects, fovs=fovs, group_cols=group_cols, fov_col=fov_col)
     feature_cols = column_names(feature_cols, "feature_cols")
     group_cols = column_names(group_cols, "group_cols")
     for table_name, table in (("objects", objects), ("fovs", fovs)):

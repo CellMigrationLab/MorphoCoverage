@@ -77,7 +77,7 @@ from typing import Any
 import pandas as pd
 
 from .._checks import check_flag
-from .._former_repeat import Reader, one_warning
+from .._repeat_alias import refuse_repeat_alias
 from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
     drop_empty_optional_columns,
@@ -228,7 +228,6 @@ class LiveFolder:
         text = {k: str for k in row if k != OBJECTS_FILE and k not in self.metadata_dtypes}
         return pd.read_csv(path, dtype=text)
 
-    @one_warning
     def poll(self) -> list[LiveUpdate]:
         """Add every field completed since the last poll; one update per field, in order.
 
@@ -271,9 +270,8 @@ class LiveFolder:
     def _add(self, row: dict[str, str], line: int) -> LiveUpdate:
         """Read one manifest line's field and add it to the session."""
         started = time.perf_counter()
-        # The former name of the biological repeat, read as the new one (``_former_repeat``).
-        former = Reader()
-        metadata = former.mapping(self._typed(row), MANIFEST)
+        metadata = self._typed(row)
+        refuse_repeat_alias(**{MANIFEST: metadata})
         same = self._manifest.same_field_as(row)
         if same is not None:
             raise ValueError(
@@ -288,8 +286,7 @@ class LiveFolder:
             objects = self._read(path, row)
         else:
             objects = pd.DataFrame(columns=self.session.feature_cols)
-        objects = former.table(objects, str(row[OBJECTS_FILE]) if path else "objects")
-        former.warn()
+        refuse_repeat_alias(**{str(row[OBJECTS_FILE]) if path else "objects": objects})
         read = time.perf_counter() - started
         # The manifest is the authority on metadata: an object file that repeats a
         # metadata column (say a plate number read back as an integer) is compared
@@ -315,7 +312,6 @@ class LiveFolder:
             order_check=_order_check(self.session, results),
         )
 
-    @one_warning
     def watch(
         self,
         *,
@@ -402,9 +398,7 @@ class LiveTables:
             raise TypeError("session must be an OnlineSession (see live_session)")
         if isinstance(key, str):
             raise TypeError("key must be a sequence of column names")
-        former = Reader()
-        key = former.columns(key, "key")
-        former.warn()
+        refuse_repeat_alias(key=key)
         self.session = session
         self.key: tuple[str, ...] | None = None if key is None else tuple(key)
         self._n_objects = 0
@@ -497,18 +491,15 @@ class LiveTables:
     def _keys(table: pd.DataFrame, key: tuple[str, ...]) -> list[tuple]:
         return list(zip(*(table[c].tolist() for c in key), strict=True))
 
-    @one_warning
     def update(self, objects: pd.DataFrame, fovs: pd.DataFrame) -> list[LiveUpdate]:
         """Add every field whose FOV row was appended since the last call, in order.
 
-        A ``repeat`` column (the former name of ``biological_repeat``) is read as
-        ``biological_repeat``, with one ``DeprecationWarning`` per call.
+        A ``repeat`` column (the former name of ``biological_repeat``) is refused,
+        naming ``biological_repeat``.
         """
         if not isinstance(objects, pd.DataFrame) or not isinstance(fovs, pd.DataFrame):
             raise TypeError("objects and fovs must be pandas DataFrames")
-        former = Reader()
-        objects, fovs = former.table(objects, "objects"), former.table(fovs, "fovs")
-        former.warn()
+        refuse_repeat_alias(objects=objects, fovs=fovs)
         if len(objects) < self._n_objects or len(fovs) < self._n_fovs:
             raise ValueError("the tables only grow: rows already read were removed")
         new_objects = objects.iloc[self._n_objects :]

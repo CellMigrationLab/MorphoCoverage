@@ -31,7 +31,7 @@ def _result(repeats: dict[str, list[dict]]) -> DistributionContrast:
                 {
                     "feature": "x",
                     "condition": condition,
-                    "repeat": f"r{i + 1}",
+                    "biological_repeat": f"r{i + 1}",
                     "observations": 50,
                     "control_observations": 50,
                     **shape,

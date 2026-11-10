@@ -57,7 +57,7 @@ from .._frozen import owned
 from .._seeds import group_rng
 from .._style import low_to_high
 from .._wording import count, listing, plural
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
+from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
 from ..statistics import (
     ALPHA,
@@ -88,7 +88,7 @@ STATISTICS = ("spread", "q10", "q50", "q90")
 SHAPE_COLUMNS = [
     "feature",
     "condition",
-    "repeat",
+    REPEAT_COLUMN,
     "bimodality",
     "kurtosis",
     "control_bimodality",
@@ -315,7 +315,7 @@ def _rows(
 ) -> list[dict[str, Any]]:
     per_repeat = {}
     for repeat, treated in side["by_t"].items():
-        key = {"feature": feature, "condition": condition, "repeat": repeat}
+        key = {"feature": feature, "condition": condition, REPEAT_COLUMN: repeat}
         rng = group_rng(random_state, {**key, "test": "beyond the mean"})
         values = _statistics(treated, side["by_c"][repeat], rng, log)
         if values is not None:
@@ -394,7 +394,7 @@ def distribution_contrast(
                     {
                         "feature": feature,
                         "condition": condition,
-                        "repeat": repeat,
+                        REPEAT_COLUMN: repeat,
                         "bimodality": bimodality_coefficient(cells),
                         "kurtosis": excess_kurtosis(cells),
                         "control_bimodality": bimodality_coefficient(controls),

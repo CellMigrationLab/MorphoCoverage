@@ -107,13 +107,11 @@ def run():
         return objects, fovs, report(objects, fovs, SETUP)
 
 
-def test_the_identity_ignores_row_and_column_order_and_the_former_repeat_name():
+def test_the_identity_ignores_row_and_column_order():
     objects, fovs = _tables()
     base = source_identity(objects, fovs)
     shuffled = objects.sample(frac=1, random_state=1)[list(reversed(objects.columns))]
     assert source_identity(shuffled, fovs.iloc[::-1]) == base
-    former = objects.rename(columns={"biological_repeat": "repeat"})
-    assert source_identity(former, fovs.rename(columns={"biological_repeat": "repeat"})) == base
 
 
 def test_the_identity_sees_a_value_a_row_a_column_and_a_type():

@@ -79,8 +79,8 @@ import pandas as pd
 from scipy import stats
 
 from .._checks import as_count, is_share
-from .._former_repeat import read_former
 from .._frozen import owned
+from .._repeat_alias import refuse_repeat_alias
 from ..metadata import column_names
 from ..policies import ThresholdPolicy, redecide
 from ._run_identity import RUN_FINGERPRINT
@@ -487,7 +487,7 @@ def frontier(
     if not alphas or not all(is_share(a) for a in alphas):
         raise ValueError("alphas must be risk levels between 0 and 1")
     alphas = [float(a) for a in alphas]
-    (unit_cols,) = read_former(unit_cols=unit_cols)  # the former name ``repeat``
+    refuse_repeat_alias(unit_cols=unit_cols)
     unit_cols = column_names(unit_cols, "unit_cols")
     missing = [c for c in unit_cols if c not in replay.group_cols]
     if missing:

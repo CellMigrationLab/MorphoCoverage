@@ -58,7 +58,7 @@ def _observations(
     frame = pd.DataFrame({"value": data.feature_values(feature)})
     for name, column in (
         ("condition", CONDITION_COLUMN),
-        ("repeat", REPEAT_COLUMN),
+        (REPEAT_COLUMN, REPEAT_COLUMN),
         ("technical", TECHNICAL_REPEAT_COLUMN),
         ("field", data.fov_col),
     ):
@@ -185,14 +185,14 @@ def _paired_panel(lookup: dict, names: list[Any]) -> dict[str, Any]:
 def _points(frame: pd.DataFrame, summaries: pd.DataFrame, seed: int) -> dict[str, Any]:
     """The observations of the figure's clusters, jittered within each, at most
     ``MAX_POINTS`` (a seeded sample of each cluster in proportion)."""
-    pooled = summaries["repeat"].isna().all()
+    pooled = summaries[REPEAT_COLUMN].isna().all()
     rng = np.random.default_rng(seed)
     total = 0
     chunks = []
     for row in summaries.itertuples():
         mine = frame["condition"] == row.condition
         if not pooled:
-            mine &= frame["repeat"] == row.repeat
+            mine &= frame[REPEAT_COLUMN] == getattr(row, REPEAT_COLUMN)
         block = frame[mine]
         total += len(block)
         chunks.append((row, block))
@@ -214,7 +214,7 @@ def _points(frame: pd.DataFrame, summaries: pd.DataFrame, seed: int) -> dict[str
             " · ".join(
                 str(v) for v in values if v is not None and pd.notna(v) and str(v) != "single"
             )
-            for values in block[["repeat", "technical", "field"]].itertuples(index=False)
+            for values in block[[REPEAT_COLUMN, "technical", "field"]].itertuples(index=False)
         ]
     out["shown"], out["total"] = len(out["x"]), total
     return out
@@ -267,9 +267,10 @@ def feature_specs(
                 "clusters": [
                     {
                         "condition": conditions.index(row.condition),
-                        "repeat": None
-                        if row.repeat is None or pd.isna(row.repeat)
-                        else str(row.repeat),
+                        REPEAT_COLUMN: None
+                        if getattr(row, REPEAT_COLUMN) is None
+                        or pd.isna(getattr(row, REPEAT_COLUMN))
+                        else str(getattr(row, REPEAT_COLUMN)),
                         "x": round(float(row.x), 3),
                         "width": float(row.width),
                         "summary": _number(row.summary),

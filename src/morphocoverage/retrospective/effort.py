@@ -91,8 +91,8 @@ import pandas as pd
 
 from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import check_seed, is_integer
-from .._former_repeat import one_warning, read_former
 from .._frozen import owned
+from .._repeat_alias import refuse_repeat_alias
 from .._seeds import group_rng
 from .._wording import rows_of
 from ..data_check import validate_input_tables
@@ -475,7 +475,6 @@ def _settings(run: _EffortRun) -> dict[str, Any]:
     }
 
 
-@one_warning
 def effort_projection(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -510,9 +509,8 @@ def effort_projection(
     """
     _check_arguments(hierarchy, n_boot, random_state)
     chosen = _check_allocations(allocations)
-    objects, fovs, strata = read_former(
-        objects=objects, fovs=fovs, strata=list(column_names(strata, "strata"))
-    )
+    strata = list(column_names(strata, "strata"))
+    refuse_repeat_alias(objects=objects, fovs=fovs, strata=strata)
     missing_levels = [c for c in hierarchy.levels if c not in fovs.columns]
     if missing_levels:
         raise ValueError(f"hierarchy columns missing from the FOV table: {missing_levels}")

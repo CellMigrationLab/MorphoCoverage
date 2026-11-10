@@ -112,7 +112,6 @@ def _mutations():
 
 
 @pytest.mark.parametrize("case", sorted(_mutations()))
-@pytest.mark.filterwarnings("ignore:'repeat' is the former name:DeprecationWarning")
 def test_check_tables_accepts_exactly_what_the_validator_accepts(case):
     objects, fovs = _mutations()[case]
     features = [c for c in FEATURE_COLS if c in objects.columns]

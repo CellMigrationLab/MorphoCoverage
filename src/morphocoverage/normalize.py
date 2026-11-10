@@ -45,7 +45,7 @@ import numpy as np
 import pandas as pd
 
 from ._control import control_mask, control_text
-from ._former_repeat import one_warning, read_former
+from ._repeat_alias import refuse_repeat_alias
 from ._wording import listing
 from .data_check import validate_input_tables
 from .metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, column_names
@@ -118,7 +118,6 @@ def _refused_means(means: pd.Series, chosen: pd.DataFrame, feature_cols: Sequenc
     return refused
 
 
-@one_warning
 def control_means(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -147,8 +146,8 @@ def control_means(
     count over the features), ``negative_features`` (the features whose
     control objects in that repeat include negative values, as a tuple; see
     the module docstring) and the mean of every feature. The former name
-    ``repeat`` (a column, a key of ``control``, ``repeat_col``) is read as
-    ``biological_repeat``, with a ``DeprecationWarning``.
+    ``repeat`` (a column, a key of ``control``, ``repeat_col``) is refused, naming
+    ``biological_repeat``.
     """
     rows, problem = _control_rows(
         objects,
@@ -181,7 +180,6 @@ def control_means(
     )
 
 
-@one_warning
 def control_mean_problem(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -239,7 +237,7 @@ def _control_rows(
 ) -> tuple[list[dict[str, Any]], tuple[str, list] | None]:
     """The rows of ``control_means``, and the first repeat that cannot be normalised (its
     label, and the refused means: none when it has no control objects), or ``None``."""
-    objects, fovs, control, repeat_col, fov_col, group_cols = read_former(
+    refuse_repeat_alias(
         objects=objects,
         fovs=fovs,
         control=control,
@@ -309,7 +307,6 @@ def negative_values_sentence(means: pd.DataFrame) -> str | None:
     )
 
 
-@one_warning
 def normalize_to_control(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -330,10 +327,9 @@ def normalize_to_control(
     arguments and the errors. When the control objects hold negative values of
     a feature, the values are still divided but a ``UserWarning`` says why they
     are not multiples of the control, and ``attrs["normalization_note"]``
-    keeps the sentence. A ``repeat`` column is returned as ``biological_repeat``
-    (see ``control_means``).
+    keeps the sentence. A ``repeat`` column is refused (see ``control_means``).
     """
-    objects, fovs, control, repeat_col, fov_col, group_cols = read_former(
+    refuse_repeat_alias(
         objects=objects,
         fovs=fovs,
         control=control,

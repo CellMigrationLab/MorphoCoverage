@@ -25,8 +25,8 @@ import pandas as pd
 from .._acquisition import ACQUISITION, acquisition_identity
 from .._control import control_name
 from .._data_rules import _loose
-from .._former_repeat import one_warning, read_former
 from .._frozen import owned
+from .._repeat_alias import refuse_repeat_alias
 from .._style import Status, check_detail, group_columns, low_to_high, wrap
 from .._style import table as style_table
 from .._wording import column_word, count, listing
@@ -456,7 +456,6 @@ def _overview_counts(
     }
 
 
-@one_warning
 def dataset_overview(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -484,7 +483,7 @@ def dataset_overview(
     plates is two technical repeats). ``control`` (``{"condition": ...}``)
     puts the control condition first; ``data_check`` adds its warnings.
     """
-    repeat_col, control = read_former(repeat_col=repeat_col, control=control)
+    refuse_repeat_alias(repeat_col=repeat_col, control=control)
     data = validate_input_tables(
         objects,
         fovs=fovs,

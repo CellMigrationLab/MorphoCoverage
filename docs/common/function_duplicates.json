@@ -433,7 +433,7 @@
    ],
    "_METADATA": [
     "feature_tables = {*MORPHOBRICKS_SHARED_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES, *WITHIN_FOV_METADAT",
-    "workflows.scan = {*MORPHOBRICKS_SHARED_COLUMNS, *WITHIN_FOV_METADATA_COLUMNS, TARGET_COLUMN, 'rep"
+    "workflows.scan = {*MORPHOBRICKS_SHARED_COLUMNS, *WITHIN_FOV_METADATA_COLUMNS, TARGET_COLUMN, 'lab"
    ],
    "_NAMED": [
     "sampling_unit.acquisition = 4",
@@ -441,7 +441,7 @@
    ],
    "_NAMES": [
     "workflows._distribution = {'spread': 'spread', 'q10': '10% quantile', 'q50': 'median', 'q90': '90% quantil",
-    "workflows._html_data = {'repeat': 'biological_repeat', 'technical': 'technical_repeat'}"
+    "workflows._html_data = {'technical': 'technical_repeat'}"
    ],
    "_NEGATIVE": [
     "sampling_unit.object_rules = 'not applicable: the feature takes negative values here or in the control, and a",
@@ -459,10 +459,6 @@
    "_RUN": [
     "retrospective.frontier = ['split', 'order_id']",
     "retrospective.replay = ('split', 'order_id', 'order', 'order_seed')"
-   ],
-   "_SCOPE": [
-    "_former_repeat = ContextVar('former_repeat_scope', default=None)",
-    "workflows._acquisition_gap = 'the maps on raw values or centred per repeat, the separation of the conditions "
    ],
    "_SHOWN": [
     "_observation_keys = 3",

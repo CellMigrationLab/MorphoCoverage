@@ -38,7 +38,7 @@ result.
 | Column | Table | Type | When present |
 | --- | --- | --- | --- |
 | `condition` | both, or FOV table only | string | Experimental group. A default analysis group and part of field identity. Needed to declare a control (`Setup.control`), to normalise to it, and for the condition contrast. |
-| `biological_repeat` | both, or FOV table only | string | Biological repeat, `YYYY_MM_DD` or `single` in MorphoBricks; any label is accepted. A default analysis group and part of field identity. Normalisation and the condition contrast work within each repeat. Formerly named `repeat`: that name is still read, with a warning (see [The former name `repeat`](#the-former-name-repeat)). |
+| `biological_repeat` | both, or FOV table only | string | Biological repeat, `YYYY_MM_DD` or `single` in MorphoBricks; any label is accepted. A default analysis group and part of field identity. Normalisation and the condition contrast work within each repeat. Formerly named `repeat`: that name is refused (see [The former name `repeat`](#the-former-name-repeat)). |
 | `technical_repeat` | both, or FOV table only | string | Technical repeat within the biological repeat: a well, a dish, a coverslip. Never a biological repeat. A default analysis group and part of field identity. The overview counts technical repeats. Plots shape points by them and resample them before fields. The contrast shuffles whole technical repeats when its smallest p can reach 0.05 after the Bonferroni correction, 4 a side for one contrast. `Setup` derives the hierarchy "field within technical repeat within repeat" from it, for "more fields or more technical repeats?". `single` means one technical repeat per repeat (see [A level with one member](#a-level-with-one-member-single)). |
 | `target` | FOV table (may also be in the observation table) | string | What each condition acts on, for example the gene two siRNAs silence (`CCT8` for `siCCT8#5` and `siCCT8#8`; `non-targeting` for the control). Not a group column. Question 9 then says, per target with two or more reagents, in how many repeats all of them are on the same side of the control; this is described, not tested. One target per condition, or the contrast raises. |
 | other group columns | both, or FOV table only | any | Named with `group_cols`, for example `batch`. Each combination of group values is analysed apart. Without a `technical_repeat` column, one nested within condition and biological repeat (a `well` column) is the unit the condition contrast shuffles. |
@@ -67,17 +67,13 @@ be unknown.
 ## The former name `repeat`
 
 MorphoBricks named the biological repeat `repeat` before it became
-`biological_repeat` (`technical_repeat` is unchanged). Tables that still use
-`repeat` are accepted for now, with a `DeprecationWarning`: wherever the
-tables enter (`validate_input_tables`, `check_tables`, every workflow,
-`OnlineSession.add_fov`, `LiveTables`, a `LiveFolder` manifest), a `repeat`
-column in a table without `biological_repeat` is read as
-`biological_repeat`. Your tables are not changed, and every result names
-the new column. A table with both columns is refused unless they hold the
-same values (then `biological_repeat` is used, with the warning). A
-`group_cols`, `fov_col`, `control`, `Setup` or `SamplingHierarchy` field
-naming `repeat` is read the same way. Rename the column: the former name
-will be removed in a later version.
+`biological_repeat` (`technical_repeat` is unchanged). The former name is no
+longer accepted (owner ruling, 2026-11-10: no backward compatibility before
+the first pipeline release). A table or file with a `repeat` column, and a
+`group_cols`, `fov_col`, `repeat_col`, `control`, `Setup` or
+`SamplingHierarchy` field naming `repeat`, is refused with an error that
+names `biological_repeat`; nothing is renamed for you. Rename the column (a
+file written with the old name must be written again).
 
 ## Rules the validator enforces
 
@@ -477,8 +473,8 @@ CellPatcher's `patches.csv` carries the shared columns: `condition`,
 `biological_repeat`, `technical_repeat` (from a `<condition>/<repeat>/<well>/`
 folder level, `single` without one), `position_id`, `image_file`, `mask_file`
 and `patch_file`; a `patches.csv` written before the renaming names the
-biological repeat `repeat`, which is still read (see
-[The former name `repeat`](#the-former-name-repeat)). It can be read
+biological repeat `repeat`, which is refused (see
+[The former name `repeat`](#the-former-name-repeat)): write it again. It can be read
 directly as the observation table, one row per patch
 (`observation_unit="patch"`), once a feature-extraction step has added
 feature columns. For the FOV table, prefer the list of every image given to

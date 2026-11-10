@@ -29,8 +29,8 @@ from typing import Any
 import pandas as pd
 
 from .._control import NO_CONTROL, not_found
-from .._former_repeat import renamed_tables
 from .._rare_label import check_rare_labels
+from .._repeat_alias import refuse_repeat_alias
 from .._wording import count
 from ..benchmark import AcquisitionOrder
 from ..data_check import DataCheck, Problem
@@ -106,10 +106,9 @@ def check_workflow_inputs(
 ) -> tuple[pd.DataFrame, pd.DataFrame, DataCheck | None]:
     """Refuse inputs the workflows cannot use, before any analysis runs, and check the rest.
 
-    Returns the tables every analysis of the workflow reads, with the former
-    name ``repeat`` read as ``biological_repeat`` (one ``DeprecationWarning``;
-    the caller's tables are not modified), and ``check_tables`` on the setup's
-    columns and control, whose warnings
+    Returns the tables every analysis of the workflow reads (refused when
+    they use the former name ``repeat``, naming ``biological_repeat``), and
+    ``check_tables`` on the setup's columns and control, whose warnings
     (copied rows, labels that print alike, repeats without a control, ...) a
     workflow would otherwise never mention. With ``warn`` they are also issued
     as one ``UserWarning``; ``report`` prints them in its overview instead. Its
@@ -118,7 +117,7 @@ def check_workflow_inputs(
     ``report`` checks the tables once they are attached.
     """
     _check_input_types(objects, fovs, setup)
-    objects, fovs = renamed_tables(objects, fovs)
+    refuse_repeat_alias(objects=objects, fovs=fovs)
     if not tables_given:  # the other feature tables a Setup names must be attached already
         attached(objects, fovs, setup, None)
     _check_labels_and_scales(objects, setup)

@@ -78,7 +78,7 @@ import numpy as np
 import pandas as pd
 
 from .. import _deprecated
-from .._former_repeat import one_warning, read_former
+from .._repeat_alias import refuse_repeat_alias
 from .._seeds import plain
 from .._wording import listing, plural
 from ..data_check import validate_input_tables
@@ -176,7 +176,6 @@ def _pilot_values(
     return data, values
 
 
-@one_warning
 def plan_objects_to_average(
     objects: pd.DataFrame,
     *,
@@ -199,7 +198,8 @@ def plan_objects_to_average(
     """
     if isinstance(sample_cols, str) or not sample_cols:
         raise TypeError("sample_cols must be a non-empty sequence of column names")
-    sample_cols, control = read_former(sample_cols=tuple(sample_cols), control=control)
+    sample_cols = tuple(sample_cols)
+    refuse_repeat_alias(sample_cols=sample_cols, control=control)
     if not 0 < target_cv < 1:
         raise ValueError("target_cv must be between 0 and 1")
     if sd_estimate not in _SD_ESTIMATES:

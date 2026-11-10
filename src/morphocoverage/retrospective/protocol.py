@@ -54,8 +54,8 @@ import pandas as pd
 from scipy import stats
 
 from .._checks import as_count, check_seed, is_share
-from .._former_repeat import read_former
 from .._frozen import owned
+from .._repeat_alias import refuse_repeat_alias
 from .._seeds import group_rng
 from ..metadata import column_names
 from ..statistics import bootstrap_fields
@@ -125,7 +125,7 @@ def _check(
     if isinstance(strata, str):
         # A bare name would be iterated letter by letter.
         raise TypeError("strata must be a sequence of column names, for example ['condition']")
-    (strata,) = read_former(strata=strata)  # the former name ``repeat``
+    refuse_repeat_alias(strata=strata)
     groups = set(per_sample.group_cols)
     sample_cols = hierarchy.unit_key(hierarchy.sample)
     unit_cols = hierarchy.unit_key(hierarchy.independent_unit)

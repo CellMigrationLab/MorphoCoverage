@@ -38,8 +38,8 @@ from typing import Any, NamedTuple, TypeVar
 
 import pandas as pd
 
-from .._former_repeat import one_warning, read_former, renamed_tables
 from .._integrity_tables import integrity_by_table
+from .._repeat_alias import refuse_repeat_alias
 from .._style import Status, check_detail
 from ..data_check import DataCheck, check_tables
 from ..integrity import IntegrityResult
@@ -74,7 +74,6 @@ _METADATA = {
     *MORPHOBRICKS_SHARED_COLUMNS,
     *WITHIN_FOV_METADATA_COLUMNS,
     TARGET_COLUMN,
-    "repeat",
     "label_id",
     "fov_id",
     "source_row",
@@ -423,7 +422,6 @@ def _quiet(function: Callable[..., T], *args: Any, **kwargs: Any) -> T:
         return function(*args, **kwargs)
 
 
-@one_warning
 def scan_design(
     objects: pd.DataFrame,
     fovs: pd.DataFrame | None = None,
@@ -453,8 +451,8 @@ def scan_design(
 
     if not isinstance(objects, pd.DataFrame):
         raise TypeError(f"objects must be a pandas DataFrame, not {type(objects).__name__}")
-    objects, fovs = renamed_tables(objects, fovs)
-    (control,) = read_former(control=control)
+    refuse_repeat_alias(objects=objects, fovs=fovs)
+    refuse_repeat_alias(control=control)
     objects = objects.copy()
     control_declared = control is not None
     controls, checked_control, control_value = declared_controls(control)

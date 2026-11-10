@@ -107,7 +107,7 @@ At a glance
 
 MorphoCoverage is a strategy-comparison framework. No default coverage estimator has been chosen.
 
-- **Input validation.** Linked FOV and phenotype-observation tables with MorphoBricks defaults. `position_id` is the preferred explicit spatial-position identifier; `image_file` is a fallback only when one file corresponds to one position. `condition`, `biological_repeat` (formerly `repeat`, still read with a `DeprecationWarning`) and, when present, `technical_repeat` are separate analysis groups that stay part of FOV identity even when pooled. Feature columns are always explicit, acquired FOVs with zero observations are kept, and FOV-level grouping metadata can be inherited from the FOV table when the position identifier is unambiguous; and `z`, `c` and `t` are within-position metadata: they are refused as features, and a feature measured per plane becomes one feature per plane with `planes_as_features`. `observation_unit` records what one feature row means. NaN feature values may be loaded but are never silently imputed or dropped; each method must state how it handles them.
+- **Input validation.** Linked FOV and phenotype-observation tables with MorphoBricks defaults. `position_id` is the preferred explicit spatial-position identifier; `image_file` is a fallback only when one file corresponds to one position. `condition`, `biological_repeat` (the former name `repeat` is refused) and, when present, `technical_repeat` are separate analysis groups that stay part of FOV identity even when pooled. Feature columns are always explicit, acquired FOVs with zero observations are kept, and FOV-level grouping metadata can be inherited from the FOV table when the position identifier is unambiguous; and `z`, `c` and `t` are within-position metadata: they are refused as features, and a feature measured per plane becomes one feature per plane with `planes_as_features`. `observation_unit` records what one feature row means. NaN feature values may be loaded but are never silently imputed or dropped; each method must state how it handles them.
 - **Swappable strategies.** A strategy is one or more estimators, which report named evidence with its direction, units and objective component, plus decision policies that turn the evidence into continue/stop. Estimators receive one analysis group at a time; the framework fills counts, provenance (`config_id`) and compute time. `redecide` applies other thresholds to stored results without re-running. A strategy with no evidence about a required objective component returns `unsupported`, never `stop`. Current-practice baselines:
   - fixed FOV, fixed imaged area, generic observation-count, and legacy object/cell-count baselines;
   - a JCB/Zweifach-style scalar precision rule, re-estimated within each group or planned once from disjoint pilot samples (`plan_objects_to_average`, `PlannedObjectCountStrategy`);
@@ -137,12 +137,12 @@ from morphocoverage import (
     evaluate_acquisition_prefixes,
 )
 
-# The stored tables name the well and the plate "well" and "repeat"; the MorphoBricks
-# columns for them are technical_repeat and biological_repeat.
-names = {"well": "technical_repeat", "repeat": "biological_repeat"}
-fovs = pd.read_csv("data/crick_idr/idr0028_screenB_fovs.csv.gz", dtype={"repeat": str})
-objects = pd.read_csv("data/crick_idr/idr0028_screenB_nuclei.csv.gz", dtype={"repeat": str})
-fovs, objects = fovs.rename(columns=names), objects.rename(columns=names)
+# The stored tables already use the MorphoBricks columns: the plate is "biological_repeat",
+# the well "technical_repeat".
+fovs = pd.read_csv("data/crick_idr/idr0028_screenB_fovs.csv.gz", dtype={"biological_repeat": str})
+objects = pd.read_csv(
+    "data/crick_idr/idr0028_screenB_nuclei.csv.gz", dtype={"biological_repeat": str}
+)
 feature = "Nuclei_Intensity_MeanIntensity_YAPTAZ"
 
 results = evaluate_acquisition_prefixes(

@@ -85,8 +85,8 @@ from .._control import (
     control_name,
     own_pairs,
 )
-from .._former_repeat import one_warning, read_former
 from .._frozen import owned
+from .._repeat_alias import refuse_repeat_alias
 from .._seeds import group_rng
 from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -198,7 +198,6 @@ class ConditionContrast:
         return contrast_summary(self, detail)
 
 
-@one_warning
 def condition_contrast(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -253,7 +252,7 @@ def condition_contrast(
     """
     declared = None if contrasts is None else check_contrast_table(contrasts)
     comparisons = comparisons if declared is None else own_pairs(declared)
-    control, repeat_col = read_former(control=control, repeat_col=repeat_col)
+    refuse_repeat_alias(control=control, repeat_col=repeat_col)
     if not isinstance(feature, str) or not feature:
         raise TypeError("feature must be one column name")
     if comparisons is not None:
