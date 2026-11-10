@@ -16,8 +16,8 @@ import pandas as pd
 
 from .._checks import check_seed, is_integer, is_number
 from .._control import comparison_label
-from .._former_repeat import read_fields
 from .._parallel import check_n_jobs
+from .._repeat_alias import refuse_repeat_alias
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..objectives import ObjectiveConfig, SamplingObjective
 from ..statistics import SCALES
@@ -75,7 +75,7 @@ class PositiveControl:
             if isinstance(self.pair_cols, str):
                 raise TypeError("pair_cols must be a sequence of column names, not a string")
             object.__setattr__(self, "pair_cols", tuple(self.pair_cols))
-        read_fields(self, "selector", "pair_cols")  # the former name ``repeat``
+        refuse_repeat_alias(selector=self.selector, pair_cols=self.pair_cols)
 
     def resolved_pair_cols(self, fovs: pd.DataFrame) -> tuple[str, ...]:
         """``pair_cols`` as declared; by default the repeat column when the FOV table has one."""

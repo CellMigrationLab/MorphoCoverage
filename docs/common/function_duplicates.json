@@ -433,7 +433,7 @@
    ],
    "_METADATA": [
     "feature_tables = {*MORPHOBRICKS_SHARED_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES, *WITHIN_FOV_METADAT",
-    "workflows.scan = {*MORPHOBRICKS_SHARED_COLUMNS, *WITHIN_FOV_METADATA_COLUMNS, TARGET_COLUMN, 'rep"
+    "workflows.scan = {*MORPHOBRICKS_SHARED_COLUMNS, *WITHIN_FOV_METADATA_COLUMNS, TARGET_COLUMN, 'lab"
    ],
    "_NAMED": [
     "sampling_unit.acquisition = 4",
@@ -459,10 +459,6 @@
    "_RUN": [
     "retrospective.frontier = ['split', 'order_id']",
     "retrospective.replay = ('split', 'order_id', 'order', 'order_seed')"
-   ],
-   "_SCOPE": [
-    "_former_repeat = ContextVar('former_repeat_scope', default=None)",
-    "workflows._acquisition_gap = 'the maps on raw values or centred per repeat, the separation of the conditions "
    ],
    "_SHOWN": [
     "_observation_keys = 3",

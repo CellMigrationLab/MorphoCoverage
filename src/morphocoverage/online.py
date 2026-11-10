@@ -30,7 +30,7 @@ import pandas as pd
 
 from ._data_problems import Collector
 from ._data_rules import _check_copies
-from ._former_repeat import Reader, one_warning
+from ._repeat_alias import refuse_repeat_alias
 from .data_check import validate_input_tables
 from .evaluator import IncrementalReplay, restrict_input
 from .metadata import (
@@ -162,11 +162,7 @@ class OnlineSession:
         self.objective = objective
         if fov_col is not None and not isinstance(fov_col, str):
             raise TypeError("fov_col must be a column name")
-        # The former name of the biological repeat, read as the new one (``_former_repeat``).
-        former = Reader()
-        fov_col = former.column(fov_col, "fov_col")
-        group_cols = former.columns(group_cols, "group_cols")
-        former.warn()
+        refuse_repeat_alias(fov_col=fov_col, group_cols=group_cols)
         self._requested_fov_col = fov_col
         self._requested_group_cols = column_names(group_cols, "group_cols")
         self.observation_unit, self._unit_declared = resolve_observation_unit(observation_unit)
@@ -332,7 +328,6 @@ class OnlineSession:
             empty[column] = pd.Series(dtype=float)
         return empty
 
-    @one_warning
     def add_fov(
         self,
         observations: pd.DataFrame,
@@ -359,16 +354,13 @@ class OnlineSession:
         FOV whose rows repeat another row exactly, or repeat a ``label_id``, is
         warned about (``UserWarning``), as ``check_tables`` warns: the rules
         count those rows as they are. The former name ``repeat`` (a column of
-        the observations or a key of ``fov_metadata``) is read as
-        ``biological_repeat``, with a ``DeprecationWarning``.
+        the observations or a key of ``fov_metadata``) is refused,
+        naming ``biological_repeat``.
         """
         started = perf_counter()
         observations = self._as_observations(observations)
         fov = self._metadata_frame(fov_metadata)
-        former = Reader()
-        observations = former.table(observations, "observations")
-        fov = former.table(fov, "fov_metadata")
-        former.warn()
+        refuse_repeat_alias(observations=observations, fov_metadata=fov)
         fov_col, group_cols = self._resolve_columns(observations, fov)
         stamped = self._stamp_metadata(observations, fov, [*group_cols, fov_col])
         validated = validate_input_tables(

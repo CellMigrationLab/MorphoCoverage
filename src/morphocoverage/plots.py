@@ -69,7 +69,6 @@ from matplotlib.figure import Figure
 
 from ._checks import is_integer
 from ._figure_layout import sentences, set_legend
-from ._former_repeat import one_warning, read_former
 from ._palette import (
     FONT,
     GREY,
@@ -80,6 +79,7 @@ from ._palette import (
 )
 from ._plots_clusters import _cluster_units, _draw_cluster, _mask
 from ._plots_text import legend, title
+from ._repeat_alias import refuse_repeat_alias
 from ._seeds import group_rng
 from ._style import low_to_high
 from ._wording import shortened
@@ -234,7 +234,6 @@ def _layout(
     )
 
 
-@one_warning
 def plots_of_data(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -278,7 +277,7 @@ def plots_of_data(
     conditions keep a colour, the others are grey and the legend says so. Each carries its
     colours as ``colours``.
     """
-    (repeat_col,) = read_former(repeat_col=repeat_col)  # the former name ``repeat``
+    refuse_repeat_alias(repeat_col=repeat_col)
     if not (features := list(column_names(features, "features"))):
         raise ValueError("features must name at least one column")
     if len(features) > max_features:

@@ -1,16 +1,14 @@
-"""The biological repeat's column is ``biological_repeat``; its former name ``repeat`` still reads.
+"""The biological repeat's column is ``biological_repeat``; its former name ``repeat`` is refused.
 
 The MorphoBricks project owner renamed the shared column ``repeat`` to
-``biological_repeat`` (``technical_repeat`` is unchanged). These tests check:
+``biological_repeat`` (``technical_repeat`` is unchanged) and ruled on 2026-11-10 that no
+backward compatibility is kept before the first pipeline release. These tests check:
 
 - the new name works end to end (``check_tables``, ``report``, ``optimise``,
-  the live session, ``LiveTables`` and ``LiveFolder``);
-- a table, a column argument or a control mapping that uses ``repeat`` is read
-  as ``biological_repeat`` with exactly one ``DeprecationWarning`` per call,
-  never modifies the caller's tables, and gives the results of the new name
-  (the seeds included: the biological repeat seeds under its former name);
-- a table holding both columns is used when they are identical (with the
-  warning) and refused when they differ;
+  the live session, ``LiveTables`` and ``LiveFolder``) without a warning;
+- a table, a file, a column argument or a control mapping that uses ``repeat`` is refused
+  with an error that names ``biological_repeat``, never modifies the caller's tables and
+  never adds a session's field;
 - every near miss of either repeat is refused with "did you mean ...?", so a
   pipeline using ``bio_repeat`` or ``tec_repeat`` never pools its repeats;
 - ``single``, CellPatcher's value for a level with one member, is one member.
@@ -151,16 +149,6 @@ def _quiet(function, *args, **kwargs):
     return result
 
 
-def _once(function, *args, **kwargs):
-    """``function(*args, **kwargs)``, which must give exactly one former-name warning."""
-    result, deprecations = _call(function, *args, **kwargs)
-    assert len(deprecations) == 1, deprecations
-    message = deprecations[0]
-    assert "'repeat' is the former name of 'biological_repeat'" in message
-    assert "rename the column" in message and "will be removed in a later version" in message
-    return result
-
-
 def _comparable(value):
     """What two runs must agree on: tables, summaries and results without timings."""
     if isinstance(value, pd.DataFrame | pd.Series):
@@ -235,7 +223,7 @@ def test_the_new_name_works_end_to_end(tmp_path):
     assert len(_quiet(folder.poll)) == 3
 
 
-# --- The former name: one warning, the caller's tables untouched, the same results ------------
+# --- The former name is refused ---------------------------------------------------------
 
 
 def _analyses():
@@ -399,32 +387,79 @@ def _analyses():
     }
 
 
+REFUSED = "'repeat'"  # the message names the old column and the one to use
+USE = "'biological_repeat'"
+
+
+def _refused(function, *args, **kwargs) -> str:
+    """``function(*args, **kwargs)``, which must raise a ``ValueError`` naming the new column."""
+    with pytest.raises(ValueError) as error:
+        function(*args, **kwargs)
+    message = str(error.value)
+    assert REFUSED in message and USE in message, message
+    return message
+
+
 @pytest.mark.parametrize("name", sorted(_analyses()))
-def test_the_former_name_gives_one_warning_and_the_results_of_the_new_name(name):
+def test_the_former_name_is_refused_by_every_analysis(name):
     analysis = _analyses()[name]
     objects, fovs = _tables()
-    expected = _quiet(analysis, objects, fovs)
+    _quiet(analysis, objects, fovs)  # the new name works
     old_objects, old_fovs = _former(objects), _former(fovs)
     copies = old_objects.copy(), old_fovs.copy()
-    result = _once(analysis, old_objects, old_fovs)
+    if name == "check_tables":
+        check = analysis(old_objects, old_fovs)
+        assert not check.ok
+        text = check.summary()
+        assert REFUSED in text and USE in text, text
+    else:
+        _refused(analysis, old_objects, old_fovs)
     # The caller's tables are not modified.
     pd.testing.assert_frame_equal(old_objects, copies[0])
     pd.testing.assert_frame_equal(old_fovs, copies[1])
-    assert _comparable(result) == _comparable(expected)
 
 
-def test_a_table_the_analysis_returns_names_the_new_column():
+def test_one_table_with_the_former_name_is_enough():
     objects, fovs = _tables()
-    normalized = _once(
+    _refused(validate_input_tables, _former(objects), fovs=fovs, feature_cols=["area"])
+    _refused(validate_input_tables, objects, fovs=_former(fovs), feature_cols=["area"])
+    # With both columns, identical or different, it is refused too: nothing is reconciled.
+    both = objects.assign(**{FORMER: objects[REPEAT_COLUMN]})
+    _refused(validate_input_tables, both, fovs=fovs, feature_cols=["area"])
+    other = objects.assign(**{FORMER: "plate 1"})
+    _refused(validate_input_tables, other, fovs=fovs, feature_cols=["area"])
+    check = check_tables(other, fovs, feature_cols=["area"])
+    assert not check.ok
+    assert any("no longer accepted" in p.title for p in check.errors)
+
+
+def test_a_file_with_the_former_name_is_refused_when_it_is_read_into_an_analysis(tmp_path):
+    objects, fovs = _tables()
+    _former(objects).to_csv(tmp_path / "cells.csv", index=False)
+    _former(fovs).to_csv(tmp_path / "fovs.csv", index=False)
+    read = pd.read_csv(tmp_path / "cells.csv"), pd.read_csv(tmp_path / "fovs.csv")
+    message = _refused(validate_input_tables, read[0], fovs=read[1], feature_cols=["area"])
+    assert "no longer accepted" in message
+    # A file with the new name is read as it always was.
+    objects.to_csv(tmp_path / "new.csv", index=False)
+    new = pd.read_csv(tmp_path / "new.csv")
+    assert validate_input_tables(new, fovs=fovs, feature_cols=["area"]).group_cols[1] == (
+        "biological_repeat"
+    )
+
+
+def test_a_table_the_analysis_refuses_is_not_renamed_for_the_caller():
+    objects, fovs = _tables()
+    _refused(
         normalize_to_control,
         _former(objects),
         _former(fovs),
         feature_cols=["area"],
         control={"condition": "control"},
     )
-    assert REPEAT_COLUMN in normalized.columns and FORMER not in normalized.columns
     stack = pd.concat([objects.assign(z=z) for z in (0, 1)], ignore_index=True)
-    per_object, names = _once(planes_as_features, _former(stack), _former(fovs), features=["area"])
+    _refused(planes_as_features, _former(stack), _former(fovs), features=["area"])
+    per_object, names = planes_as_features(stack, fovs, features=["area"])
     assert names == ["area_z0", "area_z1"]
     assert REPEAT_COLUMN in per_object.columns and FORMER not in per_object.columns
 
@@ -433,11 +468,11 @@ def _report_text(objects, fovs, setup):
     return report(objects, fovs, setup).summary(detail="full")
 
 
-def test_the_workflows_read_the_former_name_with_one_warning():
+def test_the_workflows_refuse_the_former_name():
     objects, fovs = _tables()
     setup = _setup()
-    expected = _quiet(_report_text, objects, fovs, setup)
-    assert _once(_report_text, _former(objects), _former(fovs), setup) == expected
+    _quiet(_report_text, objects, fovs, setup)
+    _refused(_report_text, _former(objects), _former(fovs), setup)
     settings = {
         "fov_counts": [2, 3],
         "reservoir_fraction": 0.34,
@@ -446,137 +481,64 @@ def test_the_workflows_read_the_former_name_with_one_warning():
         "permuted_orders": 2,
         "dispersed_orders": 1,
     }
-    plan = _quiet(optimise, objects, fovs, setup, **settings).summary(detail="full")
-    old = _once(optimise, _former(objects), _former(fovs), setup, **settings)
-    assert old.summary(detail="full") == plan
+    _quiet(optimise, objects, fovs, setup, **settings)
+    _refused(optimise, _former(objects), _former(fovs), setup, **settings)
 
 
-def _live_results(objects, fovs, setup):
-    """Every result of a live session fed field by field, and the resolved groups."""
-    session = live_session(setup)
-    repeat = REPEAT_COLUMN if REPEAT_COLUMN in fovs.columns else FORMER
+def _live_fields(objects, fovs, repeat):
     key = ["condition", repeat, "technical_repeat", "image_file"]
-    results = []
     for field in fovs.to_dict("records"):
-        mine = objects.merge(pd.DataFrame([{k: field[k] for k in key}]), on=key)
-        results.append(session.add_fov(mine, field))
-    return results, session.group_cols
+        yield objects.merge(pd.DataFrame([{k: field[k] for k in key}]), on=key), field
 
 
-def test_the_live_session_reads_the_former_name_one_warning_per_field():
+def test_the_live_session_refuses_the_former_name_and_keeps_its_state():
     objects, fovs = _tables()
     objects, fovs = objects.head(60), fovs.head(6)
-    setup = _setup()
-    expected, groups = _quiet(_live_results, objects, fovs, setup)
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        old, old_groups = _live_results(_former(objects), _former(fovs), setup)
-    # One call to add_fov per field, one warning per call.
-    assert len(_deprecations(caught)) == len(fovs)
-    assert old_groups == groups == ("condition", "biological_repeat", "technical_repeat")
-    assert _comparable(old) == _comparable(expected)
+    session = live_session(_setup())
+    old_objects, old_fovs = _former(objects), _former(fovs)
+    for mine, field in _live_fields(old_objects, old_fovs, FORMER):
+        _refused(session.add_fov, mine, field)
+    assert session.fov_col is None  # the refused fields left the session as it was
+    for mine, field in _live_fields(objects, fovs, REPEAT_COLUMN):
+        _quiet(session.add_fov, mine, field)
+    assert session.group_cols == ("condition", "biological_repeat", "technical_repeat")
 
 
-def test_live_tables_and_live_folders_read_the_former_name_once_per_call(tmp_path):
+def test_live_tables_and_live_folders_refuse_the_former_name(tmp_path):
     objects, fovs = _tables()
     setup = _setup()
-    expected = _quiet(LiveTables(live_session(setup)).update, objects, fovs)
-    old = _once(LiveTables(live_session(setup)).update, _former(objects), _former(fovs))
-    assert [_comparable(u.results) for u in old] == [_comparable(u.results) for u in expected]
-    assert all(REPEAT_COLUMN in u.fov_metadata for u in old)
+    _refused(LiveTables(live_session(setup)).update, _former(objects), _former(fovs))
     key = ["condition", REPEAT_COLUMN, "technical_repeat", "image_file"]
     for _, field in fovs.head(4).iterrows():
         mine = objects.merge(field[key].to_frame().T, on=key)
         write_fov(tmp_path, _former(mine), _former(field.to_frame().T).iloc[0].to_dict())
     folder = LiveFolder(tmp_path, live_session(setup))
-    updates = _once(folder.poll)
-    assert len(updates) == 4
-    assert all(REPEAT_COLUMN in u.fov_metadata and FORMER not in u.fov_metadata for u in updates)
-    groups = [tuple(u.results[0].group) for u in updates]
-    assert set(groups) == {("condition", "biological_repeat", "technical_repeat")}
+    _refused(folder.poll)
 
 
-def test_column_arguments_and_setup_fields_naming_the_former_name_are_translated():
+def test_column_arguments_and_setup_fields_naming_the_former_name_are_refused():
     objects, fovs = _tables()
     groups = ["condition", FORMER, "technical_repeat"]
-    data = _once(
-        validate_input_tables, objects, fovs=fovs, feature_cols=["area"], group_cols=groups
-    )
-    assert data.group_cols == ("condition", "biological_repeat", "technical_repeat")
-    check = _once(
-        check_tables,
+    _refused(validate_input_tables, objects, fovs=fovs, feature_cols=["area"], group_cols=groups)
+    _refused(validate_input_tables, objects, fovs=fovs, feature_cols=["area"], fov_col=FORMER)
+    check = check_tables(
         objects,
         fovs,
         feature_cols=["area"],
-        group_cols=groups,
         control={"condition": "control", FORMER: fovs[REPEAT_COLUMN].iloc[0]},
     )
-    assert check.ok, check.summary()
-    setup = _once(
-        Setup,
-        readout="area",
-        control={"condition": "control"},
-        group_cols=groups,
-        effort_strata=("condition", FORMER),
-    )
-    assert setup.group_cols == ("condition", "biological_repeat", "technical_repeat")
-    assert setup.effort_strata == ("condition", "biological_repeat")
-    positive = _once(PositiveControl, {"condition": "drug"}, fovs_seen=2, pair_cols=(FORMER,))
-    assert positive.pair_cols == ("biological_repeat",)
-    hierarchy = _once(SamplingHierarchy, "image_file", "technical_repeat", FORMER)
-    assert hierarchy.biological_repeat == "biological_repeat"
-    session = _once(
+    assert not check.ok and USE in check.summary()
+    _refused(Setup, readout="area", control={"condition": "control"}, group_cols=groups)
+    _refused(Setup, readout="area", control={"condition": "control"}, effort_strata=(FORMER,))
+    _refused(PositiveControl, {"condition": "drug"}, fovs_seen=2, pair_cols=(FORMER,))
+    _refused(SamplingHierarchy, "image_file", "technical_repeat", FORMER)
+    _refused(
         OnlineSession,
         strategies=[FixedFOVStrategy(2)],
         feature_cols=["area"],
         objective=POPULATION,
         group_cols=groups,
     )
-    first = fovs.iloc[0].to_dict()
-    mine = objects[objects["image_file"].eq(first["image_file"])]
-    mine = mine[mine["technical_repeat"].eq(first["technical_repeat"])]
-    mine = mine[mine[REPEAT_COLUMN].eq(first[REPEAT_COLUMN])]
-    results = _quiet(session.add_fov, mine, first)
-    assert set(results[0].group) == {"condition", "biological_repeat", "technical_repeat"}
-
-
-# --- Both columns ---------------------------------------------------------------------
-
-
-def test_both_columns_identical_warn_and_use_the_new_one():
-    objects, fovs = _tables()
-    both = objects.assign(**{FORMER: objects[REPEAT_COLUMN]})
-    both_fovs = fovs.assign(**{FORMER: fovs[REPEAT_COLUMN]})
-    expected = _quiet(validate_input_tables, objects, fovs=fovs, feature_cols=["area"])
-    data = _once(validate_input_tables, both, fovs=both_fovs, feature_cols=["area"])
-    assert FORMER not in data.objects.columns and FORMER not in data.fovs.columns
-    assert _comparable(data) == _comparable(expected)
-    check = _once(check_tables, both, both_fovs, feature_cols=["area"])
-    assert check.ok
-
-
-def test_both_columns_that_differ_are_refused():
-    objects, fovs = _tables()
-    other = objects.assign(**{FORMER: "plate 1"})
-    with pytest.raises(ValueError, match="both 'repeat' .* and 'biological_repeat'"):
-        validate_input_tables(other, fovs=fovs, feature_cols=["area"])
-    check = check_tables(other, fovs, feature_cols=["area"])
-    assert not check.ok
-    assert any("different values" in p.title for p in check.errors)
-    session = OnlineSession(
-        strategies=[FixedFOVStrategy(2)], feature_cols=["area"], objective=POPULATION
-    )
-    first = fovs.iloc[0].to_dict()
-    with pytest.raises(ValueError, match="with different values"):
-        session.add_fov(objects.head(0), {**first, FORMER: "another"})
-    assert session.fov_col is None  # the refused field left the session as it was
-    with pytest.raises(ValueError, match="names both 'repeat'"):
-        check_tables(
-            objects,
-            fovs,
-            feature_cols=["area"],
-            control={REPEAT_COLUMN: "a", FORMER: "b"},
-        ).raise_if_errors()
 
 
 # --- Near misses ------------------------------------------------------------------------
@@ -672,21 +634,9 @@ def test_an_empty_repeat_is_not_recorded_and_refused():
 
 
 def test_the_biological_repeat_seeds_as_before_the_renaming():
+    """The seed spelling ``repeat`` is not a column name: every draw is what it was."""
     from morphocoverage._seeds import group_identity
 
     assert group_identity({"condition": "a", REPEAT_COLUMN: "1A"}) == group_identity(
         {"condition": "a", FORMER: "1A"}
     )
-
-
-def test_the_warning_names_the_callers_line():
-    objects, fovs = _tables()
-    for call in (
-        lambda: validate_input_tables(_former(objects), fovs=_former(fovs), feature_cols=["area"]),
-        lambda: Setup(readout="area", group_cols=["condition", FORMER]),
-    ):
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            call()
-        former = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-        assert [w.filename for w in former] == [__file__]

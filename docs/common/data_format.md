@@ -67,17 +67,13 @@ be unknown.
 ## The former name `repeat`
 
 MorphoBricks named the biological repeat `repeat` before it became
-`biological_repeat` (`technical_repeat` is unchanged). Tables that still use
-`repeat` are accepted for now, with a `DeprecationWarning`: wherever the
-tables enter (`validate_input_tables`, `check_tables`, every workflow,
-`OnlineSession.add_fov`, `LiveTables`, a `LiveFolder` manifest), a `repeat`
-column in a table without `biological_repeat` is read as
-`biological_repeat`. Your tables are not changed, and every result names
-the new column. A table with both columns is refused unless they hold the
-same values (then `biological_repeat` is used, with the warning). A
-`group_cols`, `fov_col`, `control`, `Setup` or `SamplingHierarchy` field
-naming `repeat` is read the same way. Rename the column: the former name
-will be removed in a later version.
+`biological_repeat` (`technical_repeat` is unchanged). The former name is no
+longer accepted (owner ruling, 2026-11-10: no backward compatibility before
+the first pipeline release). A table or file with a `repeat` column, and a
+`group_cols`, `fov_col`, `repeat_col`, `control`, `Setup` or
+`SamplingHierarchy` field naming `repeat`, is refused with an error that
+names `biological_repeat`; nothing is renamed for you. Rename the column (a
+file written with the old name must be written again).
 
 ## Rules the validator enforces
 

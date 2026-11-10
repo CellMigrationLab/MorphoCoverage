@@ -69,7 +69,6 @@ from typing import Any, NamedTuple
 import numpy as np
 import pandas as pd
 
-from ._former_repeat import Reader
 from ._observation_keys import (
     IDENTITY_METADATA,
     identity_text,
@@ -79,6 +78,7 @@ from ._observation_keys import (
     observation_identity,
     observed_keys,
 )
+from ._repeat_alias import refuse_repeat_alias
 from ._within_identity import (
     LABEL_COLUMN,
     PATCH_COLUMN,
@@ -113,7 +113,6 @@ _METADATA = {
     LABEL_COLUMN,
     PATCH_COLUMN,
     *IDENTITY_METADATA,
-    "repeat",
 }
 # The observations named in a message, at most.
 _SHOWN = 3
@@ -357,13 +356,10 @@ def attach_feature_tables(
         )
     problems: list[str] = []
     given = _given_tables(feature_tables, problems)
-    reader = Reader()
-    objects = reader.table(objects, "objects")
-    fovs = reader.table(fovs, "fovs")
-    tables = {
-        name: reader.table(table, f"feature table {name!r}") for name, (table, _) in given.items()
-    }
-    reader.warn()
+    refuse_repeat_alias(objects=objects, fovs=fovs)
+    tables = {name: table for name, (table, _) in given.items()}
+    for name, table in tables.items():
+        refuse_repeat_alias(**{f"feature table {name!r}": table})
     identity = observation_identity(objects, fovs, fov_col=fov_col, group_cols=group_cols)
     observed = observed_keys(objects, identity, duplicate_identity_text())
     usable = _usable_tables(tables, objects, identity, problems)

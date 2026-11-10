@@ -74,13 +74,10 @@ each group has independent estimator state.
 No evidence is shared between groups unless the caller deliberately chooses a
 different grouping contract.
 
-A field whose observations or `fov_metadata` still name the biological repeat
-`repeat` (its former name) is read as `biological_repeat`, with one
-`DeprecationWarning` per `add_fov` call (per `LiveTables.update` or
-`LiveFolder.poll`/`watch` call, whatever the number of fields it adds);
-`group_cols` or `fov_col` naming `repeat` are read the same way. A field that
-holds both names with different values is refused, and the session is left as
-it was (`docs/common/data_format.md`).
+A field whose observations or `fov_metadata` name the biological repeat `repeat`
+(its former name), or whose `group_cols` or `fov_col` name it, is refused with an
+error that names `biological_repeat`, and the session is left as it was
+(`docs/common/data_format.md`).
 
 ## Incremental versus recomputed methods
 

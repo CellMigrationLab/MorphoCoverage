@@ -33,7 +33,7 @@ The shared runner owns validation, MorphoBricks metadata handling, grouping, tim
 The framework follows the shared MorphoBricks metadata conventions:
 
 - `condition`
-- `biological_repeat` (formerly `repeat`, still read with a `DeprecationWarning`: `docs/common/data_format.md`)
+- `biological_repeat` (formerly `repeat`, which is refused: `docs/common/data_format.md`)
 - `technical_repeat` (a well, a dish, a coverslip within a repeat)
 - `position_id` (when file layout is not one-file-per-position)
 - `image_file`
@@ -42,7 +42,7 @@ The framework follows the shared MorphoBricks metadata conventions:
 
 When the caller does not provide an FOV identifier, `position_id` is preferred, followed by `image_file` when one file equals one position, then `fov_id`. One FOV is one independently selected spatial position; z/c/t observations from that position remain nested within it. A candidate column present in only one of the linked tables is an error, never a reason to fall back to the next candidate.
 
-When the caller does not provide grouping columns, the `condition`, `biological_repeat` and `technical_repeat` columns present are used automatically. This keeps biological/sample groups independent without requiring every strategy to understand those columns. A canonical column present in the observations but not in the FOV table raises instead of silently pooling; one present only in the FOV table is attached to the observations when the identifier is unambiguous ("Lean feature tables" below). Non-canonical spellings such as `Biological_Repeat`, `bio_repeat`, `tec_repeat`, `technical.repeat` or a pandas copy `Repeat.1` raise, with the column meant, unless named explicitly; the former name `repeat` is read as `biological_repeat` with a `DeprecationWarning` (`_former_repeat`).
+When the caller does not provide grouping columns, the `condition`, `biological_repeat` and `technical_repeat` columns present are used automatically. This keeps biological/sample groups independent without requiring every strategy to understand those columns. A canonical column present in the observations but not in the FOV table raises instead of silently pooling; one present only in the FOV table is attached to the observations when the identifier is unambiguous ("Lean feature tables" below). Non-canonical spellings such as `Biological_Repeat`, `bio_repeat`, `tec_repeat`, `technical.repeat` or a pandas copy `Repeat.1` raise, with the column meant, unless named explicitly; the former name `repeat` is refused, naming `biological_repeat` (`_repeat_alias.refuse_repeat_alias`).
 
 ### FOV identity versus analysis grouping
 

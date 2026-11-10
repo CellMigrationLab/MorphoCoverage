@@ -27,7 +27,6 @@ from ._data_rules import (
     _names,
     _resolve_groups,
 )
-from ._former_repeat import FORMER_REPEAT_COLUMN
 from ._input_traps import (
     InvalidRowsWarning,
     _check_container_files,
@@ -77,13 +76,12 @@ def _not_tables(c: Collector, objects: Any, fovs: Any) -> bool:
 
 
 def _report_former_repeat(c: Collector, error: ValueError) -> None:
-    """A table or ``control`` holding the former name and the new one, different."""
+    """A table, column name or ``control`` that uses the former name ``repeat``."""
     c.error(
-        f"The former name {FORMER_REPEAT_COLUMN!r} and the biological repeat's column "
-        "hold different values.",
-        f"{error}.",
-        "Keep only 'biological_repeat', the biological repeat, and rename or remove the "
-        f"{FORMER_REPEAT_COLUMN!r} column (or control key).",
+        "The former column name 'repeat' is no longer accepted.",
+        f"{error}",
+        "Rename the 'repeat' column (or control key) to 'biological_repeat', the biological "
+        "repeat.",
     )
 
 

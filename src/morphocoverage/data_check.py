@@ -39,7 +39,7 @@ from ._data_rules import (
     _resolve_fov_col,
 )
 from ._feature_rules import _check_features
-from ._former_repeat import Reader, one_warning
+from ._repeat_alias import refuse_repeat_alias
 from ._style import CAUTION, PROBLEM, Status, check_detail, headline, wrap
 from ._wording import count
 from .metadata import drop_empty_optional_columns
@@ -121,7 +121,6 @@ class DataCheck:
             raise ValueError(self.summary(detail="full"))
 
 
-@one_warning
 def check_tables(
     objects: pd.DataFrame,
     fovs: pd.DataFrame | None = None,
@@ -147,15 +146,14 @@ def check_tables(
     groups into blocks of fields (a well or a plate under another name),
     multi-position files that repeat a ``label_id``, and repeats without a
     control. A table, ``group_cols``, ``fov_col`` or ``control`` that uses the
-    former name ``repeat`` is read as ``biological_repeat``, with a
-    ``DeprecationWarning``; a table with both, different, is an error.
+    former name ``repeat`` is refused, naming ``biological_repeat``.
     """
     c = Collector()
     if _not_tables(c, objects, fovs):
         return _found(c)
     try:
-        objects, fovs, group_cols, fov_col, control = _read_former_repeat(
-            objects, fovs, group_cols, fov_col, control
+        refuse_repeat_alias(
+            objects=objects, fovs=fovs, group_cols=group_cols, fov_col=fov_col, control=control
         )
     except ValueError as error:  # fallback: reported as a problem of the check
         _report_former_repeat(c, error)
@@ -197,24 +195,6 @@ def _found(c: Collector) -> DataCheck:
     return DataCheck(tuple(c.problems), tuple(c.understood))
 
 
-def _read_former_repeat(
-    objects: pd.DataFrame,
-    fovs: pd.DataFrame | None,
-    group_cols: Any,
-    fov_col: Any,
-    control: Any,
-) -> tuple[pd.DataFrame, pd.DataFrame | None, Any, Any, Any]:
-    """The arguments with the former name ``repeat`` read as ``biological_repeat``, warning
-    once (``_former_repeat``); ``ValueError`` when a table or ``control`` holds both, different."""
-    former = Reader()
-    objects, fovs = former.table(objects, "objects"), former.table(fovs, "fovs")
-    group_cols = former.columns(group_cols, "group_cols")
-    fov_col, control = former.column(fov_col, "fov_col"), former.mapping(control, "control")
-    former.warn()
-    return objects, fovs, group_cols, fov_col, control
-
-
-@one_warning
 def validate_input_tables(
     objects: pd.DataFrame,
     *,
@@ -244,9 +224,7 @@ def validate_input_tables(
       missing or blank value, no list). Near-miss spellings
       (``Biological_Repeat``, ``bio_repeat``, ``technical.repeat``, ``Z``) are
       refused unless named explicitly. The former name ``repeat`` (a column,
-      or in ``group_cols``/``fov_col``) is read as ``biological_repeat`` with a
-      ``DeprecationWarning``; a table with both is refused unless they are
-      identical.
+      or in ``group_cols``/``fov_col``) is refused, naming ``biological_repeat``.
     - An optional shared column (``position_id``, ``technical_repeat``) empty
       in every row of a table is read as absent from it; when only the
       observation table's copy is empty, the FOV table's values are used.

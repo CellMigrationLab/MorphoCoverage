@@ -62,8 +62,8 @@ import pandas as pd
 
 from .._checks import as_count, check_seed, is_integer, is_number, is_share
 from .._control import check_comparisons
-from .._former_repeat import one_warning, read_former
 from .._frozen import owned
+from .._repeat_alias import refuse_repeat_alias
 from .._seeds import group_rng
 from .._style import DASH, table, wrap
 from .._wording import column_word, count, number, percent, rate
@@ -386,7 +386,6 @@ def _all_contrast_rows(
     return rows, references
 
 
-@one_warning
 def effect_preservation(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -435,7 +434,7 @@ def effect_preservation(
         raise TypeError("feature must be one column name")
     if comparisons is not None:
         comparisons = check_comparisons(comparisons)
-    control, repeat_col = read_former(control=control, repeat_col=repeat_col)
+    refuse_repeat_alias(control=control, repeat_col=repeat_col)
     if comparisons is None and (not isinstance(control, Mapping) or not control):
         raise ValueError("control must be a non-empty mapping of FOV-table column to value")
     if comparisons is None and condition_col not in control:

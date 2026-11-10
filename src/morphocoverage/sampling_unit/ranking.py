@@ -52,8 +52,8 @@ from .._acquisition import ACQUISITION, acquisition_identity
 from .._caveats import assumption, caveat_lines
 from .._checks import is_number
 from .._control import check_comparisons, compared_name, control_name, versus
-from .._former_repeat import one_warning, read_former
 from .._frozen import owned
+from .._repeat_alias import refuse_repeat_alias
 from .._seeds import group_rng
 from .._style import check_detail, table, wrap
 from .._wording import column_word, count, features_counted
@@ -320,7 +320,6 @@ class FeatureRanking:
         return "\n".join(lines)
 
 
-@one_warning
 def feature_ranking(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -349,7 +348,7 @@ def feature_ranking(
     when no unit exists, ``alpha`` is the Benjamini-Hochberg gate, ``comparisons`` replace
     the control by ``(condition, reference)`` pairs. See the module.
     """
-    control, repeat_col = read_former(control=control, repeat_col=repeat_col)
+    refuse_repeat_alias(control=control, repeat_col=repeat_col)
     features = list(dict.fromkeys(column_names(features, "features")))
     if not features:
         raise ValueError("features must name at least one column")

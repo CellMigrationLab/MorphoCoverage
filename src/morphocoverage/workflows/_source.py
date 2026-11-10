@@ -5,7 +5,7 @@
 from one acquisition with figures, downloads or a plan from another (issue 359).
 
 The identity is a SHA-256 digest of both tables, independent of the order of rows and columns
-and of the former name ``repeat`` of ``biological_repeat``, and type-preserving: integer ``1``
+and type-preserving: integer ``1``
 and text ``"1"`` give different digests, as do ``1`` and ``1.0`` held in different dtypes.
 Object columns are hashed through their distinct values, so the cost is one Python pass over
 the distinct values, not over the rows.
@@ -18,9 +18,6 @@ import hashlib
 import numpy as np
 import pandas as pd
 
-from ..metadata import REPEAT_COLUMN
-
-_FORMER_REPEAT = "repeat"
 # What stands for a missing value in an object column (pandas codes it -1 when factorizing).
 _MISSING = hashlib.sha256(b"missing").digest()
 
@@ -45,8 +42,6 @@ def _column_hash(values: pd.Series) -> np.ndarray:
 
 
 def _table_digest(table: pd.DataFrame) -> bytes:
-    if _FORMER_REPEAT in table.columns and REPEAT_COLUMN not in table.columns:
-        table = table.rename(columns={_FORMER_REPEAT: REPEAT_COLUMN})
     names = sorted(str(c) for c in table.columns)
     by_name = {str(c): table[c] for c in table.columns}
     rows = np.zeros(len(table), dtype=np.uint64)

@@ -47,9 +47,9 @@ from .._acquisition import ACQUISITION, acquisition_identity
 from .._caveats import assumption, caveat_lines
 from .._checks import is_number
 from .._control import check_comparisons, compared_name, control_name
-from .._former_repeat import one_warning, read_former
 from .._frozen import owned
 from .._parallel import check_n_jobs
+from .._repeat_alias import refuse_repeat_alias
 from .._style import check_detail, low_to_high, span, table, wrap
 from .._wording import (
     change,
@@ -60,7 +60,11 @@ from .._wording import (
     listing,
     p_value,
 )
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN, column_names
+from ..metadata import (
+    MORPHOBRICKS_GROUP_COLUMNS,
+    TECHNICAL_REPEAT_COLUMN,
+    column_names,
+)
 from ..schema import observation_words
 from ._common import groups, validated
 from ._discovery_gate import _gated
@@ -504,7 +508,6 @@ class FeatureDiscovery:
         return "\n".join([*lines, *caveat_lines(cautions, indent=0, detail=detail)])
 
 
-@one_warning
 def feature_discovery(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -530,7 +533,7 @@ def feature_discovery(
     features, with the same results for every value (``_parallel``); ``scales``, each
     feature's declared scale (``Setup.scales``), else the automatic rule; ``families``, each
     condition's declared experiment (``Setup.experiment``), else the sub-experiments."""
-    control, repeat_col = read_former(control=control, repeat_col=repeat_col)
+    refuse_repeat_alias(control=control, repeat_col=repeat_col)
     features = list(dict.fromkeys(column_names(features, "features")))
     if not features:
         raise ValueError("features must name at least one column")

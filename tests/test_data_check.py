@@ -1024,8 +1024,8 @@ def test_check_tables_warns_again_what_the_validator_warns_that_is_not_a_user_wa
         result = check_tables(objects, fovs, feature_cols=["area"], observation_unit="cell")
     assert result.ok and not result.problems
     assert [(w.category, str(w.message)) for w in caught] == [(FutureWarning, "a future change")]
-    # The target frame: the caller of check_tables, its one_warning wrapper.
-    assert caught[0].filename.endswith("_former_repeat.py")
+    # The warning names the caller of check_tables.
+    assert caught[0].filename == __file__
 
 
 def test_data_check_marker_and_forms():

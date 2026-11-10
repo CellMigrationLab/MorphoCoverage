@@ -27,7 +27,7 @@ from typing import Any
 
 import pandas as pd
 
-from .._former_repeat import read_fields
+from .._repeat_alias import refuse_repeat_alias
 from .._wording import count, rate
 from ..metadata import (
     CONDITION_COLUMN,
@@ -235,7 +235,12 @@ class Setup:
 
     def __post_init__(self) -> None:
         normalise_sequences(self)
-        read_fields(self, "control", "fov_col", "group_cols", "effort_strata")  # ``repeat``
+        refuse_repeat_alias(
+            control=self.control,
+            fov_col=self.fov_col,
+            group_cols=self.group_cols,
+            effort_strata=self.effort_strata,
+        )
         check_declared_types(self)
         check_tolerances_and_control(self)
         check_controls(self)
