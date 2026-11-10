@@ -87,7 +87,12 @@ def _tables(seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
             for f in range(6):
                 pid = f"{condition}{repeat}{f}"
                 fovs.append(
-                    {"position_id": pid, "condition": condition, "biological_repeat": repeat}
+                    {
+                        "position_id": pid,
+                        "condition": condition,
+                        "biological_repeat": repeat,
+                        "repeat_group": repeat,
+                    }
                 )
                 for _ in range(8):
                     rows.append({**fovs[-1], "x": rng.normal(), "y": rng.normal()})

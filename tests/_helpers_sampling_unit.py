@@ -37,6 +37,7 @@ def _tables(shift=1.0, n_repeats=3, cells=30, seed=0, unbalanced=False):
                     {
                         "condition": condition,
                         "biological_repeat": f"r{repeat}",
+                        "repeat_group": f"r{repeat}",
                         "position_id": f"{condition}-{repeat}-{field}",
                         "area": rng.normal(10 + effect, 1),
                         "noise": rng.normal(5, 1),
@@ -60,6 +61,7 @@ def _repeat_tables(conditions, repeats, fields=6, cells=20, effect=None, seed=0,
                 key = {
                     "condition": condition,
                     "biological_repeat": repeat,
+                    "repeat_group": repeat,
                     "position_id": f"{condition}_{repeat}_{field}",
                 }
                 fovs.append(key)
@@ -91,6 +93,7 @@ def _two_conditions(
                         {
                             "condition": condition,
                             "biological_repeat": repeat,
+                            "repeat_group": repeat,
                             "well": well,
                             "image_file": name,
                         }
@@ -101,6 +104,7 @@ def _two_conditions(
                             {
                                 "condition": condition,
                                 "biological_repeat": repeat,
+                                "repeat_group": repeat,
                                 "well": well,
                                 "image_file": name,
                                 "x": 10 + offset + rng.normal(),
@@ -131,6 +135,7 @@ def _well_tables(spec, seed=0, per_field=20, obs_sd=1.0):
             key = {
                 "condition": condition,
                 "biological_repeat": repeat,
+                "repeat_group": repeat,
                 "technical_repeat": well,
                 "position_id": f"{repeat}_{condition}_{well}_f{j}",
             }
@@ -160,6 +165,7 @@ def _well_tables_with_empty_fields(spec, seed=0, per_field=20, obs_sd=1.0, empty
             key = {
                 "condition": condition,
                 "biological_repeat": repeat,
+                "repeat_group": repeat,
                 "technical_repeat": well,
                 "position_id": f"{repeat}_{condition}_{well}_f{j}",
             }
@@ -184,6 +190,7 @@ def _well_column_tables(spec, seed=0, per_field=20, well_col="technical_repeat")
             key = {
                 "condition": condition,
                 "biological_repeat": repeat,
+                "repeat_group": repeat,
                 well_col: well,
                 "position_id": f"{repeat}_{condition}_{well}_f{j}",
             }
@@ -218,6 +225,7 @@ def _signed(offset_b: float, seed: int = 0):
                         {
                             "condition": condition,
                             "biological_repeat": f"R{r}",
+                            "repeat_group": f"R{r}",
                             "image_file": f"{condition}{r}_{f}.tif",
                             "area": centre + rng.normal(scale=0.3),
                         }
@@ -253,6 +261,7 @@ def _field_rows(condition, repeat, n_fields, per_field, mean, seed, sd=1.0, pref
         {
             "condition": condition,
             "biological_repeat": repeat,
+            "repeat_group": repeat,
             "image_file": f"{prefix}{j}",
             "x": float(v),
         }
@@ -263,6 +272,7 @@ def _field_rows(condition, repeat, n_fields, per_field, mean, seed, sd=1.0, pref
         {
             "condition": condition,
             "biological_repeat": repeat,
+            "repeat_group": repeat,
             "image_file": [f"{prefix}{j}" for j in range(n_fields)],
         }
     )
@@ -303,7 +313,7 @@ CONTROL_ONLY = "2026_04_06"
 DESIGNS = {
     "E1": {"ctrl": R[:1], "cond1": R[:1], "cond2": R[:1]},
     "E2": {"ctrl": R, "cond1": R[:3], "cond2": R[:2], "cond3": R, "cond4": R[:1]},
-    "E4": {"ctrl": R[:3] + [CONTROL_ONLY], "cond1": R[:3], "cond2": R[:3]},
+    "E4": {"ctrl": R[:3] + [CONTROL_ONLY], "cond1": R[:3], "cond2": R[:3], "cond3": OTHER},
     "E5": {"ctrl": R[:3], "cond1": R, "cond2": R[:3]},
     "E6": {
         "ctrl": R[:3] + SET_B,
@@ -314,11 +324,6 @@ DESIGNS = {
 }
 
 
-# Not in DESIGNS: cond3 was imaged in repeats under labels the control does not have, which a
-# contrast refuses (#617), so it has no contrast to build.
-UNSHARED_LABELS = {"ctrl": R[:3], "cond1": R[:3], "cond3": OTHER}
-
-
 EFFECTS = {"cond1": 2.0, "condA": 2.0}
 
 
@@ -326,7 +331,7 @@ def _make(design, fields=3, cells=15, seed=0):
     """Two features (area, the effect; intensity, none), a batch shift per repeat, one well
     per condition and repeat."""
     rng = np.random.default_rng(seed)
-    plan = DESIGNS.get(design, UNSHARED_LABELS)
+    plan = DESIGNS[design]
     repeats = sorted({r for held in plan.values() for r in held})
     batch = {r: rng.normal(0, 0.3, 2) for r in repeats}
     rows, fovs = [], []
@@ -342,6 +347,7 @@ def _make(design, fields=3, cells=15, seed=0):
                         {
                             "condition": condition,
                             "biological_repeat": repeat,
+                            "repeat_group": repeat,
                             "technical_repeat": well,
                             "image_file": image,
                             "label_id": i + 1,
@@ -353,6 +359,7 @@ def _make(design, fields=3, cells=15, seed=0):
                     {
                         "condition": condition,
                         "biological_repeat": repeat,
+                        "repeat_group": repeat,
                         "technical_repeat": well,
                         "image_file": image,
                     }
@@ -417,6 +424,7 @@ def _group(condition, repeat, *, n_fields=24, per_field=30, field_sd=0.0, seed=0
             {
                 "condition": condition,
                 "biological_repeat": repeat,
+                "repeat_group": repeat,
                 "image_file": f"{condition}{repeat}{j}",
                 "x": v,
             }
@@ -465,7 +473,12 @@ def _plate(shift=6.0, plates=("P1", "P2")):
             for i in range(12):
                 name = f"{plate}_{condition}_{i}"
                 fov_rows.append(
-                    {"condition": condition, "biological_repeat": plate, "image_file": name}
+                    {
+                        "condition": condition,
+                        "biological_repeat": plate,
+                        "repeat_group": plate,
+                        "image_file": name,
+                    }
                 )
                 values = rng.normal(0.0, 1.0, size=(25, 2))
                 values[:, 0] += offset

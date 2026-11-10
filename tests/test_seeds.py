@@ -58,7 +58,7 @@ def test_j1_groups_whose_seeds_collide_are_still_told_apart():
                 "biological_repeat": repeat,
                 "position_id": f"{condition}_{f}",
             }
-            fov_rows.append(key)
+            fov_rows.append({**key, "repeat_group": repeat})
             rows += [{**key, "area": 10 + shift + v} for v in rng.normal(size=30)]
     objects, fovs = pd.DataFrame(rows), pd.DataFrame(fov_rows)
     control = {"condition": first}

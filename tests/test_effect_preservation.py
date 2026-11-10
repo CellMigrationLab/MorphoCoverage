@@ -37,7 +37,12 @@ def _tables(
             shift = 0.0 if condition == "ctrl" else effect
             for i in range(n_fields):
                 name = f"{repeat}_{condition}_{i}"
-                labels = {"condition": condition, "biological_repeat": repeat, "position_id": name}
+                labels = {
+                    "condition": condition,
+                    "biological_repeat": repeat,
+                    "repeat_group": repeat,
+                    "position_id": name,
+                }
                 fovs.append(labels)
                 mean = shift + rng.normal(0, field_sd)
                 objects += [{**labels, "x": v} for v in rng.normal(mean, 1.0, per_field)]

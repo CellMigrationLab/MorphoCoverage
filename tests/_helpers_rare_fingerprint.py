@@ -34,6 +34,7 @@ def _screen(seed=0, narrow=0.6, mitotic=(0.02, 0.10)):
                             {
                                 "condition": condition,
                                 "biological_repeat": repeat,
+                                "repeat_group": repeat,
                                 "technical_repeat": well,
                                 "image_file": image,
                                 "label_id": i + 1,
@@ -47,6 +48,7 @@ def _screen(seed=0, narrow=0.6, mitotic=(0.02, 0.10)):
                         {
                             "condition": condition,
                             "biological_repeat": repeat,
+                            "repeat_group": repeat,
                             "technical_repeat": well,
                             "image_file": image,
                         }

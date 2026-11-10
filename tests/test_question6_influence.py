@@ -38,6 +38,7 @@ def _noisy(fields: dict[str, int], cv: float = 0.4, seed: int = 2) -> tuple:
                 key = {
                     "condition": condition,
                     "biological_repeat": repeat,
+                    "repeat_group": repeat,
                     "position_id": f"{condition}_{repeat}_{field}",
                 }
                 fovs.append(key)
@@ -194,6 +195,7 @@ def test_a_field_outside_a_two_column_control_is_not_a_control_field():
                 key = {
                     "condition": condition,
                     "biological_repeat": repeat,
+                    "repeat_group": repeat,
                     "technical_repeat": well,
                     "position_id": f"{condition}{well}_{repeat}_{field}",
                 }
@@ -209,10 +211,10 @@ def test_a_field_outside_a_two_column_control_is_not_a_control_field():
 
 def test_without_repeats_the_influence_stays_on_the_summary():
     objects, fovs = _three()
-    pooled = objects.drop(columns="biological_repeat")
+    pooled = objects.drop(columns=["biological_repeat", "repeat_group"], errors="ignore")
     contrast = condition_contrast(
         pooled,
-        fovs.drop(columns="biological_repeat"),
+        fovs.drop(columns=["biological_repeat", "repeat_group"], errors="ignore"),
         feature="x",
         control={"condition": "ctrl"},
         observation_unit="cell",

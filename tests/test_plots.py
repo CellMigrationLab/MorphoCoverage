@@ -52,6 +52,7 @@ def _tables(n_conditions: int = 2, n_repeats: int = 2, n_fields: int = 4, seed: 
                     {
                         "condition": f"c{c}",
                         "biological_repeat": f"r{r}",
+                        "repeat_group": f"r{r}",
                         "well": "w",
                         "image_file": name,
                     }
@@ -62,6 +63,7 @@ def _tables(n_conditions: int = 2, n_repeats: int = 2, n_fields: int = 4, seed: 
                         {
                             "condition": f"c{c}",
                             "biological_repeat": f"r{r}",
+                            "repeat_group": f"r{r}",
                             "well": "w",
                             "image_file": name,
                             "x": c + offset + rng.normal(),
@@ -254,8 +256,8 @@ def test_h9_plots_raise_on_a_misspelt_column():
             plots_of_data(objects, fovs, **{argument: "Wrong"}, **common)
     # The default condition and repeat columns may be absent.
     figures = plots_of_data(
-        objects.drop(columns="biological_repeat"),
-        fovs.drop(columns="biological_repeat"),
+        objects.drop(columns=["biological_repeat", "repeat_group"], errors="ignore"),
+        fovs.drop(columns=["biological_repeat", "repeat_group"], errors="ignore"),
         group_cols=["condition", "technical_repeat"],
         **common,
     )
@@ -456,6 +458,7 @@ def _pooled_wells():
                 key = {
                     "condition": "c",
                     "biological_repeat": f"r{repeat}",
+                    "repeat_group": f"r{repeat}",
                     "technical_repeat": f"w{well}",
                     "image_file": f"f{field}.tif",
                 }

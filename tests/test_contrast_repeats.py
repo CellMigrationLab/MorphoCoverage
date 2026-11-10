@@ -189,7 +189,12 @@ def _identical_effects(repeats: int) -> tuple[pd.DataFrame, pd.DataFrame]:
             for f in range(5):
                 pid = f"{condition}{r}{f}"
                 fovs.append(
-                    {"position_id": pid, "condition": condition, "biological_repeat": f"R{r}"}
+                    {
+                        "position_id": pid,
+                        "condition": condition,
+                        "biological_repeat": f"R{r}",
+                        "repeat_group": f"R{r}",
+                    }
                 )
                 for k in range(4):
                     rows.append({**fovs[-1], "x": level + (k - 1.5), "y": 1.0 + (f + k) % 3})

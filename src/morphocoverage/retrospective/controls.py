@@ -72,9 +72,10 @@ from .._checks import check_seed, is_integer
 from .._frozen import owned
 from .._parallel import check_n_jobs
 from .._repeat_alias import refuse_repeat_alias
+from .._repeat_groups import pair_by_repeat_group
 from ..data_check import validate_input_tables
 from ..evaluator import FovSubsets
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, column_names, empty_values
+from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, column_names, empty_values
 from ..schema import ValidatedInput
 from ..strategies.support_novelty import SupportNoveltyEstimator
 from ..sufficiency_text import novelty_definition
@@ -318,6 +319,8 @@ def representation_control(
     refuse_repeat_alias(
         pair_cols=pair_cols, identity_cols=identity_cols, lofo_group_cols=lofo_group_cols
     )
+    if REPEAT_COLUMN in pair_cols:  # paired within each repeat group, never by label (#617)
+        objects, fovs = pair_by_repeat_group(objects, fovs, REPEAT_COLUMN)
     settings = {
         "control": control.parameters,
         "novelty": dict(novelty.parameters),

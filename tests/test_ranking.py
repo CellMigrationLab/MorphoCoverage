@@ -96,7 +96,12 @@ def test_h15_untested_features_are_listed_as_untested():
         for i in range(3)
     ]
     objects, fovs = _well_tables(spec)
-    empty = {"condition": "drug", "biological_repeat": "r1", "technical_repeat": "drug0"}
+    empty = {
+        "condition": "drug",
+        "biological_repeat": "r1",
+        "repeat_group": "r1",
+        "technical_repeat": "drug0",
+    }
     fovs = pd.concat([fovs, pd.DataFrame([{**empty, "position_id": "empty"}])], ignore_index=True)
     objects["y"] = np.where(objects["condition"] == "drug", np.nan, objects["x"])
     objects["w"] = np.random.default_rng(0).normal(size=len(objects))

@@ -13,7 +13,13 @@ def _tables(cells: int = 2) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Two conditions, two repeats, two fields each, ``cells`` labelled cells a field; an
     embedding of 3 columns in another row order."""
     rows = [
-        {"condition": c, "biological_repeat": r, "image_file": f"f{f}.tif", "label_id": k}
+        {
+            "condition": c,
+            "biological_repeat": r,
+            "repeat_group": r,
+            "image_file": f"f{f}.tif",
+            "label_id": k,
+        }
         for c in ("ctrl", "drug")
         for r in ("R1", "R2")
         for f in range(2)
@@ -42,7 +48,13 @@ def _cells(
     """Conditions in three repeats, ``fields`` fields of ``cells`` labelled cells each."""
     rng = np.random.default_rng(seed)
     rows = [
-        {"condition": c, "biological_repeat": r, "image_file": f"{c}_{r}_{f}.tif", "label_id": k}
+        {
+            "condition": c,
+            "biological_repeat": r,
+            "repeat_group": r,
+            "image_file": f"{c}_{r}_{f}.tif",
+            "label_id": k,
+        }
         for c in conditions
         for r in ("R1", "R2", "R3")
         for f in range(fields)

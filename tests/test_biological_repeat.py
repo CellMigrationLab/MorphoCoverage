@@ -102,6 +102,8 @@ def _tables() -> tuple[pd.DataFrame, pd.DataFrame]:
     """A small part of the synthetic acquisition: 2 conditions x 2 repeats x 2 wells x 6 fields."""
     objects = pd.read_csv(SYNTHETIC / "synthetic_cells.csv")
     fovs = pd.read_csv(SYNTHETIC / "synthetic_fovs.csv")
+    # Each folder label is confirmed as its own repeat group, by which repeats pair (#617).
+    fovs = fovs.assign(repeat_group=fovs["biological_repeat"])
     keep = {"B02", "B03", "D02", "D03"}
     repeats = sorted(fovs[REPEAT_COLUMN].unique())[:2]
 

@@ -40,6 +40,7 @@ import pandas as pd
 
 from .._integrity_tables import integrity_by_table
 from .._repeat_alias import refuse_repeat_alias
+from .._repeat_groups import REPEAT_GROUP_COLUMN
 from .._style import Status, check_detail
 from ..data_check import DataCheck, check_tables
 from ..integrity import IntegrityResult
@@ -74,6 +75,7 @@ _METADATA = {
     *MORPHOBRICKS_SHARED_COLUMNS,
     *WITHIN_FOV_METADATA_COLUMNS,
     TARGET_COLUMN,
+    REPEAT_GROUP_COLUMN,
     "label_id",
     "fov_id",
     "source_row",

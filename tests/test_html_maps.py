@@ -53,6 +53,7 @@ def _signed_tables():
                         {
                             "condition": condition,
                             "biological_repeat": repeat,
+                            "repeat_group": repeat,
                             "image_file": f"{condition}_{repeat}_{field}.tif",
                             "label_id": label + 1,
                             "area": rng.normal(20 + shift, 2),

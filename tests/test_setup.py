@@ -198,11 +198,21 @@ def test_p6_1_the_report_counts_unusual_fields_with_the_novelty_rules_m():
             for j in range(6):
                 name = f"{condition}{repeat}f{j}"
                 fields.append(
-                    {"condition": condition, "biological_repeat": repeat, "position_id": name}
+                    {
+                        "condition": condition,
+                        "biological_repeat": repeat,
+                        "repeat_group": repeat,
+                        "position_id": name,
+                    }
                 )
                 for x, y in rng.normal(size=(20, 2)):
                     rows.append(
-                        {"condition": condition, "biological_repeat": repeat, "position_id": name}
+                        {
+                            "condition": condition,
+                            "biological_repeat": repeat,
+                            "repeat_group": repeat,
+                            "position_id": name,
+                        }
                         | {"a": x, "b": y}
                     )
     objects, fovs = pd.DataFrame(rows), pd.DataFrame(fields)

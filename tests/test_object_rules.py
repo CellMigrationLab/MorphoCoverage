@@ -42,6 +42,7 @@ def test_the_count_rule_with_whole_fields_says_its_draws_repeat_fields() -> None
                     {
                         "condition": "ctrl",
                         "biological_repeat": "r1",
+                        "repeat_group": "r1",
                         "technical_repeat": well,
                         "image_file": f"{well}_{field}.tif",
                         "label_id": label,
@@ -249,8 +250,8 @@ def _object_rule_edges():
     out.append(own.table[["condition", "target", "status"]].to_dict("records"))
     out.append(_error(lambda: object_rule_check(objects, fovs, feature="x", targets=[1.5])))
     out.append(_error(lambda: object_rule_check(objects, fovs, feature="x", repeat_col="plate")))
-    no_repeat = fovs.drop(columns="biological_repeat")
-    obj_no_repeat = objects.drop(columns="biological_repeat")
+    no_repeat = fovs.drop(columns=["biological_repeat", "repeat_group"], errors="ignore")
+    obj_no_repeat = objects.drop(columns=["biological_repeat", "repeat_group"], errors="ignore")
     implicit = object_rule_check(
         obj_no_repeat, no_repeat, feature="x", control={"condition": "ctrl"}, n_draws=50
     )

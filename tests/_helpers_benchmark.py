@@ -21,6 +21,7 @@ def _two_groups(n_a=12, n_b=12, seed=0):
         {
             "condition": ["a"] * n_a + ["b"] * n_b,
             "biological_repeat": "r1",
+            "repeat_group": "r1",
             "position_id": [f"p{i:02d}" for i in range(n_a + n_b)],
             "order": list(range(n_a)) + list(range(n_b)),
         }

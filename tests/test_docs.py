@@ -39,6 +39,7 @@ def _constructed_wells() -> tuple[pd.DataFrame, pd.DataFrame]:
                 {
                     "condition": condition,
                     "biological_repeat": "r1",
+                    "repeat_group": "r1",
                     "technical_repeat": f"w{well}",
                     "image_file": name,
                 }
@@ -49,6 +50,7 @@ def _constructed_wells() -> tuple[pd.DataFrame, pd.DataFrame]:
                     {
                         "condition": condition,
                         "biological_repeat": "r1",
+                        "repeat_group": "r1",
                         "technical_repeat": f"w{well}",
                         "image_file": name,
                         "ratio": 5 + offset + rng.normal(),

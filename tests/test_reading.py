@@ -246,6 +246,7 @@ def _shared(control_fields: int, seed: int = 0):
                         {
                             "condition": condition,
                             "biological_repeat": f"R{r}",
+                            "repeat_group": f"R{r}",
                             "image_file": f"{condition}{r}_{f}.tif",
                             "f0": 10 + shift + rng.normal(),
                             "f1": 10 + rng.normal(),

@@ -204,7 +204,14 @@ def test_a_declared_control_joins_the_first_question_and_the_profile():
     for well, condition, offset in (("A1", "MOCK", 0.0), ("B1", "KD", 6.0)):
         for i in range(10):
             name = f"{well}_{i}"
-            fov_rows.append({"image_file": name, "condition": condition, "biological_repeat": "P1"})
+            fov_rows.append(
+                {
+                    "image_file": name,
+                    "condition": condition,
+                    "biological_repeat": "P1",
+                    "repeat_group": "P1",
+                }
+            )
             values = rng.normal(0, 1, size=(20, 2))
             values[:, 0] += offset
             object_rows.append(

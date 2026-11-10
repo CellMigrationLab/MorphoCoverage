@@ -72,6 +72,7 @@ from .._control import control_name
 from .._frozen import owned
 from .._identity import identity_key
 from .._repeat_alias import refuse_repeat_alias
+from .._repeat_groups import pair_by_repeat_group
 from .._seeds import group_key, group_rng
 from .._style import check_detail, group_label
 from .._wording import column_word, where
@@ -245,6 +246,7 @@ def object_rule_check(
     are those of ``validate_input_tables``.
     """
     refuse_repeat_alias(control=control, repeat_col=repeat_col)
+    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col)
     targets = [float(t) for t in targets]
     if not targets or any(not 0 < t < 1 for t in targets):
         raise ValueError("targets must be fractions between 0 and 1, such as 0.05")

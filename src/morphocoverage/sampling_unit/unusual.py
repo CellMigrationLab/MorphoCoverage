@@ -77,6 +77,7 @@ from .._caveats import caveat_lines
 from .._checks import as_count, check_seed
 from .._frozen import owned
 from .._repeat_alias import refuse_repeat_alias
+from .._repeat_groups import pair_by_repeat_group
 from .._seeds import group_key, group_rng
 from .._style import check_detail
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
@@ -157,6 +158,8 @@ def unusual_objects(
     2026-10-06).
     """
     refuse_repeat_alias(reference=reference)
+    if within_experiment:  # the sub-experiments are found from the repeat groups (#617)
+        objects, fovs = pair_by_repeat_group(objects, fovs, REPEAT_COLUMN)
     if not 0 < quantile < 1:
         raise ValueError("quantile must be between 0 and 1")
     n_neighbors = as_count(n_neighbors, "n_neighbors", 1)

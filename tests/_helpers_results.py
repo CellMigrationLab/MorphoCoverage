@@ -54,6 +54,7 @@ def _well(*, drift: float = 0.0, n_fields: int = 16, rare_rows: int = 0, seed: i
                 {
                     "condition": "MOCK",
                     "biological_repeat": "1A",
+                    "repeat_group": "1A",
                     "image_file": name,
                     READOUT: values,
                 }
@@ -63,6 +64,7 @@ def _well(*, drift: float = 0.0, n_fields: int = 16, rare_rows: int = 0, seed: i
             {
                 "condition": "MOCK",
                 "biological_repeat": "1A",
+                "repeat_group": "1A",
                 "image_file": name,
                 "order": rank,
                 "stage_x": 500.0 * column,

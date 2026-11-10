@@ -78,6 +78,7 @@ def tables(
                         {
                             "condition": condition,
                             "biological_repeat": repeat,
+                            "repeat_group": repeat,
                             "technical_repeat": technical,
                             "fov_id": fov,
                         }
@@ -88,6 +89,7 @@ def tables(
                             {
                                 "condition": condition,
                                 "biological_repeat": repeat,
+                                "repeat_group": repeat,
                                 "technical_repeat": technical,
                                 "fov_id": fov,
                                 "area": level * np.exp(rng.normal(0, 0.2)),

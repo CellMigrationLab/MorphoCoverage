@@ -78,7 +78,8 @@ def test_one_row_per_image_is_identified_by_the_field_key():
     objects = objects.drop(columns="label_id")
     embedding = embedding.drop(columns="label_id")
     assert observation_identity(objects, fovs) == ("condition", "biological_repeat", "image_file")
-    assert attach_feature_tables(objects, fovs, {"DINO": embedding}).objects.shape[1] == 8
+    # The key, repeat_group, the features and the embedding's columns.
+    assert attach_feature_tables(objects, fovs, {"DINO": embedding}).objects.shape[1] == 9
 
 
 def test_labels_given_as_text_match_numbers():
@@ -273,6 +274,7 @@ def _experiment(seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame
         {
             "condition": c,
             "biological_repeat": r,
+            "repeat_group": r,
             "image_file": f"{c}_{f}.tif",
             "label_id": k,
             "f1": rng.normal(shift),

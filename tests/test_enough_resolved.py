@@ -240,6 +240,7 @@ def _blurred_by_wells():
                     meta = {
                         "condition": condition,
                         "biological_repeat": repeat,
+                        "repeat_group": repeat,
                         "technical_repeat": f"w{w}",
                         "image_file": name,
                     }

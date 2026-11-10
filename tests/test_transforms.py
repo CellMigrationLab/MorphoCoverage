@@ -256,10 +256,22 @@ def test_p9_7_near_constant_features_are_refused_and_named():
     for repeat in ("R1", "R2", "R3"):
         for j in range(4):
             name = f"{repeat}f{j}"
-            fields.append({"condition": "MOCK", "biological_repeat": repeat, "position_id": name})
+            fields.append(
+                {
+                    "condition": "MOCK",
+                    "biological_repeat": repeat,
+                    "repeat_group": repeat,
+                    "position_id": name,
+                }
+            )
             for value in rng.normal(size=10):
                 rows.append(
-                    {"condition": "MOCK", "biological_repeat": repeat, "position_id": name}
+                    {
+                        "condition": "MOCK",
+                        "biological_repeat": repeat,
+                        "repeat_group": repeat,
+                        "position_id": name,
+                    }
                     | {"area": value, "texture": 7.0}
                 )
     result = unusual_objects(

@@ -18,11 +18,18 @@ def _one_condition_tables(prefix: str = "f", n: int = 6, seed: int = 0):
         {
             "condition": "a",
             "biological_repeat": "R1",
+            "repeat_group": "R1",
             "position_id": [f"{prefix}{i}" for i in range(n)],
         }
     )
     rows = [
-        {"condition": "a", "biological_repeat": "R1", "position_id": p, "x": float(v)}
+        {
+            "condition": "a",
+            "biological_repeat": "R1",
+            "repeat_group": "R1",
+            "position_id": p,
+            "x": float(v),
+        }
         for p in fovs["position_id"]
         for v in rng.normal(size=8)
     ]
@@ -41,7 +48,12 @@ def _two_condition_tables() -> tuple[pd.DataFrame, pd.DataFrame]:
             for f in range(6):
                 pid = f"{condition}{repeat}{f}"
                 fovs.append(
-                    {"position_id": pid, "condition": condition, "biological_repeat": repeat}
+                    {
+                        "position_id": pid,
+                        "condition": condition,
+                        "biological_repeat": repeat,
+                        "repeat_group": repeat,
+                    }
                 )
                 for _ in range(6):
                     rows.append({**fovs[-1], "x": rng.normal(), "y": rng.normal()})
@@ -91,6 +103,7 @@ def _cells(**columns) -> pd.DataFrame:
         {
             "condition": ["a"] * 4,
             "biological_repeat": ["r1"] * 4,
+            "repeat_group": ["r1"] * 4,
             "position_id": ["p1", "p1", "p2", "p2"],
             "area": [1.0, 2.0, 3.0, 4.0],
         }
@@ -132,6 +145,7 @@ def _six_cell_tables():
         {
             "condition": ["A", "A", "B", "B"],
             "biological_repeat": ["r1"] * 4,
+            "repeat_group": ["r1"] * 4,
             "image_file": ["f1", "f2", "f3", "f4"],
         }
     )
@@ -139,6 +153,7 @@ def _six_cell_tables():
         {
             "condition": ["A", "A", "A", "B", "B", "B"],
             "biological_repeat": ["r1"] * 6,
+            "repeat_group": ["r1"] * 6,
             "image_file": ["f1", "f1", "f2", "f3", "f3", "f4"],
             "area": [1.0, 2, 3, 4, 5, 6],
         }
@@ -152,6 +167,7 @@ def _planes(n_positions=2, n_planes=3, n_cells=4, **columns):
         {
             "condition": "A",
             "biological_repeat": "r1",
+            "repeat_group": "r1",
             "position_id": f"p{p}",
             "image_file": f"p{p}_z{z}.tif",
             "z": z,
@@ -178,6 +194,7 @@ def _continuous_tables(n_fields=40, size=30, seed=0, wells=4):
         {
             "condition": "ctrl",
             "biological_repeat": "r1",
+            "repeat_group": "r1",
             "technical_repeat": [f"W{i % wells}" for i in range(n_fields)],
             "image_file": [f"f{i:05d}.tif" for i in range(n_fields)],
         }
@@ -225,6 +242,7 @@ def _plate_tables(n_repeats=2, wells=("B02", "B03"), fields=3, cells=4, seed=0):
                     ids = {
                         "condition": condition,
                         "biological_repeat": repeat,
+                        "repeat_group": repeat,
                         "technical_repeat": well,
                         "image_file": image,
                     }
@@ -247,12 +265,18 @@ def _four_cell_tables() -> tuple[pd.DataFrame, pd.DataFrame]:
             "position_id": ["a", "a", "b", "b"],
             "condition": ["A", "A", "B", "B"],
             "biological_repeat": ["r1"] * 4,
+            "repeat_group": ["r1"] * 4,
             "label_id": [1, 2, 1, 2],
             "area": [1.0, 2.0, 3.0, 4.5],
             "z": [0, 0, 0, 0],
         }
     )
     fovs = pd.DataFrame(
-        {"position_id": ["a", "b"], "condition": ["A", "B"], "biological_repeat": ["r1", "r1"]}
+        {
+            "position_id": ["a", "b"],
+            "condition": ["A", "B"],
+            "biological_repeat": ["r1", "r1"],
+            "repeat_group": ["r1", "r1"],
+        }
     )
     return objects, fovs
