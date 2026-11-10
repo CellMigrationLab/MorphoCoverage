@@ -12,7 +12,7 @@ the workflows, the live session, and the public functions that read a column arg
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from typing import Any
 
 import pandas as pd
@@ -23,15 +23,16 @@ _FORMER_REPEAT_COLUMN = "repeat"
 
 
 def _holds_former_repeat(value: object) -> bool:
-    """Whether ``value`` (a table, a mapping of columns, a column name or a list of names)
-    names the column ``repeat``; an iterator or set is left unread."""
+    """Whether ``value`` (a table, a mapping of columns, a column name or a sequence of names:
+    a list, tuple, ``pd.Index`` or array) names the column ``repeat``; an iterator or set is
+    left unread."""
     if isinstance(value, pd.DataFrame):
         return _FORMER_REPEAT_COLUMN in value.columns
     if isinstance(value, Mapping):
         return _FORMER_REPEAT_COLUMN in value
     if isinstance(value, str):
         return value == _FORMER_REPEAT_COLUMN
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, Iterable) and not isinstance(value, (Iterator, set, frozenset)):
         return any(isinstance(name, str) and name == _FORMER_REPEAT_COLUMN for name in value)
     return False
 

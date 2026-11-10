@@ -41,6 +41,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from morphocoverage._repeat_alias import refuse_repeat_alias
 from morphocoverage.metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from morphocoverage.statistics import nested_variance_components
 
@@ -263,9 +264,8 @@ def summarise(
     embedding: Sequence[str] = (),
 ) -> pd.DataFrame:
     """Every statistic of one dataset, one row each (see the module)."""
-    if "repeat" in objects and REPEAT_COLUMN not in objects:
-        objects = objects.rename(columns={"repeat": REPEAT_COLUMN})
-        fovs = fovs.rename(columns={"repeat": REPEAT_COLUMN})
+    # The former name ``repeat`` is refused, as the package refuses it (owner ruling 14).
+    refuse_repeat_alias(objects=objects, fovs=fovs)
     rows = design_rows(dataset, objects, fovs, control)
     rows += feature_rows(dataset, objects, control, features)
     if embedding:

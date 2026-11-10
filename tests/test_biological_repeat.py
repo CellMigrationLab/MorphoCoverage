@@ -541,6 +541,19 @@ def test_column_arguments_and_setup_fields_naming_the_former_name_are_refused():
     )
 
 
+def test_column_names_given_as_an_index_or_array_naming_the_former_name_are_refused():
+    """Not only lists and tuples: a ``pd.Index`` or array of names (``fovs.columns[:3]``) too."""
+    objects, fovs = _tables()
+    groups = ["condition", FORMER, "technical_repeat"]
+    for given in (pd.Index(groups), np.array(groups), pd.Series(groups)):
+        message = _refused(
+            validate_input_tables, objects, fovs=fovs, feature_cols=["area"], group_cols=given
+        )
+        assert "no longer accepted" in message, message
+        check = check_tables(objects, fovs, feature_cols=["area"], group_cols=given)
+        assert any("no longer accepted" in p.title for p in check.errors), check.summary()
+
+
 # --- Output columns name the biological repeat the same way ----------------------------
 
 
