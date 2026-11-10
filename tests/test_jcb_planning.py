@@ -329,20 +329,20 @@ def test_real_pilot_wells_plan_the_other_wells():
     )
     pilot_wells = ["B02", "N12", "H13", "L18"]
     plan = plan_objects_to_average(
-        objects[objects["well"].isin(pilot_wells)],
-        fovs=fovs[fovs["well"].isin(pilot_wells)],
+        objects[objects["technical_repeat"].isin(pilot_wells)],
+        fovs=fovs[fovs["technical_repeat"].isin(pilot_wells)],
         feature="Fascin_Ratio",
         target_cv=0.05,
         sd_estimate="upper_95",
-        sample_cols=("biological_repeat", "well"),
+        sample_cols=("biological_repeat", "technical_repeat"),
         control={"condition": "DMSO"},
-        group_cols=["condition", "biological_repeat", "well"],
+        group_cols=["condition", "biological_repeat", "technical_repeat"],
     )
     assert (plan.n_samples, plan.n_control_samples) == (4, 2)
     assert 0 < plan.cv < plan.cv_upper_95 < 1
     assert plan.required_objects >= 1
 
-    fovs = fovs.assign(order=fovs.groupby("well").cumcount())
+    fovs = fovs.assign(order=fovs.groupby("technical_repeat").cumcount())
     results = evaluate_acquisition_prefixes(
         objects,
         fovs,
@@ -350,10 +350,10 @@ def test_real_pilot_wells_plan_the_other_wells():
         feature_cols=["Fascin_Ratio"],
         acquisition_order_col="order",
         objective=POPULATION,
-        group_cols=["condition", "biological_repeat", "well"],
+        group_cols=["condition", "biological_repeat", "technical_repeat"],
     )
     for item in results:
-        well = item.result.group["well"]
+        well = item.result.group["technical_repeat"]
         if well in pilot_wells:
             assert item.result.decision is None
         else:

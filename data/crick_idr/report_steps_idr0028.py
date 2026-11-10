@@ -110,9 +110,8 @@ def _timed(label, run):
 
 
 def _stored(name: str) -> pd.DataFrame:
-    """A tracked result table; its ``well`` column is the loader's ``technical_repeat``."""
-    table = pd.read_csv(RESULTS / name, dtype={"biological_repeat": str})
-    return table.rename(columns={"well": "technical_repeat"})
+    """A tracked result table, its ``biological_repeat`` read as text."""
+    return pd.read_csv(RESULTS / name, dtype={"biological_repeat": str})
 
 
 def reliability_from_tables() -> ReliabilityResult:

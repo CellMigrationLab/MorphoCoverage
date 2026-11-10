@@ -58,9 +58,6 @@ FASCIN_RATIO = "Fascin_Ratio"
 # The MorphoBricks group columns: the well is the technical repeat within a plate.
 GROUPS = ("condition", "biological_repeat", "technical_repeat")
 OBSERVATION_UNIT = "nucleus"
-# The stored files keep the names convert.py wrote: the plate is already ``biological_repeat``;
-# the well is stored as "well" and loaded as ``technical_repeat``.
-STORED_NAMES = {"well": "technical_repeat"}
 
 
 @dataclass(frozen=True)
@@ -120,10 +117,6 @@ def load(name: str) -> Dataset:
     readout, control, role, description = _SPECS[name]
     objects = pd.read_csv(HERE / f"{name}_nuclei.csv.gz", dtype={"biological_repeat": str})
     fovs = pd.read_csv(HERE / f"{name}_fovs.csv.gz", dtype={"biological_repeat": str})
-    # The stored tables name the well "well"; the package's shared column for it is
-    # technical_repeat.
-    objects = objects.rename(columns=STORED_NAMES)
-    fovs = fovs.rename(columns=STORED_NAMES)
     if "condition" not in objects.columns:
         # The complete plates keep the metadata in the FOV table; idr0028 reuses
         # file names across plates, so the join is on (biological_repeat, image_file).

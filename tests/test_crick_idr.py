@@ -33,12 +33,11 @@ POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
 
 def _load(name):
-    """The stored tables with the well named as the loader names it (technical_repeat; the
-    stored files keep "well"; they already name the plate biological_repeat)."""
+    """The stored tables; they already use biological_repeat (the plate) and technical_repeat
+    (the well)."""
     fovs = pd.read_csv(DATA / f"{name}_fovs.csv.gz", dtype={"biological_repeat": str})
     objects = pd.read_csv(DATA / f"{name}_nuclei.csv.gz", dtype={"biological_repeat": str})
-    rename = {"well": "technical_repeat"}
-    return objects.rename(columns=rename), fovs.rename(columns=rename)
+    return objects, fovs
 
 
 def _ratio(objects, protein):
