@@ -332,10 +332,6 @@
     "data.lab.cct8_cdm_morphology.convert = '20704995'",
     "data.lab.cct8_filopodia_screen.convert = '20704995'"
    ],
-   "RENAMED": [
-    "_deprecated = {'plan_cells_to_average': 'plan_objects_to_average', 'CellCountPlan': 'ObjectCou",
-    "data.lab.cct8_cdm_morphology.convert = {' ': 'source_roi', 'Ch': 'source_channel', 'Slice': 'source_slice'}"
-   ],
    "REPEATS": [
     "data.scenarios.make_scenarios = tuple((f'2026_0{1 + i // 4}_{5 + 7 * (i % 4):02d}' for i in range(8)))",
     "data.simulations.beyond_the_mean = (3, 6)",

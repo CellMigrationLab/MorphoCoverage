@@ -137,9 +137,9 @@ them (straight to the report) or to delete them and start over. Answers saved
 for another table, or with another FOV table or none, or with other feature tables
 (compared by name and checksum), are never reused: the
 session offers to delete them, or stops so you can choose another folder.
-Answers saved by an earlier version, which did not check the FOV table, are
-not reused either: the session says so and asks the questions again
-(owner, 2026-10-05). Extra `Setup` fields go through
+Answers saved by another version of the guided session are not read either: the
+file is reported as not written by this version and the session offers to delete it.
+Extra `Setup` fields go through
 `guide(..., n_jobs=4, normalize="control_mean")`; `load_answers(folder)` and
 `answers.setup(scan)` rebuild the `Setup` without the questions.
 

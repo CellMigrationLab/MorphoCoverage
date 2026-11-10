@@ -263,11 +263,6 @@ class StrategyResult:
         return replace(self, compute_seconds=None, timing=None)
 
     @property
-    def n_objects(self) -> int | None:
-        """Backward-compatible alias for n_observations."""
-        return self.n_observations
-
-    @property
     def runtime_seconds(self) -> float | None:
         """Alias of ``compute_seconds``."""
         return self.compute_seconds

@@ -60,7 +60,6 @@ which are not independent; they describe these controls in this dataset.
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -110,20 +109,8 @@ class RepresentationControl:
     positive: Mapping[str, Any] | None = None
     reference: Mapping[str, Any] | None = None
     planted_objects: int | None = None
-    # Deprecated spelling of ``planted_objects``, accepted with a DeprecationWarning.
-    planted_cells: int | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        if self.planted_cells is not None:
-            warnings.warn(
-                "RepresentationControl(planted_cells=...) is deprecated; use planted_objects",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-            if self.planted_objects is not None:
-                raise ValueError("give planted_objects only (planted_cells is its old name)")
-            object.__setattr__(self, "planted_objects", self.planted_cells)
-            object.__setattr__(self, "planted_cells", None)
         object.__setattr__(self, "positive", _selector(self.positive, "positive"))
         object.__setattr__(self, "reference", _selector(self.reference, "reference"))
         if self.planted_objects is not None:

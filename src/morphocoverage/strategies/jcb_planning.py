@@ -77,7 +77,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .. import _deprecated
 from .._repeat_alias import refuse_repeat_alias
 from .._seeds import plain
 from .._wording import listing, plural
@@ -448,16 +447,3 @@ __all__ = [
     "PlannedObjectCountStrategy",
     "plan_objects_to_average",
 ]
-
-
-# Former object names, resolved with a DeprecationWarning (see morphocoverage._deprecated).
-__getattr__ = _deprecated.module_getattr(
-    __name__,
-    globals(),
-    (
-        "plan_cells_to_average",
-        "CellCountPlan",
-        "PlannedCellCountEstimator",
-        "PlannedCellCountStrategy",
-    ),
-)

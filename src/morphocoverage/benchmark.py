@@ -296,16 +296,6 @@ class BenchmarkRecord:
     reservoir: Mapping[str, Any] | None = None
     stop_on: str = "decision"
 
-    @property
-    def n_objects(self) -> int:
-        """Backward-compatible alias for n_observations."""
-        return self.n_observations
-
-    @property
-    def total_objects(self) -> int:
-        """Backward-compatible alias for total_observations."""
-        return self.total_observations
-
     def as_row(self) -> dict[str, Any]:
         """A flat dict: group columns as ``group.<col>``, outcomes as ``outcome.<name>``."""
         row: dict[str, Any] = {
@@ -328,11 +318,11 @@ class BenchmarkRecord:
             "n_observations": self.n_observations,
             "observation_unit": self.observation_unit,
             "observation_unit_declared": self.observation_unit_declared,
-            "n_objects": self.n_objects,
+            "n_objects": self.n_observations,
             "area": self.area,
             "total_fovs": self.total_fovs,
             "total_observations": self.total_observations,
-            "total_objects": self.total_objects,
+            "total_objects": self.total_observations,
             "total_area": self.total_area,
             "compute_seconds_to_stop": self.compute_seconds_to_stop,
             "max_compute_seconds": self.max_compute_seconds,

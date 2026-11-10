@@ -133,7 +133,7 @@ def test_pooled_run_counts_every_fov_and_keeps_zero_object_fovs():
         objective=POPULATION,
         group_cols=[],
     )
-    assert (result.n_fovs, result.n_objects) == (3, 2)
+    assert (result.n_fovs, result.n_observations) == (3, 2)
 
 
 def test_partial_grouping_keeps_other_canonical_columns_in_fov_identity():
@@ -220,7 +220,7 @@ def test_pooled_replay_requires_order_defined_across_pooled_fovs():
     fovs["order"] = [1, 2, 3, 4]
     results = _run_prefixes(objects, fovs, FixedFOVStrategy(1), group_cols=[])
     assert results[1].acquired_fovs == (("R1", "F1"), ("R1", "F2"))
-    assert results[2].result.n_objects == 3
+    assert results[2].result.n_observations == 3
 
 
 def test_acquisition_order_cannot_be_a_feature():
@@ -365,7 +365,7 @@ def test_framework_fills_fov_counts_including_zero_object_fovs():
         feature_cols=["area"],
         objective=POPULATION,
     )
-    assert (result.n_fovs, result.n_objects) == (3, 1)
+    assert (result.n_fovs, result.n_observations) == (3, 1)
 
 
 def test_estimators_cannot_report_framework_owned_effort():

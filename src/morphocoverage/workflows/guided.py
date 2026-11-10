@@ -11,9 +11,9 @@
 2. If the folder already holds saved answers (``ANSWERS_FILE``) for the same tables (the
    observation table and the FOV table, or no FOV table, by their checksums), offer to
    **continue** with them or to **delete them and start over**; answers saved for other
-   tables (the other feature tables by name, checksum and tag included) are never reused, nor
-   answers saved by an earlier version, which did not check the FOV table (the questions are
-   asked again; owner, 2026-10-05).
+   tables (the other feature tables by name, checksum and tag included) are never reused, and
+   answers written by another version of this session are not read (they are reported as
+   such and offered for deletion).
 3. **Scan** the design (``scan_design``, the other feature tables listed with it) and print
    what it found; the scan is saved as ``scan.txt``.
 4. **Ask** (owner, 2026-10-05, for the order and the wording): did the dataset load
@@ -366,29 +366,12 @@ def _load(
 _IDENTITY = ("checksum", "fovs_checksum")
 
 
-def _earlier_version(path: Path) -> bool:
-    """Whether ``path`` holds answers saved by an earlier ``ANSWERS_VERSION``."""
-    try:
-        data = json.loads(path.read_text())
-    # fallback: no saved answers, or unreadable: not an earlier version
-    except (FileNotFoundError, json.JSONDecodeError):
-        return False
-    version = data.get("version") if isinstance(data, dict) else None
-    return isinstance(version, int) and version < ANSWERS_VERSION
-
-
 def _saved(
     ask: q.Ask, say: q.Say, folder: Path, dataset: dict[str, Any]
 ) -> tuple[Answers | None, str | None]:
     """Saved answers to continue with (or ``None`` after starting over), and the reason to
     stop when the user keeps a file that cannot be used."""
     path = folder / ANSWERS_FILE
-    if _earlier_version(path):
-        say(
-            f"{path} holds answers saved by an earlier version, which did not check the FOV "
-            "table; the questions are asked again."
-        )
-        return None, None
     try:
         saved = load_answers(folder)
     # fallback: said to the user; the questions are asked again

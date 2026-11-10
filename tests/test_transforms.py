@@ -39,7 +39,7 @@ def test_standardize_uses_visible_mean_and_sd():
     assert fitted.state["mean"] == [3.0, 20.0]
     assert fitted.state["sd"] == [2.0, 10.0]
     np.testing.assert_allclose(fitted.apply(data), [[-1, -1], [0, 1], [1, 0]])
-    assert (fitted.n_fit_objects, fitted.n_fit_fovs) == (3, 3)
+    assert (fitted.n_fit_observations, fitted.n_fit_fovs) == (3, 3)
 
 
 @pytest.mark.parametrize(

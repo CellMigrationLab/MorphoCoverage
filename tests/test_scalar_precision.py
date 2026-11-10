@@ -297,14 +297,14 @@ def test_pilot_plan_is_fixed_by_the_first_fovs_in_acquisition_order():
     for item in results[1:]:
         assert item.result.diagnostics["pilot"]["cv_objects"] == pytest.approx(cv_pilot)
         assert _cv(item.result, "pilot_projected_averaging_cv") == pytest.approx(
-            cv_pilot / math.sqrt(item.result.n_objects)
+            cv_pilot / math.sqrt(item.result.n_observations)
         )
     first_stop = next(r for r in results if r.result.decision == "stop")
-    assert first_stop.result.n_objects == required + (required % 2)  # 2 cells per FOV
+    assert first_stop.result.n_observations == required + (required % 2)  # 2 cells per FOV
     # Stopping at the projected CV is the paper's rule: stop once the planned
     # number of cells has been acquired.
     for item in results[1:]:
-        planned = item.result.n_objects >= required
+        planned = item.result.n_observations >= required
         assert (item.result.decision == "stop") == planned
 
 
@@ -348,7 +348,7 @@ def test_diagnostics_leave_effort_to_the_framework_and_keep_the_pilot_counts():
     result = _evaluate(objects, fovs, strategy)
     # AGENTS.md section 20: effort of the visible data is the framework's.
     assert "n_objects" not in result.diagnostics and "n_fovs" not in result.diagnostics
-    assert (result.n_fovs, result.n_objects) == (3, 6)
+    assert (result.n_fovs, result.n_observations) == (3, 6)
     # The pilot's own counts are its provenance: the first two FOVs by order.
     assert (result.diagnostics["pilot"]["n_fovs"], result.diagnostics["pilot"]["n_objects"]) == (
         2,

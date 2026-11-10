@@ -151,7 +151,7 @@ def test_all_baselines_replay_on_real_acquisitions(idr0028):
         if item.step == 28:
             group = item.result.group
             assert (
-                item.result.n_objects
+                item.result.n_observations
                 == counts[group["biological_repeat"], group["technical_repeat"]]
             )
 

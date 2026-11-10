@@ -236,7 +236,7 @@ def test_counts_match_the_acquisition_record(name, strategy):
     for result in results:
         group = (result.group["condition"], result.group["biological_repeat"])
         assert result.n_fovs == expected_fovs[group]
-        assert result.n_objects == expected_objects.get(group, 0)
+        assert result.n_observations == expected_objects.get(group, 0)
 
 
 @pytest.mark.parametrize("name", SCENARIO_IDS)
@@ -305,8 +305,8 @@ def test_zero_object_fovs_count_as_acquisition_effort():
     scenario = SCENARIOS["zero_object_fovs"]()
     results = replay(scenario, [_probe()])
     assert [item.result.n_fovs for item in results] == list(range(1, 21))
-    assert results[0].result.n_objects == 0  # the first acquired FOV is empty
-    assert results[-1].result.n_objects == len(scenario.objects)
+    assert results[0].result.n_observations == 0  # the first acquired FOV is empty
+    assert results[-1].result.n_observations == len(scenario.objects)
     last_visible = {fov[-1] for fov in results[-1].result.diagnostics["visible_fovs"]}
     assert set(scenario.truth["empty_fovs"]) <= last_visible
 
@@ -321,7 +321,7 @@ def test_duplicated_objects_add_objects_but_not_fovs():
     # Re-measuring the same FOV is not new acquisition: counts keep the two apart.
     scenario = SCENARIOS["duplicated_objects"]()
     first = replay(scenario, [_probe()])[0].result
-    assert (first.n_fovs, first.n_objects) == (1, 60)
+    assert (first.n_fovs, first.n_observations) == (1, 60)
 
 
 @pytest.mark.parametrize("strategy", STRATEGIES_UNDER_CONTRACT, ids=STRATEGY_IDS)
@@ -446,12 +446,12 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
 
     # FOVs 0, 5, 10, ... hold 200 objects; all others hold 5.
     by_fov, by_cells = first_stop("fixed_fov"), first_stop("fixed_objects")
-    assert (by_fov.n_fovs, by_fov.n_objects) == (10, 2 * 200 + 8 * 5)
-    assert (by_cells.n_fovs, by_cells.n_objects) == (11, 3 * 200 + 8 * 5)
+    assert (by_fov.n_fovs, by_fov.n_observations) == (10, 2 * 200 + 8 * 5)
+    assert (by_cells.n_fovs, by_cells.n_observations) == (11, 3 * 200 + 8 * 5)
 
     for name in (precision_cells.name, precision_fovs.name):
         stop = first_stop(name)
-        assert stop.n_fovs >= 1 and stop.n_objects >= 1
+        assert stop.n_fovs >= 1 and stop.n_observations >= 1
         assert stop.parameters["target_cv"] == 0.005
         assert stop.evidence.value("averaging_cv") <= 0.005
 
@@ -460,7 +460,7 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
         (spread, "max_descriptor_spread"),
     ):
         stop = first_stop(strategy.name)
-        assert stop.n_fovs >= 1 and stop.n_objects >= 1
+        assert stop.n_fovs >= 1 and stop.n_observations >= 1
         assert stop.evidence.value(quantity) <= strategy.tolerance
 
     # Every scenario FOV images 10,000 um^2, so 100,000 um^2 means 10 FOVs,
@@ -472,9 +472,9 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
     required = planned.plan.required_objects
     stop = first_stop(planned.name)
     assert stop.evidence.value("planned_required_objects") == required
-    assert stop.n_objects >= required
+    assert stop.n_observations >= required
     assert all(
-        item.result.n_objects < required
+        item.result.n_observations < required
         for item in results
         if item.result.strategy == planned.name and item.result.decision == "continue"
     )

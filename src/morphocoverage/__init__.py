@@ -1,6 +1,5 @@
 """MorphoCoverage: FOV-aware phenotypic sampling analysis."""
 
-from . import _deprecated
 from .data_check import DataCheck, Problem, check_tables, validate_input_tables
 from .evidence import Availability, Component, Direction, Evidence, Quantity
 from .framework import run_strategies
@@ -74,16 +73,3 @@ __all__ = [
     "run_strategies",
     "validate_input_tables",
 ]
-
-
-# Former object names, resolved with a DeprecationWarning (see morphocoverage._deprecated).
-__getattr__ = _deprecated.module_getattr(
-    __name__,
-    globals(),
-    (
-        "plan_cells_to_average",
-        "CellCountPlan",
-        "PlannedCellCountEstimator",
-        "PlannedCellCountStrategy",
-    ),
-)

@@ -103,7 +103,7 @@ def _effort_words(effort: str, unit: str) -> tuple[str, str]:
     """The singular and plural of an effort such as ``n_fovs`` (fields) or observations."""
     if effort == "n_fovs":
         return "field", "fields"
-    if effort in ("n_observations", "n_objects"):
+    if effort == "n_observations":
         return unit, plural(unit)
     words = effort.replace("_", " ")
     return words, words

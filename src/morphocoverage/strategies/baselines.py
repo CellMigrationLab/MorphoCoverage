@@ -92,7 +92,7 @@ class _ObjectRowsCheck(Estimator):
 
 @dataclass(frozen=True)
 class _ObjectCountPolicy(DecisionPolicy):
-    """Legacy object-count policy with explicit row-semantics guard."""
+    """Object-count policy with an explicit row-semantics guard."""
 
     target: int
     name: str = "effort:n_objects"
@@ -117,7 +117,7 @@ class _ObjectCountPolicy(DecisionPolicy):
 
 @dataclass(frozen=True)
 class FixedObjectStrategy(SamplingStrategy):
-    """Legacy row-count baseline for object-style feature tables.
+    """Row-count baseline for object-style feature tables.
 
     For generic feature rows prefer FixedObservationStrategy, which makes the
     row semantics explicit through the framework observation_unit.
@@ -144,7 +144,7 @@ class FixedObjectStrategy(SamplingStrategy):
 
     @property
     def policies(self) -> tuple[_ObjectCountPolicy]:
-        """Stop once object-like observations reach the legacy object target."""
+        """Stop once object-like observations reach the object target."""
         return (_ObjectCountPolicy(self.target_objects),)
 
 

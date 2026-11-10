@@ -48,8 +48,8 @@ def test_sequential_runner_exposes_only_acquired_fovs():
     assert results[0].fov_key == ("fov_id",)
     assert results[0].acquired_fovs == (("F1",),)
     assert results[1].acquired_fovs == (("F1",), ("F2",))
-    assert results[0].result.n_objects == 1
-    assert results[1].result.n_objects == 3
+    assert results[0].result.n_observations == 1
+    assert results[1].result.n_observations == 3
     assert [item.result.decision for item in results] == [
         "continue",
         "stop",
@@ -76,7 +76,7 @@ def test_sequential_runner_preserves_zero_object_fov():
     )
 
     assert results[-1].result.n_fovs == 2
-    assert results[-1].result.n_objects == 1
+    assert results[-1].result.n_observations == 1
 
 
 def test_sequential_runner_uses_morphobricks_defaults():
@@ -175,7 +175,7 @@ def test_incremental_updates_receive_only_the_new_fov_in_order():
     assert by_group["b"][-1]["updates"] == [["F2"], ["F1"]]
     assert [d["seen"] for d in by_group["a"]] == [["F2"], ["F2", "F3"], ["F1", "F2", "F3"]]
     assert [item.result.n_fovs for item in results] == [1, 2, 3, 1, 2]
-    assert [item.result.n_objects for item in results] == [1, 2, 3, 1, 2]
+    assert [item.result.n_observations for item in results] == [1, 2, 3, 1, 2]
 
 
 def test_incremental_warm_up_feeds_every_fov_before_min_fovs():
@@ -232,7 +232,7 @@ def test_slice_by_slice_stack_is_revealed_as_one_position():
     )
 
     assert [item.result.n_fovs for item in results] == [1, 2]
-    assert [item.result.n_objects for item in results] == [3, 6]
+    assert [item.result.n_observations for item in results] == [3, 6]
     assert results[0].acquired_fovs == (("control", "R1", "P1"),)
     assert results[0].result.decision == "continue"
     assert results[1].result.decision == "stop"

@@ -95,7 +95,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .. import _deprecated
 from .._checks import is_integer
 from .._identity import key_labels
 from .._wording import plural
@@ -535,7 +534,3 @@ __all__ = [
     "required_fovs",
     "required_objects",
 ]
-
-
-# Former object names, resolved with a DeprecationWarning (see morphocoverage._deprecated).
-__getattr__ = _deprecated.module_getattr(__name__, globals(), ("cell_averaging_cv",))

@@ -34,15 +34,14 @@ from .objectives import ObjectiveConfig
 from .provenance import class_identity, config_hash, describe
 from .results import Decision, StrategyResult, combine_decisions
 
-_EFFORTS = ("n_fovs", "n_observations", "n_objects")
+_EFFORTS = ("n_fovs", "n_observations")
 
 
 @dataclass(frozen=True, init=False)
 class Effort:
     """Framework-owned acquisition effort.
 
-    n_observations is canonical. Legacy construction with n_objects= is
-    accepted so existing policy code remains source-compatible.
+    ``n_observations`` counts the acquired rows of whatever unit the table holds.
     """
 
     n_fovs: int
@@ -52,24 +51,12 @@ class Effort:
     def __init__(
         self,
         n_fovs: int,
-        n_observations: int | None = None,
+        n_observations: int,
         observation_unit: str = "object",
-        *,
-        n_objects: int | None = None,
     ) -> None:
-        if n_observations is None and n_objects is None:
-            raise TypeError("provide n_observations (or legacy n_objects)")
-        if n_observations is not None and n_objects is not None and n_observations != n_objects:
-            raise ValueError("n_observations and n_objects disagree")
-        count = n_objects if n_observations is None else n_observations
         object.__setattr__(self, "n_fovs", n_fovs)
-        object.__setattr__(self, "n_observations", count)
+        object.__setattr__(self, "n_observations", n_observations)
         object.__setattr__(self, "observation_unit", observation_unit)
-
-    @property
-    def n_objects(self) -> int:
-        """Backward-compatible alias for n_observations."""
-        return self.n_observations
 
 
 class DecisionPolicy(ABC):
@@ -148,8 +135,7 @@ class ThresholdPolicy(DecisionPolicy):
 
 @dataclass(frozen=True)
 class EffortPolicy(DecisionPolicy):
-    """Stop once acquired effort (``"n_fovs"`` or ``"n_observations"``; the legacy
-    ``"n_objects"`` is read as ``"n_observations"``) reaches ``target``.
+    """Stop once acquired effort (``"n_fovs"`` or ``"n_observations"``) reaches ``target``.
 
     Needs no estimator. ``component`` states which objective component the
     rule is claimed to answer; fixed counts are conventionally used for
@@ -163,9 +149,6 @@ class EffortPolicy(DecisionPolicy):
     def __post_init__(self) -> None:
         if self.effort not in _EFFORTS:
             raise ValueError(f"effort must be one of {_EFFORTS}")
-        if self.effort == "n_objects":
-            # Legacy spelling of the same count: one rule, one config_id.
-            object.__setattr__(self, "effort", "n_observations")
         if not is_integer(self.target):  # numpy integers too, stored as a Python int
             raise TypeError("target must be an integer count")
         if self.target < 1:

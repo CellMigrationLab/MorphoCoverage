@@ -234,7 +234,7 @@ def test_357_the_same_tables_under_other_paths_are_the_same_dataset(tmp_path):
     assert "were found for this table" in script.text and result.answers is not None
 
 
-def test_357_answers_of_an_earlier_version_are_asked_again_once(tmp_path):
+def test_answers_of_another_version_are_not_read_and_are_offered_for_deletion(tmp_path):
     cells = _cells()
     _guided(cells, None, tmp_path, POPULATION)
     path = tmp_path / ANSWERS_FILE
@@ -242,8 +242,9 @@ def test_357_answers_of_an_earlier_version_are_asked_again_once(tmp_path):
     old["version"] = 1
     del old["dataset"]["fovs_checksum"]
     path.write_text(json.dumps(old))
-    result, script = _guided(cells, None, tmp_path, POPULATION)
-    assert "saved by an earlier version, which did not check the FOV table" in script.text
+    result, script = _guided(cells, None, tmp_path, ["", *POPULATION])
+    assert "was not written by this version of the guided session" in script.text
+    assert "saved by an earlier version" not in script.text
     assert result.answers is not None and load_answers(tmp_path).version == 2
     _, script = _guided(cells, None, tmp_path, [""])
     assert "were found for this table" in script.text
