@@ -40,6 +40,9 @@ def test_standardize_uses_visible_mean_and_sd():
     assert fitted.state["sd"] == [2.0, 10.0]
     np.testing.assert_allclose(fitted.apply(data), [[-1, -1], [0, 1], [1, 0]])
     assert (fitted.n_fit_observations, fitted.n_fit_fovs) == (3, 3)
+    provenance = fitted.provenance()
+    assert (provenance["n_fit_observations"], provenance["n_fit_fovs"]) == (3, 3)
+    assert "n_fit_objects" not in provenance  # the duplicate key is gone (owner, 2026-11-10)
 
 
 @pytest.mark.parametrize(

@@ -442,10 +442,10 @@ def test_benchmark_records_generic_observation_effort():
     [record] = _run(BenchmarkRegistry([dataset]), "slices", strategies=[FixedFOVStrategy(2)])
     assert record.observation_unit == "slice"
     row = record.as_row()
-    assert (
-        row["n_objects"] == row["n_observations"]
-        and row["total_objects"] == row["total_observations"]
-    )
+    assert row["n_observations"] == record.n_observations
+    assert row["total_observations"] == record.total_observations
+    # The owner removed the duplicate columns (2026-11-10).
+    assert not {"n_objects", "total_objects"} & row.keys()
 
 
 def test_outcome_metrics_do_not_silently_drop_missing_feature_values():

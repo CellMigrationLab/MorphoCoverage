@@ -144,7 +144,6 @@ class FittedTransform:
             **self.transform.describe(),
             "input_features": list(self.input_features),
             "n_fit_observations": self.n_fit_observations,
-            "n_fit_objects": self.n_fit_observations,
             "n_fit_fovs": self.n_fit_fovs,
         }
         if self.fitted:
