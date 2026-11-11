@@ -64,6 +64,7 @@ from .._checks import as_count, check_seed, is_integer, is_number, is_share
 from .._control import check_comparisons
 from .._frozen import owned
 from .._repeat_alias import refuse_repeat_alias
+from .._repeat_groups import pair_by_repeat_group
 from .._seeds import group_rng
 from .._style import DASH, table, wrap
 from .._wording import column_word, count, number, percent, rate
@@ -435,6 +436,7 @@ def effect_preservation(
     if comparisons is not None:
         comparisons = check_comparisons(comparisons)
     refuse_repeat_alias(control=control, repeat_col=repeat_col)
+    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
     if comparisons is None and (not isinstance(control, Mapping) or not control):
         raise ValueError("control must be a non-empty mapping of FOV-table column to value")
     if comparisons is None and condition_col not in control:

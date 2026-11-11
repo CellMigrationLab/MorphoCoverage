@@ -116,7 +116,9 @@ def _one_cell_fields(n_features, copies):
     row is written again in ``copies`` other fields."""
     rng = np.random.default_rng(1)
     names = [f"f{i}.tif" for i in range(12)]
-    fovs = pd.DataFrame({"condition": "a", "biological_repeat": "r", "image_file": names})
+    fovs = pd.DataFrame(
+        {"condition": "a", "biological_repeat": "r", "repeat_group": "r", "image_file": names}
+    )
     values = rng.normal(100, 10, (12, n_features)).round(3)
     values[1 : 1 + copies] = values[0]
     objects = pd.DataFrame(values, columns=[f"x{j}" for j in range(n_features)]).assign(
@@ -148,12 +150,18 @@ def test_one_shared_observation_needs_three_continuous_features():
 def test_quantized_features_make_the_copy_checks_not_applicable():
     rng = np.random.default_rng(0)
     fovs = pd.DataFrame(
-        {"condition": "a", "biological_repeat": "r", "image_file": [f"f{i}.tif" for i in range(6)]}
+        {
+            "condition": "a",
+            "biological_repeat": "r",
+            "repeat_group": "r",
+            "image_file": [f"f{i}.tif" for i in range(6)],
+        }
     )
     objects = pd.DataFrame(
         {
             "condition": "a",
             "biological_repeat": "r",
+            "repeat_group": "r",
             "image_file": np.repeat(fovs["image_file"], 20).to_numpy(),
             "count": rng.integers(0, 3, 120).astype(float),
         }
@@ -170,6 +178,8 @@ def test_quantized_features_make_the_copy_checks_not_applicable():
 def test_the_synthetic_acquisition_has_no_findings():
     objects = pd.read_csv(DATA.parent / "synthetic" / "synthetic_cells.csv")
     fovs = pd.read_csv(DATA.parent / "synthetic" / "synthetic_fovs.csv")
+    # Each folder label is confirmed as its own repeat group, by which repeats pair (#617).
+    fovs = fovs.assign(repeat_group=fovs["biological_repeat"])
     result = integrity_checks(
         objects, fovs, feature_cols=["area", "intensity"], observation_unit="cell"
     )
@@ -177,9 +187,17 @@ def test_the_synthetic_acquisition_has_no_findings():
 
 
 def test_arguments_are_checked():
-    fovs = pd.DataFrame({"condition": "a", "biological_repeat": "r", "image_file": ["f.tif"]})
+    fovs = pd.DataFrame(
+        {"condition": "a", "biological_repeat": "r", "repeat_group": "r", "image_file": ["f.tif"]}
+    )
     objects = pd.DataFrame(
-        {"condition": "a", "biological_repeat": "r", "image_file": "f.tif", "x": [1.0]}
+        {
+            "condition": "a",
+            "biological_repeat": "r",
+            "repeat_group": "r",
+            "image_file": "f.tif",
+            "x": [1.0],
+        }
     )
     with pytest.raises(ValueError, match="block_length"):
         integrity_checks(objects, fovs, feature_cols=["x"], block_length=1)
@@ -474,11 +492,14 @@ def test_integrity_full_keeps_every_detail_of_the_findings(integrity):
 
 def test_integrity_with_no_applicable_check_is_not_assessed():
     files = [f"f{i}" for i in range(4)]
-    fovs = pd.DataFrame({"condition": "a", "biological_repeat": "r", "image_file": files})
+    fovs = pd.DataFrame(
+        {"condition": "a", "biological_repeat": "r", "repeat_group": "r", "image_file": files}
+    )
     objects = pd.DataFrame(
         {
             "condition": "a",
             "biological_repeat": "r",
+            "repeat_group": "r",
             "image_file": [f"f{i // 10}" for i in range(40)],
             "count": [float(i % 3) for i in range(40)],
         }

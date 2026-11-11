@@ -199,6 +199,7 @@ def _three_repeats() -> tuple[pd.DataFrame, pd.DataFrame]:
                     row = {
                         "condition": condition,
                         "biological_repeat": repeat,
+                        "repeat_group": repeat,
                         "image_file": f"{repeat}_{condition}_{field}.tif",
                         "label_id": label,
                     }

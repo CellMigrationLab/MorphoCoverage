@@ -1,9 +1,11 @@
 """The analysis groups and the two sides of each comparison (private).
 
 ``describe_groups`` gives each analysis group its condition, its biological repeat and
-whether it is the control. ``contrasts_of`` lists what is compared, repeat by repeat, and
-``sides`` the treated and control groups of one of them. With a single control (``control``)
-each condition other than the control is compared with the control groups of its repeat.
+whether it is the control. The callers pass tables paired by repeat group
+(``_repeat_groups.pair_by_repeat_group``, #617), so a group's repeat is its repeat group.
+``contrasts_of`` lists what is compared, repeat by repeat, and ``sides`` the treated and
+control groups of one of them. With a single control (``control``) each condition other
+than the control is compared with the control groups of its repeat.
 With declared comparisons (``_control``, owner 2026-10-05) each ``(condition, reference)``
 pair is compared, labelled ``condition vs reference`` (``_control.comparison_label``): the
 treated groups are the condition's in the repeat, the control groups the reference's, and a
@@ -75,62 +77,10 @@ def describe_groups(
         if problem:
             raise ValueError(problem)
         described.comparisons = comparison_pairs(comparisons)
-        refuse_unshared_repeat_labels(described)
         return described
     if not any(d["is_control"] for d in described):
         raise ValueError(no_match_message(all_groups, control or {}, "control"))
-    refuse_unshared_repeat_labels(described)
     return described
-
-
-def refuse_unshared_repeat_labels(described: Described) -> None:
-    """Refuse a comparison whose two sides have repeats but no repeat label in common (#617).
-
-    The repeats of two compared conditions are paired by their folder label (the
-    ``biological_repeat`` value). A pairing confirmed under different folder names never reaches
-    this brick, so labels that share nothing would read as "not compared", or be paired with
-    whatever label happens to match. Until the Spec v1 reader carries the confirmed repeat group
-    the comparison is refused; nothing is paired here. A repeat that only one side holds is not a
-    mismatch (an uneven design keeps its shared labels).
-
-    Raises
-    ------
-    ValueError
-        Naming the repeat labels of both sides, for the first comparison that shares none.
-    """
-    pairs = getattr(described, "comparisons", None)
-    controls = sorted({str(d["condition"]) for d in described if d["is_control"]})
-    if pairs is not None:
-        compared = list(pairs.values())
-    else:
-        conditions = dict.fromkeys(d["condition"] for d in described if not d["is_control"])
-        compared = [(condition, None) for condition in conditions]
-    for treated, reference in compared:
-        treated_labels = _repeat_labels(described, lambda d, c=treated: d["condition"] == c)
-        reference_labels = _repeat_labels(
-            described,
-            lambda d, r=reference: d["condition"] == r if r is not None else d["is_control"],
-        )
-        if treated_labels and reference_labels and not set(treated_labels) & set(reference_labels):
-            reference_name = str(reference) if reference is not None else "/".join(controls)
-            raise ValueError(
-                f"the repeat labels of {str(treated)!r} ({_listed(treated_labels)}) and of "
-                f"{reference_name!r} ({_listed(reference_labels)}) differ and share none: "
-                "repeats are paired by their folder label, and a pairing confirmed under "
-                "different folder names is not read until the Spec v1 reader lands. Refused, "
-                "not guessed."
-            )
-
-
-def _repeat_labels(described: list[dict[str, Any]], keep: Any) -> list[Any]:
-    """The repeat labels of the groups ``keep`` selects, in a stable order (none unlabelled)."""
-    found = {d["repeat"] for d in described if keep(d) and d["repeat"] is not None}
-    return sorted(found, key=identity_key)
-
-
-def _listed(labels: Sequence[Any]) -> str:
-    """``'R1', 'R2'``."""
-    return ", ".join(repr(label) for label in labels)
 
 
 def contrasts_of(described: list[dict[str, Any]]) -> list[tuple[Any, Any]]:

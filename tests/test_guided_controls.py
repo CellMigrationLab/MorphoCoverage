@@ -207,7 +207,9 @@ def test_b3_the_guided_controls_question_has_no_all_default_and_asks_again():
 
     from morphocoverage.workflows._guided_controls import ask_several
 
-    fovs = pd.DataFrame({"condition": ["cA", "a1", "cB", "b1"], "biological_repeat": "R1"})
+    fovs = pd.DataFrame(
+        {"condition": ["cA", "a1", "cB", "b1"], "biological_repeat": "R1", "repeat_group": "R1"}
+    )
     scan = SimpleNamespace(design={"conditions": list(fovs["condition"])}, fovs=fovs)
     # Enter (asked again); cA and cB with nothing under them, a1 and b1 compared with
     # nothing, the master (refused, asked again); then a1 under cA and b1 under cB.

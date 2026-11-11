@@ -65,7 +65,7 @@ dataset.role  # "held_out"; idr0028 is "development"
 
 The stored files use the MorphoBricks column names: the plate is `biological_repeat` (not asserted to be a
 biological repeat) and the well `technical_repeat`, the MorphoBricks column for a technical
-repeat within a biological repeat, so `load` renames nothing. It attaches `condition` and `technical_repeat` to the nuclei of
+repeat within a biological repeat, so `load` renames nothing. It adds `repeat_group`, equal to `biological_repeat`: no experiment description comes with these data, and each plate is declared its own repeat group, by which MorphoCoverage pairs repeats (#617); the stored files are unchanged. It attaches `condition` and `technical_repeat` to the nuclei of
 the complete plates, whose object tables keep only `biological_repeat`, `image_file`,
 `label_id` and the readout to stay small. `datasets.registry()` declares the benchmark roles
 (`idr0028_screenB` development, `idr0139` held out).

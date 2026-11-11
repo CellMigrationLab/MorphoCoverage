@@ -25,6 +25,7 @@ def _tables():
                 {
                     "condition": condition,
                     "biological_repeat": repeat,
+                    "repeat_group": repeat,
                     "well": "w",
                     "image_file": name,
                 }
@@ -34,6 +35,7 @@ def _tables():
                     {
                         "condition": condition,
                         "biological_repeat": repeat,
+                        "repeat_group": repeat,
                         "well": "w",
                         "image_file": name,
                         "a": level * factor + (j - 1.5) * 0.01,
@@ -66,8 +68,8 @@ def test_every_feature_is_divided_by_its_repeats_control_mean():
 def test_without_a_repeat_column_the_whole_table_is_one_repeat():
     objects, fovs = _tables()
     objects, fovs = (
-        objects.drop(columns="biological_repeat"),
-        fovs.drop(columns="biological_repeat"),
+        objects.drop(columns=["biological_repeat", "repeat_group"], errors="ignore"),
+        fovs.drop(columns=["biological_repeat", "repeat_group"], errors="ignore"),
     )
     normalized = normalize_to_control(
         objects,
@@ -112,6 +114,7 @@ def _control_tables(control_level, treated_level):
                     {
                         "condition": condition,
                         "biological_repeat": repeat,
+                        "repeat_group": repeat,
                         "position_id": f"{repeat}_{condition}_{field_index}",
                         "x": value,
                     }
@@ -133,8 +136,12 @@ def test_e1_a_negative_control_mean_is_refused_naming_feature_and_repeat():
 def test_e2_an_explicit_repeat_column_that_is_absent_raises_instead_of_pooling():
     objects, fovs = _control_tables(lambda r: [1.0, 2.0, 1.5, 1.5], lambda r: [3.0] * 4)
     objects, fovs = (
-        objects.rename(columns={"biological_repeat": "plate"}),
-        fovs.rename(columns={"biological_repeat": "plate"}),
+        objects.rename(columns={"biological_repeat": "plate"}).drop(
+            columns="repeat_group", errors="ignore"
+        ),
+        fovs.rename(columns={"biological_repeat": "plate"}).drop(
+            columns="repeat_group", errors="ignore"
+        ),
     )
     with pytest.raises(ValueError, match="repeat_col 'Plate' is not a column"):
         control_means(
@@ -175,13 +182,19 @@ def _signed_feature():
             for f in range(6):
                 name = f"{condition}_{repeat}_{f}"
                 fields.append(
-                    {"image_file": name, "condition": condition, "biological_repeat": repeat}
+                    {
+                        "image_file": name,
+                        "condition": condition,
+                        "biological_repeat": repeat,
+                        "repeat_group": repeat,
+                    }
                 )
                 rows += [
                     {
                         "image_file": name,
                         "condition": condition,
                         "biological_repeat": repeat,
+                        "repeat_group": repeat,
                         "x": v,
                     }
                     for v in rng.normal(centre, 0.3, 40)

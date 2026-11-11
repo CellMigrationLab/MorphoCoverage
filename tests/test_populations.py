@@ -97,8 +97,22 @@ def test_the_enrichment_is_tested_on_the_log_odds_across_repeats():
     for r in range(4):
         for condition, share in (("ctrl", 0.02), ("drug", 0.20)):
             n, k = 1000, int(1000 * share) + r
-            rows += [{"condition": condition, "biological_repeat": f"r{r}", "P2": 1.0}] * k
-            rows += [{"condition": condition, "biological_repeat": f"r{r}", "P2": 0.0}] * (n - k)
+            rows += [
+                {
+                    "condition": condition,
+                    "biological_repeat": f"r{r}",
+                    "repeat_group": f"r{r}",
+                    "P2": 1.0,
+                }
+            ] * k
+            rows += [
+                {
+                    "condition": condition,
+                    "biological_repeat": f"r{r}",
+                    "repeat_group": f"r{r}",
+                    "P2": 0.0,
+                }
+            ] * (n - k)
     tests = enrichment_tests(pd.DataFrame(rows), ["P2"], "ctrl")
     row = tests.iloc[0]
     assert row["higher"] == 4 and row["q_paired"] < 0.001
@@ -136,6 +150,7 @@ def test_no_group_found_is_said_neutrally():
                         {
                             "condition": condition,
                             "biological_repeat": repeat,
+                            "repeat_group": repeat,
                             "image_file": f"{condition}_{repeat}_{field}.tif",
                             "label_id": label + 1,
                             **dict(zip(FEATURES, rng.normal(0, 1, 3), strict=True)),
@@ -397,6 +412,7 @@ def _populations_edges():
                     {
                         "condition": condition,
                         "biological_repeat": "r1",
+                        "repeat_group": "r1",
                         "image_file": f"{condition}{j}",
                         "a": rng.normal(shift, 1),
                         "b": rng.normal(0, 1),
@@ -469,7 +485,12 @@ def _shares(counts):
     rows = []
     for (condition, repeat), (inside, cells) in counts.items():
         rows += [
-            {"condition": condition, "biological_repeat": repeat, "P2": float(i < inside)}
+            {
+                "condition": condition,
+                "biological_repeat": repeat,
+                "repeat_group": repeat,
+                "P2": float(i < inside),
+            }
             for i in range(cells)
         ]
     return pd.DataFrame(rows)
@@ -502,8 +523,22 @@ def test_a_repeat_where_the_group_is_absent_on_both_sides_counts_as_no_change():
     rows = []
     for r, (control_k, drug_k) in enumerate(((5, 30), (6, 28), (0, 0), (4, 25))):
         for condition, k in (("ctrl", control_k), ("drug", drug_k)):
-            rows += [{"condition": condition, "biological_repeat": f"r{r}", "P2": 1.0}] * k
-            rows += [{"condition": condition, "biological_repeat": f"r{r}", "P2": 0.0}] * (300 - k)
+            rows += [
+                {
+                    "condition": condition,
+                    "biological_repeat": f"r{r}",
+                    "repeat_group": f"r{r}",
+                    "P2": 1.0,
+                }
+            ] * k
+            rows += [
+                {
+                    "condition": condition,
+                    "biological_repeat": f"r{r}",
+                    "repeat_group": f"r{r}",
+                    "P2": 0.0,
+                }
+            ] * (300 - k)
     [row] = enrichment_tests(pd.DataFrame(rows), ["P2"], "ctrl").to_dict("records")
     assert row["repeats"] == 4 and row["higher"] == 3 and row["lower"] == 0
 

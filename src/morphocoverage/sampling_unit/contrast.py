@@ -87,6 +87,7 @@ from .._control import (
 )
 from .._frozen import owned
 from .._repeat_alias import refuse_repeat_alias
+from .._repeat_groups import pair_by_repeat_group
 from .._seeds import group_rng
 from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -226,7 +227,9 @@ def condition_contrast(
 
     ``control`` names the control condition by FOV-table value, for example ``{"condition":
     "MOCK"}``; its key is the condition column unless ``condition_col`` says otherwise.
-    ``repeat_col`` separates the repeats (``None`` compares within the whole table). Every analysis
+    ``repeat_col`` separates the repeats (``None`` compares within the whole table); the default,
+    ``biological_repeat``, pairs the repeats by the FOV table's ``repeat_group``, never by the
+    folder label, and is refused without it (``_repeat_groups``, #617). Every analysis
     group whose condition is not the control's is compared with the control groups of the same
     repeat; the groups of one condition (its wells, say) are pooled for the comparison, which the
     summary states. ``technical_col`` names the technical-repeat column of the FOV table (by default
@@ -253,6 +256,7 @@ def condition_contrast(
     declared = None if contrasts is None else check_contrast_table(contrasts)
     comparisons = comparisons if declared is None else own_pairs(declared)
     refuse_repeat_alias(control=control, repeat_col=repeat_col)
+    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
     if not isinstance(feature, str) or not feature:
         raise TypeError("feature must be one column name")
     if comparisons is not None:

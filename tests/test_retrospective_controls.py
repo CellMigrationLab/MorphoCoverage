@@ -84,7 +84,8 @@ def test_declarations_are_checked():
         _control(
             *_plate(),
             RepresentationControl(
-                positive={"biological_repeat": "P1"}, reference={"condition": "MOCK"}
+                positive={"biological_repeat": "P1"},
+                reference={"condition": "MOCK"},
             ),
         )
     with pytest.raises(ValueError, match="not in the FOV table"):
@@ -244,7 +245,14 @@ def _sufficiency():
 
     # The analysis groups of the controls' tables (audit 3, G-20: other groups are refused).
     next_fov = pd.DataFrame(
-        [{"condition": "MOCK", "biological_repeat": "P1", "unseen_state_max_frequency": 0.12}]
+        [
+            {
+                "condition": "MOCK",
+                "biological_repeat": "P1",
+                "repeat_group": "P1",
+                "unseen_state_max_frequency": 0.12,
+            }
+        ]
     )
     return SimpleNamespace(group_cols=("condition", "biological_repeat"), next_fov=next_fov)
 
@@ -366,10 +374,22 @@ def test_p6_4_representation_control_measures_the_planted_rate_leaving_one_field
     for condition, shift in (("MOCK", 0.0), ("KD", 8.0)):
         for j in range(8):
             name = f"{condition}{j}"
-            fields.append({"condition": condition, "biological_repeat": "R1", "position_id": name})
+            fields.append(
+                {
+                    "condition": condition,
+                    "biological_repeat": "R1",
+                    "repeat_group": "R1",
+                    "position_id": name,
+                }
+            )
             for x, y in rng.normal(size=(20, 2)):
                 rows.append(
-                    {"condition": condition, "biological_repeat": "R1", "position_id": name}
+                    {
+                        "condition": condition,
+                        "biological_repeat": "R1",
+                        "repeat_group": "R1",
+                        "position_id": name,
+                    }
                     | {"a": x + shift, "b": y}
                 )
     controls = representation_control(
@@ -397,12 +417,24 @@ def test_p1_2_empty_positive_fields_are_not_counted_as_misses():
     for condition, shift in (("MOCK", 0.0), ("KD", 8.0)):
         for j in range(10):
             name = f"{condition}{j}"
-            fields.append({"condition": condition, "biological_repeat": "R1", "position_id": name})
+            fields.append(
+                {
+                    "condition": condition,
+                    "biological_repeat": "R1",
+                    "repeat_group": "R1",
+                    "position_id": name,
+                }
+            )
             if condition == "KD" and j < 3:
                 continue  # 30% of the positive fields hold no cells
             for x, y in rng.normal(size=(20, 2)):
                 rows.append(
-                    {"condition": condition, "biological_repeat": "R1", "position_id": name}
+                    {
+                        "condition": condition,
+                        "biological_repeat": "R1",
+                        "repeat_group": "R1",
+                        "position_id": name,
+                    }
                     | {"a": x + shift, "b": y}
                 )
     controls = representation_control(

@@ -79,6 +79,7 @@ from ._observation_keys import (
     observed_keys,
 )
 from ._repeat_alias import refuse_repeat_alias
+from ._repeat_groups import REPEAT_GROUP_COLUMN
 from ._within_identity import (
     LABEL_COLUMN,
     PATCH_COLUMN,
@@ -110,6 +111,7 @@ _METADATA = {
     *MORPHOBRICKS_FOV_CANDIDATES,
     *WITHIN_FOV_METADATA_COLUMNS,
     TARGET_COLUMN,
+    REPEAT_GROUP_COLUMN,
     LABEL_COLUMN,
     PATCH_COLUMN,
     *IDENTITY_METADATA,

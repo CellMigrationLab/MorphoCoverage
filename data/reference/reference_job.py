@@ -104,6 +104,8 @@ def synthetic(name: str) -> Job:
     )
     objects = pd.read_csv(folder / "synthetic_cells.csv")
     fovs = pd.read_csv(folder / "synthetic_fovs.csv")
+    # Each folder label is confirmed as its own repeat group, by which repeats pair (#617).
+    fovs = fovs.assign(repeat_group=fovs["biological_repeat"])
     return Job(objects, fovs, setup, f"MorphoCoverage report: {name}")
 
 
@@ -129,6 +131,8 @@ def morphobricks(name: str) -> Job:
         n_jobs=1,
     )
     fovs = table[field_columns].drop_duplicates()
+    # Each folder label is confirmed as its own repeat group, by which repeats pair (#617).
+    fovs = fovs.assign(repeat_group=fovs["biological_repeat"])
     return Job(table, fovs, setup, "MorphoCoverage report: fiberfeatures patches")
 
 

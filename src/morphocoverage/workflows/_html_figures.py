@@ -29,6 +29,7 @@ from ..plots_pairwise import (
 from ._contrasts import normalisation_problem
 from ._html_data import data_buttons, download, feature_data
 from ._html_plotly import feature_specs, interactive_caption
+from ._pairing import paired_inputs
 from ._rare_share import with_share
 from ._shared import check_workflow_inputs
 from .figures import highlighted, plots
@@ -112,7 +113,10 @@ def feature_figures(
     if setup.embedding_only:  # no feature to plot one at a time (owner, 2026-10-06)
         return [], []
     drawn = plots(objects, fovs, setup, ranking=result.discovery)
-    checked, checked_fovs, _ = check_workflow_inputs(objects, fovs, setup)
+    # The views read the tables paired by repeat group, as ``plots`` does (#617).
+    paired = paired_inputs(objects, fovs, setup)
+    setup = paired.setup
+    checked, checked_fovs, _ = check_workflow_inputs(paired.objects, paired.fovs, setup)
     views = _views(setup, checked, checked_fovs)
     figures_by_view = {views[0][0]: drawn}
     for key, view in views[1:]:

@@ -46,6 +46,7 @@ import pandas as pd
 
 from ._control import control_mask, control_text
 from ._repeat_alias import refuse_repeat_alias
+from ._repeat_groups import pair_by_repeat_group
 from ._wording import listing
 from .data_check import validate_input_tables
 from .metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, column_names
@@ -247,6 +248,8 @@ def _control_rows(
     )
     if not isinstance(control, Mapping) or condition_col not in control:
         raise ValueError(f"control must name the condition column {condition_col!r}")
+    # Each repeat's control is the control of its repeat group, never of a folder label (#617).
+    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
     data = validate_input_tables(
         objects,
         fovs=fovs,
@@ -337,9 +340,12 @@ def normalize_to_control(
         fov_col=fov_col,
         group_cols=group_cols,
     )
+    # The divisors are found on the tables paired by repeat group (#617); the copy returned
+    # keeps the caller's rows, index and folder labels.
+    paired, paired_fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
     means = control_means(
-        objects,
-        fovs,
+        paired,
+        paired_fovs,
         feature_cols=feature_cols,
         control=control,
         condition_col=condition_col,
@@ -349,7 +355,7 @@ def normalize_to_control(
         observation_unit=observation_unit,
         leave_out_missing=leave_out_missing,
     )
-    data = _aligned(objects, fovs, feature_cols, fov_col, group_cols, observation_unit)
+    data = _aligned(paired, paired_fovs, feature_cols, fov_col, group_cols, observation_unit)
     attached = data.objects
     repeat_col = _repeat_column(repeat_col, attached.columns)
     normalized = objects.copy()
@@ -386,7 +392,8 @@ def normalize_to_own(
     with several declared controls (owner, 2026-10-05). A condition ``own`` does not name,
     or held in a repeat without its control, is NaN there. Each control's means are
     ``control_means`` (its errors and cautions); the row order and index are kept."""
-    data = _aligned(objects, fovs, feature_cols, fov_col, group_cols, observation_unit)
+    paired, paired_fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
+    data = _aligned(paired, paired_fovs, feature_cols, fov_col, group_cols, observation_unit)
     attached = data.objects
     repeat_col = _repeat_column(repeat_col, attached.columns)
     repeats = attached[repeat_col].tolist() if repeat_col else [None] * len(attached)
@@ -395,8 +402,8 @@ def normalize_to_own(
     notes = []
     for reference in dict.fromkeys(own.values()):
         means = control_means(
-            objects,
-            fovs,
+            paired,
+            paired_fovs,
             feature_cols=feature_cols,
             control={condition_col: reference},
             condition_col=condition_col,

@@ -31,6 +31,7 @@ import pandas as pd
 import pytest
 
 from morphocoverage._style import Status, width
+from morphocoverage.retrospective.report_status_conditions import NOTHING_COMPARED
 from morphocoverage.sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from morphocoverage.sampling_unit.contrast_text import ONE_UNIT
 from morphocoverage.sampling_unit.reading_text import CONFIRMED, CONSISTENT, NO_CONTROL
@@ -250,13 +251,20 @@ def test_the_whole_distribution_alone_runs_when_its_fingerprint_is_not_assessabl
     assert "not assessable: its median group holds 4 images" in str(error.value)
 
 
-def test_no_page_is_built_when_no_repeat_label_is_shared_by_a_condition_and_its_control() -> None:
-    # e02: formerly the report built, said "Not compared: a (no biological repeat holds both)" and
-    # compared nothing. The repeats are paired by folder label, so a pairing confirmed under other
-    # names looked the same: the report is refused until the Spec v1 reader lands (#617).
+def test_the_page_says_nothing_was_compared_when_no_repeat_holds_a_condition_and_its_control(
+    tmp_path: Path,
+) -> None:
+    # e02: the discovery compares nothing, so its ranking is empty; the page was refused a
+    # KeyError on its missing score column. It builds and says what was not compared.
     loaded = make_scenarios.load("e02_control_in_other_repeats")
-    with pytest.raises(ValueError, match=r"repeat labels of 'a'.*of 'ctrl'.*share none.*Spec v1"):
-        _report(loaded, Setup(**loaded.setup))
+    result = _report(loaded, Setup(**loaded.setup))
+    assert result.discovery.top() == []
+    _page(result, loaded, {"table_column": False}, tmp_path)
+    page = (tmp_path / "report.html").read_text()
+    assert "Not compared: a (no " in page
+    # Nothing was compared: ➖ with the reason, never "No consistent difference" (F12).
+    assert result.document.headlines["conditions"] == NOTHING_COMPARED
+    assert "Nothing compared" in page and "No consistent difference" not in page
 
 
 def test_the_committed_scenarios_are_what_the_generator_writes(tmp_path: Path) -> None:

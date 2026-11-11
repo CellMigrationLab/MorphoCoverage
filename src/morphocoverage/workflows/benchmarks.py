@@ -27,6 +27,7 @@ from ..retrospective.frontier_text import frontier_status
 from ..strategies import DescriptorSpreadStrategy, FOVBootstrapStrategy, ScalarPrecisionStrategy
 from ..strategies.base import SamplingStrategy
 from ._document import held_back_text
+from ._pairing import paired_inputs
 from ._shared import check_workflow_inputs, replay_rules, reservoir_sizes
 from ._shared import orders as _orders
 from .setup import Setup
@@ -354,6 +355,8 @@ def benchmark(
     on data they were not chosen on before using them
     (``retrospective.frontier.transfer``).
     """
+    # Paired by repeat group; a declared target that needs pairing is refused without (#617).
+    objects, fovs = paired_inputs(objects, fovs, setup, strict=True)[:2]
     objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     default = families is None
     families = _chosen_families(setup, families)

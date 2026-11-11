@@ -54,6 +54,7 @@ from .._checks import is_number
 from .._control import check_comparisons, compared_name, control_name, versus
 from .._frozen import owned
 from .._repeat_alias import refuse_repeat_alias
+from .._repeat_groups import pair_by_repeat_group
 from .._seeds import group_rng
 from .._style import check_detail, table, wrap
 from .._wording import column_word, count, features_counted
@@ -349,6 +350,7 @@ def feature_ranking(
     the control by ``(condition, reference)`` pairs. See the module.
     """
     refuse_repeat_alias(control=control, repeat_col=repeat_col)
+    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
     features = list(dict.fromkeys(column_names(features, "features")))
     if not features:
         raise ValueError("features must name at least one column")

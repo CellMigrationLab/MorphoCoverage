@@ -17,6 +17,7 @@ from ..plots_embedding import embedding_figures
 from ..plots_pairwise import add_pairwise, pairwise_contrasts
 from ..sampling_unit import FeatureDiscovery, FeatureRanking
 from ..sampling_unit.ranking import TOP_FEATURES
+from ._pairing import paired_inputs
 from ._rare_share import compared_columns, plotted_values, share_column, with_share
 from ._shared import check_workflow_inputs
 from .setup import Setup
@@ -55,6 +56,8 @@ def plots(
     ``<feature>[_<part>].png``, a path separator in the name written ``_`` and a name
     taken twice given a counter (``_file_name``). Returns the figures by feature.
     """
+    # Paired by repeat group; without, drawn on the raw values, as the report says (#617).
+    objects, fovs, _, setup = paired_inputs(objects, fovs, setup)[:4]
     objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     if features is None:
         chosen = [setup.readout]
@@ -239,6 +242,8 @@ def embedding_plots(
     ``min_dist``). Needs ``embedding.MIN_FEATURES`` declared features. With ``folder``,
     saved as ``pca.png`` and ``umap.png``. Returns the figures by name.
     """
+    # Paired by repeat group; without, drawn on the raw values, as the report says (#617).
+    objects, fovs, _, setup = paired_inputs(objects, fovs, setup)[:4]
     objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     if len(setup.columns) < MIN_FEATURES:
         raise ValueError(

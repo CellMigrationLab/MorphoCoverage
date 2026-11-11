@@ -146,6 +146,10 @@ def load(dataset_id: str) -> LabDataset:
     # Labels stay text (a repeat "1" is a label, not a number).
     objects = pd.read_csv(folder / "objects.csv.gz", dtype=str, keep_default_na=False)
     fovs = pd.read_csv(folder / "fovs.csv.gz", dtype=str, keep_default_na=False)
+    # No experiment description comes with these data: their curators confirmed each folder
+    # label as its own biological repeat, so it is declared as the repeat group, by which
+    # MorphoCoverage pairs repeats (#617). The stored files are unchanged.
+    fovs["repeat_group"] = fovs["biological_repeat"]
     numeric = [*card["feature_cols"], *card.get("design", {}).get("non_features", [])]
     for column in numeric:
         if column in objects.columns:

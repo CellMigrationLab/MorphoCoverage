@@ -77,6 +77,7 @@ from ._feature_space import (
 from ._fingerprint_space import fingerprint_space
 from ._label_control import label_control
 from ._one_per_field import field_setup, listed_once, one_per_field, one_per_field_reasons
+from ._pairing import paired_inputs, pairing_said
 from ._report_steps import (
     check_criteria,
     comparisons,
@@ -156,6 +157,9 @@ def report(
     """
     given_tables = (objects, fovs)
     given = feature_tables is not None
+    # Paired by repeat group; without, what needs no pairing runs and says why (#617).
+    paired = paired_inputs(objects, fovs, setup, feature_tables)
+    objects, fovs, feature_tables, setup = paired[:4]
     # Explainable tables hold declared features: the data are checked once they are attached.
     explainable = any_explainable(feature_tables)
     objects, fovs, data_check = check_workflow_inputs(
@@ -205,6 +209,7 @@ def report(
         "permuted_orders": REPORT_ORDERS,
         "random_state": setup.random_state,
     }
+    declared = pairing_said(paired, declared, settings, reasons)
     document = report_document(results, setup, per_field, reasons, gaps, objects)
     return Report(results, document, declared, reasons, settings, source)
 
@@ -319,6 +324,8 @@ def optimise(
     only once it holds on samples it was not chosen on.
     """
     given_tables = (objects, fovs)
+    # Paired by repeat group; a declared target that needs pairing is refused without (#617).
+    objects, fovs = paired_inputs(objects, fovs, setup, strict=True)[:2]
     objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     source = source_identity(*given_tables)
     if not is_share(protocol_threshold, closed_high=True):  # read even where no hierarchy runs it

@@ -172,6 +172,7 @@ Where practical, preserve compatibility with MorphoBricks metadata names such as
 | --- | --- | --- |
 | `condition` | string, always | Default analysis group; always part of FOV identity. |
 | `biological_repeat` | string, always (`YYYY_MM_DD`, or `single`) | Default analysis group; always part of FOV identity. Any label is accepted; the format is not enforced. Formerly `repeat`, which is refused (below). |
+| `repeat_group` | string, beside `biological_repeat` (MorphoBricks-Spec experiment-v1 section 3.4) | The canonical repeat ID: the biological repeat a folder belongs to. **Every pairing of repeats reads it, never `biological_repeat`** (#617; `_repeat_groups.paired_tables`): the paired analyses and the workflows replace each folder label by its repeat group in working copies (unchanged when every label is its group), so `CTRL/rep1` and `DrugA/experiment_23` of one group pair, and `rep1` of two conditions may be two repeats. Absent beside `biological_repeat`, or ambiguous (a folder in two groups, a group with two folders of one condition, an empty value, an observation table that disagrees): the paired analysis raises `PairingRefused` with its `code`; `report` and the figures run what needs no pairing and say why, `optimise` and `benchmark` refuse. No fallback to the folder label. MorphoFeature's coverage export writes it in `coverage/<object_set>/fovs` (MF-5). |
 | `technical_repeat` | string, optional | The technical repeat within a biological repeat (a well, a dish, a coverslip); never a biological repeat. When present: a default analysis group and part of FOV identity, counted in the report's overview, the shape of the plots' points and the unit their intervals and the condition contrast and feature ranking resample or shuffle first (the contrast and the ranking take the FOV table's column whatever `group_cols` says), and the sample level of the hierarchy `Setup` derives for "more fields or more technical repeats?". Identified with its `condition` and `biological_repeat`, so well `J23` of two plates is two technical repeats. |
 | `image_file` | string, always | Storage provenance; fallback FOV identifier only when one file = one spatial position. |
 | `position_id` | string, when needed | Preferred explicit spatial-position identifier when files/planes/scenes do not map 1:1 to FOVs. |
@@ -255,6 +256,7 @@ src/morphocoverage/
     _fitted.py             # private: every summary fitted to 100 columns, a long line wrapped with its continuation lines
     _caveats.py            # private: the two kinds of caveat (cautions about these data, standing assumptions) and how a section states them
     _repeat_alias.py       # private: `refuse_repeat_alias`, the refusal of the former column name `repeat`, naming `biological_repeat`
+    _repeat_groups.py      # private: `paired_tables`, repeats paired by their `repeat_group`, never by folder label (#617); `PairingRefused` with its `code` when absent or ambiguous
     _seeds.py              # private: per-group seeds (group_identity, group_seed, group_rng, split_seed) and group_key
     _connected.py          # private: connected groups of items joined by pairs (union-find), for features and conditions
     _within_identity.py    # private: label_id and patch_id as a feature table's within-field identity (#404), an all-empty one read as absent
@@ -397,6 +399,7 @@ src/morphocoverage/
         _acquisition_block.py  # private: the acquisition block of "What is in the dataset": anomalies and the gap, raw values
         _unusual_values.py   # private: the values biological unusualness reads, relative to each own control in its repeat
         _one_per_field.py    # private: one observation per field: the field questions on the rows, new judged across fields
+        _pairing.py          # private: the workflows' tables paired by repeat group; without, the report runs what needs no pairing and says why, the planning workflows refuse (#617)
         scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
         _scan_parts.py     # private: parts of the scan: the controls as declared, the feature tables by tag, planes, targets, observations per condition and repeat

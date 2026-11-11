@@ -30,6 +30,7 @@ def _distribution_tables(factor: float, spread: float = 1.0) -> tuple[pd.DataFra
                         {
                             "condition": condition,
                             "biological_repeat": repeat,
+                            "repeat_group": repeat,
                             "image_file": f"{repeat}_{condition}_{field}.tif",
                             "label_id": label,
                             "area": 100 * value,
@@ -82,6 +83,7 @@ def _fields_design(seed: int = 0):
                     {
                         "condition": condition,
                         "biological_repeat": f"R{r}",
+                        "repeat_group": f"R{r}",
                         "image_file": f"{condition}{r}_{f}.tif",
                         "area": 10 + shift + value,
                     }

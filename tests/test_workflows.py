@@ -671,6 +671,7 @@ def test_the_design_sentence_follows_declared_experiments() -> None:
         {
             "condition": condition,
             "biological_repeat": repeat,
+            "repeat_group": repeat,
             "image_file": f"{condition}_{repeat}_{field}.tif",
             "label_id": label,
             "area": 10 * np.exp(rng.normal(0, 0.3)),
@@ -707,7 +708,12 @@ def _tables():
             for f in range(6):
                 pid = f"{condition}{repeat}{f}"
                 fovs.append(
-                    {"position_id": pid, "condition": condition, "biological_repeat": repeat}
+                    {
+                        "position_id": pid,
+                        "condition": condition,
+                        "biological_repeat": repeat,
+                        "repeat_group": repeat,
+                    }
                 )
                 for _ in range(6):
                     rows.append({**fovs[-1], "x": rng.normal()})
@@ -1190,7 +1196,12 @@ def test_optimise_measures_the_redundancy_distance_with_stage_coordinates():
         for repeat in ("2026_01_01", "2026_01_02"):
             for field in range(8):
                 image = f"{condition}_{repeat}_{field}.tif"
-                key = {"condition": condition, "biological_repeat": repeat, "image_file": image}
+                key = {
+                    "condition": condition,
+                    "biological_repeat": repeat,
+                    "repeat_group": repeat,
+                    "image_file": image,
+                }
                 stage = {"stage_x": float(field % 4) * 100, "stage_y": float(field // 4) * 100}
                 fovs.append({**key, **stage, "acquisition_order": field})
                 for label in range(6):

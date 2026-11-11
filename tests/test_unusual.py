@@ -48,6 +48,7 @@ def _repeat_shifted(shift, seed, n_repeats):
                 key = {
                     "condition": condition,
                     "biological_repeat": f"r{repeat}",
+                    "repeat_group": f"r{repeat}",
                     "position_id": f"{condition}{repeat}_{j}",
                 }
                 fovs.append(key)

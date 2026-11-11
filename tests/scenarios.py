@@ -50,6 +50,7 @@ def _fov_table(
         {
             "condition": condition,
             "biological_repeat": repeat,
+            "repeat_group": repeat,
             "image_file": [f"img_{i:03d}.tif" for i in index],
             ORDER_COL: index + 1,
             "stage_x": (index % grid_width) * 100.0,
@@ -76,6 +77,7 @@ def _objects_for(
                 {
                     "condition": fov.condition,
                     "biological_repeat": fov.biological_repeat,
+                    "repeat_group": fov.biological_repeat,
                     "image_file": fov.image_file,
                     "label_id": label_id,
                     "true_state": 0,

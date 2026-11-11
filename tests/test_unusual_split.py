@@ -43,7 +43,12 @@ def _tables(
             repeat = f"R{r}"
             batch = rng.normal(0, 0.05)  # a small repeat effect, shared by its conditions
             for f in range(fields):
-                key = {"condition": condition, "biological_repeat": repeat, "position_id": f}
+                key = {
+                    "condition": condition,
+                    "biological_repeat": repeat,
+                    "repeat_group": repeat,
+                    "position_id": f,
+                }
                 fov_rows.append(key)
                 field = rng.normal(0, 0.05)
                 for _ in range(cells):
@@ -256,7 +261,13 @@ def test_acquisition_qc_reads_the_test_scale_and_one_scale_pooled_over_groups():
     # A null log-normal, field medians of skewed cells: none on the log scale.
     rng = np.random.default_rng(3)
     rows = [
-        {"condition": "c", "biological_repeat": r, "position_id": f, "x": 10 * np.exp(v)}
+        {
+            "condition": "c",
+            "biological_repeat": r,
+            "repeat_group": r,
+            "position_id": f,
+            "x": 10 * np.exp(v),
+        }
         for r in range(6)
         for f in range(10)
         for v in rng.normal(rng.normal(0, 0.15), 0.8, 20)

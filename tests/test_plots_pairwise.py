@@ -43,6 +43,7 @@ def _tables(seed=0):
                         {
                             "condition": condition,
                             "biological_repeat": repeat,
+                            "repeat_group": repeat,
                             "image_file": f"{condition}_{repeat}_{field}.tif",
                             "label_id": label + 1,
                             "area": rng.normal(20 + shift[condition] + batch, 1),

@@ -258,6 +258,7 @@ def _raster_well(*, drift: float, rare_rows: int = 0, seed: int = 3, objects_per
                 {
                     "condition": "MOCK",
                     "biological_repeat": "R1",
+                    "repeat_group": "R1",
                     "image_file": name,
                     READOUT: values,
                     "rare": rare,
@@ -268,6 +269,7 @@ def _raster_well(*, drift: float, rare_rows: int = 0, seed: int = 3, objects_per
             {
                 "condition": "MOCK",
                 "biological_repeat": "R1",
+                "repeat_group": "R1",
                 "image_file": name,
                 "order": rank,
                 "stage_x": 500.0 * column,

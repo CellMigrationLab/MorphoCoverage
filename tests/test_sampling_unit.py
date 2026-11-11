@@ -51,13 +51,20 @@ def acquisition(
         values = mean + offsets[j] + rng.normal(0, object_sd, per_field)
         for v in values:
             rows.append(
-                {"condition": condition, "biological_repeat": repeat, "image_file": f"f{j}", "x": v}
+                {
+                    "condition": condition,
+                    "biological_repeat": repeat,
+                    "repeat_group": repeat,
+                    "image_file": f"f{j}",
+                    "x": v,
+                }
             )
     objects = pd.DataFrame(rows)
     fovs = pd.DataFrame(
         {
             "condition": condition,
             "biological_repeat": repeat,
+            "repeat_group": repeat,
             "image_file": [f"f{j}" for j in range(n_fields)],
         }
     )
@@ -99,7 +106,12 @@ def test_zero_observation_fields_count_as_acquired_and_missing_values_are_left_o
         [
             fovs,
             pd.DataFrame(
-                {"condition": ["A"], "biological_repeat": ["r1"], "image_file": ["empty"]}
+                {
+                    "condition": ["A"],
+                    "biological_repeat": ["r1"],
+                    "repeat_group": ["r1"],
+                    "image_file": ["empty"],
+                }
             ),
         ],
         ignore_index=True,
@@ -283,7 +295,12 @@ def test_unlabelled_objects_are_left_out_and_empty_fovs_count():
         [
             fovs,
             pd.DataFrame(
-                {"condition": ["A"], "biological_repeat": ["r1"], "image_file": ["empty"]}
+                {
+                    "condition": ["A"],
+                    "biological_repeat": ["r1"],
+                    "repeat_group": ["r1"],
+                    "image_file": ["empty"],
+                }
             ),
         ],
         ignore_index=True,

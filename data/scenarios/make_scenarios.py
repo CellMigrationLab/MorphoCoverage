@@ -309,6 +309,10 @@ def load(name: str, root: Path = HERE) -> Loaded:
     spec = json.loads((folder / "scenario.json").read_text())
     objects = pd.read_csv(folder / "observations.csv")
     fovs = pd.read_csv(folder / "fovs.csv")
+    # No experiment description comes with these data: the generator makes each folder label
+    # its own biological repeat, so the label is declared as the repeat group, by which
+    # MorphoCoverage pairs repeats (#617). The stored files are unchanged.
+    fovs["repeat_group"] = fovs["biological_repeat"]
     if spec.get("planes"):
         from morphocoverage import planes_as_features
 

@@ -97,6 +97,7 @@ def _plate(seed=0, shift=6.0, plates=("P1", "P2"), fovs_per_well=12):
                     {
                         "condition": condition,
                         "biological_repeat": plate,
+                        "repeat_group": plate,
                         "well": well,
                         "image_file": name,
                     }
@@ -137,7 +138,14 @@ def _simulate(rng, components, repeats, samples, fovs, cells, balanced=True):
             for f in range(n_fovs):
                 field = rng.normal(0, np.sqrt(v_fov))
                 name = f"r{r}_s{s}_f{f}"
-                fov_rows.append({"biological_repeat": f"R{r}", "well": f"W{s}", "image_file": name})
+                fov_rows.append(
+                    {
+                        "biological_repeat": f"R{r}",
+                        "repeat_group": f"R{r}",
+                        "well": f"W{s}",
+                        "image_file": name,
+                    }
+                )
                 m = cells if balanced else rng.integers(max(1, cells - 10), cells + 11)
                 values = rep + sample + field + rng.normal(0, np.sqrt(v_obs), m)
                 object_rows.append(pd.DataFrame({"image_file": name, "x": values}))
@@ -170,6 +178,7 @@ def _mixed(seed=0, n_easy=4, n_hard=4, n_fovs=40, cells=20):
                 {
                     "condition": "c",
                     "biological_repeat": f"R{s}",
+                    "repeat_group": f"R{s}",
                     "image_file": name,
                     "difficulty": "hard" if hard else "easy",
                 }
@@ -242,6 +251,7 @@ def _acquisition(seed=5, duplicate_tail=1):
         {
             "condition": "control",
             "biological_repeat": "R1",
+            "repeat_group": "R1",
             "image_file": names,
             "stage_x": np.arange(20) % 5 * 100.0,
             "stage_y": np.arange(20) // 5 * 100.0,
@@ -311,6 +321,7 @@ def _gradient(seed=0):
             {
                 "condition": "control",
                 "biological_repeat": "R1",
+                "repeat_group": "R1",
                 "image_file": name,
                 "acquisition_order": i,
                 "stage_x": x * 200.0,
@@ -355,6 +366,7 @@ def _make(n_fovs=20, per_fov=8, empty=(), seed=0, groups=(("A", "r1"),)):
                 {
                     "condition": condition,
                     "biological_repeat": repeat,
+                    "repeat_group": repeat,
                     "position_id": position,
                     "x": float(i % 5) * 100.0,
                     "y": float(i // 5) * 100.0,
@@ -367,6 +379,7 @@ def _make(n_fovs=20, per_fov=8, empty=(), seed=0, groups=(("A", "r1"),)):
                 {
                     "condition": condition,
                     "biological_repeat": repeat,
+                    "repeat_group": repeat,
                     "position_id": position,
                     "f": 10 + shift + rng.normal(0, 1),
                 }
@@ -378,7 +391,13 @@ def _make(n_fovs=20, per_fov=8, empty=(), seed=0, groups=(("A", "r1"),)):
 def _two_group_tables():
     rng = np.random.default_rng(0)
     rows = [
-        {"condition": c, "biological_repeat": r, "image_file": f"{c}{r}_{j}", "a": v}
+        {
+            "condition": c,
+            "biological_repeat": r,
+            "repeat_group": r,
+            "image_file": f"{c}{r}_{j}",
+            "a": v,
+        }
         for c in ("A", "B")
         for r in (1, 2)
         for j in range(12)
@@ -463,7 +482,12 @@ def _tables(
         for well in wells:
             for i in range(n_fovs):
                 fid = f"ctrl_{repeat}_{well}_{i:02d}"
-                base = {"condition": "ctrl", "biological_repeat": repeat, "technical_repeat": well}
+                base = {
+                    "condition": "ctrl",
+                    "biological_repeat": repeat,
+                    "repeat_group": repeat,
+                    "technical_repeat": well,
+                }
                 fov_rows.append(
                     {
                         **base,
@@ -520,6 +544,7 @@ def _repeat_curve(preserved, **extra):
         {
             "condition": "c",
             "biological_repeat": repeat,
+            "repeat_group": repeat,
             "well": well,
             "criterion": "m",
             "fovs": k,
@@ -545,6 +570,7 @@ def _ninety_percent_result():
             {
                 "condition": "c",
                 "biological_repeat": "R1",
+                "repeat_group": "R1",
                 "technical_repeat": well,
                 "split": split,
                 "fovs": 4,
@@ -586,6 +612,8 @@ KEY = ["condition", "biological_repeat", "technical_repeat", "image_file"]
 def synthetic():
     objects = pd.read_csv(SYNTHETIC / "synthetic_cells.csv")
     fovs = pd.read_csv(SYNTHETIC / "synthetic_fovs.csv")
+    # Each folder label is confirmed as its own repeat group, by which repeats pair (#617).
+    fovs = fovs.assign(repeat_group=fovs["biological_repeat"])
     return objects, fovs
 
 
@@ -621,6 +649,7 @@ def _grid_well(rng, well, trend, n=6, pitch=500.0):
             key = {
                 "condition": "c",
                 "biological_repeat": "r",
+                "repeat_group": "r",
                 "technical_repeat": well,
                 "position_id": f"{well}_{i}_{j}",
             }
@@ -821,6 +850,7 @@ def _effort(repeats=3):
                     {
                         "condition": "ctrl",
                         "biological_repeat": f"R{r}",
+                        "repeat_group": f"R{r}",
                         "well": f"W{s}",
                         "image_file": name,
                     }

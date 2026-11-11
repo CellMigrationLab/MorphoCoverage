@@ -39,6 +39,7 @@ def _design(plan, seed=0):
                         {
                             "condition": condition,
                             "biological_repeat": repeat,
+                            "repeat_group": repeat,
                             "technical_repeat": "A1",
                             "image_file": f"{condition}_{repeat}_{field}.tif",
                             "label_id": label + 1,
@@ -198,6 +199,8 @@ def tracks(tmp_path_factory):
     every answer runs, the populations and the label's group included."""
     objects = pd.read_csv(SYNTHETIC / "synthetic_cells.csv")
     fovs = pd.read_csv(SYNTHETIC / "synthetic_fovs.csv")
+    # Each folder label is confirmed as its own repeat group, by which repeats pair (#617).
+    fovs = fovs.assign(repeat_group=fovs["biological_repeat"])
     rare = RareTarget(
         fov_incidence=0.05, detection_probability=0.95, min_fov_occurrences=3, phenotype="rare"
     )

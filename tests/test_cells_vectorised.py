@@ -159,7 +159,12 @@ def test_the_discovery_is_the_same_for_every_n_jobs():
     with 1200 labellings)."""
     rng = np.random.default_rng(1)
     rows = [
-        {"condition": condition, "biological_repeat": f"r{repeat}", "effect": effect}
+        {
+            "condition": condition,
+            "biological_repeat": f"r{repeat}",
+            "repeat_group": f"r{repeat}",
+            "effect": effect,
+        }
         for repeat in range(3)
         for condition, effect in (("ctrl", 0.0), ("drug", 1.0))
         for _ in range(120 if repeat == 0 else 30)

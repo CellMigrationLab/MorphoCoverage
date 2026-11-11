@@ -123,13 +123,19 @@ def _fields(labels_per_fov, condition="drug", repeat="R1", well="A"):
     objects, fovs = [], []
     for j, labels in enumerate(labels_per_fov):
         name = f"{condition}_{repeat}_{well}_f{j:02d}"
-        identity = {"condition": condition, "biological_repeat": repeat, "technical_repeat": well}
+        identity = {
+            "condition": condition,
+            "biological_repeat": repeat,
+            "repeat_group": repeat,
+            "technical_repeat": well,
+        }
         fovs.append({**identity, "position_id": name})
         for value in labels:
             objects.append(
                 {
                     "condition": condition,
                     "biological_repeat": repeat,
+                    "repeat_group": repeat,
                     "technical_repeat": well,
                     "position_id": name,
                     "state": value,

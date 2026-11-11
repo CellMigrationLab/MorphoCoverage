@@ -28,7 +28,9 @@ FIELD = ["condition", "biological_repeat", "technical_repeat", "image_file"]
 @pytest.fixture
 def patches():
     table = pd.read_csv(TABLE)
-    return table, table[FIELD].drop_duplicates()
+    fovs = table[FIELD].drop_duplicates()
+    # Each folder label is confirmed as its own repeat group, by which repeats pair (#617).
+    return table, fovs.assign(repeat_group=fovs["biological_repeat"])
 
 
 def test_the_table_is_read_as_fiberfeatures_writes_it(patches):

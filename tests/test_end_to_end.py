@@ -69,7 +69,9 @@ def test_the_committed_tables_are_what_the_generator_builds(tables):
     objects, fovs, truth = tables
     built_objects, built_fovs = build()
     pd.testing.assert_frame_equal(objects, built_objects, check_dtype=False)
-    pd.testing.assert_frame_equal(fovs, built_fovs, check_dtype=False)
+    # The stored FOV table has no repeat_group; load declares it (each label its own group).
+    stored = fovs.drop(columns="repeat_group")
+    pd.testing.assert_frame_equal(stored, built_fovs, check_dtype=False)
     assert json.loads(json.dumps(expected(built_objects, built_fovs))) == truth
 
 

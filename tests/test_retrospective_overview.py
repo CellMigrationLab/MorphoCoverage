@@ -93,8 +93,8 @@ def test_overview_full_names_planes_and_a_missing_condition_or_repeat_column():
     ).summary(detail="full")
     assert "\nno condition column; 1 repeat (biological_repeat: R1).\n" in no_condition
     no_repeat = dataset_overview(
-        objects.drop(columns="biological_repeat"),
-        fovs.drop(columns="biological_repeat"),
+        objects.drop(columns=["biological_repeat", "repeat_group"], errors="ignore"),
+        fovs.drop(columns=["biological_repeat", "repeat_group"], errors="ignore"),
         feature_cols=list(FEATURE_COLS),
     ).summary(detail="full")
     assert (

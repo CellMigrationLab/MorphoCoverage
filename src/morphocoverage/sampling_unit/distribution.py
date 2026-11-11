@@ -54,6 +54,7 @@ import pandas as pd
 from .._checks import check_seed, is_number
 from .._control import check_comparisons
 from .._frozen import owned
+from .._repeat_groups import pair_by_repeat_group
 from .._seeds import group_rng
 from .._style import low_to_high
 from .._wording import count, listing, plural
@@ -365,6 +366,7 @@ def distribution_contrast(
     follow ``feature_discovery`` (``comparisons``: each condition against its reference;
     ``random_state`` seeds the field-balanced draws; ``scales``: each feature's declared
     scale, else the automatic rule; ``families``: each condition's declared experiment)."""
+    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
     random_state = check_seed(random_state)
     if comparisons is not None:
         comparisons = check_comparisons(comparisons)

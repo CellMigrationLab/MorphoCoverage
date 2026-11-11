@@ -34,6 +34,7 @@ def _tables(spec, seed=0, per_field=20, obs_sd=1.0):
             key = {
                 "condition": condition,
                 "biological_repeat": repeat,
+                "repeat_group": repeat,
                 "technical_repeat": well,
                 "position_id": f"{repeat}_{condition}_{well}_f{j}",
             }
@@ -131,6 +132,7 @@ def _sets(layout: dict[str, list[str]], shifts: dict[str, float]) -> tuple[pd.Da
                     row = {
                         "condition": condition,
                         "biological_repeat": repeat,
+                        "repeat_group": repeat,
                         "image_file": f"{condition}_{repeat}_{field}.tif",
                         "label_id": label,
                     }
@@ -203,6 +205,7 @@ def _uneven_tables() -> tuple[pd.DataFrame, pd.DataFrame]:
                     "position_id": f"{cond}{repeat}{i}",
                     "condition": cond,
                     "biological_repeat": repeat,
+                    "repeat_group": repeat,
                     "area": 1.0 + i / 10,
                 }
             )
@@ -239,7 +242,12 @@ def _sictrl_tables(conditions=("siCTRL", "A"), fields=2, cells=3):
     for condition in conditions:
         for field in range(fields):
             image = f"{condition}_{field}.tif"
-            key = {"condition": condition, "biological_repeat": "2026_01_01", "image_file": image}
+            key = {
+                "condition": condition,
+                "biological_repeat": "2026_01_01",
+                "repeat_group": "2026_01_01",
+                "image_file": image,
+            }
             fovs.append(key)
             for label in range(cells):
                 rows.append({**key, "label_id": label + 1, "area": float(rng.normal(100, 10))})

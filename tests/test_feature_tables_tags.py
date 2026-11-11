@@ -37,7 +37,12 @@ def _cells(seed: int = 0):
     CellProfiler (3 correlated columns) and a DINO embedding of 4 columns."""
     rng = np.random.default_rng(seed)
     rows = [
-        {"condition": c, "biological_repeat": f"R{r}", "image_file": f"{c}_{r}_{f}.tif"}
+        {
+            "condition": c,
+            "biological_repeat": f"R{r}",
+            "repeat_group": f"R{r}",
+            "image_file": f"{c}_{r}_{f}.tif",
+        }
         | {"label_id": k}
         for c in ("ctrl", "a", "b")
         for r in range(3)
@@ -171,7 +176,12 @@ def test_the_empty_features_rule_and_a_setup_without_readout():
 def _wide(n: int = 400):
     rng = np.random.default_rng(1)
     rows = [
-        {"condition": "ctrl", "biological_repeat": "R1", "image_file": f"f{i // 10}.tif"}
+        {
+            "condition": "ctrl",
+            "biological_repeat": "R1",
+            "repeat_group": "R1",
+            "image_file": f"f{i // 10}.tif",
+        }
         | {"label_id": i % 10}
         for i in range(n)
     ]

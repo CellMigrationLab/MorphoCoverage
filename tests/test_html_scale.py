@@ -40,6 +40,7 @@ def _tables(conditions=CONDITIONS, features=("area", "speed", "aspect"), fields=
                     row = {
                         "condition": condition,
                         "biological_repeat": repeat,
+                        "repeat_group": repeat,
                         "image_file": f"{condition}_{repeat}_{field}.tif",
                         "label_id": label + 1,
                     }

@@ -117,6 +117,10 @@ def load(name: str) -> Dataset:
     readout, control, role, description = _SPECS[name]
     objects = pd.read_csv(HERE / f"{name}_nuclei.csv.gz", dtype={"biological_repeat": str})
     fovs = pd.read_csv(HERE / f"{name}_fovs.csv.gz", dtype={"biological_repeat": str})
+    # No experiment description comes with these data: their curators confirmed each folder
+    # label as its own biological repeat, so it is declared as the repeat group, by which
+    # MorphoCoverage pairs repeats (#617). The stored files are unchanged.
+    fovs["repeat_group"] = fovs["biological_repeat"]
     if "condition" not in objects.columns:
         # The complete plates keep the metadata in the FOV table; idr0028 reuses
         # file names across plates, so the join is on (biological_repeat, image_file).

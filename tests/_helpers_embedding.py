@@ -33,7 +33,12 @@ def _one_per_field(seed: int = 0):
     ``a`` shifted, and a table of 6 other columns."""
     rng = np.random.default_rng(seed)
     rows = [
-        {"condition": c, "biological_repeat": f"R{r}", "image_file": f"{c}_{r}_{f}.tif"}
+        {
+            "condition": c,
+            "biological_repeat": f"R{r}",
+            "repeat_group": f"R{r}",
+            "image_file": f"{c}_{r}_{f}.tif",
+        }
         for c in ("ctrl", "a", "b")
         for r in range(3)
         for f in range(6)
@@ -61,6 +66,7 @@ def _several(seed: int = 0):
         {
             "condition": c,
             "biological_repeat": f"R{r}",
+            "repeat_group": f"R{r}",
             "image_file": f"{c}_{r}_{f}.tif",
             "label_id": k,
         }
@@ -89,6 +95,7 @@ def _cells(seed: int = 0, columns: int = 12):
         {
             "condition": c,
             "biological_repeat": f"R{r}",
+            "repeat_group": f"R{r}",
             "image_file": f"{c}_{r}_{f}.tif",
             "label_id": k,
         }
