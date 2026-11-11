@@ -77,7 +77,7 @@ from ._feature_space import (
 from ._fingerprint_space import fingerprint_space
 from ._label_control import label_control
 from ._one_per_field import field_setup, listed_once, one_per_field, one_per_field_reasons
-from ._pairing import paired_inputs, pairing_said
+from ._pairing import paired_inputs, pairing_said, with_folder_labels
 from ._report_steps import (
     check_criteria,
     comparisons,
@@ -210,6 +210,7 @@ def report(
         "random_state": setup.random_state,
     }
     declared = pairing_said(paired, declared, settings, reasons)
+    with_folder_labels(results, paired.pairing)
     document = report_document(results, setup, per_field, reasons, gaps, objects)
     return Report(results, document, declared, reasons, settings, source)
 

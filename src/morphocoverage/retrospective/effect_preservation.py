@@ -68,7 +68,12 @@ from .._repeat_groups import pair_by_repeat_group
 from .._seeds import group_rng
 from .._style import DASH, table, wrap
 from .._wording import column_word, count, number, percent, rate
-from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
+from ..metadata import (
+    CONDITION_COLUMN,
+    REPEAT_COLUMN,
+    REPEAT_GROUP_COLUMN,
+    TECHNICAL_REPEAT_COLUMN,
+)
 from ..sampling_unit._common import groups, validated
 from ..sampling_unit._units import (
     Described,
@@ -400,7 +405,7 @@ def effect_preservation(
     reservoir_fraction: float = DEFAULT_RESERVOIR_FRACTION,
     random_state: int | None = None,
     condition_col: str = CONDITION_COLUMN,
-    repeat_col: str | None = REPEAT_COLUMN,
+    repeat_col: str | None = REPEAT_GROUP_COLUMN,
     technical_col: str | None = TECHNICAL_REPEAT_COLUMN,
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
@@ -436,7 +441,9 @@ def effect_preservation(
     if comparisons is not None:
         comparisons = check_comparisons(comparisons)
     refuse_repeat_alias(control=control, repeat_col=repeat_col)
-    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
+    objects, fovs, repeat_col, _ = pair_by_repeat_group(
+        objects, fovs, repeat_col, condition_col, control
+    )
     if comparisons is None and (not isinstance(control, Mapping) or not control):
         raise ValueError("control must be a non-empty mapping of FOV-table column to value")
     if comparisons is None and condition_col not in control:

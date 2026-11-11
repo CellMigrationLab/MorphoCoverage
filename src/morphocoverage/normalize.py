@@ -18,7 +18,8 @@ dividing by zero has no meaning, and dividing by a negative mean flips the
 sign of every value, so a treated mean above its control would read as below
 it (a signed feature such as a velocity or a log-ratio is compared raw). A
 repeat column named explicitly but absent from the tables raises too, rather
-than pooling the repeats; only the default ``"biological_repeat"`` may be absent.
+than pooling the repeats; only the default, ``"repeat_group"`` (the repeats paired by their
+repeat group, ``_repeat_groups``), may find no repeat column.
 With ``leave_out_missing=True`` a repeat without control objects is not normalised
 instead: its values are NaN, so the normalised views leave it out (the figures of a
 dataset with several references, normalised to one of them, owner 2026-10-05).
@@ -49,20 +50,17 @@ from ._repeat_alias import refuse_repeat_alias
 from ._repeat_groups import pair_by_repeat_group
 from ._wording import listing
 from .data_check import validate_input_tables
-from .metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, column_names
+from .metadata import (
+    MORPHOBRICKS_GROUP_COLUMNS,
+    REPEAT_COLUMN,
+    REPEAT_GROUP_COLUMN,
+    column_names,
+)
 from .schema import ValidatedInput
 from .statistics import mean_is_zero
 
 CONTROL_MEAN = "control_mean"
 METHODS = (CONTROL_MEAN,)
-
-
-class _DefaultRepeat(str):
-    """The default repeat column: the only name that may be absent from the tables."""
-
-
-# A str subclass, so the default still reads (and compares) as "biological_repeat".
-_DEFAULT_REPEAT_COL = _DefaultRepeat(MORPHOBRICKS_GROUP_COLUMNS[1])
 
 
 def _aligned(
@@ -88,19 +86,20 @@ def _aligned(
     return data
 
 
-def _repeat_column(repeat_col: str | None, columns: pd.Index) -> str | None:
-    """The repeat column to use: ``None`` for one implicit repeat.
+def _repeat_column(given: str | None, repeat_col: str | None, columns: pd.Index) -> str | None:
+    """The repeat column to use (``repeat_col``, from ``pair_by_repeat_group``): ``None`` for
+    one implicit repeat.
 
-    The default name may be absent (the whole table is then one repeat); a
-    name given explicitly must be a column, since a misspelt one would
-    otherwise pool every repeat silently.
+    With the default, ``repeat_group``, the tables may have no repeat column (the whole table
+    is then one repeat); a name ``given`` explicitly must be a column, since a misspelt one
+    would otherwise pool every repeat silently.
     """
     if repeat_col is None or repeat_col in columns:
         return repeat_col
-    if isinstance(repeat_col, _DefaultRepeat):
+    if given == REPEAT_GROUP_COLUMN:
         return None
     raise ValueError(
-        f"repeat_col {repeat_col!r} is not a column of the tables: name the column holding "
+        f"repeat_col {given!r} is not a column of the tables: name the column holding "
         "the repeats, or pass repeat_col=None to treat the whole table as one repeat"
     )
 
@@ -126,7 +125,7 @@ def control_means(
     feature_cols: Sequence[str],
     control: Mapping[str, Any],
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
-    repeat_col: str | None = _DEFAULT_REPEAT_COL,
+    repeat_col: str | None = REPEAT_GROUP_COLUMN,
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
@@ -188,7 +187,7 @@ def control_mean_problem(
     feature_cols: Sequence[str],
     control: Mapping[str, Any],
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
-    repeat_col: str | None = _DEFAULT_REPEAT_COL,
+    repeat_col: str | None = REPEAT_GROUP_COLUMN,
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
@@ -249,7 +248,9 @@ def _control_rows(
     if not isinstance(control, Mapping) or condition_col not in control:
         raise ValueError(f"control must name the condition column {condition_col!r}")
     # Each repeat's control is the control of its repeat group, never of a folder label (#617).
-    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
+    objects, fovs, paired_col, _ = pair_by_repeat_group(
+        objects, fovs, repeat_col, condition_col, control
+    )
     data = validate_input_tables(
         objects,
         fovs=fovs,
@@ -262,7 +263,7 @@ def _control_rows(
     for column in control:
         if column not in attached.columns:
             raise ValueError(f"control names a column absent from the tables: {column!r}")
-    repeat_col = _repeat_column(repeat_col, attached.columns)
+    repeat_col = _repeat_column(repeat_col, paired_col, attached.columns)
     is_control = control_mask(attached, control)
     repeats = attached[repeat_col] if repeat_col else pd.Series([None] * len(attached))
     rows = []
@@ -317,7 +318,7 @@ def normalize_to_control(
     feature_cols: Sequence[str],
     control: Mapping[str, Any],
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
-    repeat_col: str | None = _DEFAULT_REPEAT_COL,
+    repeat_col: str | None = REPEAT_GROUP_COLUMN,
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
@@ -342,7 +343,9 @@ def normalize_to_control(
     )
     # The divisors are found on the tables paired by repeat group (#617); the copy returned
     # keeps the caller's rows, index and folder labels.
-    paired, paired_fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
+    paired, paired_fovs, paired_col, _ = pair_by_repeat_group(
+        objects, fovs, repeat_col, condition_col, control
+    )
     means = control_means(
         paired,
         paired_fovs,
@@ -357,7 +360,7 @@ def normalize_to_control(
     )
     data = _aligned(paired, paired_fovs, feature_cols, fov_col, group_cols, observation_unit)
     attached = data.objects
-    repeat_col = _repeat_column(repeat_col, attached.columns)
+    repeat_col = _repeat_column(repeat_col, paired_col, attached.columns)
     normalized = objects.copy()
     if repeat_col is None:
         divisors = means.iloc[[0] * len(objects)][list(data.feature_cols)].to_numpy()
@@ -382,7 +385,7 @@ def normalize_to_own(
     feature_cols: Sequence[str],
     own: Mapping[Any, Any],
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
-    repeat_col: str | None = _DEFAULT_REPEAT_COL,
+    repeat_col: str | None = REPEAT_GROUP_COLUMN,
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
@@ -392,10 +395,13 @@ def normalize_to_own(
     with several declared controls (owner, 2026-10-05). A condition ``own`` does not name,
     or held in a repeat without its control, is NaN there. Each control's means are
     ``control_means`` (its errors and cautions); the row order and index are kept."""
-    paired, paired_fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
+    control = {condition_col: [*own, *own.values()]}
+    paired, paired_fovs, paired_col, _ = pair_by_repeat_group(
+        objects, fovs, repeat_col, condition_col, control
+    )
     data = _aligned(paired, paired_fovs, feature_cols, fov_col, group_cols, observation_unit)
     attached = data.objects
-    repeat_col = _repeat_column(repeat_col, attached.columns)
+    given, repeat_col = repeat_col, _repeat_column(repeat_col, paired_col, attached.columns)
     repeats = attached[repeat_col].tolist() if repeat_col else [None] * len(attached)
     divisors = np.full((len(objects), len(feature_cols)), np.nan)
     conditions = attached[condition_col].to_numpy()
@@ -407,7 +413,7 @@ def normalize_to_own(
             feature_cols=feature_cols,
             control={condition_col: reference},
             condition_col=condition_col,
-            repeat_col=repeat_col,
+            repeat_col=given,
             fov_col=fov_col,
             group_cols=group_cols,
             observation_unit=observation_unit,

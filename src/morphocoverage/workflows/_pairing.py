@@ -20,13 +20,22 @@ Shared-private: used by ``retrospective``, ``figures``, ``_html_figures`` and ``
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import replace
 from typing import Any, NamedTuple
 
 import pandas as pd
 
-from .._repeat_groups import Pairing, PairingRefused, paired_tables, pairing_note
+from .._repeat_groups import (
+    FOLDER_CONTROL,
+    Pairing,
+    PairingRefused,
+    declared_conditions,
+    paired_tables,
+    pairing_note,
+    with_folders,
+)
+from ..metadata import CONDITION_COLUMN
 from .setup import Setup
 
 # The sections of the report that pair repeats: the Foundation's object rule and the unusual
@@ -74,8 +83,12 @@ def paired_inputs(
         )  # refused later
     names, frames = _frames(feature_tables)
     try:
-        paired_objects, paired_fovs, others, pairing = paired_tables(objects, fovs, others=frames)
+        paired_objects, paired_fovs, others, pairing = paired_tables(
+            objects, fovs, others=frames, names=setup_conditions(setup)
+        )
     except PairingRefused as refused:
+        if refused.code == FOLDER_CONTROL:
+            raise  # a declaration to correct, not a property of the tables
         if not needs_pairing(setup):
             return Paired(objects, fovs, feature_tables, setup, Pairing({}), None, setup)
         if strict:
@@ -84,6 +97,24 @@ def paired_inputs(
         return Paired(objects, fovs, feature_tables, unpaired, Pairing({}), refused, setup)
     tables = _rebuilt(feature_tables, names, others)
     return Paired(paired_objects, paired_fovs, tables, setup, pairing, None, setup)
+
+
+def setup_conditions(setup: Setup) -> list[Any]:
+    """The conditions a Setup names: its control declaration, master control and parents, its
+    positive control and the conditions of its experiment mapping (conditions are named by
+    their ``condition_id`` when the tables hold it). The workflows read the Setup on tables
+    whose conditions are already named by their IDs, where a folder label would select nothing
+    without a word, so each is refused here, with the ID to use."""
+    names = declared_conditions(setup.control, CONDITION_COLUMN)
+    if setup.master_control is not None:
+        names += declared_conditions({CONDITION_COLUMN: setup.master_control})
+    if setup.control_parents:
+        names += declared_conditions({CONDITION_COLUMN: dict(setup.control_parents)})
+    if setup.positive is not None:
+        names += declared_conditions(setup.positive.selector, CONDITION_COLUMN)
+    if isinstance(setup.experiment, Mapping):
+        names += declared_conditions({CONDITION_COLUMN: list(setup.experiment)})
+    return names
 
 
 def unpaired_setup(setup: Setup) -> Setup:
@@ -118,10 +149,36 @@ def pairing_said(
     note = pairing_note(paired.pairing)
     if note is not None:
         settings["repeat_pairing"] = note
+        # Each working (condition, repeat) with its folders, to write code on the given tables.
+        settings["folder_labels"] = [
+            (*working, *folders) for working, folders in paired.pairing.folders.items()
+        ]
     if paired.refused is None:
         return declared
     reasons.update(refusal_reasons(paired.refused))
     return paired.given
+
+
+def with_folder_labels(results: MutableMapping[str, Any], pairing: Pairing) -> None:
+    """Name each folder beside its IDs in the report's results, when the pairing renamed any
+    (experiment-v1 section 3.4): the per-repeat rows of the condition contrast gain ``folder``
+    and ``control_folder``, and the fields to check name their group's folders
+    (``settings["folders"]``, ``inspection_text.field_group``)."""
+    if not pairing.folders:
+        return
+    contrast = results.get("contrast")
+    if contrast is not None:
+        results["contrast"] = replace(contrast, table=with_folders(contrast.table, pairing))
+    inspection = results.get("inspection")
+    if inspection is not None:
+        folders = [
+            (condition, repeat, folder)
+            for (condition, repeat) in pairing.folders
+            if (folder := pairing.folder_of(condition, repeat)) is not None
+        ]
+        results["inspection"] = replace(
+            inspection, settings={**inspection.settings, "folders": folders}
+        )
 
 
 def _frames(
@@ -164,5 +221,7 @@ __all__ = [
     "paired_inputs",
     "pairing_said",
     "refusal_reasons",
+    "setup_conditions",
     "unpaired_setup",
+    "with_folder_labels",
 ]

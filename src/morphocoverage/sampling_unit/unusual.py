@@ -80,7 +80,7 @@ from .._repeat_alias import refuse_repeat_alias
 from .._repeat_groups import pair_by_repeat_group
 from .._seeds import group_key, group_rng
 from .._style import check_detail
-from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, REPEAT_GROUP_COLUMN
 from ..schema import ValidatedInput, fov_positions, observation_words
 from ..transforms import Standardize
 from ._common import groups, matching_groups, validated
@@ -158,8 +158,9 @@ def unusual_objects(
     2026-10-06).
     """
     refuse_repeat_alias(reference=reference)
-    if within_experiment:  # the sub-experiments are found from the repeat groups (#617)
-        objects, fovs = pair_by_repeat_group(objects, fovs, REPEAT_COLUMN)
+    # The sub-experiments are found from the repeat groups (#617); conditions by their IDs.
+    repeat_col = REPEAT_GROUP_COLUMN if within_experiment else None
+    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, control=reference)[:2]
     if not 0 < quantile < 1:
         raise ValueError("quantile must be between 0 and 1")
     n_neighbors = as_count(n_neighbors, "n_neighbors", 1)

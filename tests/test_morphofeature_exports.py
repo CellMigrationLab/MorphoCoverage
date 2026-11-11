@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 import tomllib
+from dataclasses import replace
 
 import numpy as np
 import pandas as pd
@@ -38,8 +39,20 @@ from _helpers_morphofeature_exports import (
 )
 
 from morphocoverage import validate_input_tables
-from morphocoverage._repeat_groups import paired_tables
-from morphocoverage.sampling_unit import condition_contrast, feature_discovery
+from morphocoverage._repeat_groups import (
+    FOLDER_CONTROL,
+    FOLDER_PAIRING,
+    PairingRefused,
+    paired_tables,
+)
+from morphocoverage.normalize import normalize_to_control
+from morphocoverage.sampling_unit import (
+    condition_contrast,
+    feature_discovery,
+    feature_ranking,
+    object_rule_check,
+)
+from morphocoverage.workflows import PositiveControl, Setup, default_novelty, html_report, report
 
 FAST = {"n_permutations": 99, "n_draws": 2, "object_counts": (2,)}
 
@@ -91,9 +104,12 @@ def test_the_exports_are_paired_by_the_described_repeat_groups(name) -> None:
     paired_objects, paired_fovs, _, pairing = paired_tables(objects, fovs)
     groups = described_groups(name)
     assert pairing.renamed == {key: g for key, g in groups.items() if key[1] != g}
-    # Every repeat group holds one folder of every condition: each pair is the described one.
+    ids = described_conditions(name)
+    assert pairing.conditions == {folder: cid for folder, cid in ids.items() if folder != cid}
+    # Every repeat group holds one folder of every condition: each pair is the described one;
+    # the working tables name the conditions by their IDs.
     by_group = paired_fovs.groupby("repeat_group")["condition"].unique().map(sorted).to_dict()
-    conditions = sorted(set(fovs["condition"]))
+    conditions = sorted(ids.values())
     assert by_group == dict.fromkeys(sorted(set(groups.values())), conditions)
     # The observations take their folder's group too (they hold no repeat_group of their own).
     keyed = paired_objects.merge(paired_fovs, on=KEY, how="left", validate="many_to_one")
@@ -129,3 +145,157 @@ def test_v03_is_compared() -> None:
     )
     assert set(discovery.ranking["feature"]) >= {"x"}
     assert "Not compared" not in discovery.summary()
+
+
+# MC-1: the canonical IDs are shared columns: repeats pair by ``repeat_group`` by default, the
+# conditions are named by ``condition_id``, and every output names the folder labels beside.
+
+
+def test_v30_pairs_ctrl_rep1_with_druga_rep2_and_names_both_folders() -> None:
+    objects, fovs = with_feature("v30")
+    table = _contrast(objects, fovs, "CTRL").table.set_index("biological_repeat")
+    assert table.loc["Day1", "folder"] == "DrugA/rep2"
+    assert table.loc["Day1", "control_folder"] == "CTRL/rep1"
+    assert table.loc["Day2", "folder"] == "DrugA/rep1"
+    assert table.loc["Day2", "control_folder"] == "CTRL/rep2"
+
+
+def test_v33_names_the_control_by_its_id_and_its_folder_beside() -> None:
+    objects, fovs = with_feature("v33")
+    contrast = _contrast(objects, fovs, "ctrl")
+    assert set(contrast.table["control_condition"]) == {"ctrl"}
+    assert set(contrast.table["control_folder"]) == {"control/rep1", "control/rep2"}
+    np.testing.assert_allclose(
+        contrast.table["mean"] - contrast.table["control_mean"], EFFECT, atol=0.3
+    )
+    # The caller's tables keep the folder label.
+    assert set(fovs["condition"]) == {"control", "DrugA"}
+
+
+@pytest.mark.parametrize(
+    "analysis",
+    [
+        lambda o, f, c: _contrast(o, f, c),
+        lambda o, f, c: feature_ranking(o, f, features=["x"], control={"condition": c}),
+        lambda o, f, c: object_rule_check(o, f, feature="x", control={"condition": c}, n_draws=2),
+        lambda o, f, c: normalize_to_control(o, f, feature_cols=["x"], control={"condition": c}),
+    ],
+    ids=["contrast", "ranking", "object_rule", "normalize"],
+)
+def test_v33_a_control_named_by_its_folder_label_is_refused_with_its_id(analysis) -> None:
+    objects, fovs = with_feature("v33")
+    with pytest.raises(PairingRefused, match="declare it as 'ctrl'") as refused:
+        analysis(objects, fovs, "control")
+    assert refused.value.code == FOLDER_CONTROL
+
+
+@pytest.mark.parametrize("name", ["v03", "v33"])
+def test_pairing_by_folder_name_is_refused_while_repeat_group_exists(name) -> None:
+    objects, fovs = with_feature(name)
+    control = {"condition": "ctrl" if name == "v33" else "CTRL"}
+    with pytest.raises(PairingRefused, match="pairs by folder name") as refused:
+        condition_contrast(
+            objects, fovs, feature="x", control=control, repeat_col="biological_repeat", **FAST
+        )
+    assert refused.value.code == FOLDER_PAIRING
+    # The default pairs by repeat_group; naming it gives the same result.
+    named = condition_contrast(
+        objects, fovs, feature="x", control=control, repeat_col="repeat_group", **FAST
+    )
+    default = condition_contrast(objects, fovs, feature="x", control=control, **FAST)
+    pd.testing.assert_frame_equal(named.table, default.table)
+
+
+def test_v27_compares_every_drug_with_ctrl_and_reads_no_target() -> None:
+    objects, fovs = with_feature("v27")
+    contrast = _contrast(objects, fovs, "CTRL")
+    assert sorted(set(contrast.table["condition"])) == ["DrugA", "DrugB", "DrugC"]
+    assert "folder" not in contrast.table.columns  # every label is its ID
+    assert contrast.settings["target_col"] is None
+
+
+def _report(name: str, control: str):
+    objects, fovs = with_feature(name)
+    setup = Setup(readout="x", features=("x",), control={"condition": control})
+    return report(objects, fovs, setup), objects, fovs
+
+
+def test_the_report_names_conditions_by_id_with_the_folder_beside(tmp_path) -> None:
+    result, objects, fovs = _report("v33", "ctrl")
+    assert "contrast" in result.results
+    assert set(result.results["contrast"].table["control_condition"]) == {"ctrl"}
+    note = result.settings["repeat_pairing"]
+    assert "ctrl (folder control)" in note
+    assert "ctrl (folder control)" in result.summary(detail="full")
+    page = html_report(result, objects, fovs, tmp_path / "page").read_text(encoding="utf-8")
+    assert "ctrl (folder control)" in page
+    with pytest.raises(PairingRefused, match="declare it as 'ctrl'"):
+        _report("v33", "control")
+
+
+def test_the_report_pairs_v03_and_names_each_folder_beside_its_group() -> None:
+    result, _, _ = _report("v03", "CTRL")
+    table = result.results["contrast"].table
+    assert sorted(table["biological_repeat"]) == ["Day1", "Day2"]
+    assert sorted(table["folder"]) == ["DrugA/experiment_23", "DrugA/rep2_drug"]
+    assert "experiment_23 (DrugA) = Day1" in result.settings["repeat_pairing"]
+    assert "Not compared" not in result.summary(detail="full")
+
+
+def test_a_comparison_row_names_the_folder_of_its_treated_condition() -> None:
+    # The rows of declared comparisons are labelled "DrugA vs CTRL"; their folder is still
+    # the treated condition's folder, never the label joined to the repeat group.
+    objects, fovs = with_feature("v03")
+    table = condition_contrast(
+        objects, fovs, feature="x", comparisons=[("DrugA", "CTRL")], **FAST
+    ).table.set_index("biological_repeat")
+    assert table.loc["Day1", "folder"] == "DrugA/experiment_23"
+    assert table.loc["Day2", "folder"] == "DrugA/rep2_drug"
+    assert table.loc["Day1", "control_folder"] == "CTRL/rep1"
+
+
+def _renamed_v27() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """v27 with the folder ``DrugA`` given the ID ``DA`` (the other IDs are their labels)."""
+    objects, fovs = with_feature("v27")
+    fovs = fovs.copy()
+    fovs.loc[fovs["condition"] == "DrugA", "condition_id"] = "DA"
+    return objects, fovs
+
+
+def test_a_setup_naming_an_experiment_by_folder_label_is_refused_with_its_id() -> None:
+    # Keyed by folder label, the mapping would no longer match the conditions (named by their
+    # IDs), and DrugA would be corrected in a family of its own without a word.
+    objects, fovs = _renamed_v27()
+    setup = Setup(
+        readout="x",
+        features=("x",),
+        control={"condition": "CTRL"},
+        experiment={"DrugA": "e1", "DrugB": "e1", "DrugC": "e2"},
+    )
+    with pytest.raises(PairingRefused, match="declare it as 'DA'") as refused:
+        report(objects, fovs, setup)
+    assert refused.value.code == FOLDER_CONTROL
+    by_id = replace(setup, experiment={"DA": "e1", "DrugB": "e1", "DrugC": "e2"})
+    cells = report(objects, fovs, by_id).results["contrast"].cells.set_index("condition")
+    assert cells.loc["DA", "experiment"] == cells.loc["DrugB", "experiment"]
+    assert cells.loc["DA", "experiment"] != cells.loc["DrugC", "experiment"]
+
+
+def test_a_positive_control_named_by_folder_label_is_refused_with_its_id() -> None:
+    # Selected on tables whose conditions are named by their IDs, the folder label would select
+    # no field, and the positive control would be judged on nothing without a word.
+    objects, fovs = _renamed_v27()
+    objects = objects.assign(y=objects["x"] * 0.5 + objects["label_id"])
+    declared = {
+        "readout": "x",
+        "features": ("x", "y"),
+        "control": {"condition": "CTRL"},
+        "novelty": default_novelty(["x", "y"]),
+    }
+    setup = Setup(**declared, positive=PositiveControl({"condition": "DrugA"}, fovs_seen=5))
+    with pytest.raises(PairingRefused, match="declare it as 'DA'") as refused:
+        report(objects, fovs, setup)
+    assert refused.value.code == FOLDER_CONTROL
+    by_id = Setup(**declared, positive=PositiveControl({"condition": "DA"}, fovs_seen=5))
+    table = report(objects, fovs, by_id).results["controls"].table
+    assert "positive_lofo" in set(table["candidate"])

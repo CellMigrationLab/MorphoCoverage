@@ -61,6 +61,7 @@ from .._wording import column_word, count, features_counted
 from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
     REPEAT_COLUMN,
+    REPEAT_GROUP_COLUMN,
     TECHNICAL_REPEAT_COLUMN,
     column_names,
 )
@@ -328,7 +329,7 @@ def feature_ranking(
     features: Sequence[str],
     control: Mapping[str, Any] | None = None,
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
-    repeat_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[1],
+    repeat_col: str | None = REPEAT_GROUP_COLUMN,
     technical_col: str | None = TECHNICAL_REPEAT_COLUMN,
     n_permutations: int = 2000,
     alpha: float = GATE_ALPHA,
@@ -350,7 +351,9 @@ def feature_ranking(
     the control by ``(condition, reference)`` pairs. See the module.
     """
     refuse_repeat_alias(control=control, repeat_col=repeat_col)
-    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
+    objects, fovs, repeat_col, _ = pair_by_repeat_group(
+        objects, fovs, repeat_col, condition_col, control
+    )
     features = list(dict.fromkeys(column_names(features, "features")))
     if not features:
         raise ValueError("features must name at least one column")

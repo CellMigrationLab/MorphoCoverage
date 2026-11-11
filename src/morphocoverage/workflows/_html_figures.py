@@ -306,7 +306,7 @@ def _unnormalisable(setup: Any, objects: pd.DataFrame, fovs: pd.DataFrame) -> st
         fovs,
         feature_cols=list(setup.columns),
         control=setup.control,
-        repeat_col=setup.repeat_col(fovs),
+        repeat_col=setup.pairing_col(fovs),
         **setup.common,
     )
 

@@ -32,6 +32,7 @@ from .._wording import count, rate
 from ..metadata import (
     CONDITION_COLUMN,
     REPEAT_COLUMN,
+    REPEAT_GROUP_COLUMN,
     TECHNICAL_REPEAT_COLUMN,
     column_has_values,
     drop_empty_optional_columns,
@@ -333,7 +334,7 @@ class Setup:
         if self.normalize is None or not self.columns:  # embedding-only: nothing divided
             return objects
         if (own := self.own_references) is not None:
-            kept = {"repeat_col": self.repeat_col(fovs), "own": own, **self.common}
+            kept = {"repeat_col": self.pairing_col(fovs), "own": own, **self.common}
             return normalize_to_own(objects, fovs, feature_cols=self.columns, **kept)
         assert self.control is not None
         return normalize_to_control(
@@ -341,7 +342,7 @@ class Setup:
             fovs,
             feature_cols=self.columns,
             control=self.control,
-            repeat_col=self.repeat_col(fovs),
+            repeat_col=self.pairing_col(fovs),
             **self.common,
         )
 
@@ -394,6 +395,11 @@ class Setup:
     def repeat_col(self, fovs: pd.DataFrame) -> str | None:
         """The repeat column when the FOV table has one."""
         return REPEAT_COLUMN if REPEAT_COLUMN in fovs.columns else None
+
+    def pairing_col(self, fovs: pd.DataFrame) -> str | None:
+        """What an analysis pairing the repeats is given as ``repeat_col`` when the FOV table
+        has a repeat column: ``repeat_group``, the repeats paired as confirmed (#617)."""
+        return REPEAT_GROUP_COLUMN if REPEAT_COLUMN in fovs.columns else None
 
     def technical_col(self, fovs: pd.DataFrame) -> str | None:
         """The technical-repeat column when the FOV table has one with values in it."""

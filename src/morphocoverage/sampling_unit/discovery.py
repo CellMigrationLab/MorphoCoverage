@@ -63,6 +63,7 @@ from .._wording import (
 )
 from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
+    REPEAT_GROUP_COLUMN,
     TECHNICAL_REPEAT_COLUMN,
     column_names,
 )
@@ -516,7 +517,7 @@ def feature_discovery(
     features: Sequence[str],
     control: Mapping[str, Any] | None = None,
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
-    repeat_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[1],
+    repeat_col: str | None = REPEAT_GROUP_COLUMN,
     technical_col: str | None = TECHNICAL_REPEAT_COLUMN,
     n_permutations: int = N_PERMUTATIONS,
     alpha: float = GATE_ALPHA,
@@ -535,7 +536,9 @@ def feature_discovery(
     feature's declared scale (``Setup.scales``), else the automatic rule; ``families``, each
     condition's declared experiment (``Setup.experiment``), else the sub-experiments."""
     refuse_repeat_alias(control=control, repeat_col=repeat_col)
-    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
+    objects, fovs, repeat_col, _ = pair_by_repeat_group(
+        objects, fovs, repeat_col, condition_col, control
+    )
     features = list(dict.fromkeys(column_names(features, "features")))
     if not features:
         raise ValueError("features must name at least one column")

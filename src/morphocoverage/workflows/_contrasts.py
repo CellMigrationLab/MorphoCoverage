@@ -445,7 +445,7 @@ def normalisation_problem(setup: Setup, objects: pd.DataFrame, fovs: pd.DataFram
             fovs,
             feature_cols=list(setup.columns),
             control=control,
-            repeat_col=setup.repeat_col(fovs),
+            repeat_col=setup.pairing_col(fovs),
             leave_out_missing=leave,
             **setup.common,
         )
@@ -503,7 +503,7 @@ def normalized_text(
                 fovs,
                 feature_cols=setup.columns,
                 control=setup.control,
-                repeat_col=setup.repeat_col(fovs),
+                repeat_col=setup.pairing_col(fovs),
                 **setup.common,
             )
             note = negative_values_sentence(means)

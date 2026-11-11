@@ -19,6 +19,11 @@ import pandas as pd
 
 from ._spelling import typing_error_of
 
+# The canonical IDs of the experiment description, beside the folder labels of the FOV key
+# (MorphoBricks-Spec experiment-v1 section 3.4): repeats pair and conditions are named by them
+# (``_repeat_groups``); metadata, never features.
+CANONICAL_ID_COLUMNS = ("repeat_group", "condition_id", "technical_repeat_id")
+REPEAT_GROUP_COLUMN, CONDITION_ID_COLUMN, TECHNICAL_REPEAT_ID_COLUMN = CANONICAL_ID_COLUMNS
 MORPHOBRICKS_SHARED_COLUMNS = (
     "condition",
     "biological_repeat",
@@ -27,12 +32,11 @@ MORPHOBRICKS_SHARED_COLUMNS = (
     "image_file",
     "mask_file",
     "patch_file",
+    *CANONICAL_ID_COLUMNS,
 )
-# Default analysis groups and FOV identity, outermost first: the condition, the
-# biological repeat and, when present, the technical repeat (a well, a dish, a
-# coverslip within a repeat; optional in the shared contract). Each is used
-# when its column exists in the linked tables. The biological repeat's former
-# name, ``repeat``, is refused (``_repeat_alias``).
+# Default analysis groups and FOV identity, outermost first: the condition, the biological
+# repeat and, when present, the technical repeat (a well, a dish, a coverslip within a repeat;
+# optional). Each is used when its column exists. The former name ``repeat`` is refused.
 MORPHOBRICKS_GROUP_COLUMNS = ("condition", "biological_repeat", "technical_repeat")
 CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN = MORPHOBRICKS_GROUP_COLUMNS
 # Optional: what each condition acts on (the gene two siRNAs silence), so the report can say
@@ -40,20 +44,16 @@ CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN = MORPHOBRICKS_GROUP_CO
 TARGET_COLUMN = "target"
 # Group columns the shared contract makes optional.
 OPTIONAL_GROUP_COLUMNS = (TECHNICAL_REPEAT_COLUMN,)
-# Optional shared columns that a producer writing every column (CellPatcher
-# does) leaves empty when it has no value: position_id when one file is one
-# field, technical_repeat when there are no wells. An entirely empty one is
-# read as absent; a partly empty one is still refused as ambiguous.
+# Optional shared columns a producer writing every column (CellPatcher) leaves empty: position_id
+# when one file is one field, technical_repeat without wells. An entirely empty one is read as
+# absent; a partly empty one is still refused as ambiguous.
 EMPTY_MEANS_ABSENT = (TECHNICAL_REPEAT_COLUMN, "position_id")
 
-# Scientific FOV identity is the independently selected spatial acquisition
-# position. position_id is preferred when storage layout and position do not
-# map 1:1. image_file remains a convenient fallback when one file contains
-# exactly one position; fov_id is the generic fallback.
+# FOV identity is the independently selected acquisition position: position_id when files and
+# positions do not map 1:1, image_file when one file is one position, fov_id as the fallback.
 MORPHOBRICKS_FOV_CANDIDATES = ("position_id", "image_file", "fov_id")
 
-# Coordinates/dimensions nested inside one spatial position. These are
-# acquisition metadata, never phenotype features in MorphoCoverage.
+# Coordinates nested inside one position: acquisition metadata, never phenotype features.
 WITHIN_FOV_METADATA_COLUMNS = ("z", "z0", "z1", "c", "t")
 
 
@@ -283,13 +283,12 @@ def _plain_spelling(name: str) -> str:
     return re.sub(r"\s+", "", _PANDAS_COPY.sub("", name)).lower()
 
 
-# The canonical names by their squashed form, for ``canonical_spelling``, with the
-# short and former names of the repeats: ``bio_repeat`` or ``tech_rep`` would
-# otherwise be an ordinary column, and its repeats pooled. The exact former name
-# ``repeat`` is refused before any spelling is checked (``_repeat_alias``); its
-# near misses (``Repeat``, ``repeats``) are refused too.
+# The shared names whose near misses are refused.
+_NAMED = (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES, *CANONICAL_ID_COLUMNS)
+# The canonical names by their squashed form, with the short and former names of the repeats
+# (``bio_repeat``, ``tech_rep``; the exact former ``repeat`` is refused by ``_repeat_alias``).
 _CANONICAL_BY_SQUASHED = (
-    {_squashed(name): name for name in (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES)}
+    {_squashed(name): name for name in _NAMED}
     | {
         _squashed(f"{prefix}{word}"): column
         for column, prefixes in (
@@ -352,11 +351,7 @@ def canonical_spelling(column: object) -> str | None:
 
 # The shared columns whose typing errors are caught (``biological_repat``, ``conditon``),
 # by their squashed form; ``fov_id`` is too short to tell a typo from another name.
-_TYPO_TARGETS = {
-    _squashed(name): name
-    for name in (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES)
-    if len(_squashed(name)) >= 8
-}
+_TYPO_TARGETS = {_squashed(name): name for name in _NAMED if len(_squashed(name)) >= 8}
 
 
 # Names of a stage-position index inside a multi-position file (an .nd2 or .czi
@@ -570,15 +565,19 @@ def sorted_by_key(table: pd.DataFrame, key: Sequence[str]) -> pd.DataFrame:
 
 
 __all__ = [
+    "CANONICAL_ID_COLUMNS",
     "CONDITION_COLUMN",
+    "CONDITION_ID_COLUMN",
     "EMPTY_MEANS_ABSENT",
     "MORPHOBRICKS_FOV_CANDIDATES",
     "MORPHOBRICKS_GROUP_COLUMNS",
     "MORPHOBRICKS_SHARED_COLUMNS",
     "OPTIONAL_GROUP_COLUMNS",
     "REPEAT_COLUMN",
+    "REPEAT_GROUP_COLUMN",
     "TARGET_COLUMN",
     "TECHNICAL_REPEAT_COLUMN",
+    "TECHNICAL_REPEAT_ID_COLUMN",
     "WITHIN_FOV_METADATA_COLUMNS",
     "attach_mapping",
     "canonical_spelling",
