@@ -53,6 +53,9 @@ filterwarnings = ["ignore::morphocoverage.schema.MissingFovTableWarning"]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+# Byte-exact copies of MorphoBricks-Spec files (tools/vendor.py, the brick-template pin test):
+# changed in the Spec only, never reformatted here (the pin test hashes the copy).
+extend-exclude = ["tests/spec_fixtures", "tests/test_spec_pin.py"]
 
 [tool.ruff.lint]
 # Default rules plus the line-length limit, which `ruff format` cannot enforce

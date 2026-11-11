@@ -390,6 +390,7 @@ def test_a_file_named_after_an_audit_a_date_or_a_pass_breaks_the_naming_rule(pat
         "src/morphocoverage/previews.py",
         "tests/test_reporting.py",
         "data/crick_idr/results/sufficiency_idr0028.csv",
+        "tests/spec_fixtures/tools/audit/refval.py",
     ],
 )
 def test_names_for_what_they_hold_and_the_listed_tools_pass_the_naming_rule(path):

@@ -1,0 +1,418 @@
+{
+  "schema_version": 2,
+  "object_set": "Cells",
+  "exported": true,
+  "observation_unit": "object",
+  "identity_columns": [
+    "condition",
+    "biological_repeat",
+    "technical_repeat",
+    "position_id",
+    "label_id"
+  ],
+  "applicability_rows": 0,
+  "table_format": "csv",
+  "tables": {
+    "shape": {
+      "file": "tables/shape.csv",
+      "tag": "explainable",
+      "units": {
+        "Cells__area": "pixels"
+      }
+    }
+  },
+  "removed_all_missing": {},
+  "removed_tables": [],
+  "masked_not_measured": {},
+  "observations_per_fov": [
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img0",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img1",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img10",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img2",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img3",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img4",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img5",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img6",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img7",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img8",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img9",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img0",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img1",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img2",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img3",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img4",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img5",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img6",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img7",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img8",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "DrugA",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img9",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img0",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img1",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img10",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img11",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img2",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img3",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img4",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img5",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img6",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img7",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img8",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img9",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img0",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img1",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img2",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img3",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img4",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img5",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img6",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img7",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img8",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "control",
+      "biological_repeat": "rep2",
+      "technical_repeat": "single",
+      "position_id": "img9",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    }
+  ],
+  "dropped_by": {},
+  "left_out_fovs": []
+}
