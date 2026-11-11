@@ -339,3 +339,11 @@ def test_a_table_without_the_condition_column_keeps_each_folder_in_its_own_group
         rg.paired_tables(objects, fovs, others=[objects.drop(columns="condition")])
     assert caught.value.code == rg.SPLIT
     assert "in different repeat groups" in str(caught.value)
+
+
+def test_the_report_names_each_folder_beside_its_repeat_group():
+    # experiment-v1 section 3.4: the source label is never replaced in what the report says.
+    result = report(*_tables(V03), _setup())
+    text = result.summary(detail="full")
+    assert "experiment_23 (DrugA) = Day1" in " ".join(text.split())
+    assert "not by folder label" not in report(*_tables({}), _setup()).summary(detail="full")

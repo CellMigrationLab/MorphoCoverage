@@ -509,12 +509,15 @@ def held_back_text(settings: Mapping[str, Any]) -> str:
 
 
 def report_settings(settings: Mapping[str, Any]) -> str:
-    """The report's replay settings in one sentence."""
+    """The report's replay settings in one sentence, and the folders paired under another
+    name (``repeat_pairing``), each folder label beside its repeat group (#617)."""
     orders = _orders_text(settings["recorded_order"], settings["permuted_orders"])
-    return (
+    text = (
         f"Settings: 'Did I image enough?' replays each rule in {orders} (seeded from "
         f"random_state); random_state {settings['random_state']}."
     )
+    pairing = settings.get("repeat_pairing")
+    return text if pairing is None else f"{text} {pairing}"
 
 
 def plan_settings(settings: Mapping[str, Any]) -> str:
