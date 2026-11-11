@@ -46,6 +46,7 @@ from typing import Any
 
 import pandas as pd
 
+from ._control import VS
 from ._repeat_alias import refuse_repeat_alias
 from .metadata import (
     CONDITION_COLUMN,
@@ -116,10 +117,9 @@ class Pairing:
     def folder_of(self, condition: Any, repeat: Any = None) -> str | None:
         """``"control/rep1"``: the folders of a working-table condition and repeat when they
         differ from it, else ``None`` (also for a pair the tables do not hold)."""
-        found = self.folders.get((condition, repeat)) or self.folders.get((condition, None))
-        if found is None or (str(found[0]), str(found[1])) == (str(condition), str(repeat)):
-            return None
-        return "/".join(str(part) for part in found if part is not None)
+        path = _folder_path(self, condition, repeat)
+        same = "/".join(str(part) for part in (condition, repeat) if part is not None)
+        return None if path is None or path == same else path
 
 
 def paired_tables(
@@ -505,16 +505,38 @@ def with_folders(table: pd.DataFrame, pairing: Pairing) -> pd.DataFrame:
     out = table.copy()
     position = list(out.columns).index(REPEAT_COLUMN) + 1
     sides = [("folder", CONDITION_COLUMN), ("control_folder", "control_condition")]
+    references = out.get("control_condition", pd.Series([None] * len(out), index=out.index))
     for name, column in sides:
         if column not in out.columns:
             continue
+        compared = column == CONDITION_COLUMN
+        rows = zip(out[column], out[REPEAT_COLUMN], references, strict=True)
         folders = [
-            pairing.folder_of(condition, repeat) or f"{condition}/{repeat}"
-            for condition, repeat in zip(out[column], out[REPEAT_COLUMN], strict=True)
+            _row_folder(pairing, *row) if compared else _folder_path(pairing, *row[:2])
+            for row in rows
         ]
         out.insert(position, name, folders)
         position += 1
     return out
+
+
+def _row_folder(pairing: Pairing, condition: Any, repeat: Any, reference: Any) -> str | None:
+    """The folders of a per-repeat row's condition; a comparison's row, labelled ``"DrugA vs
+    CTRL"`` (``_control.comparison_label``), is its treated condition's."""
+    found = _folder_path(pairing, condition, repeat)
+    suffix = f"{VS}{reference}"
+    if found is None and isinstance(condition, str) and condition.endswith(suffix):
+        found = _folder_path(pairing, condition[: -len(suffix)], repeat)
+    return found
+
+
+def _folder_path(pairing: Pairing, condition: Any, repeat: Any) -> str | None:
+    """``"DrugA/experiment_23"``: the folders of a working-table condition and repeat, ``None``
+    for a pair the tables do not hold (never the IDs written as if they were folders)."""
+    found = pairing.folders.get((condition, repeat)) or pairing.folders.get((condition, None))
+    if found is None:
+        return None
+    return "/".join(str(part) for part in found if part is not None)
 
 
 def pairing_note(pairing: Pairing) -> str | None:

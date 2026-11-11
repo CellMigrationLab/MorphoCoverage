@@ -100,13 +100,20 @@ def paired_inputs(
 
 
 def setup_conditions(setup: Setup) -> list[Any]:
-    """The conditions a Setup names: its control declaration, master control and parents
-    (conditions are named by their ``condition_id`` when the tables hold it)."""
+    """The conditions a Setup names: its control declaration, master control and parents, its
+    positive control and the conditions of its experiment mapping (conditions are named by
+    their ``condition_id`` when the tables hold it). The workflows read the Setup on tables
+    whose conditions are already named by their IDs, where a folder label would select nothing
+    without a word, so each is refused here, with the ID to use."""
     names = declared_conditions(setup.control, CONDITION_COLUMN)
     if setup.master_control is not None:
         names += declared_conditions({CONDITION_COLUMN: setup.master_control})
     if setup.control_parents:
         names += declared_conditions({CONDITION_COLUMN: dict(setup.control_parents)})
+    if setup.positive is not None:
+        names += declared_conditions(setup.positive.selector, CONDITION_COLUMN)
+    if isinstance(setup.experiment, Mapping):
+        names += declared_conditions({CONDITION_COLUMN: list(setup.experiment)})
     return names
 
 

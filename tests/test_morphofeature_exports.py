@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 import tomllib
+from dataclasses import replace
 
 import numpy as np
 import pandas as pd
@@ -51,7 +52,7 @@ from morphocoverage.sampling_unit import (
     feature_ranking,
     object_rule_check,
 )
-from morphocoverage.workflows import Setup, html_report, report
+from morphocoverage.workflows import PositiveControl, Setup, default_novelty, html_report, report
 
 FAST = {"n_permutations": 99, "n_draws": 2, "object_counts": (2,)}
 
@@ -239,3 +240,62 @@ def test_the_report_pairs_v03_and_names_each_folder_beside_its_group() -> None:
     assert sorted(table["folder"]) == ["DrugA/experiment_23", "DrugA/rep2_drug"]
     assert "experiment_23 (DrugA) = Day1" in result.settings["repeat_pairing"]
     assert "Not compared" not in result.summary(detail="full")
+
+
+def test_a_comparison_row_names_the_folder_of_its_treated_condition() -> None:
+    # The rows of declared comparisons are labelled "DrugA vs CTRL"; their folder is still
+    # the treated condition's folder, never the label joined to the repeat group.
+    objects, fovs = with_feature("v03")
+    table = condition_contrast(
+        objects, fovs, feature="x", comparisons=[("DrugA", "CTRL")], **FAST
+    ).table.set_index("biological_repeat")
+    assert table.loc["Day1", "folder"] == "DrugA/experiment_23"
+    assert table.loc["Day2", "folder"] == "DrugA/rep2_drug"
+    assert table.loc["Day1", "control_folder"] == "CTRL/rep1"
+
+
+def _renamed_v27() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """v27 with the folder ``DrugA`` given the ID ``DA`` (the other IDs are their labels)."""
+    objects, fovs = with_feature("v27")
+    fovs = fovs.copy()
+    fovs.loc[fovs["condition"] == "DrugA", "condition_id"] = "DA"
+    return objects, fovs
+
+
+def test_a_setup_naming_an_experiment_by_folder_label_is_refused_with_its_id() -> None:
+    # Keyed by folder label, the mapping would no longer match the conditions (named by their
+    # IDs), and DrugA would be corrected in a family of its own without a word.
+    objects, fovs = _renamed_v27()
+    setup = Setup(
+        readout="x",
+        features=("x",),
+        control={"condition": "CTRL"},
+        experiment={"DrugA": "e1", "DrugB": "e1", "DrugC": "e2"},
+    )
+    with pytest.raises(PairingRefused, match="declare it as 'DA'") as refused:
+        report(objects, fovs, setup)
+    assert refused.value.code == FOLDER_CONTROL
+    by_id = replace(setup, experiment={"DA": "e1", "DrugB": "e1", "DrugC": "e2"})
+    cells = report(objects, fovs, by_id).results["contrast"].cells.set_index("condition")
+    assert cells.loc["DA", "experiment"] == cells.loc["DrugB", "experiment"]
+    assert cells.loc["DA", "experiment"] != cells.loc["DrugC", "experiment"]
+
+
+def test_a_positive_control_named_by_folder_label_is_refused_with_its_id() -> None:
+    # Selected on tables whose conditions are named by their IDs, the folder label would select
+    # no field, and the positive control would be judged on nothing without a word.
+    objects, fovs = _renamed_v27()
+    objects = objects.assign(y=objects["x"] * 0.5 + objects["label_id"])
+    declared = {
+        "readout": "x",
+        "features": ("x", "y"),
+        "control": {"condition": "CTRL"},
+        "novelty": default_novelty(["x", "y"]),
+    }
+    setup = Setup(**declared, positive=PositiveControl({"condition": "DrugA"}, fovs_seen=5))
+    with pytest.raises(PairingRefused, match="declare it as 'DA'") as refused:
+        report(objects, fovs, setup)
+    assert refused.value.code == FOLDER_CONTROL
+    by_id = Setup(**declared, positive=PositiveControl({"condition": "DA"}, fovs_seen=5))
+    table = report(objects, fovs, by_id).results["controls"].table
+    assert "positive_lofo" in set(table["candidate"])
