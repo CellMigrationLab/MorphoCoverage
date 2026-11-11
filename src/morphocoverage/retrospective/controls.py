@@ -75,7 +75,14 @@ from .._repeat_alias import refuse_repeat_alias
 from .._repeat_groups import pair_by_repeat_group
 from ..data_check import validate_input_tables
 from ..evaluator import FovSubsets
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, column_names, empty_values
+from ..metadata import (
+    CONDITION_COLUMN,
+    MORPHOBRICKS_GROUP_COLUMNS,
+    REPEAT_COLUMN,
+    REPEAT_GROUP_COLUMN,
+    column_names,
+    empty_values,
+)
 from ..schema import ValidatedInput
 from ..strategies.support_novelty import SupportNoveltyEstimator
 from ..sufficiency_text import novelty_definition
@@ -319,8 +326,11 @@ def representation_control(
     refuse_repeat_alias(
         pair_cols=pair_cols, identity_cols=identity_cols, lofo_group_cols=lofo_group_cols
     )
-    if REPEAT_COLUMN in pair_cols:  # paired within each repeat group, never by label (#617)
-        objects, fovs = pair_by_repeat_group(objects, fovs, REPEAT_COLUMN)
+    # Paired within each repeat group, never by label (#617); conditions by their IDs.
+    repeat_col = REPEAT_GROUP_COLUMN if REPEAT_COLUMN in pair_cols else None
+    sides = (control.positive, control.reference)
+    named = {CONDITION_COLUMN: [s.get(CONDITION_COLUMN, ()) for s in sides if s is not None]}
+    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, control=named)[:2]
     settings = {
         "control": control.parameters,
         "novelty": dict(novelty.parameters),

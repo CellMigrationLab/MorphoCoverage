@@ -24,24 +24,36 @@ equals its repeat group the tables are returned as given, so those analyses are 
 Within a condition a folder and its repeat group correspond one to one (the checks above), so
 the working copies identify every field exactly as the given tables do.
 
+Conditions are named by their ``condition_id`` the same way (MC-1): with that column beside the
+MorphoBricks ``condition`` folder label, each folder must have one ID in every field and each ID
+one folder, and the working copies name every condition by its ID, so a control is declared by
+its ID (``ctrl``, not the folder ``control``: a folder label that is not an ID is refused with
+the ID to use). The analyses that pair take ``repeat_col="repeat_group"`` by default
+(``pair_by_repeat_group``); naming ``repeat_col="biological_repeat"`` while the tables hold
+``repeat_group`` asks to pair by folder label and is refused. The given tables are never changed,
+and ``Pairing`` keeps every folder label beside its ID, for the outputs to name both
+(experiment-v1 section 3.4: the source label is never replaced in what the user reads).
+
 Shared-private: called by the paired analyses (``sampling_unit``, ``retrospective``,
 ``normalize``) and the workflows.
 """
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Sequence
-from dataclasses import dataclass
+from collections.abc import Hashable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
 
 from ._repeat_alias import refuse_repeat_alias
-from .metadata import CONDITION_COLUMN, REPEAT_COLUMN, empty_values
-
-# The canonical repeat ID beside the FOV key (experiment-v1 section 3.4); the column name of
-# preprocessing's experiment_design.csv and of MorphoFeature's coverage export (MF-5).
-REPEAT_GROUP_COLUMN = "repeat_group"
+from .metadata import (
+    CONDITION_COLUMN,
+    CONDITION_ID_COLUMN,
+    REPEAT_COLUMN,
+    REPEAT_GROUP_COLUMN,
+    empty_values,
+)
 
 # Why a pairing is refused, by code (``PairingRefused.code``).
 ABSENT = "repeat_group_absent"
@@ -50,7 +62,28 @@ SPLIT = "repeat_group_split"
 MERGED = "repeat_group_merged"
 DISAGREES = "repeat_group_disagrees"
 NO_SOURCE = "repeat_group_without_biological_repeat"
-CODES = (ABSENT, EMPTY, SPLIT, MERGED, DISAGREES, NO_SOURCE)
+FOLDER_PAIRING = "repeat_col_pairs_by_folder_label"
+ID_EMPTY = "condition_id_empty"
+ID_SPLIT = "condition_id_split"
+ID_MERGED = "condition_id_merged"
+ID_DISAGREES = "condition_id_disagrees"
+ID_NO_SOURCE = "condition_id_without_condition"
+FOLDER_CONTROL = "condition_named_by_folder_label"
+CODES = (
+    ABSENT,
+    EMPTY,
+    SPLIT,
+    MERGED,
+    DISAGREES,
+    NO_SOURCE,
+    FOLDER_PAIRING,
+    ID_EMPTY,
+    ID_SPLIT,
+    ID_MERGED,
+    ID_DISAGREES,
+    ID_NO_SOURCE,
+    FOLDER_CONTROL,
+)
 
 _BY_GROUP = (
     f"repeats are paired by their confirmed repeat group ({REPEAT_GROUP_COLUMN!r}), never by "
@@ -69,11 +102,24 @@ class PairingRefused(ValueError):
 
 @dataclass(frozen=True)
 class Pairing:
-    """How the repeats were paired: ``renamed`` maps each ``(condition, folder label)`` whose
-    repeat group differs from its label to that group (empty when every label is its group,
-    or when nothing was paired)."""
+    """How the repeats were paired and the conditions named: ``renamed`` maps each
+    ``(condition folder, repeat folder)`` whose repeat group differs from its label to that
+    group, ``conditions`` each condition folder whose ``condition_id`` differs from it to the
+    ID (both empty when every label is its ID, or when nothing was paired), and ``folders``
+    each ``(condition ID, repeat group)`` of the working tables to its ``(condition folder,
+    repeat folder)`` when anything was renamed (the repeat ``None`` without repeats)."""
 
     renamed: dict[tuple[Any, Any], Any]
+    conditions: dict[Any, Any] = field(default_factory=dict)
+    folders: dict[tuple[Any, Any], tuple[Any, Any]] = field(default_factory=dict)
+
+    def folder_of(self, condition: Any, repeat: Any = None) -> str | None:
+        """``"control/rep1"``: the folders of a working-table condition and repeat when they
+        differ from it, else ``None`` (also for a pair the tables do not hold)."""
+        found = self.folders.get((condition, repeat)) or self.folders.get((condition, None))
+        if found is None or (str(found[0]), str(found[1])) == (str(condition), str(repeat)):
+            return None
+        return "/".join(str(part) for part in found if part is not None)
 
 
 def paired_tables(
@@ -82,21 +128,27 @@ def paired_tables(
     *,
     condition_col: str = CONDITION_COLUMN,
     others: Sequence[pd.DataFrame] = (),
+    names: Iterable[Any] = (),
 ) -> tuple[pd.DataFrame, pd.DataFrame, list[pd.DataFrame], Pairing]:
-    """The tables with each folder label replaced by its repeat group, and the pairing.
+    """The tables with each folder label replaced by its repeat group and each condition
+    folder by its ``condition_id``, and the pairing.
 
-    Without a ``biological_repeat`` column in the FOV table the tables are returned as given
+    Without a ``biological_repeat`` column in the FOV table the repeats are left as given
     (one implicit repeat, as before). With one, ``repeat_group`` must be beside it and valid
-    (module docstring), else ``PairingRefused``. ``others`` (feature tables holding the FOV
-    key) are relabelled the same way. When every label is its group the tables are returned
-    as given (not copied).
+    (module docstring), else ``PairingRefused``; so must ``condition_id`` when the tables hold
+    it. ``names`` are the conditions the caller declared (a control): a folder label that is
+    not an ID is refused (``FOLDER_CONTROL``). ``others`` (feature tables holding the FOV key)
+    are relabelled the same way. When every label is its ID the tables are returned as given
+    (not copied).
     """
     groups = _checked_groups(objects, fovs, condition_col)
-    renamed = _renamed(groups)
-    if not renamed:
-        return objects, fovs, list(others), Pairing({})
-    tables = [_relabelled(t, groups, condition_col) for t in (objects, fovs, *others)]
-    return tables[0], tables[1], tables[2:], Pairing(renamed)
+    ids = checked_condition_ids(objects, fovs, condition_col)
+    refuse_folder_names(names, ids)
+    pairing = _pairing(groups, ids)
+    if not pairing.renamed and not pairing.conditions:
+        return objects, fovs, list(others), pairing
+    tables = [_relabelled(t, groups, ids, condition_col) for t in (objects, fovs, *others)]
+    return tables[0], tables[1], tables[2:], pairing
 
 
 def pair_by_repeat_group(
@@ -104,15 +156,40 @@ def pair_by_repeat_group(
     fovs: pd.DataFrame,
     repeat_col: str | None,
     condition_col: str = CONDITION_COLUMN,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """``paired_tables`` for an analysis that pairs by ``repeat_col``: only when it is the
-    MorphoBricks ``biological_repeat`` column. Another column named explicitly is the
-    caller's own declaration of the repeats, and ``None`` compares within the whole table, so
-    both are left as given."""
-    if repeat_col != REPEAT_COLUMN:
-        return objects, fovs
-    paired = paired_tables(objects, fovs, condition_col=condition_col)
-    return paired[0], paired[1]
+    control: Mapping[str, Any] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, str | None, Pairing]:
+    """The tables an analysis pairing by ``repeat_col`` reads, the repeat column to use in
+    them, and the pairing.
+
+    ``repeat_group`` (the default of the analyses) pairs by the repeat groups
+    (``paired_tables``): the working tables carry each group in ``biological_repeat``, which
+    is returned as the column to use. ``biological_repeat`` named explicitly pairs by folder
+    label, refused while the tables hold ``repeat_group`` (``FOLDER_PAIRING``), else read as
+    before (refused when the tables hold ``biological_repeat`` without ``repeat_group``).
+    Another column is the caller's own declaration of the repeats, and ``None`` compares
+    within the whole table: both are used as given, and only the conditions are named by
+    their IDs. ``control`` names the control (by ``condition_id`` when the tables hold it).
+    """
+    names = declared_conditions(control, condition_col)
+    if repeat_col == REPEAT_COLUMN and any(
+        REPEAT_GROUP_COLUMN in table.columns for table in (objects, fovs)
+    ):
+        raise PairingRefused(
+            FOLDER_PAIRING,
+            f"repeat_col={REPEAT_COLUMN!r} pairs by folder name, while the tables hold "
+            f"{REPEAT_GROUP_COLUMN!r}: {_BY_GROUP}. Leave repeat_col at its default, "
+            f"{REPEAT_GROUP_COLUMN!r}, to pair the repeats as confirmed",
+        )
+    if repeat_col in (REPEAT_GROUP_COLUMN, REPEAT_COLUMN):
+        paired = paired_tables(objects, fovs, condition_col=condition_col, names=names)
+        return paired[0], paired[1], REPEAT_COLUMN, paired[3]
+    ids = checked_condition_ids(objects, fovs, condition_col)
+    refuse_folder_names(names, ids)
+    pairing = _pairing({}, ids)
+    if not pairing.conditions:
+        return objects, fovs, repeat_col, pairing
+    tables = [_relabelled(t, {}, ids, condition_col) for t in (objects, fovs)]
+    return tables[0], tables[1], repeat_col, pairing
 
 
 def repeat_groups(
@@ -127,6 +204,21 @@ def repeat_groups(
 def _renamed(groups: dict[tuple[Any, Any], Any]) -> dict[tuple[Any, Any], Any]:
     """The folders whose repeat group is not their label."""
     return {key: group for key, group in groups.items() if str(key[-1]) != str(group)}
+
+
+def _pairing(groups: dict[tuple[Any, Any], Any], ids: dict[Any, Any]) -> Pairing:
+    """The ``Pairing`` of the checked repeat groups and condition IDs (every folder)."""
+    renamed = _renamed(groups)
+    conditions = {folder: cid for folder, cid in ids.items() if str(folder) != str(cid)}
+    if not renamed and not conditions:
+        return Pairing({})
+    folders = {
+        (ids.get(condition, condition), group): (condition, label)
+        for (condition, label), group in groups.items()
+    }
+    for folder, cid in ids.items():
+        folders.setdefault((cid, None), (folder, None))
+    return Pairing(renamed, conditions, folders)
 
 
 def _checked_groups(
@@ -237,23 +329,32 @@ def _refuse_disagreeing(
 
 
 def _relabelled(
-    table: pd.DataFrame, groups: dict[tuple[Any, Any], Any], condition_col: str
+    table: pd.DataFrame,
+    groups: dict[tuple[Any, Any], Any],
+    ids: dict[Any, Any],
+    condition_col: str,
 ) -> pd.DataFrame:
-    """``table`` with each folder label replaced by its repeat group (a copy); ``groups`` holds
-    every folder, so a table without the condition column is relabelled only where each label
-    has one group whatever the condition."""
-    if REPEAT_COLUMN not in table.columns:
+    """``table`` with each folder label replaced by its repeat group and each condition folder
+    by its ID (a copy); ``groups`` holds every folder, so a table without the condition column
+    is relabelled only where each label has one group whatever the condition."""
+    has_repeat = REPEAT_COLUMN in table.columns and bool(groups)
+    has_condition = condition_col in table.columns and bool(ids)
+    if not has_repeat and not has_condition:
         return table
-    labels = table[REPEAT_COLUMN]
-    if condition_col in table.columns:
-        pairs = list(zip(table[condition_col], labels, strict=True))
-    else:
-        by_label = _by_label(groups)
-        pairs = [(None, label) for label in labels]
-        groups = {(None, label): group for label, group in by_label.items()}
-    relabelled = [groups.get(_pair(pair), pair[1]) for pair in pairs]
     out = table.copy()
-    out[REPEAT_COLUMN] = pd.Series(relabelled, index=table.index, dtype=object)
+    if has_repeat:
+        labels = table[REPEAT_COLUMN]
+        if condition_col in table.columns:
+            pairs = list(zip(table[condition_col], labels, strict=True))
+        else:
+            by_label = _by_label(groups)
+            pairs = [(None, label) for label in labels]
+            groups = {(None, label): group for label, group in by_label.items()}
+        relabelled = [groups.get(_pair(pair), pair[1]) for pair in pairs]
+        out[REPEAT_COLUMN] = pd.Series(relabelled, index=table.index, dtype=object)
+    if has_condition:
+        named = [ids.get(c, c) if isinstance(c, Hashable) else c for c in table[condition_col]]
+        out[condition_col] = pd.Series(named, index=table.index, dtype=object)
     return out
 
 
@@ -287,18 +388,158 @@ def _listed(values: Sequence[Any]) -> str:
     return ", ".join(repr(v) for v in sorted(values, key=str))
 
 
+def checked_condition_ids(
+    objects: pd.DataFrame, fovs: pd.DataFrame, condition_col: str = CONDITION_COLUMN
+) -> dict[Any, Any]:
+    """Each condition folder's ``condition_id`` (every folder), empty without the column or
+    with a condition column of the caller's own; refused (``PairingRefused``) when a field has
+    none, a folder has two, an ID names two folders or the observation table disagrees."""
+    if condition_col != CONDITION_COLUMN:
+        return {}
+    source = fovs
+    if CONDITION_ID_COLUMN not in fovs.columns and CONDITION_ID_COLUMN in objects.columns:
+        source = objects  # the observation table may carry it alone
+    if CONDITION_ID_COLUMN not in source.columns:
+        return {}
+    if condition_col not in source.columns:
+        raise PairingRefused(
+            ID_NO_SOURCE,
+            f"the tables have a {CONDITION_ID_COLUMN!r} column but no {condition_col!r} column: "
+            "the FOV key keeps the source folder label of each condition beside its ID; add "
+            f"the {condition_col!r} column",
+        )
+    empty = empty_values(source[CONDITION_ID_COLUMN])
+    if empty.any():
+        first = source.loc[empty, condition_col].iloc[0]
+        raise PairingRefused(
+            ID_EMPTY,
+            f"{int(empty.sum())} of the {len(source)} rows have no {CONDITION_ID_COLUMN!r} "
+            f"value (the first: condition {first!r}), so the condition is unknown: fill it in "
+            "for every field",
+        )
+    ids = _one_to_one(source[[condition_col, CONDITION_ID_COLUMN]].drop_duplicates())
+    if source is fovs and {condition_col, CONDITION_ID_COLUMN} <= set(objects.columns):
+        held = objects[[condition_col, CONDITION_ID_COLUMN]].drop_duplicates()
+        for folder, cid in held.itertuples(index=False):
+            if folder in ids and str(ids[folder]) != str(cid):
+                raise PairingRefused(
+                    ID_DISAGREES,
+                    f"the observation table gives the condition folder {folder!r} the ID "
+                    f"{cid!r} and the FOV table {ids[folder]!r}: give both tables the same "
+                    f"{CONDITION_ID_COLUMN!r}",
+                )
+    return ids
+
+
+def _one_to_one(pairs: pd.DataFrame) -> dict[Any, Any]:
+    """The folder -> ID pairs, refused unless each folder has one ID and each ID one folder."""
+    ids: dict[Any, list[Any]] = {}
+    folders: dict[Any, list[Any]] = {}
+    for folder, cid in pairs.itertuples(index=False):
+        ids.setdefault(folder, []).append(cid)
+        folders.setdefault(str(cid), []).append(folder)
+    for folder, found in ids.items():
+        if len(found) > 1:
+            raise PairingRefused(
+                ID_SPLIT,
+                f"the condition folder {folder!r} has {len(found)} IDs ({_listed(found)}): a "
+                f"folder is one condition; give it one {CONDITION_ID_COLUMN!r}",
+            )
+    for cid, found in folders.items():
+        if len(found) > 1:
+            raise PairingRefused(
+                ID_MERGED,
+                f"the condition ID {cid!r} names {len(found)} folders ({_listed(found)}): each "
+                f"condition of the description has one source folder; give each folder its "
+                f"own {CONDITION_ID_COLUMN!r}",
+            )
+    return {folder: found[0] for folder, found in ids.items()}
+
+
+def declared_conditions(control: Any, condition_col: str = CONDITION_COLUMN) -> list[Any]:
+    """The condition names a control declaration holds under ``condition_col``: the value of
+    ``{"condition": "ctrl"}``, and every key and value of the forms of several controls
+    (``{"condition": {control: {treatment: condition}}}``, ``[conditions]``)."""
+    if not isinstance(control, Mapping) or condition_col not in control:
+        return []
+    return list(_names_in(control[condition_col]))
+
+
+def _names_in(value: Any) -> Iterable[Any]:
+    """The hashable leaves and keys of a nested declaration."""
+    if isinstance(value, Mapping):
+        for key, inner in value.items():
+            yield from _names_in(key)
+            yield from _names_in(inner)
+    elif isinstance(value, (list, tuple, set, frozenset)):
+        for inner in value:
+            yield from _names_in(inner)
+    elif isinstance(value, Hashable) and value is not None:
+        yield value
+
+
+def refuse_folder_names(names: Iterable[Any], ids: Mapping[Any, Any]) -> None:
+    """Refuse a declared condition that is a folder label, not an ID (``FOLDER_CONTROL``),
+    naming the ID to use; an ID that is also another folder's label is the ID."""
+    known = {str(cid) for cid in ids.values()}
+    for name in names:
+        if str(name) in known:
+            continue
+        cid = next((c for folder, c in ids.items() if str(folder) == str(name)), None)
+        if cid is not None:
+            raise PairingRefused(
+                FOLDER_CONTROL,
+                f"{name!r} is a condition folder label: conditions are named by their ID "
+                f"({CONDITION_ID_COLUMN!r}), so declare it as {cid!r} (the folder label stays "
+                "in the 'condition' column and in the outputs beside its ID)",
+            )
+
+
+def with_folders(table: pd.DataFrame, pairing: Pairing) -> pd.DataFrame:
+    """A per-repeat table (``condition``, ``biological_repeat``, and ``control_condition`` when
+    it has one) with each row's folders beside its IDs, ``folder`` and ``control_folder``
+    (``"DrugA/experiment_23"``), when the pairing renamed anything; else the table as given."""
+    held = {CONDITION_COLUMN, REPEAT_COLUMN} <= set(table.columns)
+    if not pairing.folders or not held or "folder" in table.columns:
+        return table
+    out = table.copy()
+    position = list(out.columns).index(REPEAT_COLUMN) + 1
+    sides = [("folder", CONDITION_COLUMN), ("control_folder", "control_condition")]
+    for name, column in sides:
+        if column not in out.columns:
+            continue
+        folders = [
+            pairing.folder_of(condition, repeat) or f"{condition}/{repeat}"
+            for condition, repeat in zip(out[column], out[REPEAT_COLUMN], strict=True)
+        ]
+        out.insert(position, name, folders)
+        position += 1
+    return out
+
+
 def pairing_note(pairing: Pairing) -> str | None:
-    """One sentence naming the folders paired under another name (``None`` when none is)."""
-    if not pairing.renamed:
-        return None
-    parts = [
-        f"{label}{'' if condition is None else f' ({condition})'} = {group}"
-        for (condition, label), group in sorted(pairing.renamed.items(), key=str)
-    ]
-    return (
-        f"Repeats are paired by their repeat group ({REPEAT_GROUP_COLUMN}), not by folder "
-        f"label: {'; '.join(parts)}."
-    )
+    """The sentences naming the folders paired, and the conditions named, under another name
+    (``None`` when none is): each folder label beside its ID."""
+    sentences = []
+    if pairing.renamed:
+        parts = [
+            f"{label}{'' if condition is None else f' ({condition})'} = {group}"
+            for (condition, label), group in sorted(pairing.renamed.items(), key=str)
+        ]
+        sentences.append(
+            f"Repeats are paired by their repeat group ({REPEAT_GROUP_COLUMN}), not by folder "
+            f"label: {'; '.join(parts)}."
+        )
+    if pairing.conditions:
+        parts = [
+            f"{cid} (folder {folder})"
+            for folder, cid in sorted(pairing.conditions.items(), key=str)
+        ]
+        sentences.append(
+            f"Conditions are named by their ID ({CONDITION_ID_COLUMN}), each beside its folder "
+            f"label: {'; '.join(parts)}."
+        )
+    return " ".join(sentences) or None
 
 
 __all__ = [
@@ -306,14 +547,25 @@ __all__ = [
     "CODES",
     "DISAGREES",
     "EMPTY",
+    "FOLDER_CONTROL",
+    "FOLDER_PAIRING",
+    "ID_DISAGREES",
+    "ID_EMPTY",
+    "ID_MERGED",
+    "ID_NO_SOURCE",
+    "ID_SPLIT",
     "MERGED",
     "NO_SOURCE",
     "REPEAT_GROUP_COLUMN",
     "SPLIT",
     "Pairing",
     "PairingRefused",
+    "checked_condition_ids",
+    "declared_conditions",
     "pair_by_repeat_group",
     "paired_tables",
     "pairing_note",
+    "refuse_folder_names",
     "repeat_groups",
+    "with_folders",
 ]

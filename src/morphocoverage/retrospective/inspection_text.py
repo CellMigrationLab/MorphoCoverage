@@ -19,6 +19,7 @@ end of its section.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import pandas as pd
@@ -27,7 +28,7 @@ from .._caveats import caveat_lines
 from .._style import check_detail, group_columns, group_label, table, width, wrap
 from .._wording import count, listing
 from .._wording import fields as fields_text
-from ..metadata import TECHNICAL_REPEAT_COLUMN
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..strategies.novelty_null import uninformative_line
 
 # Fields listed in the short form; the full form lists every one.
@@ -66,6 +67,17 @@ def _keys(result: Any) -> tuple[list[str], list[str], list[str]]:
     fov_key = [c for c in result.settings.get("fov_key", []) if c not in groups]
     trace = [c for c in result.settings.get("trace", []) if c not in fov_key]
     return groups, fov_key, trace
+
+
+def field_group(result: Any, group: Mapping[str, Any]) -> str:
+    """The group's label (``_style.group_label``), its folders beside it when the report named
+    its condition or repeat by an ID (``settings["folders"]``: ``"DrugA · repeat Day1 (folder
+    DrugA/experiment_23)"``; experiment-v1 section 3.4)."""
+    label = group_label(group)
+    for condition, repeat, folder in result.settings.get("folders", ()):
+        if group.get(CONDITION_COLUMN) == condition and group.get(REPEAT_COLUMN) == repeat:
+            return f"{label} (folder {folder})"
+    return label
 
 
 def _fields(result: Any) -> list[tuple[dict[str, Any], str, pd.DataFrame]]:
@@ -180,7 +192,7 @@ def inspection_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str]
     head = f"{reopen}{where}: {reasons}."
     lines = [wrap(head, indent, hang=indent + 2)]
     rows = [
-        [group_label(group), name, "; ".join(own["detail"])]
+        [field_group(result, group), name, "; ".join(own["detail"])]
         for group, name, own in listed[:SHORT_FIELDS]
     ]
     columns = ["group", "field", "why"] if groups else ["field", "why"]
@@ -210,7 +222,7 @@ def _full(result: Any) -> str:
     else:
         current = None
         for group, name, own in _fields(result):
-            label = group_label(group) if groups else "All fields"
+            label = field_group(result, group) if groups else "All fields"
             if label != current:
                 current = label
                 lines.append(f"{label}: fields to reopen before trusting the result")
@@ -232,4 +244,11 @@ def inspection_summary(result: Any, detail: str = "short") -> str:
     return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
 
 
-__all__ = ["SHORT_FIELDS", "inspection_parts", "inspection_summary", "reason_counts", "tally"]
+__all__ = [
+    "SHORT_FIELDS",
+    "field_group",
+    "inspection_parts",
+    "inspection_summary",
+    "reason_counts",
+    "tally",
+]

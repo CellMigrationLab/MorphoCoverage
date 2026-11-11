@@ -70,7 +70,7 @@ independent repeats to generalize.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import numpy as np
@@ -87,11 +87,12 @@ from .._control import (
 )
 from .._frozen import owned
 from .._repeat_alias import refuse_repeat_alias
-from .._repeat_groups import pair_by_repeat_group
+from .._repeat_groups import pair_by_repeat_group, with_folders
 from .._seeds import group_rng
 from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
     REPEAT_COLUMN,
+    REPEAT_GROUP_COLUMN,
     TARGET_COLUMN,
     TECHNICAL_REPEAT_COLUMN,
 )
@@ -206,7 +207,7 @@ def condition_contrast(
     feature: str,
     control: Mapping[str, Any] | None = None,
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
-    repeat_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[1],
+    repeat_col: str | None = REPEAT_GROUP_COLUMN,
     technical_col: str | None = TECHNICAL_REPEAT_COLUMN,
     object_counts: Sequence[int] = DEFAULT_OBJECT_COUNTS,
     n_permutations: int = 2000,
@@ -227,36 +228,43 @@ def condition_contrast(
 
     ``control`` names the control condition by FOV-table value, for example ``{"condition":
     "MOCK"}``; its key is the condition column unless ``condition_col`` says otherwise.
-    ``repeat_col`` separates the repeats (``None`` compares within the whole table); the default,
-    ``biological_repeat``, pairs the repeats by the FOV table's ``repeat_group``, never by the
-    folder label, and is refused without it (``_repeat_groups``, #617). Every analysis
-    group whose condition is not the control's is compared with the control groups of the same
-    repeat; the groups of one condition (its wells, say) are pooled for the comparison, which the
-    summary states. ``technical_col`` names the technical-repeat column of the FOV table (by default
-    the MorphoBricks ``technical_repeat`` column, when present); its technical repeats are compared
-    and shuffled as units whatever ``group_cols`` says, an analysis group holding several being
-    split by it (see the module). Without it, a group column nested within condition x repeat (a
-    ``well`` column in ``group_cols``) is the unit; without either, there is no randomization test
-    unless ``fields_independent=True`` declares the fields independent draws, when whole fields are
-    shuffled. ``object_counts`` are the JCS sample sizes; counts above what a side holds are left
-    out. ``target_col`` names what each condition acts on (default the ``target`` column, when the
-    FOV table has it): the reagents of one target are then said to agree or not across the repeats.
-    ``cell_test=False`` leaves out the cell-level test (``cells`` empty), the slow part, when only
-    the sampling of each feature is asked ("Did I image enough?" per feature). ``comparisons``,
-    ``(condition, reference)`` pairs, replace the single control (which may then be ``None``): each
-    pair is compared per repeat, its rows labelled ``condition vs reference`` in the ``condition``
-    column (``_control``, owner 2026-10-05); the cell-level test pools each reference's own
-    observations. ``contrasts``, a contrast table (``_control.CONTRAST_COLUMNS``), gives the
-    comparisons (its ``own_control`` rows) and the secondary rows, tested on the repeat means
-    (``contrast_across``, the table ``across``). ``scale``, the feature's declared scale
-    (``Setup.scales``: ``"ratio"`` or ``"difference"``; plan v2, owner, 2026-10-06), replaces the
-    automatic rule (``statistics.log_scale``) for the paired test across repeats. ``families``,
-    each condition's declared experiment (``Setup.experiment``), sets the correction families.
+    ``repeat_col`` separates the repeats (``None`` compares within the whole table); the
+    default, ``repeat_group``, pairs the repeats by the FOV table's ``repeat_group``, never by
+    the folder label, and is refused without it (``_repeat_groups``, #617);
+    ``biological_repeat`` named explicitly pairs by folder name and is refused while the tables
+    hold ``repeat_group``. With a ``condition_id`` column the conditions, the control included,
+    are named by their IDs, and each per-repeat row names its folders beside them (``folder``,
+    ``control_folder``). Every analysis group whose condition is not the control's is compared
+    with the control groups of the same repeat; the groups of one condition (its wells, say) are
+    pooled for the comparison, which the summary states. ``technical_col`` names the
+    technical-repeat column of the FOV table (by default the MorphoBricks ``technical_repeat``
+    column, when present); its technical repeats are compared and shuffled as units whatever
+    ``group_cols`` says, an analysis group holding several being split by it (see the module).
+    Without it, a group column nested within condition x repeat (a ``well`` column in
+    ``group_cols``) is the unit; without either, there is no randomization test unless
+    ``fields_independent=True`` declares the fields independent draws, when whole fields are
+    shuffled. ``object_counts`` are the JCS sample sizes; counts above what a side holds are
+    left out. ``target_col`` names what each condition acts on (default the ``target`` column,
+    when the FOV table has it): the reagents of one target are then said to agree or not across
+    the repeats. ``cell_test=False`` leaves out the cell-level test (``cells`` empty), the slow
+    part, when only the sampling of each feature is asked ("Did I image enough?" per feature).
+    ``comparisons``, ``(condition, reference)`` pairs, replace the single control (which may
+    then be ``None``): each pair is compared per repeat, its rows labelled ``condition vs
+    reference`` in the ``condition`` column (``_control``, owner 2026-10-05); the cell-level
+    test pools each reference's own observations. ``contrasts``, a contrast table
+    (``_control.CONTRAST_COLUMNS``), gives the comparisons (its ``own_control`` rows) and the
+    secondary rows, tested on the repeat means (``contrast_across``, the table ``across``).
+    ``scale``, the feature's declared scale (``Setup.scales``: ``"ratio"`` or ``"difference"``;
+    plan v2, owner, 2026-10-06), replaces the automatic rule (``statistics.log_scale``) for the
+    paired test across repeats. ``families``, each condition's declared experiment
+    (``Setup.experiment``), sets the correction families.
     """
     declared = None if contrasts is None else check_contrast_table(contrasts)
     comparisons = comparisons if declared is None else own_pairs(declared)
     refuse_repeat_alias(control=control, repeat_col=repeat_col)
-    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
+    objects, fovs, repeat_col, pairing = pair_by_repeat_group(
+        objects, fovs, repeat_col, condition_col, control
+    )
     if not isinstance(feature, str) or not feature:
         raise TypeError("feature must be one column name")
     if comparisons is not None:
@@ -297,7 +305,9 @@ def condition_contrast(
             "to compare."
         )
         return ConditionContrast(pd.DataFrame(), pd.DataFrame(), settings)
-    return _compared(run, contrasts, settings, fovs, declared, target_col, cell_test, families)
+    result = _compared(run, contrasts, settings, fovs, declared, target_col, cell_test, families)
+    # Each per-repeat row names its folders beside the IDs it is paired by (experiment-v1 3.4).
+    return replace(result, table=with_folders(result.table, pairing))
 
 
 def _settings(

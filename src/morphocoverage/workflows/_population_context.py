@@ -159,7 +159,7 @@ def _own_control_problem(raw: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) ->
             fovs,
             feature_cols=setup.columns,
             control={CONDITION_COLUMN: reference},
-            repeat_col=setup.repeat_col(fovs),
+            repeat_col=setup.pairing_col(fovs),
             leave_out_missing=True,
             **setup.common,
         )

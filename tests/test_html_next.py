@@ -340,3 +340,21 @@ def test_the_code_lists_typed_literals_and_refuses_types_it_cannot_write():
     assert fields_value(1.5) == 1.5 and fields_value(True) is True
     with pytest.raises(TypeError, match="cannot be written as code"):
         fields_value(pd.Timestamp("2026-01-01"))
+
+
+def test_the_fields_to_remove_are_written_with_the_folder_labels_of_the_given_tables():
+    # The report names conditions and repeats by their IDs; the code runs on the user's tables,
+    # which hold the folder labels (experiment-v1 section 3.4).
+    from morphocoverage.workflows._html_fields import given_identities
+
+    key = ["condition", "biological_repeat", "position_id"]
+    labels = [("ctrl", "Day1", "control", "rep1"), ("DrugA", "Day1", "DrugA", "experiment_23")]
+    result = SimpleNamespace(settings={"folder_labels": labels})
+    flagged = [("ctrl", "Day1", "img0"), ("DrugA", "Day1", "img3"), ("other", "Day9", "img1")]
+    assert given_identities(result, flagged, key) == [
+        ("control", "rep1", "img0"),
+        ("DrugA", "experiment_23", "img3"),
+        ("other", "Day9", "img1"),
+    ]
+    unrenamed = SimpleNamespace(settings={})
+    assert given_identities(unrenamed, flagged, key) is flagged

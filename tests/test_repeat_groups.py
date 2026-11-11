@@ -72,9 +72,13 @@ def _contrast(objects, fovs):
     )
 
 
+# The columns naming a row's repeat and folders, which differ when the folders are renamed.
+_NAMES = ("biological_repeat", "folder", "control_folder")
+
+
 def _numbers(contrast) -> pd.DataFrame:
-    """The per-repeat rows and the test across repeats, without the folder-label column."""
-    columns = [c for c in contrast.table.columns if c != "biological_repeat"]
+    """The per-repeat rows and the test across repeats, without the repeat and folder labels."""
+    columns = [c for c in contrast.table.columns if c not in _NAMES]
     return contrast.table[columns].reset_index(drop=True)
 
 
@@ -94,8 +98,12 @@ def test_repeats_are_paired_by_repeat_group_whatever_the_folder_labels(labels, t
     contrast = _contrast(*_tables(labels))
     pd.testing.assert_frame_equal(_numbers(contrast), _numbers(truth))
     pd.testing.assert_frame_equal(contrast.repeats, truth.repeats)
-    # Each paired row is named by its repeat group.
+    # Each paired row is named by its repeat group, its folders beside it.
     assert sorted(contrast.table["biological_repeat"]) == ["Day1", "Day2", "Day3"]
+    for row in contrast.table.itertuples():
+        assert row.folder == f"DrugA/{labels[('DrugA', row.biological_repeat)]}"
+        assert row.control_folder == f"CTRL/{row.biological_repeat}"
+    assert "folder" not in truth.table.columns  # nothing renamed: the table as before
     # Every repeat sees the effect: the batches were never mixed.
     assert _difference(contrast) == pytest.approx(EFFECT, abs=0.5)
 
@@ -374,3 +382,112 @@ def test_a_feature_table_carrying_the_repeat_group_is_refused_as_metadata():
     embedding = embedding.assign(repeat_group=embedding["biological_repeat"])
     with pytest.raises(ValueError, match=r"metadata columns \['repeat_group'\]"):
         attach_feature_tables(objects, fovs, {"DINO": embedding})
+
+
+# Conditions named by their condition_id (MC-1): the folder label stays in `condition`.
+IDS = {"CTRL": "ctrl", "DrugA": "drug_a"}
+
+
+def _with_ids(table: pd.DataFrame, ids: dict = IDS) -> pd.DataFrame:
+    return table.assign(condition_id=table["condition"].map(ids))
+
+
+def test_the_canonical_ids_are_shared_columns_and_their_near_misses_are_refused():
+    from morphocoverage.metadata import MORPHOBRICKS_SHARED_COLUMNS, canonical_spelling
+
+    assert {"repeat_group", "condition_id", "technical_repeat_id"} <= set(
+        MORPHOBRICKS_SHARED_COLUMNS
+    )
+    assert canonical_spelling("Condition_ID") == "condition_id"
+    assert canonical_spelling("repeat group") == "repeat_group"
+    assert canonical_spelling("technical_repeat_ID") == "technical_repeat_id"
+    assert canonical_spelling("condition_id") is None
+    assert canonical_spelling("technical_repeat_id") is None
+
+
+def test_conditions_are_named_by_their_id_and_the_contrast_matches_the_folder_labels():
+    objects, fovs = _tables(V03)
+    by_id = condition_contrast(
+        _with_ids(objects),
+        _with_ids(fovs),
+        feature="x",
+        control={"condition": "ctrl"},
+        n_draws=2,
+        object_counts=(10,),
+        **FAST,
+    )
+    by_label = _contrast(objects, fovs)
+    assert set(by_id.table["condition"]) == {"drug_a"}
+    assert set(by_id.table["control_condition"]) == {"ctrl"}
+    assert sorted(by_id.table["folder"]) == ["DrugA/experiment_23", "DrugA/rep2_drug", "DrugA/x3"]
+    # The same pairs and values (the random draws are seeded by the condition's name).
+    columns = ["fields", "observations", "control_fields", "control_observations", "mean"]
+    columns += ["control_mean", "d_objects"]
+    pd.testing.assert_frame_equal(
+        by_id.table[columns].reset_index(drop=True), by_label.table[columns].reset_index(drop=True)
+    )
+
+
+@pytest.mark.parametrize(
+    ("change", "code"),
+    [
+        (lambda f: f.assign(condition_id=f["condition_id"].where(f.index > 0, "")), rg.ID_EMPTY),
+        (
+            lambda f: f.assign(condition_id=f["condition_id"].where(f.index > 0, "other")),
+            rg.ID_SPLIT,
+        ),
+        (lambda f: f.assign(condition_id="one"), rg.ID_MERGED),
+        (lambda f: f.drop(columns="condition"), rg.ID_NO_SOURCE),
+    ],
+    ids=["empty", "split", "merged", "no_condition"],
+)
+def test_an_ambiguous_condition_id_is_refused(change, code):
+    objects, fovs = _tables({})
+    with pytest.raises(rg.PairingRefused) as caught:
+        rg.paired_tables(objects, change(_with_ids(fovs)))
+    assert caught.value.code == code
+
+
+def test_an_observation_table_disagreeing_on_the_condition_id_is_refused():
+    objects, fovs = _tables({})
+    wrong = _with_ids(objects, {"CTRL": "drug_a", "DrugA": "ctrl"})
+    with pytest.raises(rg.PairingRefused) as caught:
+        rg.paired_tables(wrong, _with_ids(fovs))
+    assert caught.value.code == rg.ID_DISAGREES
+
+
+def test_a_folder_label_that_is_another_conditions_id_is_that_id():
+    # The IDs are crossed: the folder CTRL is condition "DrugA" and the reverse.
+    objects, fovs = _tables({})
+    crossed = {"CTRL": "DrugA", "DrugA": "CTRL"}
+    paired = rg.paired_tables(_with_ids(objects, crossed), _with_ids(fovs, crossed), names=["CTRL"])
+    assert paired[3].conditions == crossed
+    assert set(paired[1].loc[fovs["condition"] == "DrugA", "condition"]) == {"CTRL"}
+
+
+def test_tables_without_the_ids_are_unchanged_and_need_no_id():
+    objects, fovs = _tables({})
+    paired = rg.paired_tables(objects, fovs, names=["CTRL"])
+    assert paired[0] is objects and paired[1] is fovs
+    assert paired[3] == rg.Pairing({})
+    assert rg.pairing_note(paired[3]) is None
+
+
+def test_a_feature_table_carrying_a_condition_id_is_refused_as_metadata():
+    from _helpers_feature_tables import _tables as _feature_tables
+
+    from morphocoverage.feature_tables import attach_feature_tables
+
+    objects, fovs, embedding = _feature_tables()
+    embedding = embedding.assign(condition_id=embedding["condition"])
+    with pytest.raises(ValueError, match=r"metadata columns \['condition_id'\]"):
+        attach_feature_tables(objects, fovs, {"DINO": embedding})
+
+
+def test_a_setup_naming_the_control_by_its_folder_is_refused_by_the_report():
+    objects, fovs = _tables({})
+    with pytest.raises(rg.PairingRefused, match="declare it as 'ctrl'"):
+        report(_with_ids(objects), _with_ids(fovs), _setup())
+    result = report(_with_ids(objects), _with_ids(fovs), _setup(control={"condition": "ctrl"}))
+    assert set(result.results["contrast"].table["control_condition"]) == {"ctrl"}
+    assert "ctrl (folder CTRL)" in result.settings["repeat_pairing"]

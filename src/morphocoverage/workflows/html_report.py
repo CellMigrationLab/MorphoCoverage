@@ -250,6 +250,9 @@ def _data_card(result: Report, doc: Any, status: Status | None, fields_named: bo
         + "</details>"
     )
     rows = check_rows(short, _TERMS.annotate, fields_named)
+    # The folders paired, and the conditions named, under their IDs, each folder beside its ID.
+    pairing = (result.settings or {}).get("repeat_pairing")
+    note += f'<p class="note">{html.escape(pairing)}</p>' if pairing else ""
     return _card("overview", TITLES["overview"], chip(status, "overview", ""), rows + note + more)
 
 

@@ -76,7 +76,7 @@ from .._repeat_groups import pair_by_repeat_group
 from .._seeds import group_key, group_rng
 from .._style import check_detail, group_label
 from .._wording import column_word, where
-from ..metadata import REPEAT_COLUMN
+from ..metadata import REPEAT_COLUMN, REPEAT_GROUP_COLUMN
 from ..schema import ValidatedInput, canonical_fields, fov_values, observation_words
 from ..statistics import (
     describe,
@@ -228,7 +228,7 @@ def object_rule_check(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
-    repeat_col: str | None = REPEAT_COLUMN,
+    repeat_col: str | None = REPEAT_GROUP_COLUMN,
     min_fields: int = MIN_FIELDS,
 ) -> ObjectRuleCheck:
     """The JCB number of objects, and the averaging error it really gives from whole FOVs.
@@ -246,7 +246,7 @@ def object_rule_check(
     are those of ``validate_input_tables``.
     """
     refuse_repeat_alias(control=control, repeat_col=repeat_col)
-    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col)
+    objects, fovs, repeat_col, _ = pair_by_repeat_group(objects, fovs, repeat_col, control=control)
     targets = [float(t) for t in targets]
     if not targets or any(not 0 < t < 1 for t in targets):
         raise ValueError("targets must be fractions between 0 and 1, such as 0.05")

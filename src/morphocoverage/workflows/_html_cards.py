@@ -23,9 +23,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._style import MARKER_LINE, MARKERS, Status, group_label, span
+from .._style import MARKER_LINE, MARKERS, Status, span
 from .._wording import change, count, listing, p_value
-from ..retrospective.inspection_text import _fields, _keys
+from ..retrospective.inspection_text import _fields, _keys, field_group
 from ..sampling_unit._experiments import not_compared
 from ..sampling_unit.acquisition import difference_words
 from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
@@ -175,7 +175,7 @@ def _add_inspected(
         own = own[own["reason"] != "new state"]
         if own.empty:
             continue
-        label = " · ".join(p for p in (group_label(group) if groups else "", name) if p)
+        label = " · ".join(p for p in (field_group(inspection, group) if groups else "", name) if p)
         rows.append((label, "; ".join(own["detail"])))
         # Flagged only for cells of the declared rare label: biology, never an artefact.
         if own["detail"].astype(str).str.contains("(all labelled", regex=False).all():
@@ -198,7 +198,8 @@ def new_state_fields(result: Any) -> tuple[list[tuple[str, str]], list[str]]:
         for group, name, own in _fields(inspection):
             own = own[own["reason"] == "new state"]
             if len(own):
-                label = " · ".join(p for p in (group_label(group) if groups else "", name) if p)
+                group_text = field_group(inspection, group) if groups else ""
+                label = " · ".join(p for p in (group_text, name) if p)
                 rows.append((label, "; ".join(own["detail"])))
     line = uninformative_line(inspection.settings.get("uninformative_novelty", []))
     return rows, [line] if line else []

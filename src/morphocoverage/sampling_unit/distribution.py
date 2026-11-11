@@ -58,7 +58,12 @@ from .._repeat_groups import pair_by_repeat_group
 from .._seeds import group_rng
 from .._style import low_to_high
 from .._wording import count, listing, plural
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
+from ..metadata import (
+    MORPHOBRICKS_GROUP_COLUMNS,
+    REPEAT_COLUMN,
+    REPEAT_GROUP_COLUMN,
+    TECHNICAL_REPEAT_COLUMN,
+)
 from ..schema import observation_words
 from ..statistics import (
     ALPHA,
@@ -351,7 +356,7 @@ def distribution_contrast(
     features: Sequence[str],
     control: Mapping[str, Any] | None = None,
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
-    repeat_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[1],
+    repeat_col: str | None = REPEAT_GROUP_COLUMN,
     technical_col: str | None = TECHNICAL_REPEAT_COLUMN,
     alpha: float = ALPHA,
     fov_col: str | None = None,
@@ -366,16 +371,16 @@ def distribution_contrast(
     follow ``feature_discovery`` (``comparisons``: each condition against its reference;
     ``random_state`` seeds the field-balanced draws; ``scales``: each feature's declared
     scale, else the automatic rule; ``families``: each condition's declared experiment)."""
-    objects, fovs = pair_by_repeat_group(objects, fovs, repeat_col, condition_col)
+    paired = pair_by_repeat_group(objects, fovs, repeat_col, condition_col, control)
     random_state = check_seed(random_state)
     if comparisons is not None:
         comparisons = check_comparisons(comparisons)
     features = list(dict.fromkeys(features))
     if not is_number(alpha) or not 0 < alpha < 1:
         raise ValueError("alpha must be between 0 and 1")
-    data = validated(objects, fovs, features, fov_col, group_cols, observation_unit)
+    data = validated(*paired[:2], features, fov_col, group_cols, observation_unit)
     repeat_col, technical_col = resolve_columns(
-        data, condition_col, repeat_col, technical_col, control
+        data, condition_col, paired[2], technical_col, control
     )
     all_groups = groups(data)
     described = describe_groups(all_groups, condition_col, repeat_col, control, comparisons)
