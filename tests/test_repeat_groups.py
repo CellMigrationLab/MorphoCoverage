@@ -347,3 +347,30 @@ def test_the_report_names_each_folder_beside_its_repeat_group():
     text = result.summary(detail="full")
     assert "experiment_23 (DrugA) = Day1" in " ".join(text.split())
     assert "not by folder label" not in report(*_tables({}), _setup()).summary(detail="full")
+
+
+def test_the_benchmark_and_the_distributions_refuse_without_the_column():
+    from morphocoverage.sampling_unit.distribution import distribution_contrast
+    from morphocoverage.workflows import benchmark
+
+    objects, fovs = _tables({})
+    absent = fovs.drop(columns="repeat_group")
+    _refused(
+        rg.ABSENT,
+        objects,
+        absent,
+        lambda o, f: distribution_contrast(o, f, features=["x"], control=CONTROL),
+    )
+    with pytest.raises(rg.PairingRefused, match="repeat_group"):
+        benchmark(objects, absent, _setup(normalize="control_mean"), reservoir_fraction=0.5)
+
+
+def test_a_feature_table_carrying_the_repeat_group_is_refused_as_metadata():
+    from _helpers_feature_tables import _tables as _feature_tables
+
+    from morphocoverage.feature_tables import attach_feature_tables
+
+    objects, fovs, embedding = _feature_tables()
+    embedding = embedding.assign(repeat_group=embedding["biological_repeat"])
+    with pytest.raises(ValueError, match=r"metadata columns \['repeat_group'\]"):
+        attach_feature_tables(objects, fovs, {"DINO": embedding})
