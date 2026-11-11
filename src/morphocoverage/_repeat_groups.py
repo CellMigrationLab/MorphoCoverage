@@ -91,10 +91,11 @@ def paired_tables(
     key) are relabelled the same way. When every label is its group the tables are returned
     as given (not copied).
     """
-    renamed = repeat_groups(objects, fovs, condition_col=condition_col)
+    groups = _checked_groups(objects, fovs, condition_col)
+    renamed = _renamed(groups)
     if not renamed:
         return objects, fovs, list(others), Pairing({})
-    tables = [_relabelled(t, renamed, condition_col) for t in (objects, fovs, *others)]
+    tables = [_relabelled(t, groups, condition_col) for t in (objects, fovs, *others)]
     return tables[0], tables[1], tables[2:], Pairing(renamed)
 
 
@@ -120,6 +121,18 @@ def repeat_groups(
     """Each ``(condition, folder label)`` whose repeat group is not its label, mapped to the
     group; refused (``PairingRefused``) as ``paired_tables`` says. A table using the former
     name ``repeat`` is refused first, naming ``biological_repeat``."""
+    return _renamed(_checked_groups(objects, fovs, condition_col))
+
+
+def _renamed(groups: dict[tuple[Any, Any], Any]) -> dict[tuple[Any, Any], Any]:
+    """The folders whose repeat group is not their label."""
+    return {key: group for key, group in groups.items() if str(key[-1]) != str(group)}
+
+
+def _checked_groups(
+    objects: pd.DataFrame, fovs: pd.DataFrame, condition_col: str
+) -> dict[tuple[Any, Any], Any]:
+    """The repeat group of every ``(condition, folder label)``, checked (``repeat_groups``)."""
     refuse_repeat_alias(objects=objects, fovs=fovs)
     if REPEAT_COLUMN not in fovs.columns:
         if REPEAT_GROUP_COLUMN in fovs.columns:
@@ -150,7 +163,7 @@ def repeat_groups(
     _refuse_merged(groups, keys)
     if REPEAT_GROUP_COLUMN in objects.columns:
         _refuse_disagreeing(objects, keys, groups)
-    return {key: group for key, group in groups.items() if str(key[-1]) != str(group)}
+    return groups
 
 
 def _refuse_empty(fovs: pd.DataFrame, keys: list[str]) -> None:
@@ -224,30 +237,33 @@ def _refuse_disagreeing(
 
 
 def _relabelled(
-    table: pd.DataFrame, renamed: dict[tuple[Any, Any], Any], condition_col: str
+    table: pd.DataFrame, groups: dict[tuple[Any, Any], Any], condition_col: str
 ) -> pd.DataFrame:
-    """``table`` with each renamed folder label replaced by its repeat group (a copy)."""
+    """``table`` with each folder label replaced by its repeat group (a copy); ``groups`` holds
+    every folder, so a table without the condition column is relabelled only where each label
+    has one group whatever the condition."""
     if REPEAT_COLUMN not in table.columns:
         return table
     labels = table[REPEAT_COLUMN]
     if condition_col in table.columns:
         pairs = list(zip(table[condition_col], labels, strict=True))
     else:
-        by_label = _by_label(renamed)
+        by_label = _by_label(groups)
         pairs = [(None, label) for label in labels]
-        renamed = {(None, label): group for label, group in by_label.items()}
-    relabelled = [renamed.get(_pair(pair), pair[1]) for pair in pairs]
+        groups = {(None, label): group for label, group in by_label.items()}
+    relabelled = [groups.get(_pair(pair), pair[1]) for pair in pairs]
     out = table.copy()
     out[REPEAT_COLUMN] = pd.Series(relabelled, index=table.index, dtype=object)
     return out
 
 
-def _by_label(renamed: dict[tuple[Any, Any], Any]) -> dict[Any, Any]:
-    """The renaming by folder label alone, for a table without the condition column; refused
-    when one label is renamed differently in two conditions."""
+def _by_label(groups: dict[tuple[Any, Any], Any]) -> dict[Any, Any]:
+    """The repeat group by folder label alone, for a table without the condition column;
+    refused when one label is in different groups in two conditions (one of them may keep
+    the label as its group)."""
     by_label: dict[Any, Any] = {}
-    for (_, label), group in renamed.items():
-        if by_label.setdefault(label, group) != group:
+    for (_, label), group in groups.items():
+        if str(by_label.setdefault(label, group)) != str(group):
             raise PairingRefused(
                 SPLIT,
                 f"a table without the condition column holds the folder {label!r}, which is "

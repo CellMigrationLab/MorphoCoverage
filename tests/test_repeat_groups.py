@@ -328,3 +328,14 @@ def test_the_planning_workflow_refuses_a_target_it_cannot_pair():
             fov_counts=[2],
             reservoir_fraction=0.5,
         )
+
+
+def test_a_table_without_the_condition_column_keeps_each_folder_in_its_own_group():
+    # DrugA's Day1 and Day2 repeats are in swapped folders; CTRL's folders are their groups.
+    # A table without the condition column cannot tell CTRL's "Day1" (group Day1) from
+    # DrugA's "Day1" (group Day2): refused, never relabelled by DrugA's renaming.
+    objects, fovs = _tables({("DrugA", "Day1"): "Day2", ("DrugA", "Day2"): "Day1"})
+    with pytest.raises(rg.PairingRefused) as caught:
+        rg.paired_tables(objects, fovs, others=[objects.drop(columns="condition")])
+    assert caught.value.code == rg.SPLIT
+    assert "in different repeat groups" in str(caught.value)
