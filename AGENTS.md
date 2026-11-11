@@ -496,6 +496,10 @@ tests/
     test_human_errors.py   # the mistakes people make with the tables, and the message each gives
     test_crick_idr.py      # real-data integrity and end-to-end tests
     test_morphobricks_tables.py  # a fiberfeatures table as written: read as it is, geometry not offered, typos refused
+    spec_fixtures/         # MorphoBricks-Spec test material, a byte-exact copy pinned in PIN.toml (the Spec's tools/vendor.py; never edited here)
+    test_spec_pin.py       # the Spec's brick-template pin test, copied as it is: the copy hashes to PIN.toml
+    morphofeature_exports/ # golden MorphoFeature exports of Spec fixtures v03, v27, v30, v33, each with its provenance.json (README.md)
+    test_morphofeature_exports.py  # those exports read, validated and paired by the described repeat groups
     test_parallel.py       # n_jobs > 1 gives the results of n_jobs = 1
     test_docs.py           # the documentation's examples run and print what they say
     test_notebooks.py      # example notebooks compile, import existing names, carry no outputs
@@ -727,6 +731,8 @@ python tools/audit.py --check-against <base>
 run on the pull request's last commit, `<base>` being its base branch (for example `origin/main`), and, before merge, the result of the whole suite (`pytest`: passed, failed, xfailed). A documentation-only pull request runs the gate too.
 
 Beside the gate, a change that must not change behaviour (a refactor, a clean-up, a move) and an audit run the reference check of [`data/reference`](data/reference/README.md): every committed analysis on main and on the change, outputs outside the repository, compared file for file (`python data/reference/reference.py compare`); 0 differences is the proof, and a change that alters outputs on purpose lists them with it. Its README gives the run time of the whole committed tier and the subsets (`--only`, `--skip`).
+
+**The Spec pin.** `tests/spec_fixtures` is MorphoBricks-Spec's test material at the commit its `PIN.toml` names, re-pinned only with the Spec's `tools/vendor.py` in a reviewed pull request (the Spec's `docs/vendoring.md`); `tests/test_spec_pin.py` checks the copy offline, the `spec-pin` job of `tests.yml` runs `vendor.py --check` against the Spec, and `.github/workflows/spec-freshness.yml` opens an issue each week when the pin is behind Spec main (it never blocks).
 
 When Actions run, `.github/workflows/tests.yml` checks a pull request for lint, formatting, the install, the import, the same guard tests and the baseline check (`--check-against HEAD^1`), also when it changes only the generated index, and skips one that changes only documentation; the whole suite runs on demand from the Actions tab (owner 2026-10-05; guards owner 2026-10-12).
 

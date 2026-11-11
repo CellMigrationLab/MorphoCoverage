@@ -16,6 +16,8 @@ on:
       - "!**.md"
       - "docs/common/function_index.jsonl"
       - "docs/common/function_duplicates.json"
+      # The vendored Spec copy is checked byte for byte, its Markdown files included.
+      - "tests/spec_fixtures/**"
   workflow_dispatch:
     inputs:
       full:
@@ -28,6 +30,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  spec-pin:
+    # The vendored Spec test material (tests/spec_fixtures, docs/vendoring.md of the Spec) must be
+    # what the Spec has at the commit PIN.toml names: vendor.py --check changes nothing and names
+    # each difference. tests/test_spec_pin.py proves offline that the copy hashes to PIN.toml
+    # (it runs with the whole suite); this job proves PIN.toml.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out the Spec (full history, to find the pinned commit)
+        uses: actions/checkout@v4
+        with:
+          repository: CellMigrationLab/MorphoBricks-Spec
+          path: spec
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: The vendored copy is the Spec at its pinned commit
+        run: python spec/tools/vendor.py --into . --check
+      - name: The copy hashes to its PIN.toml (offline pin test)
+        run: python -m pip install pytest && python -m pytest -p no:cacheprovider --noconftest -o addopts="" tests/test_spec_pin.py
+
   check:
     runs-on: ubuntu-latest
     steps:

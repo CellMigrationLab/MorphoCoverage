@@ -1,0 +1,19 @@
+{
+  "fixture": "fixtures/valid/v30_same_source_label_different_repeats.toml",
+  "fixture_blob": "3b77cc9ded7410a2d7525c5a401333931eca2e16",
+  "format": "csv",
+  "installed": {
+    "cellpatcher": "0.3.0",
+    "morphobricks-normalization": "0.3.4",
+    "morphobricks-preprocessing": "0.5.0",
+    "numpy": "2.5.4",
+    "pandas": "3.1.1"
+  },
+  "mask": "Cells, instances, two labelled squares per image (make_described_run)",
+  "morphofeature_commit": "fae1af7365c91627ccd82f04590b1ff47604ea1c",
+  "morphofeature_source": "CellMigrationLab/MorphoFeature#206 (claude/stage2-mf5)",
+  "object_set": "Cells",
+  "provider": "MorphoFeature's test fake `shape` (area = the label value)",
+  "python": "3.13.18",
+  "spec_commit": "b4b10087bf1da4bc192c73c274a53812f7668f4f"
+}

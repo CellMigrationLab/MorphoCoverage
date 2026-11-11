@@ -7,7 +7,8 @@ parts, without its extension, holds the word "audit" or "review", a pull request
 month-day number such as ``_1005``) or a pass number (``_r3``, ``round2``). Dataset files under
 ``data/`` keep their own numbers, so only the words, pull requests and plan phases are read
 there. ``ALLOWED`` lists the tools that carry the words by design, ``ALLOWED_DIRECTORIES``
-the record directories, whose files are still read.
+the record directories, whose files are still read, and ``VENDORED`` the byte-exact copies of
+another repository, named there, which are not read.
 """
 
 from __future__ import annotations
@@ -26,6 +27,9 @@ ALLOWED = (
 )
 # directories whose own name carries a word by design; the files in them are still read
 ALLOWED_DIRECTORIES = ("docs/audit",)
+# byte-exact copies of another repository (MorphoBricks-Spec's tools/vendor.py), whose names
+# are that repository's: not read at all
+VENDORED = ("tests/spec_fixtures/",)
 
 WORDS = {
     "an audit or a review": re.compile(r"(^|[_-])(audit|review)[a-z]*\d*($|[_-])"),
@@ -50,7 +54,7 @@ def tracked(root: Path = ROOT) -> list[str]:
 
 def problem(path: str) -> str | None:
     """Why ``path`` breaks the rule, or None when it does not."""
-    if path in ALLOWED:
+    if path in ALLOWED or path.startswith(VENDORED):
         return None
     rules = WORDS if path.startswith("data/") else {**WORDS, **NUMBERS}
     parts = path.split("/")
