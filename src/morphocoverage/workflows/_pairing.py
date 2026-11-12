@@ -38,6 +38,7 @@ from .._repeat_groups import (
 )
 from ..metadata import CONDITION_COLUMN
 from ._contrasts import declared_conditions as contrast_conditions
+from ._described import check_described
 from .setup import Setup
 
 # The sections of the report that pair repeats: the Foundation's object rule and the unusual
@@ -83,6 +84,7 @@ def paired_inputs(
         return Paired(
             objects, fovs, feature_tables, setup, Pairing({}), None, setup
         )  # refused later
+    check_described(setup, fovs)  # the description read beside these fields (MC-2)
     names, frames = _frames(feature_tables)
     try:
         paired_objects, paired_fovs, others, pairing = paired_tables(
@@ -107,7 +109,8 @@ def paired_inputs(
 
 def setup_conditions(setup: Setup) -> list[Any]:
     """The conditions a Setup names: its control declaration, master control and parents, its
-    positive control, the conditions of its experiment mapping and of its contrast table
+    positive control, the conditions of its experiment mapping, of its confirmed targets and of
+    its contrast table
     (conditions are named by their ``condition_id`` when the tables hold it). The workflows
     read the Setup on tables whose conditions are already named by their IDs, where a folder
     label would select nothing without a word, so each is refused here, with the ID to use."""
@@ -120,12 +123,14 @@ def setup_conditions(setup: Setup) -> list[Any]:
         names += declared_conditions(setup.positive.selector, CONDITION_COLUMN)
     if isinstance(setup.experiment, Mapping):
         names += declared_conditions({CONDITION_COLUMN: list(setup.experiment)})
+    names += list(setup.targets or ())
     return names + contrast_conditions(setup)
 
 
 def selected_conditions(setup: Setup) -> list[Any]:
     """The conditions a Setup selects, each of which must be in the tables: its positive
-    control's and the keys of its experiment mapping. One that matches no condition would
+    control's, the keys of its experiment mapping and of its confirmed targets (MC-2). One that
+    matches no condition would
     leave the positive control unassessed, or the condition in a correction family of its own,
     without a word, so it is refused (#628). The control declaration is checked by the
     analyses that read it (its several-control form also holds treatment keys)."""
@@ -134,7 +139,7 @@ def selected_conditions(setup: Setup) -> list[Any]:
         names += declared_conditions(setup.positive.selector, CONDITION_COLUMN)
     if isinstance(setup.experiment, Mapping):
         names += declared_conditions({CONDITION_COLUMN: list(setup.experiment)})
-    return names
+    return names + list(setup.targets or ())
 
 
 def unpaired_setup(setup: Setup) -> Setup:

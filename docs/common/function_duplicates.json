@@ -136,6 +136,10 @@
     "data.simulations.beyond_the_mean = {'equal': (3, 20, 3, 20), 'control one field of 60': (1, 60, 3, 20), 'control on",
     "data.simulations.unusual_calibration = {'3 groups, equal': ((10, 10, 10), False), '3 groups, unequal': ((3, 10, 30), Fa"
    ],
+   "DISAGREES": [
+    "_described_shape = 'experiment_block_disagrees_with_fovs'",
+    "_repeat_groups = 'repeat_group_disagrees'"
+   ],
    "DRAWS": [
     "data.crick_idr.jcs_effect_fovs = 1000",
     "data.crick_idr.positive_control = 20",
@@ -259,6 +263,10 @@
    "MIN_REPEATS": [
     "sampling_unit.contrast_repeats = 3",
     "sampling_unit.whole_table = 3"
+   ],
+   "MISSING": [
+    "_described_shape = 'experiment_block_missing'",
+    "data.simulations.decisions.design = ('none', 'mcar', 'mar', 'mnar', 'condition')"
    ],
    "MODULE": [
     "data.simulations.decisions.p1_repeat_inference = Module(name='p1', title='core repeat inference', simulate=simulate, points=point",

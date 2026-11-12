@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "object_set": "Cells",
   "exported": true,
   "observation_unit": "object",
@@ -414,5 +414,53 @@
     }
   ],
   "dropped_by": {},
-  "left_out_fovs": []
+  "left_out_fovs": [],
+  "experiment": {
+    "description_sha256": "20aded4ab7ca9b8730bdf55fedf482b7b9e8a4a18cb0e3b0450315c83fcf41bd",
+    "description_schema_version": 1,
+    "section_digests": {
+      "conditions": "168623877b1561c8d7b44d7078c6c1b40490718b4ac8dccfdbacd42be1728b8f",
+      "repeats": "b85df8248ab29f20be6415bc7e309bf9c6e27dbd53bcc5a22dc8418934ac92c9"
+    },
+    "conditions": {
+      "DrugA": {
+        "source_folder": "DrugA"
+      },
+      "ctrl": {
+        "source_folder": "control"
+      }
+    },
+    "references": {
+      "DrugA": "ctrl",
+      "ctrl": null
+    },
+    "repeat_groups": {
+      "rep1": {
+        "DrugA": {
+          "source_repeat": "rep1"
+        },
+        "ctrl": {
+          "source_repeat": "rep1"
+        }
+      },
+      "rep2": {
+        "DrugA": {
+          "source_repeat": "rep2"
+        },
+        "ctrl": {
+          "source_repeat": "rep2"
+        }
+      }
+    },
+    "suggestions": {
+      "DrugA": {
+        "target": "SRC",
+        "treatment_key": "saracatinib"
+      },
+      "ctrl": {
+        "target": null,
+        "treatment_key": null
+      }
+    }
+  }
 }

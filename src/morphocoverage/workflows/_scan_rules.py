@@ -210,10 +210,37 @@ def findings(scan: DesignScan) -> list[Finding]:
             )
         )
     found += _balance_findings(scan)
-    return found
+    return found + _described_findings(scan)
+
+
+def _described_findings(scan: DesignScan) -> list[Finding]:
+    """Where the controls come from on a described export (MC-2): the description's
+    references, or why none is defaulted."""
+    described = scan.design.get("described")
+    if described is None:
+        return []
+    if described.block is None:
+        return [
+            Finding(Status.CAUTION, "controls", f"No control is defaulted: {described.missing}.")
+        ]
+    compared = [f"{c} vs {r}" for c, r in described.pairs] or ["none (no reference declared)"]
+    text = (
+        f"Controls from the experiment description ({described.block.description_sha256[:12]}): "
+        f"{listing(compared, 8)}; the report uses them unless you declare others, and then says "
+        "so beside them."
+    )
+    return [Finding(Status.OK, "controls", " ".join([text, *described.notes]))]
 
 
 def _target_suggestion(scan: DesignScan) -> str | None:
+    suggested = scan.design.get("target_suggestions")
+    if suggested and scan.design["targets"] is None:  # a described export (MC-2)
+        return (
+            f"The experiment description suggests targets ({'; '.join(suggested)}), as "
+            "written, descriptive only: confirm or edit them, "
+            "Setup(targets=experiment.target_suggestions.confirm()), and the report then says "
+            "whether the reagents of one target agree; unconfirmed, they are not used."
+        )
     others = compared(scan)
     if len(others) < 2 or scan.design["targets"] is not None:
         return None
@@ -314,7 +341,9 @@ def questions(scan: DesignScan) -> list[Question]:
             "Every answer is about the readout; the other features describe the phenotype.",
         ),
     ]
-    if not settings["control_declared"] and design["conditions"]:
+    described = design.get("described")
+    defaulted = described is not None and described.block is not None and described.pairs
+    if not settings["control_declared"] and design["conditions"] and not defaulted:
         guesses = design.get("control_guesses", [])
         asked.append(
             Question(

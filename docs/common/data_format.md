@@ -485,3 +485,49 @@ CellPatcher. `fov_table_from_observations(patches, ["condition",
 "biological_repeat", "technical_repeat", "image_file"])` is a fallback: it
 loses images that gave no patch, such as images without any segmented cell
 in `cell` mode.
+
+## From a MorphoFeature export: the experiment description
+
+MorphoFeature exports each set as `coverage/<set>/` (`objects`, `fovs`, `tables/`) beside a
+`coverage.json`. Since MorphoFeature's MF-5b, an export of a described run (one whose FOV
+table carries `repeat_group`, `condition_id` and `technical_repeat_id`) has
+`coverage.json` `schema_version` 3, ending with an `experiment` block: the description's
+SHA-256, its conditions with their source folders, each condition's `reference` (its
+control), the repeat groups with their source repeats, and each condition's `target` and
+`treatment_key` as descriptive suggestions. `morphocoverage.described` reads it beside the FOV
+table (MC-2):
+
+```python
+from morphocoverage.described import read_experiment
+from morphocoverage.workflows import described_setup, report
+
+experiment = read_experiment("features/coverage/Cells", fovs)  # every export of the analysis
+setup = described_setup(experiment, readout="Cells__area", features=("Cells__area",))
+result = report(objects, fovs, setup)
+```
+
+- **The controls default to the description's references**: one control when every other
+  condition references it, else each condition against its own reference, so a chain
+  (`VEC_SiCol6a1 -> VEC_SiNC -> VEC`) is compared as a chain. A control declared in
+  `described_setup` (or `scan.setup`) overrides them, and the report states the override
+  beside the description's reference. A condition whose control has no field in the
+  export is not compared, and one sharing no biological repeat with its control is not
+  paired (`W_REFERENCE_UNPAIRED`); the report says both. `scan_design(...,
+  description=experiment)` suggests the description's control instead of a name read as
+  one.
+- **The targets are suggestions only**: `experiment.target_suggestions` prefills the reagent
+  grouping, and `Setup(targets=...)` refuses it until confirmed:
+  `targets=experiment.target_suggestions.confirm()` (or with edits,
+  `confirm({"DrugB": "SRC"})`). The confirmed copy is all the report reads: equal values
+  are grouped exactly as written (`SRC` is not `src`).
+- **Refused** (`DescriptionRefused`, its `code`): a `coverage.json` `schema_version` above 3
+  or a description `schema_version` other than 1 (`coverage_version_unknown`,
+  `description_version_unknown`); an unexported set (`coverage_set_not_exported`); a
+  malformed block (`experiment_block_malformed`); a block that disagrees with the FOV table
+  (`experiment_block_disagrees_with_fovs`); exports of two descriptions in one analysis
+  (`experiment_descriptions_differ`); unconfirmed suggestions (`suggestion_not_confirmed`).
+  A described FOV table whose `coverage.json` has no block (`schema_version` 2) defaults no
+  control (`experiment_block_missing`) and never guesses one from the folder names, but
+  controls declared by their IDs are accepted. Nothing is read from a folder name.
+
+Without a `coverage.json`, the tables are read as before: nothing is defaulted.

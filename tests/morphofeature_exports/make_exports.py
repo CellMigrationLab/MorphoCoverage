@@ -1,4 +1,4 @@
-"""Write the golden MorphoFeature exports of the Spec fixtures v03, v30, v33 and v27 (MC-0).
+"""Write the golden MorphoFeature exports of the Spec fixtures v03, v30, v33 and v27 (MC-0, MC-2).
 
 Not run by the test suite: it needs a MorphoFeature checkout and its pinned dependencies
 (morphobricks-preprocessing, CellPatcher, normalization, the ``cli`` extra). It does what
@@ -6,7 +6,9 @@ MorphoFeature's own ``tests/test_coverage_repeat_group.py`` does (MF-5): each ve
 goes through preprocessing's ``make_described_run`` with one ``Cells`` instance mask (two
 labelled squares per image), then through MorphoFeature's run file (``run_from_config``) with
 its fake ``shape`` provider (``area`` = the label value), tables written as CSV. The set's
-``coverage/Cells`` folder is copied here unchanged, beside ``provenance.json``.
+``coverage/Cells`` folder is copied here unchanged, beside ``provenance.json``. Since MF-5b
+(MorphoFeature #215) its ``coverage.json`` is ``schema_version`` 3 and ends with the
+``experiment`` block MC-2 reads.
 
 Usage, from the MorphoFeature checkout's root, in its environment::
 
@@ -75,7 +77,6 @@ def main() -> int:
     pin = tomllib.loads((args.spec_fixtures / "PIN.toml").read_text(encoding="utf-8"))
     for name, file in FIXTURES.items():
         raw = (args.spec_fixtures / "fixtures" / "valid" / file).read_bytes()
-        channels = tomllib.loads(raw.decode("utf-8"))["used_ids"]["channels"]
         text = raw.decode("utf-8").replace("[used_ids]", CELLS)
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -84,9 +85,7 @@ def main() -> int:
                 "preprocessing_run": str(run.output),
                 "experiment_root": str(run.experiment),
                 "masks_root": str(run.masks),
-                "channels": channels,
-                "shared_channel_layout": True,
-                "masks": {"Cells": "cells"},
+                "masks": {"Cells": "Cells"},
                 "requests": [{"provider": "shape", "feature": "area", "object_set": "Cells"}],
                 "format": "csv",
                 "output": str(tmp_path / name / "features"),
@@ -102,7 +101,7 @@ def main() -> int:
             "fixture_blob": git_blob_id(raw),
             "spec_commit": pin["commit"],
             "morphofeature_commit": commit,
-            "morphofeature_source": "CellMigrationLab/MorphoFeature#206 (claude/stage2-mf5)",
+            "morphofeature_source": "CellMigrationLab/MorphoFeature main (MF-5b, #215)",
             "object_set": "Cells",
             "provider": "MorphoFeature's test fake `shape` (area = the label value)",
             "mask": "Cells, instances, two labelled squares per image (make_described_run)",

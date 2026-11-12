@@ -43,6 +43,7 @@ from .._repeat_alias import refuse_repeat_alias
 from .._repeat_groups import REPEAT_GROUP_COLUMN
 from .._style import Status, check_detail
 from ..data_check import DataCheck, check_tables
+from ..described import DescribedExperiment
 from ..integrity import IntegrityResult
 from ..metadata import (
     CONDITION_COLUMN,
@@ -56,6 +57,8 @@ from ..metadata import (
     sorted_labels,
 )
 from ..sampling_unit.contrast_cells import IMBALANCE, sparse
+from ._described import described_design, described_setup
+from ._scan_names import control_guess, reagent_groups
 from ._scan_parts import (
     declared_controls,
     observation_layout,
@@ -99,14 +102,6 @@ _PATCH_GEOMETRY = re.compile(
     r"area_px|clipped_fraction|was_clipped)$",
     re.IGNORECASE,
 )
-# A control named as labs name it: siCTRL, Control, MOCK, DMSO, NT, scramble, vehicle.
-_CONTROL_WORDS = re.compile(
-    r"^(ctrl|control|mock|dmso|untreated|scr|scramble|scrambled|nt|nontargeting|non_targeting|"
-    r"vehicle|neg|negative|empty|luc|gfp)$"
-)
-# Two reagents of one target: siCCT8#5 and siCCT8#8, shRNA_1 and shRNA_2.
-_REAGENT = re.compile(r"^(?P<stem>.+?)[#_\-. ](?P<number>\w*\d\w*)$")
-_PREFIX = re.compile(r"^(si|sh|sg)(?=[A-Z0-9])")
 GOALS = ("averages", "fingerprint", "rare")
 
 
@@ -199,7 +194,8 @@ class DesignScan:
                 "preserve?')"
             )
         settings = self.settings
-        if "control" not in fields and not settings["control_declared"]:
+        described = self.design.get("described")
+        if "control" not in fields and not settings["control_declared"] and described is None:
             guess = self.design.get("control_guess")
             raise ValueError(
                 "declare the control: control={'condition': ...}"
@@ -215,6 +211,8 @@ class DesignScan:
             "explainable_tables": settings.get("explainable_tables"),
         }
         values.update(fields)
+        if described is not None:  # the description's controls by default (MC-2)
+            return described_setup(described, readout=readout, **values)
         return Setup(readout=readout, **values)
 
 
@@ -244,35 +242,6 @@ def _feature_candidates(objects: pd.DataFrame, taken: set[str]) -> list[str]:
             continue
         found.append(column)
     return found
-
-
-def _control_guess(conditions: Sequence[Any]) -> list[Any]:
-    """The conditions whose name reads like a negative control (siCTRL, MOCK, DMSO)."""
-    guesses = []
-    for condition in conditions:
-        name = _PREFIX.sub("", str(condition).strip())
-        words = [w for w in re.split(r"[^A-Za-z0-9]+", name.lower()) if w]
-        if any(_CONTROL_WORDS.match(w) for w in words) or _CONTROL_WORDS.match(
-            name.lower().replace(" ", "").replace("-", "")
-        ):
-            guesses.append(condition)
-    return guesses
-
-
-def reagent_groups(conditions: Sequence[Any], control: Any = None) -> dict[str, list[Any]]:
-    """Conditions that look like several reagents of one target, by name: ``siCCT8#5`` and
-    ``siCCT8#8`` give ``{"CCT8": ["siCCT8#5", "siCCT8#8"]}``. Only groups of two or more,
-    never the control."""
-    groups: dict[str, list[Any]] = {}
-    for condition in conditions:
-        if condition == control:
-            continue
-        match = _REAGENT.match(str(condition).strip())
-        if match is None:
-            continue
-        target = _PREFIX.sub("", match["stem"])
-        groups.setdefault(target, []).append(condition)
-    return {t: members for t, members in groups.items() if len(members) > 1}
 
 
 def _fov_column(objects: pd.DataFrame, fov_col: str | None) -> str | None:
@@ -349,7 +318,7 @@ def _design(
     conditions: list[Any] = []
     design["control_guesses"], design["control_guess"] = [], None
     if has_condition:
-        guesses = _control_guess(list(dict.fromkeys(groups[CONDITION_COLUMN])))
+        guesses = control_guess(list(dict.fromkeys(groups[CONDITION_COLUMN])))
         design["control_guesses"] = guesses
         design["control_guess"] = (
             control if control_declared else (guesses[0] if len(guesses) == 1 else None)
@@ -433,6 +402,7 @@ def scan_design(
     observation_unit: str | None = None,
     fov_col: str | None = None,
     feature_tables: Mapping[str, pd.DataFrame | tuple[pd.DataFrame, str]] | None = None,
+    description: DescribedExperiment | None = None,
 ) -> DesignScan:
     """Scan the design of ``objects`` (and ``fovs``, when there is a FOV table) before any
     analysis (see the module).
@@ -446,8 +416,10 @@ def scan_design(
     "non-explainable")`` (owner, 2026-10-05 and 2026-10-06): checked and attached
     (``attach_feature_tables``), they are listed with their tags, read by the copy checks,
     and named in ``DesignScan.setup``; an explainable table's columns are candidate features.
-    One that cannot be used is a finding. Never raises for bad data: what is wrong is in the
-    findings.
+    One that cannot be used is a finding. ``description``, a MorphoFeature export's experiment
+    description (``morphocoverage.described.read_experiment``), gives the control and the
+    target suggestions instead of the names (MC-2). Never raises for bad data: what is wrong is
+    in the findings.
     """
     from . import _scan_rules as rules
 
@@ -488,6 +460,7 @@ def scan_design(
     # A FOV table that passed the data check lists every field acquired, empty ones included.
     listed = named_fovs if known.given and data_check.ok else None
     design, layout = _design(observations, known.key, control_value, control_declared, listed)
+    described_design(design, description, control_declared)
     design["controls"] = controls or ([control_value] if control_declared else [])
     design["balance"] = _balance(layout, design["repeats"])
     design["constant"] = _constant(objects, features) if data_check.ok and features_declared else []

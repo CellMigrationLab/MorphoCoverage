@@ -41,7 +41,8 @@ def _conditions_line(scan: Any) -> str | None:
         elif control is not None and condition == control:
             names.append(f"{condition} (the control)")
         elif control is None and guess is not None and condition == guess:
-            names.append(f"{condition} (named like a control; not declared)")
+            how = "the description's control" if design.get("described") else "named like a control"
+            names.append(f"{condition} ({how}; not declared)")
         else:
             names.append(str(condition))
     return f"Conditions: {listing(names, 12)}."
