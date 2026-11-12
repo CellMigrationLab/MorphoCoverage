@@ -274,6 +274,28 @@ def test_a_condition_without_a_reference_is_said_not_compared() -> None:
     assert "DrugA: not compared: the description declares no reference for it." in experiment.notes
 
 
+def test_an_override_never_says_a_compared_condition_is_not_compared() -> None:
+    # The notes are about the description's references; a user who declares a control compares
+    # DrugA with it, so the report must not state "DrugA: not compared" without saying whose.
+    objects, fovs = with_feature("v03")
+    record = _record("v03")
+    record["experiment"]["references"]["DrugA"] = None
+    experiment = read_experiment(parse_coverage(record, "v03.json"), fovs)
+    setup = described_setup(experiment, **FAST, control={"condition": "CTRL"})
+    table = report(objects, fovs, setup).results["contrast"].table
+    assert set(table["condition"]) == {"DrugA"} and set(table["control_condition"]) == {"CTRL"}
+    lines = setup.declaration()
+    assert not any(line.startswith("DrugA: not compared") for line in lines)
+    assert (
+        "By the description's references alone, DrugA: not compared: the description declares "
+        "no reference for it." in lines
+    )
+    # Without an override the notes are what the report does, and are stated as they are.
+    assert "DrugA: not compared: the description declares no reference for it." in (
+        described_setup(experiment, **FAST).declaration()
+    )
+
+
 # --- Refusal 1: unknown versions, and an unexported set --------------------------------------
 
 

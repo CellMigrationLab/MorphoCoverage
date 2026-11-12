@@ -326,6 +326,10 @@ class ControlSource:
                 f"(description {sha}): the description gives {listing(given, 8)}; the user "
                 f"chose {self.chosen}."
             )
+            # The notes say what the description's references alone compare; the user's
+            # controls may compare those conditions, so they are never stated as the report's.
+            notes = [f"By the description's references alone, {n}" for n in experiment.notes]
+            return [head, *notes]
         return [head, *experiment.notes]
 
 
