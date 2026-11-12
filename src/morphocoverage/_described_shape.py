@@ -169,21 +169,25 @@ def _references(value: Any, conditions: Mapping, source: str) -> dict[str, str |
 def _refuse_cycles(references: Mapping[str, str | None], source: str) -> None:
     """Refuse references that form a cycle (``A -> B -> A``, or longer): each chain of
     controls must end at a condition without a reference (#631). Every reference is already
-    a key of ``references``."""
+    a key of ``references``. Each condition is walked once: a chain that reached a root is not
+    walked again, so a deep chain is read in linear time."""
+    rooted: set[str] = set()
     for start in references:
-        chain = [start]
-        reference = references[start]
-        while reference is not None:
+        chain: dict[str, int] = {}  # the conditions of this walk, in order
+        reference: str | None = start
+        while reference is not None and reference not in rooted:
             if reference in chain:
-                cycle = [*chain[chain.index(reference) :], reference]
+                walked = list(chain)
+                cycle = [*walked[chain[reference] :], reference]
                 raise _malformed(
                     "experiment.references",
                     f"form a cycle ({' -> '.join(cycle)}); each chain of controls must end at "
                     "a condition without a reference",
                     source,
                 )
-            chain.append(reference)
+            chain[reference] = len(chain)
             reference = references[reference]
+        rooted.update(chain)
 
 
 def _repeat_groups(value: Any, conditions: Mapping, source: str) -> dict[str, dict[str, str]]:

@@ -75,6 +75,34 @@ def test_a_chain_that_ends_at_a_root_is_no_cycle() -> None:
     assert dict(read_coverage(EXPORTS / "v10").experiment.references) == CHAIN
 
 
+def _deep(record: dict, references: dict) -> dict:
+    """``record`` with one condition per key of ``references``, each with a field in rep1."""
+    block = record["experiment"]
+    block["conditions"] = {c: {"source_folder": c} for c in references}
+    block["references"] = dict(references)
+    block["repeat_groups"] = {"rep1": {c: {"source_repeat": "rep1"} for c in references}}
+    block["suggestions"] = {c: {"target": None, "treatment_key": None} for c in references}
+    return record
+
+
+def test_a_deep_chain_is_read_and_a_long_cycle_named() -> None:
+    # Each condition is walked once (review of #632): a chain of 3000 is read at once, where
+    # walking it again from every condition took minutes.
+    n = 3000
+    chain = {f"C{i}": (f"C{i + 1}" if i + 1 < n else None) for i in range(n)}
+    assert parse_coverage(_deep(_record("v10"), chain), "deep.json").experiment.references == (
+        chain
+    )
+    cycle = {**chain, f"C{n - 1}": "C0"}
+    error = _refused(MALFORMED, parse_coverage, _deep(_record("v10"), cycle), "deep.json")
+    assert "experiment.references form a cycle (C0 -> C1 -> C2 -> " in str(error)
+    assert f"-> C{n - 1} -> C0); each chain of controls must end at" in str(error)
+    # A chain that runs into a cycle names the cycle, not the chain before it.
+    tail = {"A": "B", "B": "C", "C": "D", "D": "B", "R": None}
+    error = _refused(MALFORMED, parse_coverage, _deep(_record("v10"), tail), "tail.json")
+    assert "form a cycle (B -> C -> D -> B)" in str(error)
+
+
 # --- 2. Duplicate JSON keys -------------------------------------------------------------------
 
 
@@ -180,6 +208,34 @@ def test_the_scan_lists_the_descriptions_control_first() -> None:
     scan = scan_design(objects, fovs, feature_cols=["x"], description=swapped)
     assert scan.design["conditions"] == ["DrugA", "CTRL"]
     assert "DrugA (the description's control; not declared) and CTRL" in scan.summary()
+
+
+def _target_lines(scan) -> list[str]:
+    return [s for s in scan.suggestions if s.startswith("Several conditions are compared")]
+
+
+def test_a_described_table_is_pointed_to_the_descriptions_targets() -> None:
+    # Owner, 2026-11-12 (#632, question 3): a table that carries condition_id is pointed to the
+    # description's target suggestions, or to a grouping by condition ID, not a 'target' column.
+    objects, fovs = with_feature("v27")
+    (line,) = _target_lines(scan_design(objects, fovs, feature_cols=["x"]))
+    assert "add a 'target' column" not in line
+    assert "the experiment description's target suggestions: give the scan the description" in (
+        line
+    )
+    assert "Setup(targets={'<condition_id>': '<target>'})" in line
+    # A description that suggests no target: the grouping is declared by condition ID.
+    record = _record("v27")
+    for entry in record["experiment"]["suggestions"].values():
+        entry["target"] = None
+    silent = read_experiment(parse_coverage(record, "v27.json"), fovs)
+    (line,) = _target_lines(scan_design(objects, fovs, feature_cols=["x"], description=silent))
+    assert "the experiment description suggests no target: declare the grouping by" in line
+    assert "add a 'target' column" not in line
+    # Without condition_id, the 'target' column is still what is suggested.
+    plain = fovs.drop(columns=["repeat_group", "condition_id", "technical_repeat_id"])
+    (line,) = _target_lines(scan_design(objects, plain, feature_cols=["x"]))
+    assert "add a 'target' column naming what each acts on" in line
 
 
 def test_a_described_scan_takes_the_setups_own_experiment_field() -> None:

@@ -524,7 +524,9 @@ result = report(objects, fovs, setup)
   `confirm({"DrugB": "SRC"})`). The confirmed copy is all the report reads: equal values
   are grouped exactly as written (`SRC` is not `src`). `guide(..., description=experiment)`
   shows them and asks whether to use them as suggested, edit them or leave them; Enter
-  leaves them unconfirmed.
+  leaves them unconfirmed. For tables that carry `condition_id`, the scan's "several
+  conditions are compared" suggestion points to these suggestions (or to a grouping
+  declared by condition ID, `Setup(targets={...})`), not to a `target` column.
 - **Refused** (`DescriptionRefused`, its `code`): a `coverage.json` `schema_version` above 3
   or a description `schema_version` other than 1 (`coverage_version_unknown`,
   `description_version_unknown`); an unexported set (`coverage_set_not_exported`); a
