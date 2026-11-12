@@ -64,6 +64,7 @@ from morphocoverage.workflows import (
     report,
     scan_design,
 )
+from morphocoverage.workflows._guided_controls import _sets, ask_gate, image_table, most_imaged
 
 FAST = {"n_permutations": 99, "n_draws": 2, "object_counts": (2,)}
 
@@ -418,3 +419,19 @@ def test_v33_comparisons_and_contrasts_naming_a_folder_label_get_its_id() -> Non
     with pytest.raises(PairingRefused, match="declare it as 'ctrl'") as refused:
         report(objects, fovs, setup)
     assert refused.value.code == FOLDER_CONTROL
+
+
+def test_v33_the_guided_control_questions_read_the_scan_by_condition_id() -> None:
+    # The scan names conditions by their IDs; the guided questions looked them up in its FOV
+    # table by folder label, found no field of 'ctrl' and the image table raised.
+    objects, fovs = with_feature("v33")
+    scan = scan_design(objects, fovs, feature_cols=["x"])
+    said: list[str] = []
+    assert ask_gate(lambda prompt: "", said.append, scan) is True
+    assert not any("not imaged" in line for line in said)
+    assert image_table(scan).split("\n")[1].split() == ["ctrl", "12", "10"]
+    assert _sets(scan, "ctrl") == [["DrugA"]]
+    one = ~((fovs["condition"] == "DrugA") & (fovs["biological_repeat"] == "rep2"))
+    kept = objects.merge(fovs.loc[one, KEY], on=KEY)
+    fewer = scan_design(kept, fovs.loc[one], feature_cols=["x"])
+    assert most_imaged(fewer, ["DrugA", "ctrl"]) == "ctrl"

@@ -35,6 +35,7 @@ from .._wording import listing
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..sampling_unit._experiments import experiments
 from ._guided_ask import Ask, Say, ask_control, choose, choose_many, text, yes_no
+from ._scan_rules import named_tables
 
 # The last part of a name that reads like a negative control (VEC_SiNC, x_siCTRL, y_scr).
 _CONTROL_PART = re.compile(
@@ -72,9 +73,15 @@ def treatment_key(control: Any, member: Any) -> str:
     return name[len(stem) :] if name.startswith(stem) and len(name) > len(stem) else name
 
 
+def _fields(scan: Any) -> pd.DataFrame:
+    """The scan's FOV table, each condition named as ``scan.design`` names it: by its
+    ``condition_id`` when the tables hold it (``_scan_rules.named_tables``, #628)."""
+    return named_tables(scan.objects, scan.fovs)[1]
+
+
 def image_table(scan: Any) -> str:
     """The fields imaged per condition and biological repeat, as a table."""
-    fields = scan.fovs
+    fields = _fields(scan)
     if CONDITION_COLUMN not in fields or REPEAT_COLUMN not in fields:
         return ""
     counts = pd.crosstab(fields[CONDITION_COLUMN], fields[REPEAT_COLUMN])
@@ -85,7 +92,7 @@ def image_table(scan: Any) -> str:
 
 def _missing_repeats(scan: Any, condition: Any) -> list[Any]:
     """The repeats where other conditions are imaged and ``condition`` is not."""
-    fields = scan.fovs
+    fields = _fields(scan)
     if REPEAT_COLUMN not in fields or CONDITION_COLUMN not in fields:
         return []
     held = set(fields.loc[fields[CONDITION_COLUMN] == condition, REPEAT_COLUMN])
@@ -158,7 +165,7 @@ def _unlinked(
 def most_imaged(scan: Any, controls: list[Any]) -> Any:
     """The control imaged in the most biological repeats, ties to the first declared: the
     master proposed (owner, 2026-10-05)."""
-    fields = scan.fovs
+    fields = _fields(scan)
     if REPEAT_COLUMN not in fields or CONDITION_COLUMN not in fields:
         return controls[0]
     held = fields.groupby(CONDITION_COLUMN)[REPEAT_COLUMN].nunique()
@@ -221,7 +228,7 @@ def ask_controls(ask: Ask, say: Say, scan: Any) -> tuple[dict | None, dict | Non
 def _sets(scan: Any, control: Any) -> list[list[Any]]:
     """The conditions compared with ``control``, in sets linked by the biological repeats
     they share with it (``_experiments.experiments``)."""
-    fields = scan.fovs
+    fields = _fields(scan)
     if REPEAT_COLUMN not in fields or CONDITION_COLUMN not in fields:
         return []
     repeats = fields.groupby(CONDITION_COLUMN)[REPEAT_COLUMN].agg(set).to_dict()
