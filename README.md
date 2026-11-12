@@ -214,6 +214,8 @@ ruff format --check src tests data
 ```
 
 Run the whole suite before every push: a pull request on GitHub runs only the minimal checks (AGENTS.md section 13).
+The whole suite also runs on GitHub weekly (Mondays 04:11 UTC) and on demand, because the repository is private and
+Actions minutes are billed: Actions > tests > Run workflow, or `gh workflow run tests.yml --ref <branch>`.
 
 ## License
 

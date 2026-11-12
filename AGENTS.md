@@ -742,7 +742,7 @@ Beside the gate, a change that must not change behaviour (a refactor, a clean-up
 
 **The Spec pin.** `tests/spec_fixtures` is MorphoBricks-Spec's test material at the commit its `PIN.toml` names, re-pinned only with the Spec's `tools/vendor.py` in a reviewed pull request (the Spec's `docs/vendoring.md`); `tests/test_spec_pin.py` checks the copy offline, the `spec-pin` job of `tests.yml` runs `vendor.py --check` against the Spec, and `.github/workflows/spec-freshness.yml` opens an issue each week when the pin is behind Spec main (it never blocks).
 
-When Actions run, `.github/workflows/tests.yml` checks a pull request for lint, formatting, the install, the import, the same guard tests and the baseline check (`--check-against HEAD^1`), also when it changes only the generated index, and skips one that changes only documentation; the whole suite runs on demand from the Actions tab (owner 2026-10-05; guards owner 2026-10-12).
+When Actions run, `.github/workflows/tests.yml` checks a pull request for lint, formatting, the install, the import, the same guard tests and the baseline check (`--check-against HEAD^1`), also when it changes only the generated index, and skips one that changes only documentation; the whole suite runs on demand from the Actions tab and weekly on Mondays at 04:11 UTC (owner 2026-10-05; guards owner 2026-10-12; weekly run owner 2026-11-12, to keep the private repository's Actions minutes down).
 
 Never claim a command passed unless it actually ran successfully.
 
