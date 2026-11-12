@@ -1,0 +1,19 @@
+{
+  "fixture": "fixtures/valid/v10_reference_chain.toml",
+  "fixture_blob": "7daae9d29323273547830324cce8f66d8099c51c",
+  "format": "csv",
+  "installed": {
+    "cellpatcher": "0.4.0",
+    "morphobricks-normalization": "0.4.0",
+    "morphobricks-preprocessing": "0.5.1",
+    "numpy": "2.5.4",
+    "pandas": "3.1.1"
+  },
+  "mask": "Cells, instances, two labelled squares per image (make_described_run)",
+  "morphofeature_commit": "d33c6284e4a860eff08cbdfcc098c8069e963234",
+  "morphofeature_source": "CellMigrationLab/MorphoFeature main (MF-5b, #215)",
+  "object_set": "Cells",
+  "provider": "MorphoFeature's test fake `shape` (area = the label value)",
+  "python": "3.13.18",
+  "spec_commit": "b4b10087bf1da4bc192c73c274a53812f7668f4f"
+}

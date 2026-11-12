@@ -56,10 +56,12 @@ def _chosen_text(setup: Setup) -> str:
     return control_name(setup.control)
 
 
-def described_setup(experiment: DescribedExperiment, **fields: Any) -> Setup:
+def described_setup(experiment: DescribedExperiment, /, **fields: Any) -> Setup:
     """A ``Setup`` (``fields`` as for ``Setup``) whose controls default to ``experiment``'s
     references (see the module); refused (``DescriptionRefused``, ``MISSING``) when the export
-    of a described run has no experiment block and no control is declared."""
+    of a described run has no experiment block and no control is declared. ``experiment`` is
+    positional only, so ``fields`` may hold ``Setup``'s own ``experiment`` (the correction
+    families; #631)."""
     if not isinstance(experiment, DescribedExperiment):
         raise TypeError("experiment must be a DescribedExperiment (read_experiment)")
     declared = any(fields.get(name) is not None for name in CONTROL_FIELDS)
@@ -76,6 +78,14 @@ def described_setup(experiment: DescribedExperiment, **fields: Any) -> Setup:
     return replace(setup, described=ControlSource(experiment, chosen))
 
 
+def described_control(description: Any) -> Any:
+    """The one control ``description`` gives by default (``None`` without one, or for a
+    chain): the scan lists it first, as it lists a control declared (#631)."""
+    if not isinstance(description, DescribedExperiment) or description.block is None:
+        return None
+    return description.default_control().get("control", {}).get(CONDITION_COLUMN)
+
+
 def described_design(design: dict[str, Any], description: Any, control_declared: bool) -> None:
     """The scan's design read from a described export (``description``, in place): the
     control suggested is the description's default, never a name read as a control, and the
@@ -87,8 +97,7 @@ def described_design(design: dict[str, Any], description: Any, control_declared:
         raise TypeError("description must be a DescribedExperiment (read_experiment)")
     if not description.described:
         return
-    default = {} if description.missing is not None else description.default_control()
-    control = default.get("control", {}).get(CONDITION_COLUMN)
+    control = described_control(description)
     design["control_guesses"] = [control] if control is not None else []
     if not control_declared:
         design["control_guess"] = control
@@ -122,6 +131,7 @@ def with_targets(fovs: pd.DataFrame, setup: Setup) -> pd.DataFrame:
 __all__ = [
     "CONTROL_FIELDS",
     "check_described",
+    "described_control",
     "described_design",
     "described_setup",
     "with_targets",

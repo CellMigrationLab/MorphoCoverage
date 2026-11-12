@@ -6,7 +6,8 @@ MorphoFeature's MF-5b writes the block as the last key of each exported ``covera
 ``claude/restart-doc``), section 2: exactly these keys at every level, none added and none
 left out (a value is ``null`` instead), every SHA-256 and digest 64 lower-case hex digits,
 every condition ID of ``references``, ``repeat_groups`` and ``suggestions`` a key of
-``conditions``, and every ``references`` value a key of ``conditions`` or ``null``.
+``conditions``, and every ``references`` value a key of ``conditions`` or ``null``, never the
+condition itself and never in a cycle (``A -> B -> A``, or longer; #631).
 
 ``parsed_block`` reads a block or refuses it (``DescriptionRefused``, note section 4): an
 ``description_schema_version`` other than 1 (``DESCRIPTION_VERSION_UNKNOWN``), and anything
@@ -161,7 +162,28 @@ def _references(value: Any, conditions: Mapping, source: str) -> dict[str, str |
             raise _malformed(where, f"is {reference!r}, not a key of experiment.conditions", source)
         if reference == cid:
             raise _malformed(where, "names the condition itself as its reference", source)
+    _refuse_cycles(references, source)
     return {cid: references[cid] for cid in conditions}
+
+
+def _refuse_cycles(references: Mapping[str, str | None], source: str) -> None:
+    """Refuse references that form a cycle (``A -> B -> A``, or longer): each chain of
+    controls must end at a condition without a reference (#631). Every reference is already
+    a key of ``references``."""
+    for start in references:
+        chain = [start]
+        reference = references[start]
+        while reference is not None:
+            if reference in chain:
+                cycle = [*chain[chain.index(reference) :], reference]
+                raise _malformed(
+                    "experiment.references",
+                    f"form a cycle ({' -> '.join(cycle)}); each chain of controls must end at "
+                    "a condition without a reference",
+                    source,
+                )
+            chain.append(reference)
+            reference = references[reference]
 
 
 def _repeat_groups(value: Any, conditions: Mapping, source: str) -> dict[str, dict[str, str]]:

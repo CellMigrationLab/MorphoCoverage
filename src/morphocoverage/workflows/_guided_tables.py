@@ -164,6 +164,8 @@ def changed(saved: Mapping[str, Any], dataset: Mapping[str, Any]) -> list[str]:
             found.append(f"the feature table {name!r}, new")
         elif before[name] != now[name]:
             found.append(f"the feature table {name!r}")
+    if saved.get("description") != dataset.get("description"):
+        found.append("the experiment description")
     return found
 
 

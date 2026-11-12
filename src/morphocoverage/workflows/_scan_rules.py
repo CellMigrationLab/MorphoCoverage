@@ -218,7 +218,7 @@ def _described_findings(scan: DesignScan) -> list[Finding]:
     references, or why none is defaulted."""
     described = scan.design.get("described")
     if described is None:
-        return []
+        return _by_id_findings(scan)
     if described.block is None:
         return [
             Finding(Status.CAUTION, "controls", f"No control is defaulted: {described.missing}.")
@@ -230,6 +230,21 @@ def _described_findings(scan: DesignScan) -> list[Finding]:
         "so beside them."
     )
     return [Finding(Status.OK, "controls", " ".join([text, *described.notes]))]
+
+
+def _by_id_findings(scan: DesignScan) -> list[Finding]:
+    """A described table (``condition_id``) scanned without its description: no control is
+    guessed from the names (#631), and the scan says where the controls come from."""
+    design = scan.design
+    if not design.get("by_id") or scan.settings["control_declared"] or not design["conditions"]:
+        return []
+    text = (
+        "Controls: the tables carry condition_id (a described run), so no control is guessed "
+        "from the condition names; the controls come from the experiment description "
+        "(scan_design(..., description=read_experiment(coverage_json, fovs))) or must be "
+        "declared by their ID (control={'condition': ...})."
+    )
+    return [Finding(Status.OK, "controls", text)]
 
 
 def _target_suggestion(scan: DesignScan) -> str | None:

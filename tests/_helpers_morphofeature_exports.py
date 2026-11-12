@@ -23,7 +23,7 @@ import pandas as pd
 HERE = Path(__file__).parent
 EXPORTS = HERE / "morphofeature_exports"
 SPEC = HERE / "spec_fixtures"
-NAMES = ("v03", "v27", "v30", "v33")
+NAMES = ("v03", "v10", "v27", "v30", "v33")
 KEY = ["condition", "biological_repeat", "technical_repeat", "position_id"]
 IDS = ["repeat_group", "condition_id", "technical_repeat_id"]
 FEATURE = "Cells__area"

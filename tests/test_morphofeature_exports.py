@@ -1,7 +1,7 @@
 """MorphoCoverage reads MorphoFeature's exports of the Spec fixtures and pairs them as described.
 
 The golden exports (``tests/morphofeature_exports``, MC-0 of the Stage 2 plan) were written by
-MorphoFeature's MF-5 for the vendored fixtures ``v03``, ``v27``, ``v30`` and ``v33``. Each records
+MorphoFeature for the vendored fixtures ``v03``, ``v10``, ``v27``, ``v30`` and ``v33``. Each records
 the MorphoFeature commit and the git blob hash of its fixture, which must be the vendored one
 (``tests/spec_fixtures``, pinned by ``test_spec_pin``). The FOV table carries the description's
 ``repeat_group``, ``condition_id`` and ``technical_repeat_id`` beside the unchanged key, whose
@@ -10,7 +10,8 @@ the MorphoFeature commit and the git blob hash of its fixture, which must be the
 - ``v03``: ``CTRL/rep1`` and ``DrugA/experiment_23`` are one repeat (``Day1``), so they pair;
 - ``v30``: ``CTRL/rep1`` pairs with ``DrugA/rep2`` (``Day1``), never ``rep1`` with ``rep1``;
 - ``v33``: the condition folder ``control`` has the ID ``ctrl``; the repeats are their labels;
-- ``v27``: ``target`` and ``treatment_key`` are descriptive only: they are not in any table.
+- ``v27``: ``target`` and ``treatment_key`` are descriptive only: they are not in any table;
+- ``v10``: two reference chains in one repeat (``VEC_SiCol6a1 -> VEC_SiNC -> VEC``, #631).
 """
 
 from __future__ import annotations
@@ -377,8 +378,9 @@ def test_v33_check_tables_reads_the_control_by_its_id() -> None:
 def test_v33_scan_names_conditions_by_id_and_its_setup_runs_the_report() -> None:
     objects, fovs = with_feature("v33")
     scan = scan_design(objects, fovs, feature_cols=["x"])
-    assert scan.design["conditions"] == ["ctrl", "DrugA"]
-    assert scan.design["control_guess"] == "ctrl"
+    # By ID, and no control read from a name: the tables carry condition_id (#631).
+    assert scan.design["conditions"] == ["DrugA", "ctrl"]
+    assert scan.design["control_guess"] is None
     declared = scan_design(objects, fovs, feature_cols=["x"], control={"condition": "ctrl"})
     assert all(f.status.name != "PROBLEM" for f in declared.findings)
     # The scan keeps the folder labels in its tables; its Setup names the control by its ID.
@@ -429,7 +431,7 @@ def test_v33_the_guided_control_questions_read_the_scan_by_condition_id() -> Non
     said: list[str] = []
     assert ask_gate(lambda prompt: "", said.append, scan) is True
     assert not any("not imaged" in line for line in said)
-    assert image_table(scan).split("\n")[1].split() == ["ctrl", "12", "10"]
+    assert image_table(scan).split("\n")[2].split() == ["ctrl", "12", "10"]
     assert _sets(scan, "ctrl") == [["DrugA"]]
     one = ~((fovs["condition"] == "DrugA") & (fovs["biological_repeat"] == "rep2"))
     kept = objects.merge(fovs.loc[one, KEY], on=KEY)

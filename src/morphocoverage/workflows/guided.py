@@ -11,7 +11,8 @@
 2. If the folder already holds saved answers (``ANSWERS_FILE``) for the same tables (the
    observation table and the FOV table, or no FOV table, by their checksums), offer to
    **continue** with them or to **delete them and start over**; answers saved for other
-   tables (the other feature tables by name, checksum and tag included) are never reused, and
+   tables (the other feature tables by name, checksum and tag included, and the experiment
+   description by its SHA-256) are never reused, and
    answers written by another version of this session are not read (they are reported as
    such and offered for deletion).
 3. **Scan** the design (``scan_design``, the other feature tables listed with it) and print
@@ -21,7 +22,9 @@
    is redone with it, its words follow the unit); whether all the conditions are compared
    with the same control (``_guided_controls``: Yes, the control to log, the scan's guess
    the default; No, several controls with their conditions, parents and a master, each
-   proposed to confirm), then the tests that will run, one per line with its family; an
+   proposed to confirm), then the tests that will run, one per line with its family (with
+   ``guide(description=...)``, the description's default controls instead, and its target
+   suggestions to confirm: ``_guided_described``, #631); an
    optional positive control (a condition known to change the phenotype, for question 1);
    whether the average of each feature differs, the whole distribution (shape, spread,
    tails; no mean target, ``tolerances=()``, owner 2026-10-06), or both (stored as
@@ -63,13 +66,15 @@ from typing import Any
 import pandas as pd
 
 from .._wording import count, duration, listing, percent
+from ..described import DescribedExperiment, targets_line
 from ..metadata import CONDITION_COLUMN
 from ..multivariate_outcomes import CovarianceError
 from ..objectives import RareTarget
 from ..retrospective.criteria import OutcomeCriterion
 from . import _guided_ask as q
 from ._feature_space import features_words
-from ._guided_controls import ask_controls, ask_experiment, contrast_lines
+from ._guided_controls import ask_experiment
+from ._guided_described import ask_any_controls, ask_targets
 from ._guided_runtime import rough_runtime
 from ._guided_tables import (
     Tables,
@@ -119,6 +124,8 @@ class Answers:
     features named like an intensity or an area and the scale confirmed (``ask_scales``; plan v2,
     owner, 2026-10-06). ``experiment``: each condition's experiment when the user said sets are
     separate experiments, or one screen (``ask_experiment``; audit 10, owner, 2026-10-06).
+    ``targets``: the grouping confirmed from the description's suggestions (#631); with a
+    description (``dataset["description"]``) and no ``control``, its references are the controls.
     """
 
     loaded_correctly: bool
@@ -137,6 +144,7 @@ class Answers:
     rare_label: str | None = None
     scales: dict[str, str] | None = None
     experiment: dict[str, Any] | None = None
+    targets: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
         if self.control_parents:
@@ -218,6 +226,8 @@ class Answers:
             values["rare"], values["rare_label"] = self.rare_target(scan), self.rare_label
         values["scales"] = self.scales or None
         values["experiment"] = self.experiment or None
+        if self.targets:  # confirmed by the user (#631)
+            values["targets"] = dict(self.targets)
         values.update(fields)
         with warnings.catch_warnings():
             # fallback: a control the user chose to leave out is an answer, not a guess to warn
@@ -238,7 +248,10 @@ class Answers:
 
     def _control_words(self) -> Any:
         """The control in words: ``none``, its value, or several with their conditions,
-        parents and master."""
+        parents and master; the description's references when it gives them."""
+        sha = self.dataset.get("description")
+        if self.control is None and sha:
+            return f"the experiment description's references (description {sha[:12]})"
         control = "none" if self.control is None else self.control["condition"]
         if isinstance(control, dict):  # several controls, each with its conditions
             control = "; ".join(
@@ -283,6 +296,8 @@ class Answers:
         if self.experiment:
             named = listing(sorted({str(e) for e in self.experiment.values()}), 4)
             lines.append(f"Experiments, each corrected on its own: {named}.")
+        if self.targets:
+            lines.append(targets_line(self.targets))
         return lines + q.scale_lines(self.scales or {})
 
 
@@ -383,6 +398,7 @@ def _saved(
             return None, None
         usable = all(saved.dataset.get(key, "missing") == dataset[key] for key in _IDENTITY)
         usable = usable and identity(saved.dataset) == identity(dataset)
+        usable = usable and saved.dataset.get("description") == dataset.get("description")
     if saved is not None and usable:
         say(f"Answers saved on {saved.saved or 'an earlier session'} were found for this table:")
         say("\n".join(f"  {line}" for line in saved.lines()))
@@ -425,10 +441,11 @@ def _questions(
         hint = next((x.suggested for x in scan.questions if x.key == "observation_unit"), None)
         unit = q.ask_unit(ask, say, hint)
         scan = rescan(unit)
-    control, parents, master = ask_controls(ask, say, scan)
-    say("The tests that will run:\n" + "\n".join(contrast_lines(control, parents, master)))
-    experiment = ask_experiment(ask, say, scan, control)
-    positive = q.ask_positive(ask, say, scan, control)
+    # The description's controls are not asked when it gives them (#631).
+    control, parents, master, asked = ask_any_controls(ask, say, scan)
+    experiment = ask_experiment(ask, say, scan, asked)
+    positive = q.ask_positive(ask, say, scan, asked)
+    targets = ask_targets(ask, say, scan)
     tables = scan.settings.get("feature_tables") or {}
     taken = [*scan.settings["group_cols"], scan.settings["fov_col"], *_table_columns(tables)]
     labels = q.label_columns(scan.objects, taken)
@@ -462,6 +479,7 @@ def _questions(
         rare_label=rare_label,
         scales=scales or None,
         experiment=experiment,
+        targets=targets,
     ), scan
 
 
@@ -479,6 +497,7 @@ def guide(
     say: Callable[[str], None] = print,
     run_report: bool = True,
     feature_tables: Mapping[str, Any] | None = None,
+    description: DescribedExperiment | None = None,
     **setup_fields: Any,
 ) -> GuidedResult:
     """Run the guided session (see the module) and return what it produced.
@@ -489,8 +508,12 @@ def guide(
     ``run_report=False`` the session stops after saving the answers. ``feature_tables`` are
     other feature tables by name (DataFrames or CSV paths, non-explainable, or either with its
     tag: ``(table, "explainable")``), asked for with their tags when the tables are paths.
+    ``description`` is a MorphoFeature export's experiment description (``read_experiment``):
+    see ``_guided_described``.
     """
     objects, fovs, tables, dataset = _load(ask, say, objects, fovs, feature_tables)
+    if description is not None and description.block is not None:
+        dataset["description"] = description.block.description_sha256
     others = tagged(tables) or None
     if folder is None:
         folder = q.text(ask, "Folder for the results:", DEFAULT_FOLDER)
@@ -501,13 +524,18 @@ def guide(
         say(f"Stopped: {stop}.")
         return GuidedResult(folder, None, None, None, None, stop)
     observation_unit = answers.observation_unit if answers else None
-    scan = scan_design(objects, fovs, observation_unit=observation_unit, feature_tables=others)
+
+    def scanned(unit: str | None) -> DesignScan:
+        return scan_design(objects, fovs, observation_unit=unit, feature_tables=others,
+                           description=description)  # fmt: skip
+
+    scan = scanned(observation_unit)
     (folder / "scan.txt").write_text(scan.summary() + "\n")
     if answers is None:
         say(scan.summary(questions=False))
 
         def rescan(unit: str) -> DesignScan:
-            again = scan_design(objects, fovs, observation_unit=unit, feature_tables=others)
+            again = scanned(unit)
             (folder / "scan.txt").write_text(again.summary() + "\n")
             return again
 

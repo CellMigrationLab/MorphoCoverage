@@ -5,7 +5,8 @@ MorphoFeature wrote for one vendored Spec fixture (`tests/spec_fixtures/fixtures
 copied unchanged, beside a `provenance.json` that records:
 
 - `morphofeature_commit`: the MorphoFeature commit that wrote it (MorphoFeature main
-  `d33c628`, after MF-5 #206 and MF-5b #215; re-made for MC-2);
+  `d33c628`, after MF-5 #206 and MF-5b #215; re-made for MC-2; `v10` added for #631 from
+  the same commit, the other four re-made byte-identical);
 - `fixture` and `fixture_blob`: the fixture and its git blob hash, which
   `tests/test_morphofeature_exports.py` checks against the vendored copy;
 - `spec_commit`: the Spec commit of `tests/spec_fixtures/PIN.toml` when the export was made;
@@ -14,6 +15,7 @@ copied unchanged, beside a `provenance.json` that records:
 | Folder | Fixture | What it shows |
 |---|---|---|
 | `v03` | `v03_paired_different_folder_names` | `CTRL/rep1` and `DrugA/experiment_23` are one repeat (`Day1`) |
+| `v10` | `v10_reference_chain` | the reference chains `VEC_SiCol6a1 -> VEC_SiNC -> VEC` and `THBS5_SiCol6a1 -> THBS5_SiNC -> THBS5`, compared as chains; both `SiCol6a1` conditions suggest the target `COL6A1` |
 | `v27` | `v27_descriptive_keys_collide` | `target` and `treatment_key` are descriptive only: no table carries them |
 | `v30` | `v30_same_source_label_different_repeats` | `CTRL/rep1` pairs with `DrugA/rep2` (`Day1`), never `rep1` with `rep1` |
 | `v33` | `v33_condition_folder_on_forbidden_list` | the condition folder `control` has the ID `ctrl` |
