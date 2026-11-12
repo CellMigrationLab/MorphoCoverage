@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "object_set": "Cells",
   "exported": true,
   "observation_unit": "object",
@@ -387,5 +387,81 @@
     }
   ],
   "dropped_by": {},
-  "left_out_fovs": []
+  "left_out_fovs": [],
+  "experiment": {
+    "description_sha256": "b3fbac76f566f7994e4452fa820d2f8611986cbc010aff930c370f076706c532",
+    "description_schema_version": 1,
+    "section_digests": {
+      "conditions": "faa90106738b252f35afdce59f1f6db816b7d3cd1b1861bac491ba7863005020",
+      "repeats": "e1ae1b35b5c0e22cacc8c1fda60db4c974975dd66783e2ada7ba89863bc6e212"
+    },
+    "conditions": {
+      "CTRL": {
+        "source_folder": "CTRL"
+      },
+      "DrugA": {
+        "source_folder": "DrugA"
+      },
+      "DrugB": {
+        "source_folder": "DrugB"
+      },
+      "DrugC": {
+        "source_folder": "DrugC"
+      }
+    },
+    "references": {
+      "CTRL": null,
+      "DrugA": "CTRL",
+      "DrugB": "CTRL",
+      "DrugC": "CTRL"
+    },
+    "repeat_groups": {
+      "rep1": {
+        "CTRL": {
+          "source_repeat": "rep1"
+        },
+        "DrugA": {
+          "source_repeat": "rep1"
+        },
+        "DrugB": {
+          "source_repeat": "rep1"
+        },
+        "DrugC": {
+          "source_repeat": "rep1"
+        }
+      },
+      "rep2": {
+        "CTRL": {
+          "source_repeat": "rep2"
+        },
+        "DrugA": {
+          "source_repeat": "rep2"
+        },
+        "DrugB": {
+          "source_repeat": "rep2"
+        },
+        "DrugC": {
+          "source_repeat": "rep2"
+        }
+      }
+    },
+    "suggestions": {
+      "CTRL": {
+        "target": null,
+        "treatment_key": null
+      },
+      "DrugA": {
+        "target": "SRC",
+        "treatment_key": "AZD0530"
+      },
+      "DrugB": {
+        "target": "src",
+        "treatment_key": "azd0530"
+      },
+      "DrugC": {
+        "target": "SRC",
+        "treatment_key": "AZD0530"
+      }
+    }
+  }
 }

@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "object_set": "Cells",
   "exported": true,
   "observation_unit": "object",
@@ -324,5 +324,53 @@
     }
   ],
   "dropped_by": {},
-  "left_out_fovs": []
+  "left_out_fovs": [],
+  "experiment": {
+    "description_sha256": "bd5099bfe78bb13369782891caf9c97f768210674441d03e56889e12bba28eae",
+    "description_schema_version": 1,
+    "section_digests": {
+      "conditions": "7ffd8bb592661684146da9f4d1a85a8eb8caa3770df9b731310dac637e9f9faf",
+      "repeats": "ab15dcbebbf36fd046d602acd3cc7c98f0bb64190978aa8d46612ce626b4fe7a"
+    },
+    "conditions": {
+      "CTRL": {
+        "source_folder": "CTRL"
+      },
+      "DrugA": {
+        "source_folder": "DrugA"
+      }
+    },
+    "references": {
+      "CTRL": null,
+      "DrugA": "CTRL"
+    },
+    "repeat_groups": {
+      "Day1": {
+        "CTRL": {
+          "source_repeat": "rep1"
+        },
+        "DrugA": {
+          "source_repeat": "experiment_23"
+        }
+      },
+      "Day2": {
+        "CTRL": {
+          "source_repeat": "rep2"
+        },
+        "DrugA": {
+          "source_repeat": "rep2_drug"
+        }
+      }
+    },
+    "suggestions": {
+      "CTRL": {
+        "target": null,
+        "treatment_key": null
+      },
+      "DrugA": {
+        "target": null,
+        "treatment_key": null
+      }
+    }
+  }
 }
