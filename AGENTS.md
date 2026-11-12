@@ -259,6 +259,8 @@ src/morphocoverage/
     _caveats.py            # private: the two kinds of caveat (cautions about these data, standing assumptions) and how a section states them
     _repeat_alias.py       # private: `refuse_repeat_alias`, the refusal of the former column name `repeat`, naming `biological_repeat`
     _condition_ids.py      # private: conditions named by their `condition_id` (`checked_condition_ids`), a folder label refused with its ID, a name matching no condition refused (#628); `PairingRefused`
+    described.py           # MC-2: the experiment block of MorphoFeature's coverage.json (schema_version 3) read beside the FOV table (`read_experiment`): the default controls (the description's references; chains as chains), the target suggestions (used only once confirmed), every refusal of the block note section 4 (`DescriptionRefused`)
+    _described_shape.py    # private: the experiment block's exact shape (keys, types, hex digests, IDs), its versions and refusal codes (MC-2)
     _repeat_groups.py      # private: `paired_tables`, repeats paired by their `repeat_group`, never by folder label (#617), conditions named by their `condition_id`, each folder kept beside its ID (`Pairing`, `with_folders`); `PairingRefused` with its `code` when absent or ambiguous
     _seeds.py              # private: per-group seeds (group_identity, group_seed, group_rng, split_seed) and group_key
     _connected.py          # private: connected groups of items joined by pairs (union-find), for features and conditions
@@ -403,9 +405,11 @@ src/morphocoverage/
         _unusual_values.py   # private: the values biological unusualness reads, relative to each own control in its repeat
         _one_per_field.py    # private: one observation per field: the field questions on the rows, new judged across fields
         _pairing.py          # private: the workflows' tables paired by repeat group; without, the report runs what needs no pairing and says why, the planning workflows refuse (#617)
+        _described.py        # private: `described_setup` (controls default to the description's references, a user override stated), the scan's described design, the confirmed targets for the contrast (MC-2)
         scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
         _scan_parts.py     # private: parts of the scan: the controls as declared, the feature tables by tag, planes, targets, observations per condition and repeat
+        _scan_names.py     # private: conditions read by their names for undescribed tables: the control guess, reagent groups (split out of scan)
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)
         html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
         _html_page.py      # private: the page's frame: the tables checked against the report's counts, the sections shown, the sidebar and At a glance, the texts carried, the page around the cards and its scripts
