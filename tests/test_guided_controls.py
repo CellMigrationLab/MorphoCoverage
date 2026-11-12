@@ -161,12 +161,15 @@ def test_the_master_proposed_is_the_control_imaged_in_most_repeats(tmp_path):
     from morphocoverage.workflows._guided_controls import most_imaged
 
     _, fovs = tables()
-    scan = SimpleNamespace(fovs=fovs)
+    scan = SimpleNamespace(objects=fovs, fovs=fovs)
     # VEC in 3 repeats, the SiNC controls in 5: a tie goes to the first declared.
     assert most_imaged(scan, ["VEC", "VEC_SiNC", "THBS5_SiNC"]) == "VEC_SiNC"
     assert most_imaged(scan, ["THBS5_SiNC", "VEC_SiNC"]) == "THBS5_SiNC"
     fewer = fovs[~((fovs["condition"] == "THBS5_SiNC") & (fovs["biological_repeat"] == "R1"))]
-    assert most_imaged(SimpleNamespace(fovs=fewer), ["THBS5_SiNC", "VEC_SiNC"]) == "VEC_SiNC"
+    assert (
+        most_imaged(SimpleNamespace(objects=fewer, fovs=fewer), ["THBS5_SiNC", "VEC_SiNC"])
+        == "VEC_SiNC"
+    )
 
 
 def test_the_report_runs_with_declared_experiments_and_the_guided_session_asks() -> None:
@@ -187,7 +190,7 @@ def test_the_report_runs_with_declared_experiments_and_the_guided_session_asks()
     tests = result.discovery.tests
     assert tests["experiment"].nunique() == 1 and tests["q_screen"].isna().all()
     assert "screen-wide" not in result.summary("full")
-    scan = SimpleNamespace(fovs=fovs)
+    scan = SimpleNamespace(objects=fovs, fovs=fovs)
     prompts: list[str] = []
 
     def answer(text: str) -> str:
@@ -210,7 +213,7 @@ def test_b3_the_guided_controls_question_has_no_all_default_and_asks_again():
     fovs = pd.DataFrame(
         {"condition": ["cA", "a1", "cB", "b1"], "biological_repeat": "R1", "repeat_group": "R1"}
     )
-    scan = SimpleNamespace(design={"conditions": list(fovs["condition"])}, fovs=fovs)
+    scan = SimpleNamespace(design={"conditions": list(fovs["condition"])}, objects=fovs, fovs=fovs)
     # Enter (asked again); cA and cB with nothing under them, a1 and b1 compared with
     # nothing, the master (refused, asked again); then a1 under cA and b1 under cB.
     replies = iter(["", "cA, cB", "", "", "", "", "", "cA, cB", "a1", "", "b1", "", ""])

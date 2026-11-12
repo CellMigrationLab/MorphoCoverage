@@ -84,10 +84,11 @@ from .._control import (
     comparison_pairs,
     control_name,
     own_pairs,
+    table_conditions,
 )
 from .._frozen import owned
 from .._repeat_alias import refuse_repeat_alias
-from .._repeat_groups import pair_by_repeat_group, with_folders
+from .._repeat_groups import declared_conditions, pair_by_repeat_group, with_folders
 from .._seeds import group_rng
 from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -262,8 +263,12 @@ def condition_contrast(
     declared = None if contrasts is None else check_contrast_table(contrasts)
     comparisons = comparisons if declared is None else own_pairs(declared)
     refuse_repeat_alias(control=control, repeat_col=repeat_col)
+    # The comparisons' and contrasts' conditions too: a folder label is refused with its ID.
+    named = [declared_conditions(control, condition_col), comparisons]
+    if declared is not None:
+        named.append(table_conditions(declared))
     objects, fovs, repeat_col, pairing = pair_by_repeat_group(
-        objects, fovs, repeat_col, condition_col, control
+        objects, fovs, repeat_col, condition_col, {condition_col: named}
     )
     if not isinstance(feature, str) or not feature:
         raise TypeError("feature must be one column name")

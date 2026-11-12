@@ -27,6 +27,7 @@ from .._control import control_name
 from .._data_rules import _loose
 from .._frozen import owned
 from .._repeat_alias import refuse_repeat_alias
+from .._repeat_groups import declared_conditions, named_by_id
 from .._style import Status, check_detail, group_columns, low_to_high, wrap
 from .._style import table as style_table
 from .._wording import column_word, count, listing
@@ -484,6 +485,9 @@ def dataset_overview(
     puts the control condition first; ``data_check`` adds its warnings.
     """
     refuse_repeat_alias(repeat_col=repeat_col, control=control)
+    if condition_col is not None:
+        named = [*declared_conditions(control, condition_col), control_experiments or {}]
+        objects, fovs = named_by_id(objects, fovs, {condition_col: named}, condition_col)[:2]
     data = validate_input_tables(
         objects,
         fovs=fovs,

@@ -449,7 +449,7 @@ def scan_design(
     One that cannot be used is a finding. Never raises for bad data: what is wrong is in the
     findings.
     """
-    from ._scan_rules import copy_tables, findings, questions, suggestions, with_tables
+    from . import _scan_rules as rules
 
     if not isinstance(objects, pd.DataFrame):
         raise TypeError(f"objects must be a pandas DataFrame, not {type(objects).__name__}")
@@ -463,7 +463,8 @@ def scan_design(
     features_declared = feature_cols is not None
     taken = {*known.key, *known.groups}
     features = list(feature_cols) if features_declared else _feature_candidates(objects, taken)
-    objects, tables, refused = with_tables(objects, fovs, feature_tables, known.column, known.added)
+    attached = rules.with_tables(objects, fovs, feature_tables, known.column, known.added)
+    objects, tables, refused = attached
     # An explainable table's columns are features (owner, 2026-10-06).
     explainable, others = tagged_tables(tables)
     features += [c for cols in explainable.values() for c in cols if c not in features]
@@ -481,11 +482,12 @@ def scan_design(
     integrity = None
     if data_check.ok and checked:
         # On each feature table apart, the union said (owner, 2026-10-06).
-        read = copy_tables(features, explainable, others)
+        read = rules.copy_tables(features, explainable, others)
         integrity = _copy_checks(objects, fovs, read, known.column, observation_unit)
+    observations, named_fovs, unnamed = rules.named_tables(known.observations, fovs)
     # A FOV table that passed the data check lists every field acquired, empty ones included.
-    listed = fovs if known.given and data_check.ok else None
-    design, layout = _design(known.observations, known.key, control_value, control_declared, listed)
+    listed = named_fovs if known.given and data_check.ok else None
+    design, layout = _design(observations, known.key, control_value, control_declared, listed)
     design["controls"] = controls or ([control_value] if control_declared else [])
     design["balance"] = _balance(layout, design["repeats"])
     design["constant"] = _constant(objects, features) if data_check.ok and features_declared else []
@@ -496,9 +498,9 @@ def scan_design(
     scan = DesignScan(design, layout, (), (), (), data_check, integrity, objects, fovs, settings)
     return replace(
         scan,
-        findings=(*findings(scan), *refused),
-        suggestions=tuple(suggestions(scan)),
-        questions=tuple(questions(scan)),
+        findings=(*rules.findings(scan), *refused, *unnamed),
+        suggestions=tuple(rules.suggestions(scan)),
+        questions=tuple(rules.questions(scan)),
     )
 
 

@@ -80,6 +80,7 @@ from ._palette import (
 from ._plots_clusters import _cluster_units, _draw_cluster, _mask
 from ._plots_text import legend, title
 from ._repeat_alias import refuse_repeat_alias
+from ._repeat_groups import declared_conditions, named_by_id
 from ._seeds import group_rng
 from ._style import low_to_high
 from ._wording import shortened
@@ -291,6 +292,9 @@ def plots_of_data(
     n_boot, max_conditions, max_repeats, max_technical = _counts(
         n_boot, max_conditions, max_repeats, max_technical
     )
+    if condition_col is not None:
+        named = [*declared_conditions(control, condition_col), *highlight]
+        objects, fovs = named_by_id(objects, fovs, {condition_col: named}, condition_col)[:2]
     data = validate_input_tables(
         objects,
         fovs=fovs,
