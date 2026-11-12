@@ -21,6 +21,7 @@ from .._caveats import assumption, caveat_lines
 from .._control import control_name
 from .._style import rule_label, wrap
 from .._wording import count, listing, percent, plural, rate
+from ..described import targets_line
 from ..evidence import Component
 from ..order_check import RANDOM_SAMPLE_ASSUMPTION
 from ..results import COMPONENT_WORDS, NO_TARGET_WORDS
@@ -64,6 +65,7 @@ def declaration(
     controls = controls_sentence(setup)
     if controls:  # several controls (owner, 2026-10-05)
         lines.append(f"{controls}.")
+    lines += _described(setup)
     if setup.experiment is not None:  # declared correction families (audit 10, 2026-10-06)
         name = setup.experiment
         how = f"by the column {name!r}" if isinstance(name, str) else "condition by condition"
@@ -78,6 +80,14 @@ def declaration(
     lines += [values] if values else []
     lines.append(_live_decision(setup))
     return tuple(lines)
+
+
+def _described(setup: Setup) -> list[str]:
+    """Where the controls come from on a described export (the override beside the
+    description's reference) and the confirmed targets (MC-2); empty otherwise."""
+    lines = setup.described.sentences() if setup.described is not None else []
+    targets = targets_line(setup.targets)
+    return [*lines, *([targets] if targets else [])]
 
 
 def _fingerprint(setup: Setup, unassessed: Sequence[str]) -> str:
@@ -464,6 +474,7 @@ def declaration_short(
     lines.append(_representation_line(setup, per_field))
     controls = controls_sentence(setup)
     lines += [f"{controls}."] if controls else []
+    lines += _described(setup)
     if novelty_runs(setup, per_field):
         lines.append(_novelty_short(setup))
     if setup.positive is not None and novelty_runs(setup, per_field):

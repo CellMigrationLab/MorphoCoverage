@@ -57,6 +57,7 @@ from ..strategies import FixedFOVStrategy
 from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
 from ._contrasts import declared_conditions
+from ._described import with_targets
 from ._document import pooling_reason
 from ._feature_space import attached, table_columns, unusual_space
 from ._rare_share import compared_columns
@@ -463,7 +464,7 @@ def conditions(
     results = {
         "contrast": condition_contrast(
             objects,
-            fovs,
+            with_targets(fovs, setup),  # the reagent grouping the user confirmed (MC-2)
             feature=setup.readout,
             random_state=setup.random_state,
             fields_independent=setup.fields_independent,

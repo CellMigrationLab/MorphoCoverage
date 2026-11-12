@@ -29,6 +29,7 @@ import pandas as pd
 
 from .._repeat_alias import refuse_repeat_alias
 from .._wording import count, rate
+from ..described import ControlSource, confirmed_targets
 from ..metadata import (
     CONDITION_COLUMN,
     REPEAT_COLUMN,
@@ -138,6 +139,14 @@ class Setup:
       field at a time and no control), so one rule gives one verdict whichever
       workflow runs it. ``None`` keeps the values as given.
     - ``positive``: a ``PositiveControl``, for the detection check.
+    - ``described``: where the controls come from when the tables are a MorphoFeature export
+      of a described run (``morphocoverage.described``, MC-2), set by ``described_setup``: the
+      description's references by default, or the user's controls overriding them; the
+      declaration states which, the override beside the reference.
+    - ``targets``: the reagent grouping the user confirmed, condition ID -> target (a copy;
+      ``TargetSuggestions.confirm()`` turns the description's suggestions into one): the
+      condition contrast says whether the reagents of one target agree. The description's
+      suggestions themselves are refused until confirmed.
     - ``minimum_detection``: the share of positive-control checks the
       representation must recognize before the adequacy answers are read
       without a warning (default 0.9, a provisional preset, printed in the
@@ -233,9 +242,14 @@ class Setup:
     explainable_tables: Mapping[str, tuple[str, ...]] | None = None
     scales: Mapping[str, str] | None = None
     experiment: str | Mapping[Any, Any] | None = None
+    described: ControlSource | None = field(default=None, compare=False)
+    targets: Mapping[Any, str] | None = None
 
     def __post_init__(self) -> None:
         normalise_sequences(self)
+        if self.described is not None and not isinstance(self.described, ControlSource):
+            raise TypeError("described is set by described_setup (a ControlSource)")
+        object.__setattr__(self, "targets", confirmed_targets(self.targets))
         refuse_repeat_alias(
             control=self.control,
             fov_col=self.fov_col,

@@ -3,7 +3,10 @@
 Start with ``scan_design(objects, fovs)``: what the dataset is, whether it was
 loaded correctly (data check, copies, balance over the biological repeats),
 which columns would say more, and the questions to answer before the analysis;
-``scan.setup(readout=...)`` turns the answers into a ``Setup``. ``guide()`` (or
+``scan.setup(readout=...)`` turns the answers into a ``Setup``. A MorphoFeature export of a
+described run gives its controls by default (``morphocoverage.described``):
+``scan_design(..., description=read_experiment(coverage, fovs))`` or
+``described_setup(experiment, ...)``. ``guide()`` (or
 ``python -m morphocoverage.workflows``) asks those questions interactively,
 saves the answers in the results folder, and runs the report.
 
@@ -40,6 +43,7 @@ from ``Setup.random_state``. See ``docs/README.md``.
 """
 
 from ..feature_tables import FeatureTables, attach_feature_tables
+from ._described import described_setup
 from .figures import embedding_plots, plots
 from .guided import Answers, GuidedResult, guide, load_answers, save_answers
 from .html_report import html_report, zip_results
@@ -76,6 +80,7 @@ __all__ = [
     "benchmark",
     "default_families",
     "default_novelty",
+    "described_setup",
     "document",
     "embedding_plots",
     "guide",
