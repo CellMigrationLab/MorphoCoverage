@@ -5,7 +5,9 @@ name: tests
 # tests (module size, type hints, the function index and its ratchets) and that the ratchet
 # baselines only tightened against the base branch (audit 12). A newer push to the same pull
 # request cancels the run still going; nothing runs on a push to main. The whole suite runs
-# only on demand (Actions tab, "Run workflow").
+# only on demand (Actions tab, "Run workflow") and weekly (Mondays 04:11 UTC), because the repository is
+# private and Actions minutes are billed (owner, 2026-11-12). By hand: `gh workflow run tests.yml --ref <branch>`
+# (the "full" input defaults to true), or `pytest` locally.
 on:
   pull_request:
     # Documentation alone skips the run, except the generated function index and duplicate
@@ -24,10 +26,18 @@ on:
         description: "Run the whole suite"
         type: boolean
         default: true
+  schedule:
+    - cron: "11 4 * * 1" # Mondays 04:11 UTC: the whole suite
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  # pytest-xdist (addopts: -n auto) supplies the parallelism: one thread per BLAS/OpenMP pool.
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
 
 jobs:
   spec-pin:
@@ -54,6 +64,7 @@ jobs:
 
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 90 # the whole suite takes about 13 minutes on 4 cores
     steps:
       - uses: actions/checkout@v4
         with:
@@ -76,6 +87,6 @@ jobs:
       - name: Baselines only tighten
         if: github.event_name == 'pull_request'
         run: python tools/audit.py --check-against HEAD^1
-      - name: Whole suite (on demand)
-        if: github.event_name == 'workflow_dispatch' && inputs.full
+      - name: Whole suite (on demand and weekly)
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full)
         run: pytest
