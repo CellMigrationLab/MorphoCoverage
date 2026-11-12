@@ -91,7 +91,7 @@ def test_v03_and_v33_blocks_are_the_notes_worked_examples() -> None:
 # --- Defaults: the controls are the description's references -----------------------------------
 
 
-@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("name", sorted(DEFAULTS))  # one control each; v10 is a chain
 def test_the_controls_default_to_the_descriptions_references(name) -> None:
     objects, fovs, experiment = _experiment(name)
     assert experiment.default_control() == {"control": {"condition": DEFAULTS[name]}}
@@ -348,8 +348,9 @@ def test_without_the_block_controls_declared_by_id_are_accepted_and_said() -> No
 
 def test_without_the_block_the_scan_guesses_no_control_and_no_reagents_by_name() -> None:
     objects, fovs, experiment = _experiment("v33", _blockless("v33", 2))
-    # Undescribed, the scan reads 'ctrl' as a control by its name; described, never.
-    assert scan_design(objects, fovs, feature_cols=["x"]).design["control_guess"] == "ctrl"
+    # The tables carry condition_id: no control is read from a name, with or without the
+    # description (#631).
+    assert scan_design(objects, fovs, feature_cols=["x"]).design["control_guess"] is None
     scan = scan_design(objects, fovs, feature_cols=["x"], description=experiment)
     assert scan.design["control_guess"] is None
     assert scan.design["control_guesses"] == [] and scan.design["reagent_groups"] == {}

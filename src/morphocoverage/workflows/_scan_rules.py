@@ -218,7 +218,7 @@ def _described_findings(scan: DesignScan) -> list[Finding]:
     references, or why none is defaulted."""
     described = scan.design.get("described")
     if described is None:
-        return []
+        return _by_id_findings(scan)
     if described.block is None:
         return [
             Finding(Status.CAUTION, "controls", f"No control is defaulted: {described.missing}.")
@@ -230,6 +230,46 @@ def _described_findings(scan: DesignScan) -> list[Finding]:
         "so beside them."
     )
     return [Finding(Status.OK, "controls", " ".join([text, *described.notes]))]
+
+
+def _by_id_findings(scan: DesignScan) -> list[Finding]:
+    """A described table (``condition_id``) scanned without its description: no control is
+    guessed from the names (#631), and the scan says where the controls come from."""
+    design = scan.design
+    if not design.get("by_id") or scan.settings["control_declared"] or not design["conditions"]:
+        return []
+    text = (
+        "Controls: the tables carry condition_id (a described run), so no control is guessed "
+        "from the condition names; the controls come from the experiment description "
+        "(scan_design(..., description=read_experiment(coverage_json, fovs))) or must be "
+        "declared by their ID (control={'condition': ...})."
+    )
+    return [Finding(Status.OK, "controls", text)]
+
+
+_TARGET_COLUMN = (
+    "add a 'target' column naming what each acts on, if some should have the same effect; the "
+    "report then says whether they agree."
+)
+
+
+def _described_targets(scan: DesignScan) -> str:
+    """Where the targets of a described table (``condition_id``) come from: the experiment
+    description's target suggestions, confirmed, or a grouping declared by condition ID, not
+    a ``target`` column (owner, 2026-11-12, #631)."""
+    where = (
+        "the tables carry condition_id, so what each acts on comes from the experiment "
+        "description's target suggestions: give the scan the description (scan_design(..., "
+        "description=read_experiment(coverage_json, fovs))) and confirm them "
+        "(Setup(targets=experiment.target_suggestions.confirm())), or"
+        if scan.design.get("described") is None
+        else "the experiment description suggests no target:"
+    )
+    return (
+        f"{where} declare the grouping by condition ID "
+        "(Setup(targets={'<condition_id>': '<target>'})), if some should have the same effect; "
+        "the report then says whether the reagents of one target agree."
+    )
 
 
 def _target_suggestion(scan: DesignScan) -> str | None:
@@ -248,8 +288,8 @@ def _target_suggestion(scan: DesignScan) -> str | None:
         f"Several conditions are compared ({len(others)}"
         + (" besides the control" if scan.design.get("control_guess") is not None else "")
         + ("s" if len(scan.design.get("controls") or []) > 1 else "")
-        + "): add a 'target' column naming what each acts on, if some should have the same "
-        "effect; the report then says whether they agree."
+        + "): "
+        + (_described_targets(scan) if scan.design.get("by_id") else _TARGET_COLUMN)
     )
     groups = scan.design["reagent_groups"]
     if groups:

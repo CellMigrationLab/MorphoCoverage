@@ -1,4 +1,4 @@
-"""Write the golden MorphoFeature exports of the Spec fixtures v03, v30, v33 and v27 (MC-0, MC-2).
+"""Write the golden MorphoFeature exports of the Spec fixtures v03, v10, v30, v33 and v27 (MC-0).
 
 Not run by the test suite: it needs a MorphoFeature checkout and its pinned dependencies
 (morphobricks-preprocessing, CellPatcher, normalization, the ``cli`` extra). It does what
@@ -31,6 +31,7 @@ from pathlib import Path
 
 FIXTURES = {
     "v03": "v03_paired_different_folder_names.toml",
+    "v10": "v10_reference_chain.toml",
     "v30": "v30_same_source_label_different_repeats.toml",
     "v33": "v33_condition_folder_on_forbidden_list.toml",
     "v27": "v27_descriptive_keys_collide.toml",

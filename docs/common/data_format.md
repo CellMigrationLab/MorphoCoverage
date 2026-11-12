@@ -514,16 +514,24 @@ result = report(objects, fovs, setup)
   export is not compared, and one sharing no biological repeat with its control is not
   paired (`W_REFERENCE_UNPAIRED`); the report says both. `scan_design(...,
   description=experiment)` suggests the description's control instead of a name read as
-  one.
+  one, and `guide(..., description=experiment)` asks no control question when the
+  description gives the controls. Tables that carry `condition_id` never get a control
+  guessed from a name, even without their `coverage.json`: the scan says the controls come
+  from the description or are declared by ID.
 - **The targets are suggestions only**: `experiment.target_suggestions` prefills the reagent
   grouping, and `Setup(targets=...)` refuses it until confirmed:
   `targets=experiment.target_suggestions.confirm()` (or with edits,
   `confirm({"DrugB": "SRC"})`). The confirmed copy is all the report reads: equal values
-  are grouped exactly as written (`SRC` is not `src`).
+  are grouped exactly as written (`SRC` is not `src`). `guide(..., description=experiment)`
+  shows them and asks whether to use them as suggested, edit them or leave them; Enter
+  leaves them unconfirmed. For tables that carry `condition_id`, the scan's "several
+  conditions are compared" suggestion points to these suggestions (or to a grouping
+  declared by condition ID, `Setup(targets={...})`), not to a `target` column.
 - **Refused** (`DescriptionRefused`, its `code`): a `coverage.json` `schema_version` above 3
   or a description `schema_version` other than 1 (`coverage_version_unknown`,
   `description_version_unknown`); an unexported set (`coverage_set_not_exported`); a
-  malformed block (`experiment_block_malformed`); a block that disagrees with the FOV table
+  malformed block (`experiment_block_malformed`: references that form a cycle, `A -> B ->
+  A` or longer, and a key named twice in one JSON object included); a block that disagrees with the FOV table
   (`experiment_block_disagrees_with_fovs`); exports of two descriptions in one analysis
   (`experiment_descriptions_differ`); unconfirmed suggestions (`suggestion_not_confirmed`).
   A described FOV table whose `coverage.json` has no block (`schema_version` 2) defaults no

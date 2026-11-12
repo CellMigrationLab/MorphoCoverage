@@ -5,9 +5,10 @@ loaded correctly, which columns would say more, and what to ask before the analy
 possible, and returns a ``DesignScan``:
 
 - **what the dataset is**: the conditions (the control, declared or guessed from its
-  name), the biological repeats and which conditions each holds (one experiment, or
-  several acquisitions sharing the control), the technical repeats, the fields and the
-  observations per field, the planes, the feature columns;
+  name, never guessed when the tables carry ``condition_id``, #631), the biological repeats
+  and which conditions each holds (one experiment, or several acquisitions sharing the
+  control), the technical repeats, the fields and the observations per field, the planes,
+  the feature columns;
 - **whether it was loaded correctly**: the data check (``check_tables``), the copy checks
   (``integrity_checks``: a field read twice, rows pasted into another field), features that
   hold one value everywhere, and how the observations fall across the biological repeats
@@ -47,6 +48,7 @@ from ..described import DescribedExperiment
 from ..integrity import IntegrityResult
 from ..metadata import (
     CONDITION_COLUMN,
+    CONDITION_ID_COLUMN,
     MORPHOBRICKS_FOV_CANDIDATES,
     MORPHOBRICKS_SHARED_COLUMNS,
     REPEAT_COLUMN,
@@ -57,7 +59,7 @@ from ..metadata import (
     sorted_labels,
 )
 from ..sampling_unit.contrast_cells import IMBALANCE, sparse
-from ._described import described_design, described_setup
+from ._described import described_control, described_design, described_setup
 from ._scan_names import control_guess, reagent_groups
 from ._scan_parts import (
     declared_controls,
@@ -197,8 +199,11 @@ class DesignScan:
         described = self.design.get("described")
         if "control" not in fields and not settings["control_declared"] and described is None:
             guess = self.design.get("control_guess")
+            by_id = " by its condition_id, or give the scan the experiment description" * bool(
+                self.design.get("by_id")
+            )
             raise ValueError(
-                "declare the control: control={'condition': ...}"
+                f"declare the control{by_id}: control={{'condition': ...}}"
                 + (f" (the scan suggests {guess!r})" if guess else "")
             )
         values: dict[str, Any] = {
@@ -304,9 +309,12 @@ def _design(
     control: Any,
     control_declared: bool,
     fovs: pd.DataFrame | None = None,
+    described: Any = None,
 ) -> tuple[dict[str, Any], pd.DataFrame]:
     """The facts of the design and the observations per condition and repeat; with the FOV
-    table (``fovs``), its conditions and repeats, those held only by empty fields included."""
+    table (``fovs``), its conditions and repeats, those held only by empty fields included.
+    ``described``: ``False`` for an undescribed table, else the description's control or
+    ``None`` (``_described``, #631)."""
     design: dict[str, Any] = {"observations": len(objects)}
     listed = fovs is not None and set(fov_key) <= set(fovs.columns)
     groups = fovs if listed else objects  # the FOV table is the authority (#363)
@@ -318,13 +326,7 @@ def _design(
     conditions: list[Any] = []
     design["control_guesses"], design["control_guess"] = [], None
     if has_condition:
-        guesses = control_guess(list(dict.fromkeys(groups[CONDITION_COLUMN])))
-        design["control_guesses"] = guesses
-        design["control_guess"] = (
-            control if control_declared else (guesses[0] if len(guesses) == 1 else None)
-        )
-        first = control if control_declared else design["control_guess"]
-        conditions = sorted_labels(groups[CONDITION_COLUMN], first)
+        conditions = _conditions(design, groups, control if control_declared else None, described)
     design["conditions"] = conditions
     design["control"] = control if control_declared else None
     design["repeats"] = sorted_labels(groups[REPEAT_COLUMN]) if has_repeat else []
@@ -339,6 +341,18 @@ def _design(
         # A condition and repeat whose fields are all empty holds 0 observations, not none.
         layout = layout.where(_layout(fovs, layout).isna(), layout.fillna(0))
     return design, layout
+
+
+def _conditions(design: dict[str, Any], groups: pd.DataFrame, control: Any, described: Any) -> list:
+    """The conditions, the control first (``control``, declared; else the one guessed from
+    its name, recorded in ``design``, or the description's), as ``_design`` says."""
+    names = list(dict.fromkeys(groups[CONDITION_COLUMN]))
+    guesses = control_guess(names) if described is False else []
+    design["control_guesses"] = guesses
+    guess = guesses[0] if len(guesses) == 1 else None
+    design["control_guess"] = control if control is not None else guess
+    first = next((c for c in (control, guess, described) if c is not None and c is not False), None)
+    return sorted_labels(groups[CONDITION_COLUMN], first)
 
 
 def _layout(table: pd.DataFrame, like: pd.DataFrame) -> pd.DataFrame:
@@ -411,9 +425,10 @@ def scan_design(
     not metadata are read as candidate features (for the copy checks only, and said so);
     without an image identifier (``position_id``, ``image_file``, ``fov_id`` or ``fov_col``)
     each row is assumed to be its own image; without ``control`` a condition named like a
-    control is suggested, never used. ``feature_tables`` are other feature tables for the same
-    observations, by name, each a DataFrame or ``(DataFrame, "explainable" or
-    "non-explainable")`` (owner, 2026-10-05 and 2026-10-06): checked and attached
+    control is suggested, never used, and none when the tables carry ``condition_id`` (#631).
+    ``feature_tables`` are other feature tables for the same observations, by name, each a
+    DataFrame or ``(DataFrame, "explainable" or "non-explainable")`` (owner, 2026-10-05 and
+    2026-10-06): checked and attached
     (``attach_feature_tables``), they are listed with their tags, read by the copy checks,
     and named in ``DesignScan.setup``; an explainable table's columns are candidate features.
     One that cannot be used is a finding. ``description``, a MorphoFeature export's experiment
@@ -427,6 +442,7 @@ def scan_design(
         raise TypeError(f"objects must be a pandas DataFrame, not {type(objects).__name__}")
     refuse_repeat_alias(objects=objects, fovs=fovs)
     refuse_repeat_alias(control=control)
+    described = _described(objects, fovs, description)  # False when undescribed
     objects = objects.copy()
     control_declared = control is not None
     controls, checked_control, control_value = declared_controls(control)
@@ -459,7 +475,10 @@ def scan_design(
     observations, named_fovs, unnamed = rules.named_tables(known.observations, fovs)
     # A FOV table that passed the data check lists every field acquired, empty ones included.
     listed = named_fovs if known.given and data_check.ok else None
-    design, layout = _design(observations, known.key, control_value, control_declared, listed)
+    design, layout = _design(
+        observations, known.key, control_value, control_declared, listed, described
+    )
+    design["by_id"] = described is not False
     described_design(design, description, control_declared)
     design["controls"] = controls or ([control_value] if control_declared else [])
     design["balance"] = _balance(layout, design["repeats"])
@@ -491,6 +510,14 @@ class _Fields(NamedTuple):
     fovs: pd.DataFrame | None
     given: bool
     observations: pd.DataFrame
+
+
+def _described(objects: pd.DataFrame, fovs: Any, description: Any) -> Any:
+    """``False`` for undescribed tables, else the description's control (``None`` without
+    one): tables are described when they carry ``condition_id`` (read where ``named_by_id``
+    reads it), and no condition name is then read as a control (#631)."""
+    table = fovs if isinstance(fovs, pd.DataFrame) else objects
+    return CONDITION_ID_COLUMN in table.columns and described_control(description)
 
 
 def _fields(objects: pd.DataFrame, fovs: pd.DataFrame | None, fov_col: str | None) -> _Fields:

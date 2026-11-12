@@ -3,7 +3,8 @@
 A gate first: "Are all your conditions compared with the same control?". Yes asks for the one
 control as before (``_guided_ask.ask_control``). No asks for several controls, each with a
 proposal to confirm: which conditions are controls (named like one: ``siCTRL``,
-``VEC_SiNC``); the conditions of each (those sharing its name's stem), with treatment keys
+``VEC_SiNC``; never by name when the tables carry ``condition_id``, #631); the conditions
+of each (those sharing its name's stem), with treatment keys
 proposed by stripping the shared stem (``THBS5_SiCol6a1`` under ``THBS5_SiNC`` is
 ``SiCol6a1``; no shared stem keeps the full name); a parent when a control's name extends
 another condition's (``VEC_SiNC`` under ``VEC``, the key ``transfection`` for an siRNA or
@@ -55,9 +56,15 @@ def _last(name: Any) -> str:
 
 def proposed_controls(scan: Any) -> list[Any]:
     """The conditions named like a control: the scan's guesses, or a last name part such as
-    ``SiNC``."""
+    ``SiNC``; for tables that carry ``condition_id``, the scan's guesses only (the
+    description's control, or none), never a name (#631)."""
     guesses = set(scan.design.get("control_guesses") or [])
-    return [c for c in scan.design["conditions"] if c in guesses or _CONTROL_PART.match(_last(c))]
+    by_name = not scan.design.get("by_id")
+    return [
+        c
+        for c in scan.design["conditions"]
+        if c in guesses or (by_name and _CONTROL_PART.match(_last(c)))
+    ]
 
 
 def _stem(name: Any) -> str:

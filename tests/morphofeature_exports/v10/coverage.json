@@ -1,0 +1,439 @@
+{
+  "schema_version": 3,
+  "object_set": "Cells",
+  "exported": true,
+  "observation_unit": "object",
+  "identity_columns": [
+    "condition",
+    "biological_repeat",
+    "technical_repeat",
+    "position_id",
+    "label_id"
+  ],
+  "applicability_rows": 0,
+  "table_format": "csv",
+  "tables": {
+    "shape": {
+      "file": "tables/shape.csv",
+      "tag": "explainable",
+      "units": {
+        "Cells__area": "pixels"
+      }
+    }
+  },
+  "removed_all_missing": {},
+  "removed_tables": [],
+  "masked_not_measured": {},
+  "observations_per_fov": [
+    {
+      "condition": "THBS5",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img0",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img1",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img2",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img3",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img4",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img5",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5_SiCol6a1",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img0",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5_SiCol6a1",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img1",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5_SiCol6a1",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img2",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5_SiCol6a1",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img3",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5_SiCol6a1",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img4",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5_SiCol6a1",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img5",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5_SiNC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img0",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5_SiNC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img1",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5_SiNC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img2",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5_SiNC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img3",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5_SiNC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img4",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "THBS5_SiNC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img5",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img0",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img1",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img2",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img3",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img4",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img5",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC_SiCol6a1",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img0",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC_SiCol6a1",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img1",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC_SiCol6a1",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img2",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC_SiCol6a1",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img3",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC_SiCol6a1",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img4",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC_SiCol6a1",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img5",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC_SiNC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img0",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC_SiNC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img1",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC_SiNC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img2",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC_SiNC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img3",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC_SiNC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img4",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    },
+    {
+      "condition": "VEC_SiNC",
+      "biological_repeat": "rep1",
+      "technical_repeat": "single",
+      "position_id": "img5",
+      "kept": 2,
+      "dropped": 0,
+      "dropped_by": {}
+    }
+  ],
+  "dropped_by": {},
+  "left_out_fovs": [],
+  "experiment": {
+    "description_sha256": "b29d2176f438eae90fe83ae8bdc1548d32e56214e1dacc932186628a84f2b548",
+    "description_schema_version": 1,
+    "section_digests": {
+      "conditions": "53da33fb07266246eada47247be6e1379c68ffcab296f9bad996884396190a00",
+      "repeats": "a0719fb6dc38577251464588e1b59ca084b72a42abcf92fc3120b13609ebf294"
+    },
+    "conditions": {
+      "THBS5": {
+        "source_folder": "THBS5"
+      },
+      "THBS5_SiCol6a1": {
+        "source_folder": "THBS5_SiCol6a1"
+      },
+      "THBS5_SiNC": {
+        "source_folder": "THBS5_SiNC"
+      },
+      "VEC": {
+        "source_folder": "VEC"
+      },
+      "VEC_SiCol6a1": {
+        "source_folder": "VEC_SiCol6a1"
+      },
+      "VEC_SiNC": {
+        "source_folder": "VEC_SiNC"
+      }
+    },
+    "references": {
+      "THBS5": null,
+      "THBS5_SiCol6a1": "THBS5_SiNC",
+      "THBS5_SiNC": "THBS5",
+      "VEC": null,
+      "VEC_SiCol6a1": "VEC_SiNC",
+      "VEC_SiNC": "VEC"
+    },
+    "repeat_groups": {
+      "rep1": {
+        "THBS5": {
+          "source_repeat": "rep1"
+        },
+        "THBS5_SiCol6a1": {
+          "source_repeat": "rep1"
+        },
+        "THBS5_SiNC": {
+          "source_repeat": "rep1"
+        },
+        "VEC": {
+          "source_repeat": "rep1"
+        },
+        "VEC_SiCol6a1": {
+          "source_repeat": "rep1"
+        },
+        "VEC_SiNC": {
+          "source_repeat": "rep1"
+        }
+      }
+    },
+    "suggestions": {
+      "THBS5": {
+        "target": null,
+        "treatment_key": null
+      },
+      "THBS5_SiCol6a1": {
+        "target": "COL6A1",
+        "treatment_key": "siCol6a1"
+      },
+      "THBS5_SiNC": {
+        "target": null,
+        "treatment_key": null
+      },
+      "VEC": {
+        "target": null,
+        "treatment_key": null
+      },
+      "VEC_SiCol6a1": {
+        "target": "COL6A1",
+        "treatment_key": "siCol6a1"
+      },
+      "VEC_SiNC": {
+        "target": null,
+        "treatment_key": null
+      }
+    }
+  }
+}

@@ -409,7 +409,7 @@ src/morphocoverage/
         scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
         _scan_parts.py     # private: parts of the scan: the controls as declared, the feature tables by tag, planes, targets, observations per condition and repeat
-        _scan_names.py     # private: conditions read by their names for undescribed tables: the control guess, reagent groups (split out of scan)
+        _scan_names.py     # private: conditions read by their names for undescribed tables: the control guess (never when the tables carry condition_id, #631), reagent groups (split out of scan)
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)
         html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
         _html_page.py      # private: the page's frame: the tables checked against the report's counts, the sections shown, the sidebar and At a glance, the texts carried, the page around the cards and its scripts
@@ -438,6 +438,7 @@ src/morphocoverage/
         guided.py          # guide, Answers: load, scan, ask, save the answers (continue or start over), report
         _guided_ask.py     # private: the guided session's questions and how each answer is read
         _guided_controls.py  # private: its control gate: one control, or several with their conditions, parents and master; whether sets of conditions are separate experiments
+        _guided_described.py  # private: guide(description=...): the description's default controls instead of the control questions, its target suggestions confirmed, edited or left (Enter leaves them; #631)
         _guided_runtime.py # private: its rough runtime of a report and its page (re-exported by guided)
         _guided_tables.py  # private: its other feature tables: asked for at load with a path and a name, checked, saved with their checksums
         __main__.py        # python -m morphocoverage.workflows: the guided session from a terminal
@@ -505,7 +506,7 @@ tests/
     test_morphobricks_tables.py  # a fiberfeatures table as written: read as it is, geometry not offered, typos refused
     spec_fixtures/         # MorphoBricks-Spec test material, a byte-exact copy pinned in PIN.toml (the Spec's tools/vendor.py; never edited here)
     test_spec_pin.py       # the Spec's brick-template pin test, copied as it is: the copy hashes to PIN.toml
-    morphofeature_exports/ # golden MorphoFeature exports of Spec fixtures v03, v27, v30, v33, each with its provenance.json (README.md)
+    morphofeature_exports/ # golden MorphoFeature exports of Spec fixtures v03, v10, v27, v30, v33, each with its provenance.json (README.md)
     test_morphofeature_exports.py  # those exports read, validated and paired by the described repeat groups
     test_parallel.py       # n_jobs > 1 gives the results of n_jobs = 1
     test_docs.py           # the documentation's examples run and print what they say

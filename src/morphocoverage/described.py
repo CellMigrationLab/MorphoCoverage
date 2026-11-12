@@ -39,7 +39,8 @@ Refused (``DescriptionRefused``, its ``code`` naming the reason; note section 4)
    one without the block): the controls are not defaulted (``MISSING``, raised by
    ``described_setup`` when no control is declared), and controls the user declares by ID
    are still accepted (owner decision, 12 Nov 2026);
-3. a malformed block (``MALFORMED``, ``_described_shape``);
+3. a malformed block (``MALFORMED``, ``_described_shape``), references that form a cycle
+   included, and a ``coverage.json`` that names a key twice in one object (#631);
 4. a block that disagrees with the FOV table (``DISAGREES``): a row whose ``condition`` is not
    the source folder of its ``condition_id``, whose ``repeat_group`` is not a repeat group of
    the block, or whose ``biological_repeat`` is not that group's source repeat for its
@@ -191,10 +192,36 @@ def read_coverage(path: str | Path) -> CoverageRecord:
     if path.is_dir():
         path = path / COVERAGE_FILE
     try:
-        record = json.loads(path.read_text(encoding="utf-8"))
+        record = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_keys)
     except json.JSONDecodeError as error:
         raise DescriptionRefused(MALFORMED, f"{path}: not valid JSON ({error})") from error
+    except _DuplicateKey as duplicate:
+        raise DescriptionRefused(
+            MALFORMED,
+            f"{path}: the key {duplicate.key!r} appears twice in one JSON object; a duplicate "
+            "is never resolved (the last value is not taken): re-export the set with "
+            "MorphoFeature",
+        ) from None
     return parse_coverage(record, str(path))
+
+
+class _DuplicateKey(ValueError):
+    """A JSON object of ``coverage.json`` names ``key`` twice."""
+
+    def __init__(self, key: str) -> None:
+        self.key = key
+        super().__init__(key)
+
+
+def _unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """A JSON object as a dict, refused (``_DuplicateKey``) when it names a key twice (#631):
+    ``json`` would otherwise keep the last value silently."""
+    record: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in record:
+            raise _DuplicateKey(key)
+        record[key] = value
+    return record
 
 
 class TargetSuggestions:
