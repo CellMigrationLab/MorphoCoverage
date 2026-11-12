@@ -42,17 +42,28 @@ from morphocoverage import validate_input_tables
 from morphocoverage._repeat_groups import (
     FOLDER_CONTROL,
     FOLDER_PAIRING,
+    NOT_FOUND,
     PairingRefused,
     paired_tables,
 )
+from morphocoverage.data_check import check_tables
 from morphocoverage.normalize import normalize_to_control
+from morphocoverage.plots_pairwise import pairwise_contrasts
+from morphocoverage.retrospective.overview import dataset_overview
 from morphocoverage.sampling_unit import (
     condition_contrast,
     feature_discovery,
     feature_ranking,
     object_rule_check,
 )
-from morphocoverage.workflows import PositiveControl, Setup, default_novelty, html_report, report
+from morphocoverage.workflows import (
+    PositiveControl,
+    Setup,
+    default_novelty,
+    html_report,
+    report,
+    scan_design,
+)
 
 FAST = {"n_permutations": 99, "n_draws": 2, "object_counts": (2,)}
 
@@ -299,3 +310,111 @@ def test_a_positive_control_named_by_folder_label_is_refused_with_its_id() -> No
     by_id = Setup(**declared, positive=PositiveControl({"condition": "DA"}, fovs_seen=5))
     table = report(objects, fovs, by_id).results["controls"].table
     assert "positive_lofo" in set(table["candidate"])
+
+
+# Issue #628: a selector or Setup key that matches no condition is refused, and the analyses
+# that do not pair repeats read conditions by their condition_id too.
+
+
+def _positive_setup(condition: str) -> tuple[pd.DataFrame, pd.DataFrame, Setup]:
+    objects, fovs = _renamed_v27()
+    objects = objects.assign(y=objects["x"] * 0.5 + objects["label_id"])
+    setup = Setup(
+        readout="x",
+        features=("x", "y"),
+        control={"condition": "CTRL"},
+        novelty=default_novelty(["x", "y"]),
+        positive=PositiveControl({"condition": condition}, fovs_seen=5),
+    )
+    return objects, fovs, setup
+
+
+def test_a_positive_control_matching_no_condition_is_refused_with_the_ids() -> None:
+    # It was judged "not assessed" without a word.
+    objects, fovs, setup = _positive_setup("Nope")
+    with pytest.raises(PairingRefused, match="'Nope' names no condition") as refused:
+        report(objects, fovs, setup)
+    assert refused.value.code == NOT_FOUND
+    assert "'CTRL', 'DA', 'DrugB', 'DrugC'" in str(refused.value)
+    # The folder label keeps its more specific refusal.
+    objects, fovs, setup = _positive_setup("DrugA")
+    with pytest.raises(PairingRefused, match="declare it as 'DA'") as refused:
+        report(objects, fovs, setup)
+    assert refused.value.code == FOLDER_CONTROL
+
+
+def test_an_experiment_key_matching_no_condition_is_refused_with_the_ids() -> None:
+    # Ignored, it changed the correction families without a word.
+    objects, fovs = _renamed_v27()
+    setup = Setup(
+        readout="x",
+        features=("x",),
+        control={"condition": "CTRL"},
+        experiment={"DA": "e1", "DrugB": "e1", "DrugX": "e2"},
+    )
+    with pytest.raises(PairingRefused, match="'DrugX' names no condition") as refused:
+        report(objects, fovs, setup)
+    assert refused.value.code == NOT_FOUND
+    assert "'CTRL', 'DA', 'DrugB', 'DrugC'" in str(refused.value)
+
+
+def _errors(name: str, control: str) -> list[str]:
+    objects, fovs = with_feature(name)
+    check = check_tables(objects, fovs, feature_cols=["x"], control={"condition": control})
+    return [f"{p.title} {p.where} {p.fix}" for p in check.problems if p.level == "error"]
+
+
+def test_v33_check_tables_reads_the_control_by_its_id() -> None:
+    # On main the ID was not found ("No field matches the control") and the folder label was.
+    assert _errors("v33", "ctrl") == []
+    (folder,) = _errors("v33", "control")
+    assert FOLDER_CONTROL in folder and "declare it as 'ctrl'" in folder
+    (typo,) = _errors("v33", "Nope")
+    assert "No field matches the control" in typo and "'ctrl'" in typo and "'control'" not in typo
+
+
+def test_v33_scan_names_conditions_by_id_and_its_setup_runs_the_report() -> None:
+    objects, fovs = with_feature("v33")
+    scan = scan_design(objects, fovs, feature_cols=["x"])
+    assert scan.design["conditions"] == ["ctrl", "DrugA"]
+    assert scan.design["control_guess"] == "ctrl"
+    declared = scan_design(objects, fovs, feature_cols=["x"], control={"condition": "ctrl"})
+    assert all(f.status.name != "PROBLEM" for f in declared.findings)
+    # The scan keeps the folder labels in its tables; its Setup names the control by its ID.
+    assert set(declared.fovs["condition"]) == {"control", "DrugA"}
+    result = report(declared.objects, declared.fovs, declared.setup("x", features=("x",)))
+    assert set(result.results["contrast"].table["control_condition"]) == {"ctrl"}
+    by_folder = scan_design(objects, fovs, feature_cols=["x"], control={"condition": "control"})
+    assert any(FOLDER_CONTROL in f.text for f in by_folder.findings)
+
+
+def test_v33_pairwise_contrasts_read_conditions_by_id() -> None:
+    objects, fovs = with_feature("v33")
+    table = pairwise_contrasts(objects, fovs, feature="x", control="ctrl", n_permutations=99)
+    assert {*table["first"], *table["second"]} == {"ctrl", "DrugA"}
+    with pytest.raises(PairingRefused, match="declare it as 'ctrl'"):
+        pairwise_contrasts(objects, fovs, feature="x", control="control", n_permutations=99)
+
+
+def test_v33_the_overview_reads_the_control_by_its_id() -> None:
+    objects, fovs = with_feature("v33")
+    overview = dataset_overview(objects, fovs, feature_cols=["x"], control={"condition": "ctrl"})
+    assert overview.settings["control"] == "ctrl"
+    assert list(overview.layout["condition"].drop_duplicates()) == ["ctrl", "DrugA"]
+    with pytest.raises(PairingRefused, match="declare it as 'ctrl'"):
+        dataset_overview(objects, fovs, feature_cols=["x"], control={"condition": "control"})
+
+
+def test_v33_comparisons_and_contrasts_naming_a_folder_label_get_its_id() -> None:
+    # They failed as unknown conditions, without the ID to use.
+    objects, fovs = with_feature("v33")
+    with pytest.raises(PairingRefused, match="declare it as 'ctrl'") as refused:
+        condition_contrast(objects, fovs, feature="x", comparisons=[("DrugA", "control")], **FAST)
+    assert refused.value.code == FOLDER_CONTROL
+    table = pd.DataFrame(
+        {"kind": ["own_control"], "condition": ["DrugA"], "reference": ["control"]}
+    )
+    setup = Setup(readout="x", features=("x",), contrasts=table)
+    with pytest.raises(PairingRefused, match="declare it as 'ctrl'") as refused:
+        report(objects, fovs, setup)
+    assert refused.value.code == FOLDER_CONTROL

@@ -11,6 +11,7 @@ from typing import Any
 import pandas as pd
 
 from .._integrity_text import integrity_status
+from .._repeat_groups import PairingRefused, named_by_id
 from .._style import Status
 from .._wording import count, listing, percent
 from ..feature_tables import EXPLAINABLE, OBSERVATION_TABLE, FeatureTables, attach_feature_tables
@@ -54,6 +55,23 @@ def with_tables(
             return attached.objects, attached, []
     text = f"{reason[:1].upper()}{reason[1:]}."
     return objects, None, [Finding(Status.PROBLEM, "feature_tables", text)]
+
+
+def named_tables(
+    observations: pd.DataFrame, fovs: pd.DataFrame | None
+) -> tuple[pd.DataFrame, pd.DataFrame | None, list[Finding]]:
+    """The tables the design reads, each condition named by its ``condition_id`` when they
+    hold it, as the analyses and the report name it (#628): the scan's conditions, its control
+    guess and the ``Setup`` it builds then use the IDs (the folder labels stay in
+    ``DesignScan.objects`` and ``.fovs``). IDs that cannot be read leave the folder labels
+    and are a finding."""
+    try:
+        named, named_fovs, _ = named_by_id(observations, fovs)
+    # fallback: the scan reports the refusal and describes the folders as given
+    except (PairingRefused, TypeError) as refused:
+        text = f"The conditions cannot be named by their IDs: {refused}."
+        return observations, fovs, [Finding(Status.PROBLEM, "condition_id", text)]
+    return named, named_fovs, []
 
 
 def copy_tables(

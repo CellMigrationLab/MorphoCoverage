@@ -28,6 +28,7 @@ import pandas as pd
 
 from .._repeat_groups import (
     FOLDER_CONTROL,
+    NOT_FOUND,
     Pairing,
     PairingRefused,
     declared_conditions,
@@ -36,6 +37,7 @@ from .._repeat_groups import (
     with_folders,
 )
 from ..metadata import CONDITION_COLUMN
+from ._contrasts import declared_conditions as contrast_conditions
 from .setup import Setup
 
 # The sections of the report that pair repeats: the Foundation's object rule and the unusual
@@ -84,10 +86,14 @@ def paired_inputs(
     names, frames = _frames(feature_tables)
     try:
         paired_objects, paired_fovs, others, pairing = paired_tables(
-            objects, fovs, others=frames, names=setup_conditions(setup)
+            objects,
+            fovs,
+            others=frames,
+            names=setup_conditions(setup),
+            selected=selected_conditions(setup),
         )
     except PairingRefused as refused:
-        if refused.code == FOLDER_CONTROL:
+        if refused.code in (FOLDER_CONTROL, NOT_FOUND):
             raise  # a declaration to correct, not a property of the tables
         if not needs_pairing(setup):
             return Paired(objects, fovs, feature_tables, setup, Pairing({}), None, setup)
@@ -101,15 +107,29 @@ def paired_inputs(
 
 def setup_conditions(setup: Setup) -> list[Any]:
     """The conditions a Setup names: its control declaration, master control and parents, its
-    positive control and the conditions of its experiment mapping (conditions are named by
-    their ``condition_id`` when the tables hold it). The workflows read the Setup on tables
-    whose conditions are already named by their IDs, where a folder label would select nothing
-    without a word, so each is refused here, with the ID to use."""
+    positive control, the conditions of its experiment mapping and of its contrast table
+    (conditions are named by their ``condition_id`` when the tables hold it). The workflows
+    read the Setup on tables whose conditions are already named by their IDs, where a folder
+    label would select nothing without a word, so each is refused here, with the ID to use."""
     names = declared_conditions(setup.control, CONDITION_COLUMN)
     if setup.master_control is not None:
         names += declared_conditions({CONDITION_COLUMN: setup.master_control})
     if setup.control_parents:
         names += declared_conditions({CONDITION_COLUMN: dict(setup.control_parents)})
+    if setup.positive is not None:
+        names += declared_conditions(setup.positive.selector, CONDITION_COLUMN)
+    if isinstance(setup.experiment, Mapping):
+        names += declared_conditions({CONDITION_COLUMN: list(setup.experiment)})
+    return names + contrast_conditions(setup)
+
+
+def selected_conditions(setup: Setup) -> list[Any]:
+    """The conditions a Setup selects, each of which must be in the tables: its positive
+    control's and the keys of its experiment mapping. One that matches no condition would
+    leave the positive control unassessed, or the condition in a correction family of its own,
+    without a word, so it is refused (#628). The control declaration is checked by the
+    analyses that read it (its several-control form also holds treatment keys)."""
+    names = []
     if setup.positive is not None:
         names += declared_conditions(setup.positive.selector, CONDITION_COLUMN)
     if isinstance(setup.experiment, Mapping):
@@ -221,6 +241,7 @@ __all__ = [
     "paired_inputs",
     "pairing_said",
     "refusal_reasons",
+    "selected_conditions",
     "setup_conditions",
     "unpaired_setup",
     "with_folder_labels",

@@ -43,6 +43,7 @@ from matplotlib.figure import Figure
 from ._checks import as_count, check_seed
 from ._figure_layout import grow_bottom, panel_letter, remove_legend, sentences, set_legend
 from ._palette import MUTED
+from ._repeat_groups import named_by_id
 from ._seeds import group_rng
 from ._wording import p_value, shortened
 from .data_check import validate_input_tables
@@ -190,6 +191,8 @@ def pairwise_contrasts(
     # Zero shuffles would give every pair p = 1 as if the test had run.
     n_permutations = as_count(n_permutations, "n_permutations")
     random_state = check_seed(random_state)
+    named = [c for c in (control, *(conditions or ())) if c is not None]
+    objects, fovs = named_by_id(objects, fovs, {CONDITION_COLUMN: named})[:2]
     data = validate_input_tables(
         objects,
         fovs=fovs,

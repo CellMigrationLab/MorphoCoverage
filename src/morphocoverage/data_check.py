@@ -40,10 +40,11 @@ from ._data_rules import (
 )
 from ._feature_rules import _check_features
 from ._repeat_alias import refuse_repeat_alias
+from ._repeat_groups import PairingRefused, named_by_id
 from ._style import CAUTION, PROBLEM, Status, check_detail, headline, wrap
 from ._wording import count
-from .metadata import drop_empty_optional_columns
-from .schema import ValidatedInput, _validate_input_tables
+from .metadata import CONDITION_COLUMN, CONDITION_ID_COLUMN, drop_empty_optional_columns
+from .schema import ValidatedInput, _validate_input_tables, unhashable_values
 
 FORMAT_DOC = "docs/common/data_format.md"
 
@@ -184,10 +185,35 @@ def check_tables(
     )
     if control is not None:
         # Without a FOV table, the fields seen in the observations are all that is known.
-        _check_control(c, objects if fovs is None else fovs, control, fovs is None)
+        named = _named_by_id(c, objects, fovs, control)
+        if named is not None:
+            _check_control(c, named, control, fovs is None)
     if not c.has_errors():
         _check_as_validator(c, objects, fovs, arguments, fov_col)
     return _found(c)
+
+
+def _named_by_id(
+    c: Collector, objects: pd.DataFrame, fovs: pd.DataFrame | None, control: Any
+) -> pd.DataFrame | None:
+    """The table the control is looked up in (the FOV table, else the observations), its
+    conditions named by their ``condition_id`` when the tables hold it, as the analyses name
+    them (``_repeat_groups.named_by_id``, #628); ``None`` after recording why the control
+    cannot be read there (a folder label, or condition IDs that cannot be read)."""
+    table = objects if fovs is None else fovs
+    columns = [k for k in (CONDITION_COLUMN, CONDITION_ID_COLUMN) if k in table.columns]
+    if not isinstance(control, Mapping) or any(unhashable_values(table[k]).any() for k in columns):
+        return table  # the control's form and the identity columns are reported on their own
+    try:
+        named = named_by_id(objects, fovs, control)
+    except PairingRefused as refused:  # fallback: the refusal is a problem of the check
+        c.error(
+            f"The control cannot be read on the condition IDs ({refused.code}).",
+            f"control={dict(control)}.",
+            f"{str(refused)[:1].upper()}{str(refused)[1:]}.",
+        )
+        return None
+    return named[0] if fovs is None else named[1]
 
 
 def _found(c: Collector) -> DataCheck:

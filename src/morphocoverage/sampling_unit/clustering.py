@@ -74,6 +74,7 @@ from .._caveats import caveat_lines
 from .._checks import as_count, check_seed
 from .._frozen import owned
 from .._repeat_alias import refuse_repeat_alias
+from .._repeat_groups import named_by_id
 from .._seeds import group_key, group_rng
 from .._style import check_detail
 from ..bounds import interval
@@ -159,6 +160,7 @@ def fov_clustering(
     clustering ratio and its test count every field with one of the objects.
     """
     refuse_repeat_alias(reference=reference)
+    objects, fovs = named_by_id(objects, fovs, reference)[:2]
     if not isinstance(label_col, str) or label_col not in objects.columns:
         raise ValueError(f"label_col {label_col!r} is not a column of objects")
     if not 0 < detection_probability < 1 or not 0 < confidence < 1:
