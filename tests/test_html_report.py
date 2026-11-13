@@ -593,12 +593,11 @@ def test_a_trend_in_six_repeats_and_an_unpaired_condition_in_question_10(screene
 
 def test_the_page_refuses_tables_of_other_sizes_than_the_reports(screened, tmp_path):
     objects, fovs, _, result = screened
-    with pytest.raises(ValueError) as raised:
-        html_report(result, objects.iloc[:-1], fovs, tmp_path, check_source=False)
-    assert str(raised.value) == (
-        "objects and fovs must be the tables the report was run on (4320 observations, "
-        "108 fields), not 4319 rows and 108"
-    )
+    with pytest.raises(ValueError, match="not the tables the report was run on"):
+        html_report(result, objects.iloc[:-1], fovs, tmp_path)
+    # The source check has no opt-out (compatibility sweep MC-2).
+    with pytest.raises(TypeError, match="check_source"):
+        html_report(result, objects, fovs, tmp_path, check_source=False)
 
 
 def test_two_features_of_one_file_name_get_two_files():

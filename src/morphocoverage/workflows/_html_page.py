@@ -1,6 +1,6 @@
-"""The frame of the HTML report's page (private; ``html_report``): the check that the tables
-are the report's, the sections shown, the sidebar and "At a glance", the texts carried as
-files, and the page around the cards with its scripts.
+"""The frame of the HTML report's page (private; ``html_report``): the sections shown, the
+sidebar and "At a glance", the texts carried as files, and the page around the cards with its
+scripts.
 """
 
 from __future__ import annotations
@@ -8,8 +8,6 @@ from __future__ import annotations
 import html
 from datetime import UTC, datetime
 from typing import Any
-
-import pandas as pd
 
 from ._html_data import LINKED, json_island
 from ._html_fields import NEW_STATES, has_new_states
@@ -21,17 +19,6 @@ from ._html_sections import ORDER, hidden
 from ._html_style import CSS
 from ._results import PLAN_TITLE
 from .retrospective import Report
-
-
-def check_counts(result: Report, objects: pd.DataFrame, fovs: pd.DataFrame) -> None:
-    """Raise ``ValueError`` when ``objects`` and ``fovs`` do not hold as many rows as the
-    tables the report was run on."""
-    counts = getattr(result.results.get("overview"), "counts", None)
-    if counts is not None and (len(objects), len(fovs)) != (counts["objects"], counts["fields"]):
-        raise ValueError(
-            f"objects and fovs must be the tables the report was run on ({counts['objects']} "
-            f"observations, {counts['fields']} fields), not {len(objects)} rows and {len(fovs)}"
-        )
 
 
 def shown_sections(doc: Any, maps: bool) -> list[str]:

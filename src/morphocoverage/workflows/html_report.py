@@ -73,7 +73,6 @@ from ._html_figures import feature_figures
 from ._html_maps import embeddings, maps_body
 from ._html_next import populations_next
 from ._html_page import (
-    check_counts,
     navigation,
     page_markup,
     page_texts,
@@ -354,7 +353,6 @@ def html_report(
     title: str = "MorphoCoverage report",
     attach: Sequence[str | Path] = (),
     feature_tables: Mapping[str, pd.DataFrame | tuple[pd.DataFrame, str]] | None = None,
-    check_source: bool = True,
 ) -> Path:
     """Write ``folder/report.html`` and its figures (see the module); returns the page's path.
 
@@ -364,15 +362,12 @@ def html_report(
     ``feature_tables`` are the feature tables given to ``report`` (with their tags), attached
     again here. ``objects`` and ``fovs`` must be the very tables the report was run on (their
     digest is recorded on the report): the page never mixes its answers with figures or
-    downloads from other data. ``check_source=False`` skips the check for a report that records
-    no source (one made before sources were recorded).
+    downloads from other data.
     """
     if not isinstance(result, Report):
         raise TypeError("result must be the Report that report() returned")
-    if check_source:
-        verify_source(result.source, objects, fovs)
     # The figures are drawn from these tables, the answers were computed from the report's.
-    check_counts(result, objects, fovs)
+    verify_source(result.source, objects, fovs)
     objects = attached(objects, fovs, result.setup, feature_tables)[0]
     folder = Path(folder)
     units, one = _use_words(result)

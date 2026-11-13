@@ -32,13 +32,12 @@ analysis beside its FOV table and returns a ``DescribedExperiment``:
 Refused (``DescriptionRefused``, its ``code`` naming the reason; note section 4), never read
 "best effort" and never replaced by a guess from the folder names:
 
-1. a ``coverage.json`` ``schema_version`` above 3, or a description ``schema_version`` other
-   than 1 (``COVERAGE_VERSION_UNKNOWN``, ``DESCRIPTION_VERSION_UNKNOWN``); an unexported set
-   (``NOT_EXPORTED``);
-2. a missing block, when the FOV table has ``condition_id`` (a ``schema_version`` 2 export or
-   one without the block): the controls are not defaulted (``MISSING``, raised by
-   ``described_setup`` when no control is declared), and controls the user declares by ID
-   are still accepted (owner decision, 12 Nov 2026);
+1. a ``coverage.json`` ``schema_version`` other than 3, or a description ``schema_version``
+   other than 1 (``COVERAGE_VERSION_UNKNOWN``, ``DESCRIPTION_VERSION_UNKNOWN``); an unexported
+   set (``NOT_EXPORTED``);
+2. a missing block, when the FOV table has ``condition_id``: the controls are not defaulted
+   (``MISSING``, raised by ``described_setup`` when no control is declared), and controls the
+   user declares by ID are accepted (owner decision, 12 Nov 2026);
 3. a malformed block (``MALFORMED``, ``_described_shape``), references that form a cycle
    included, and a ``coverage.json`` that names a key twice in one object (#631);
 4. a block that disagrees with the FOV table (``DISAGREES``): a row whose ``condition`` is not
@@ -65,7 +64,6 @@ from typing import Any
 import pandas as pd
 
 from ._described_shape import (
-    COVERAGE_VERSION,
     COVERAGE_VERSION_UNKNOWN,
     DESCRIPTION_VERSION_UNKNOWN,
     DISAGREES,
@@ -417,13 +415,13 @@ def _one_description(records: list[CoverageRecord]) -> ExperimentBlock | None:
 
 def _missing_reason(records: list[CoverageRecord]) -> str:
     """Why the controls are not defaulted: the records without a block."""
-    named = [f"{r.source} (schema_version {r.schema_version})" for r in records if not r.experiment]
+    named = [r.source for r in records if not r.experiment]
     return (
         f"{listing(named, 4)} has no experiment block, but its FOV table is described "
         f"({CONDITION_ID_COLUMN!r}): the controls are not defaulted and never guessed from the "
-        "folder names; declare every control by its ID, or re-export with MorphoFeature after "
-        f"MF-5b (coverage.json schema_version {COVERAGE_VERSION}) to default them to the "
-        "description's references"
+        "folder names; declare every control by its ID, or export the FOVs of the preprocessing "
+        "run with MorphoFeature, which writes the block, to default them to the description's "
+        "references"
     )
 
 

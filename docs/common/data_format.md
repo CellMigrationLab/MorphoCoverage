@@ -527,14 +527,14 @@ result = report(objects, fovs, setup)
   leaves them unconfirmed. For tables that carry `condition_id`, the scan's "several
   conditions are compared" suggestion points to these suggestions (or to a grouping
   declared by condition ID, `Setup(targets={...})`), not to a `target` column.
-- **Refused** (`DescriptionRefused`, its `code`): a `coverage.json` `schema_version` above 3
-  or a description `schema_version` other than 1 (`coverage_version_unknown`,
+- **Refused** (`DescriptionRefused`, its `code`): a `coverage.json` `schema_version` other
+  than 3 or a description `schema_version` other than 1 (`coverage_version_unknown`,
   `description_version_unknown`); an unexported set (`coverage_set_not_exported`); a
   malformed block (`experiment_block_malformed`: references that form a cycle, `A -> B ->
   A` or longer, and a key named twice in one JSON object included); a block that disagrees with the FOV table
   (`experiment_block_disagrees_with_fovs`); exports of two descriptions in one analysis
   (`experiment_descriptions_differ`); unconfirmed suggestions (`suggestion_not_confirmed`).
-  A described FOV table whose `coverage.json` has no block (`schema_version` 2) defaults no
+  A described FOV table whose `coverage.json` has no block defaults no
   control (`experiment_block_missing`) and never guesses one from the folder names, but
   controls declared by their IDs are accepted. Nothing is read from a folder name.
 

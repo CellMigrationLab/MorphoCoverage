@@ -51,6 +51,7 @@ def test_the_repeats_needed_start_at_the_paired_tests_minimum():
 
 
 def _table(d, width, repeats):
+    """A per-repeat table planned on Cohen's d: its sampling errors are not finite."""
     return pd.DataFrame(
         {
             "condition": "KD",
@@ -61,8 +62,23 @@ def _table(d, width, repeats):
             "d_high": [x + width for x in d[:repeats]],
             "fields": 20,
             "control_fields": 20,
+            "mean": 1.0,
+            "control_mean": 1.0,
+            "log_ratio_se": np.nan,
+            "difference_se": np.nan,
         }
     )
+
+
+@pytest.mark.parametrize("column", ["mean", "control_mean", "log_ratio_se", "difference_se"])
+def test_a_table_without_the_paired_tests_values_is_refused_not_planned_on_d(column):
+    """Compatibility sweep Q-MC-b: a table without the repeat means or their sampling errors
+    was planned on Cohen's d, another statistic than the paired test's; it is refused."""
+    table = _table([-0.6, -0.8, -1.0], 0.3, 3)
+    with pytest.raises(ValueError, match=f"the contrast table has no {column}: the plan"):
+        repeat_plan(table.drop(columns=column))
+    # A non-finite sampling error still plans on d: that is the science, not compatibility.
+    assert repeat_plan(table).iloc[0]["planned_on"] == "d"
 
 
 def test_more_fields_help_only_when_the_repeats_agree():

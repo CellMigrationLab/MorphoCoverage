@@ -148,13 +148,14 @@ def test_the_page_refuses_other_tables_and_names_why(run, tmp_path):
     assert not (tmp_path / "report.html").exists()
 
 
-def test_a_report_without_a_source_needs_the_explicit_opt_out(run, tmp_path):
+def test_a_report_without_a_source_is_refused(run, tmp_path):
     from dataclasses import replace
 
     objects, fovs, result = run
-    legacy = replace(result, source=None)
-    with pytest.raises(ValueError, match="check_source=False"):
-        html_report(legacy, objects, fovs, tmp_path)
+    unsourced = replace(result, source=None)
+    with pytest.raises(ValueError, match="this report records no source tables"):
+        html_report(unsourced, objects, fovs, tmp_path)
+    assert not (tmp_path / "report.html").exists()
 
 
 def test_document_takes_one_report_and_one_plan_of_one_acquisition(run):

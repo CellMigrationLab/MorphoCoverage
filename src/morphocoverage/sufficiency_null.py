@@ -44,17 +44,19 @@ def mark_uninformative(
     )
 
 
+def _reason(value: Any) -> bool:
+    """Whether an ``uninformative`` cell holds a reason (``None`` when informative)."""
+    return isinstance(value, str) and bool(value)
+
+
 def is_uninformative(row: Any) -> bool:
-    """Whether a ``next_fov`` row (or mapping) carries a reason, tolerating older tables."""
-    reason = row.get("uninformative") if hasattr(row, "get") else None
-    return isinstance(reason, str) and bool(reason)
+    """Whether a ``next_fov`` row (or mapping) carries a reason."""
+    return _reason(row["uninformative"])
 
 
 def split_uninformative(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """``(informative, uninformative)`` rows of a ``next_fov`` table."""
-    if "uninformative" not in frame.columns:
-        return frame, frame.iloc[:0]
-    mask = frame["uninformative"].map(lambda r: isinstance(r, str) and bool(r))
+    mask = frame["uninformative"].map(_reason)
     return frame[~mask], frame[mask]
 
 

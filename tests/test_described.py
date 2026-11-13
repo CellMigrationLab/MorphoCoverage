@@ -299,7 +299,8 @@ def test_an_override_never_says_a_compared_condition_is_not_compared() -> None:
 # --- Refusal 1: unknown versions, and an unexported set --------------------------------------
 
 
-@pytest.mark.parametrize("version", [4, 0, "3", 3.0, True, None])
+# Versions 1 and 2 are no longer read (compatibility sweep MC-1): only 3 is.
+@pytest.mark.parametrize("version", [4, 2, 1, 0, "3", 3.0, True, None])
 def test_an_unknown_coverage_version_is_refused(version) -> None:
     record = _record("v03")
     record["schema_version"] = version
@@ -322,24 +323,21 @@ def test_an_unexported_set_is_refused() -> None:
 # --- Refusal 2: a described FOV table without the block --------------------------------------
 
 
-def _blockless(name: str, version: int) -> dict:
+def _blockless(name: str) -> dict:
     record = _record(name)
     record.pop("experiment")
-    record["schema_version"] = version
     return record
 
 
-@pytest.mark.parametrize("version", [2, 3])
-def test_without_the_block_the_default_controls_are_refused(version) -> None:
-    _, _, experiment = _experiment("v27", _blockless("v27", version))
+def test_without_the_block_the_default_controls_are_refused() -> None:
+    _, _, experiment = _experiment("v27", _blockless("v27"))
     assert experiment.block is None and experiment.described
     error = _refused(MISSING, described_setup, experiment, **FAST)
     assert "never guessed from the folder names" in str(error)
-    assert f"schema_version {version}" in str(error)
 
 
 def test_without_the_block_controls_declared_by_id_are_accepted_and_said() -> None:
-    objects, fovs, experiment = _experiment("v33", _blockless("v33", 2))
+    objects, fovs, experiment = _experiment("v33", _blockless("v33"))
     setup = described_setup(experiment, **FAST, control={"condition": "ctrl"})
     assert setup.control == {"condition": "ctrl"}
     text = report(objects, fovs, setup).summary(detail="full")
@@ -347,7 +345,7 @@ def test_without_the_block_controls_declared_by_id_are_accepted_and_said() -> No
 
 
 def test_without_the_block_the_scan_guesses_no_control_and_no_reagents_by_name() -> None:
-    objects, fovs, experiment = _experiment("v33", _blockless("v33", 2))
+    objects, fovs, experiment = _experiment("v33", _blockless("v33"))
     # The tables carry condition_id: no control is read from a name, with or without the
     # description (#631).
     assert scan_design(objects, fovs, feature_cols=["x"]).design["control_guess"] is None
@@ -362,7 +360,7 @@ def test_without_the_block_the_scan_guesses_no_control_and_no_reagents_by_name()
 def test_an_undescribed_export_without_the_block_is_read_as_before() -> None:
     _, fovs = with_feature("v03")
     plain = fovs.drop(columns=["repeat_group", "condition_id", "technical_repeat_id"])
-    experiment = read_experiment(parse_coverage(_blockless("v03", 2)), plain)
+    experiment = read_experiment(parse_coverage(_blockless("v03")), plain)
     assert not experiment.described
     setup = described_setup(experiment, **FAST, control={"condition": "CTRL"})
     assert setup.described is None
@@ -424,10 +422,7 @@ def test_a_malformed_block_is_refused(case) -> None:
     _refused(MALFORMED, parse_coverage, copy.deepcopy(record))
 
 
-def test_a_block_in_a_version_2_record_and_invalid_json_are_refused(tmp_path: Path) -> None:
-    record = _record("v03")
-    record["schema_version"] = 2
-    _refused(MALFORMED, parse_coverage, record)
+def test_invalid_json_is_refused(tmp_path: Path) -> None:
     (tmp_path / "coverage.json").write_text("{", encoding="utf-8")
     _refused(MALFORMED, read_coverage, tmp_path)
 
@@ -484,7 +479,7 @@ def test_exports_of_two_descriptions_are_refused() -> None:
 
 def test_one_export_without_the_block_beside_one_with_it_defaults_nothing() -> None:
     _, fovs = with_feature("v03")
-    blockless = parse_coverage(_blockless("v03", 2), "patches.json")
+    blockless = parse_coverage(_blockless("v03"), "patches.json")
     experiment = read_experiment([EXPORTS / "v03", blockless], fovs)
     _refused(MISSING, described_setup, experiment, **FAST)
 
