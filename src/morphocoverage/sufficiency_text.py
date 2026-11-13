@@ -103,7 +103,7 @@ def _enough_answer(final: Mapping[str, Any], stops: Sequence[Mapping[str, Any]])
         head += " (treats observations as independent draws: assumes a spatially uniform sample)"
     # The rule's own caveats (FOV size related to FOV mean, SD above 50% CV) follow its answer;
     # a standing assumption among them is stated, never called a caution (_caveats).
-    listed = tuple(final.get("warning_list") or ())
+    listed = final["warning_list"]
     warnings = "; ".join(text for text in listed if not is_assumption(text))
     caution = f" Caution: {warnings}." if warnings else ""
     caution += "".join(f" {_sentence(text)}" for text in listed if is_assumption(text))

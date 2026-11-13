@@ -412,7 +412,7 @@ src/morphocoverage/
         _scan_names.py     # private: conditions read by their names for undescribed tables: the control guess (never when the tables carry condition_id, #631), reagent groups (split out of scan)
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)
         html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
-        _html_page.py      # private: the page's frame: the tables checked against the report's counts, the sections shown, the sidebar and At a glance, the texts carried, the page around the cards and its scripts
+        _html_page.py      # private: the page's frame: the sections shown, the sidebar and At a glance, the texts carried, the page around the cards and its scripts
         _html_render.py    # private: the report's text as HTML, glossary term links, status chips
         _html_sections.py  # private: the page's order, titles, plain answers, heatmap, no numbers
         _html_figures.py   # private: the feature figures as PNG/PDF, palette

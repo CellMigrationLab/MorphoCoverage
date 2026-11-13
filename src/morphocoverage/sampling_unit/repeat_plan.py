@@ -31,9 +31,9 @@ fields resampled as acquired, ``contrast_sampling``):
   ``"log ratio"``, the change a fold change ``change``), else the difference of the means
   (``"difference"``). Their sampling error within a repeat is the bootstrap's
   (``contrast_sampling``), which shrinks as ``1 / sqrt(fields)``; where a value or its error
-  is not finite the plan rests on the per-repeat Cohen's d (``"d"``). A table without
-  ``mean``, ``control_mean``, ``log_ratio_se`` and ``difference_se`` is refused, never
-  planned on d in their place.
+  is not finite the plan rests on the per-repeat Cohen's d (``"d"``). A table missing
+  any of ``mean``, ``control_mean``, ``log_ratio_se``, ``difference_se``, ``d_low``,
+  ``d_high`` or ``between_share`` is refused, never planned on d or on less in their place.
   The report corrects with Benjamini-Hochberg within each sub-experiment
   (``_experiments``); the plan holds at ``alpha / m`` (``alpha_planned``), ``m`` the
   conditions of the sub-experiment, which is what Benjamini-Hochberg asks at most of
@@ -67,8 +67,10 @@ from .contrast_sampling import PRACTICAL, projected_fields
 POWER = 0.8
 MAX_REPEATS = 30
 _Z = float(stats.norm.ppf(0.975))
-# The columns the plan reads the paired test's values and their sampling errors from.
+# The columns the plan reads: the paired test's values and their sampling errors, and the
+# interval of d with the part of it between wells (``contrast_sampling``).
 _TEST_COLUMNS = ("mean", "control_mean", "log_ratio_se", "difference_se")
+_PLAN_INPUTS = (*_TEST_COLUMNS, "d_low", "d_high", "between_share")
 PLAN_COLUMNS = [
     "condition",
     "control_condition",
@@ -151,7 +153,7 @@ def _fields_per_repeat(block: pd.DataFrame) -> float:
     needed = []
     for row in block.to_dict("records"):
         fields = float(min(row["fields"], row["control_fields"]))
-        share = row.get("between_share", 0.0)
+        share = row["between_share"]
         projected, between = projected_fields(
             fields, abs(row["d_objects"]), row["d_low"], row["d_high"], share
         )
@@ -192,19 +194,18 @@ def repeat_plan(
     ``table`` is ``condition_contrast``'s per-repeat table (with ``d_low``/``d_high``, and
     ``mean``, ``control_mean``, ``difference_se`` and ``log_ratio_se``); ``log`` the
     feature's scale (``statistics.log_scale``; ``None``: read from each condition's means).
-    A table without ``mean``, ``control_mean``, ``log_ratio_se`` or ``difference_se`` raises
-    ``ValueError``.
+    A table without ``mean``, ``control_mean``, ``log_ratio_se``, ``difference_se``,
+    ``d_low``, ``d_high`` or ``between_share`` raises ``ValueError``.
     """
-    if table.empty:
-        return pd.DataFrame(columns=PLAN_COLUMNS)
-    missing = [c for c in _TEST_COLUMNS if c not in table]
+    missing = [c for c in _PLAN_INPUTS if c not in table]
     if missing:
         raise ValueError(
             f"the contrast table has no {', '.join(missing)}: the plan powers the paired test "
-            "on the repeat means and their sampling errors, and is never planned on Cohen's d "
-            "in their place; pass condition_contrast's table"
+            "on the repeat means and their sampling errors, with the interval of d and its "
+            "part between wells, and is never planned without them; pass "
+            "condition_contrast's table"
         )
-    if "d_low" not in table:
+    if table.empty:
         return pd.DataFrame(columns=PLAN_COLUMNS)
     compared = table[table["d_objects"].notna()]
     groups = list(compared.groupby(["condition", "control_condition"], sort=False))
@@ -274,11 +275,7 @@ def _plan(
     within = float(np.mean(errors**2))
     # Twice the fields halve only the part of each repeat's sampling error within wells
     # (``between_share``, owner 2026-10-05, #96); the part between wells stays.
-    shares = (
-        block["between_share"].fillna(0.0).to_numpy(float)
-        if "between_share" in block
-        else np.zeros(len(block))
-    )
+    shares = block["between_share"].fillna(0.0).to_numpy(float)
     within_twice = float(np.mean(errors**2 * (shares + (1 - shares) / 2)))
     mean = float(values.mean())
     condition, control = row["condition"], row["control_condition"]

@@ -64,6 +64,17 @@ def _table(differences, control=10.0):
     )
 
 
+@pytest.mark.parametrize("column", ["mean", "control_mean"])
+def test_across_repeats_refuses_a_table_without_the_repeat_means(column):
+    """Compatibility sweep, owner decision on #636: a table without ``mean`` was answered with
+    an empty table, as if no condition were compared; it is refused."""
+    table = _table([-2.0, -3.0, -1.0]).drop(columns=column)
+    with pytest.raises(ValueError, match=f"the contrast table has no {column}"):
+        across_repeats(table, "biological_repeat", 0)
+    # Without a repeat column there is nothing to compare across repeats: empty, as before.
+    assert across_repeats(table, None, 0).empty
+
+
 def test_across_repeats_counts_the_direction_and_pairs_by_repeat():
     result = across_repeats(_table([-2.0, -3.0, -1.0]), "biological_repeat", 0)
     [row] = result.to_dict("records")
