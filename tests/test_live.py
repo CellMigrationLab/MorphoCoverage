@@ -388,7 +388,11 @@ def _pointed(folder, target: str):
     """One field written by write_fov, its manifest line pointed at ``target`` instead."""
     write_fov(folder, *_field("A01", 0))
     manifest = folder / MANIFEST
-    relative = next((folder / "objects").iterdir()).relative_to(folder).as_posix()
+    # Only files: iterdir order is filesystem-dependent, and a test may have made a
+    # sub-folder of objects/ first (which, picked here, made the replace a silent no-op).
+    written = [path for path in (folder / "objects").iterdir() if path.is_file()]
+    assert len(written) == 1
+    relative = written[0].relative_to(folder).as_posix()
     manifest.write_text(manifest.read_text().replace(relative, target))
     return _folder_session(folder)
 
@@ -428,11 +432,11 @@ def test_a_missing_object_file_outside_the_folder_is_named_when_opted_in(tmp_pat
 def test_a_nested_relative_object_file_inside_the_folder_is_read(tmp_path):
     folder = tmp_path / "live"
     (folder / "objects" / "well").mkdir(parents=True)
-    pd.DataFrame({"label_id": [1], "area": [1.0]}).to_csv(
-        folder / "objects/well/f.csv", index=False
-    )
+    nested = folder / "objects/well/f.csv"
+    pd.DataFrame({"x": [1.0, 2.0, 3.0]}).to_csv(nested, index=False)
     live = _pointed(folder, "objects/well/f.csv")
-    assert len(live.poll()) == 1
+    (update,) = live.poll()
+    assert update.n_objects == 3  # the nested file was read, not the file write_fov wrote (5)
 
 
 @pytest.mark.parametrize(
