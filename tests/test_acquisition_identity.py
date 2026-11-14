@@ -357,9 +357,6 @@ def _novelty_control(positive):
     return run
 
 
-# Every result type ``microscopist_report`` takes.
-REPORT_TYPES = set(_RESULT_TYPES.values())
-
 # Each producer as ``(objects, fovs) -> result``; "empty" and "not assessed" are the paths
 # that return before measuring anything (no other condition, no positive control, no pair of
 # fields within the bins).
@@ -470,11 +467,19 @@ def test_every_result_producer_records_the_acquisition_identity(name):
         validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
     )
     assert result_identity(result) == expected
-    assert type(result) in REPORT_TYPES, type(result)
+    # The case name before any comma is the report keyword; the producer must return exactly
+    # the type the report takes for it, so each case vouches for one result type.
+    assert type(result) is _RESULT_TYPES[_keyword(name)], type(result)
+
+
+def _keyword(name: str) -> str:
+    return name.split(",", 1)[0]
 
 
 def test_every_report_result_type_has_a_producer_under_test():
-    assert set(_RESULT_TYPES.values()) == REPORT_TYPES
+    """Each report keyword has at least one case, and each case names a report keyword; with
+    the exact type check above, a keyword whose case returns another type fails there."""
+    assert {_keyword(name) for name in PRODUCERS} == set(_RESULT_TYPES)
 
 
 def test_a_control_without_positive_is_not_assessed_and_assembles():
