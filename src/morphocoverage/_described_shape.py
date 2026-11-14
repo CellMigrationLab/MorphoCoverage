@@ -35,7 +35,7 @@ DISAGREES = "experiment_block_disagrees_with_fovs"
 TWO_DESCRIPTIONS = "experiment_descriptions_differ"
 UNCONFIRMED = "suggestion_not_confirmed"
 
-# The versions this MorphoCoverage reads: coverage.json up to 3 (MF-5b), descriptions 1.
+# The versions this MorphoCoverage reads: coverage.json 3 (MF-5b), descriptions 1.
 COVERAGE_VERSION = 3
 DESCRIPTION_VERSION = 1
 
@@ -248,14 +248,15 @@ def parsed_block(value: Any, source: str) -> dict[str, Any]:
 
 
 def checked_version(record: Mapping, source: str) -> int:
-    """The record's ``schema_version``, refused when unknown (above ``COVERAGE_VERSION``, below
-    1, or not an integer), and a record of an unexported set refused."""
+    """The record's ``schema_version``, refused unless it is ``COVERAGE_VERSION``, and a
+    record of an unexported set refused."""
     version = record.get("schema_version")
-    if not is_integer(version) or not 1 <= int(version) <= COVERAGE_VERSION:
+    if not is_integer(version) or int(version) != COVERAGE_VERSION:
         raise DescriptionRefused(
             COVERAGE_VERSION_UNKNOWN,
-            f"{source}: coverage.json schema_version {version!r} is not one this MorphoCoverage "
-            f"reads (1 to {COVERAGE_VERSION}); it is never read in part: update MorphoCoverage",
+            f"{source}: coverage.json schema_version {version!r} is not the one this "
+            f"MorphoCoverage reads ({COVERAGE_VERSION}); it is never read in part: export the "
+            "set again with the MorphoFeature this MorphoCoverage pairs with",
         )
     if record.get("exported") is False:
         raise DescriptionRefused(
@@ -263,8 +264,6 @@ def checked_version(record: Mapping, source: str) -> int:
             f"{source}: MorphoFeature did not export this set (exported: false), so it has no "
             "FOV table to analyse",
         )
-    if int(version) < COVERAGE_VERSION and "experiment" in record:
-        raise _malformed("experiment", f"is present in a schema_version {version} record", source)
     return int(version)
 
 

@@ -140,7 +140,6 @@ def _blockless_experiment(name: str):
     objects, fovs = with_feature(name)
     record = _record(name)
     record.pop("experiment")
-    record["schema_version"] = 2
     return objects, fovs, read_experiment(parse_coverage(record, f"{name}.json"), fovs)
 
 
@@ -338,7 +337,6 @@ def test_guide_asks_the_control_when_the_description_gives_none(tmp_path) -> Non
 def test_guide_asks_a_blockless_export_for_a_control_until_one_is_declared(tmp_path) -> None:
     record = _record("v33")
     record.pop("experiment")
-    record["schema_version"] = 2
     # Enter ("no control") is not taken: the Setup would refuse it (experiment_block_missing).
     answers = Answers({"Which condition is the control?": ["", "ctrl"]})
     result = _guide("v33", tmp_path, answers, record=record)

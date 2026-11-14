@@ -436,6 +436,7 @@ def test_e9_new_fovs_are_worded_by_the_support_that_makes_them_new():
     assert "with fewer than 2 other FOVs within distance 1" in novelty_definition(two)
     row = {
         "chance_new": 0.1,
+        "uninformative": None,
         "chance_new_at_most": 0.3,
         "confidence": 0.95,
         "fovs_with_new": 3,
@@ -512,6 +513,7 @@ def test_p4_2_report_stop_lines_carry_the_order_check():
 def _row(**extra):
     row = {
         "chance_new": 0.02,
+        "uninformative": None,
         "chance_new_at_most": 0.12,
         "confidence": 0.95,
         "fovs_with_new": 0,
@@ -833,6 +835,7 @@ def test_short_novelty_lines_with_pooled_technical_repeats():
         {
             "chance_new": [0.1, 0.2],
             "reason": [None, None],
+            "uninformative": [None, None],
             "confidence": [0.95, 0.95],
             "chance_new_at_most": [0.3, 0.4],
             "fovs_with_new": [0, 0],
@@ -885,6 +888,7 @@ def test_next_fov_answer_when_states_in_few_fields_are_not_estimable():
     row = {
         "chance_new": 0.1,
         "reason": None,
+        "uninformative": None,
         "confidence": 0.95,
         "chance_new_at_most": 0.3,
         "fovs_with_new": 1,

@@ -157,9 +157,18 @@ def across_repeats(
     ``families``: each condition's declared experiment (``_experiments.declared``); the
     screen-wide q when families share a control label (``q_screen``, audit 10).
 
-    Empty when the repeats are not kept apart or no condition is compared in two repeats.
+    Empty when the repeats are not kept apart or no condition is compared in two repeats; a
+    table without ``mean`` or ``control_mean`` raises ``ValueError``.
     """
-    if repeat_col is None or table.empty or "mean" not in table:
+    if repeat_col is None:
+        return pd.DataFrame(columns=REPEAT_COLUMNS)
+    missing = [c for c in ("mean", "control_mean") if c not in table]
+    if missing:
+        raise ValueError(
+            f"the contrast table has no {', '.join(missing)}: the test across repeats compares "
+            "the repeat means; pass condition_contrast's table"
+        )
+    if table.empty:
         return pd.DataFrame(columns=REPEAT_COLUMNS)
     paired = table[table["mean"].notna() & table["control_mean"].notna()]
     rows = [

@@ -74,12 +74,8 @@ def _span(values: Sequence[float], format_one: Any = number) -> str:
 
 
 def _warning_list(row: Mapping[str, Any]) -> list[str]:
-    """A rule's cautions one by one (tables written before ``warning_list`` join them)."""
-    listed = row.get("warning_list")
-    if isinstance(listed, list | tuple):
-        return [text if isinstance(text, str) else str(text) for text in listed if text]
-    joined = row.get("warnings")
-    return [joined] if isinstance(joined, str) and joined else []
+    """A rule's cautions one by one (the ``warning_list`` of a ``final`` row)."""
+    return list(row["warning_list"])
 
 
 def _data_warnings(row: Mapping[str, Any]) -> list[str]:

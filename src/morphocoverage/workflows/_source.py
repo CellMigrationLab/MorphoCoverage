@@ -71,7 +71,7 @@ def verify_source(recorded: str | None, objects: pd.DataFrame, fovs: pd.DataFram
     if recorded is None:
         raise ValueError(
             "this report records no source tables, so the page cannot check that objects and "
-            "fovs are the ones it was run on; pass check_source=False to build the page anyway"
+            "fovs are the ones it was run on; build the page from the result report() returned"
         )
     if not same_source(recorded, source_identity(objects, fovs)):
         raise ValueError(
