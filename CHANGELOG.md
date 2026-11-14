@@ -30,6 +30,10 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
   DataFrame, so it is checked against the other results like the other 18 result types.
   `microscopist_report(redundancy=...)` takes that result (a DataFrame is refused), and
   `optimise(..., redundancy_bins=...)` stores it in `Plan.results["redundancy"]`.
+- `representation_control` without a positive control ("not assessed") validates the tables
+  and records their acquisition identity before it returns, so the report accepts that
+  result instead of refusing it. Tables it used to return early on without checking are now
+  validated like every other call.
 
 - **Q-MC-b.** `repeat_plan` refuses (`ValueError`) a contrast table without `mean`,
   `control_mean`, `log_ratio_se` or `difference_se`. It used to plan such a table on Cohen's d

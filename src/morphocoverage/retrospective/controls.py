@@ -340,12 +340,6 @@ def representation_control(
         "draws": draws,
         "random_state": random_state,
     }
-    columns = ["stratum", "candidate", "judged_new", "candidates", "not_judged", "rate"]
-    if control.positive is None:
-        empty = pd.DataFrame(columns=columns)
-        return ControlResult(
-            empty, empty.copy(), "not assessed", tuple(pair_cols), {**settings, "reason": "none"}
-        )
     data = validate_input_tables(
         objects,
         fovs=fovs,
@@ -355,6 +349,14 @@ def representation_control(
         group_cols=list(identity_cols),
         observation_unit=observation_unit,
     )
+    # Recorded on every result, the not-assessed one included, so a report can check it.
+    settings[ACQUISITION] = acquisition_identity(data)
+    columns = ["stratum", "candidate", "judged_new", "candidates", "not_judged", "rate"]
+    if control.positive is None:
+        empty = pd.DataFrame(columns=columns)
+        return ControlResult(
+            empty, empty.copy(), "not assessed", tuple(pair_cols), {**settings, "reason": "none"}
+        )
     _check_pairing(data, pair_cols)
     lofo_cols = _lofo_columns(data, lofo_group_cols)
     run = _control_run(data, novelty, control, lofo_cols, (fovs_seen, draws, random_state, n_jobs))
@@ -364,7 +366,6 @@ def representation_control(
     pooled, status = _pooled(table)
     settings = {
         **settings,
-        ACQUISITION: acquisition_identity(data),
         "lofo_group_cols": lofo_cols,
         "skipped_strata": measured.skipped,
         "planted_skipped": measured.planted_skipped,

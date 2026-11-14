@@ -506,8 +506,10 @@ def test_p8_2_redundancy_distance_is_tested_against_shuffled_positions():
     assert bool(table.loc["trend", "beyond_chance"]) and table.loc["trend", "null_share"] < 0.05
     assert not bool(table.loc["flat", "beyond_chance"])
     assert table.loc["flat", "null_share"] > 0.05
+    # The result records what it was measured with, beside the rows that report it.
+    assert result.settings["n_permutations"] == 99 and set(table["permutations"]) == {99}
+    assert list(result.settings["bin_edges"]) == [0, 600, 1200, 1800, 2400, 3000, 4000]
     # The report counts only the group beyond chance and says the other is within it.
-    assert table.equals(result.table.set_index("technical_repeat"))
     report = microscopist_report(redundancy=result)
     profile = " ".join(report.sections["profile"].split())
     assert "in 1 of 2 groups, fields closer than about" in profile
