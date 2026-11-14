@@ -22,7 +22,8 @@ sampling-frame bias, P9, not implemented):
   is flagged only when its distance is larger than the shuffles give (fields
   with no spatial structure reach 90% of the variance at a longer lag in
   about 40% of wells by chance). It states a limitation of closely spaced
-  fields; it is not an adequacy claim.
+  fields; it is not an adequacy claim. It returns a ``RedundancyResult``: the table and
+  the settings, with the acquisition identity every result records (``_acquisition``).
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import distance as _distances
 
+from .._acquisition import ACQUISITION, acquisition_identity
 from .._checks import as_count, check_seed, is_positive_finite, is_share
 from .._frozen import owned
 from .._seeds import group_rng
@@ -75,6 +77,22 @@ class EfficiencyResult:
         """The order comparison: one table per order kind (``detail="short"``) or per group
         and order kind (``"full"``); see ``order_text``."""
         return efficiency_summary(self, detail)
+
+
+@owned("table", "settings")
+@dataclass(frozen=True)
+class RedundancyResult:
+    """The redundancy distance per group (``redundancy_distance``) and how it was measured.
+
+    ``table`` has one row per analysis group (the columns are described in
+    ``redundancy_distance``); ``settings`` holds the acquisition identity of the tables it
+    was computed on (``acquisition``, so a report refuses it beside results of another
+    acquisition), the features, stage columns, bins, share, unit, permutations, seed and
+    observation unit.
+    """
+
+    table: pd.DataFrame
+    settings: dict[str, Any]
 
 
 def _time(
@@ -300,7 +318,7 @@ def redundancy_distance(
     observation_unit: str | None = None,
     n_permutations: int = 199,
     random_state: int = 0,
-) -> pd.DataFrame:
+) -> RedundancyResult:
     """Per group, the distance below which fields are more alike than random pairs.
 
     From the semivariogram of FOV means (``fov_semivariogram``): the smallest
@@ -325,6 +343,9 @@ def redundancy_distance(
     within the bins, has nothing measured: its row holds ``None`` and says why
     in ``reason``, and the other groups are still computed. With several
     features, standardize them beforehand if their scales differ.
+
+    Returns a ``RedundancyResult``: the per-group rows as ``table``, and ``settings`` with the
+    acquisition identity of ``objects`` and ``fovs``.
     """
     if not is_share(share, closed_high=True):
         raise ValueError("share must be in (0, 1]")
@@ -344,7 +365,19 @@ def redundancy_distance(
     rows = [
         _group_row(group, group_data, settings) for group, group_data in iter_analysis_groups(data)
     ]
-    return pd.DataFrame(rows)
+    recorded = {
+        ACQUISITION: acquisition_identity(data),
+        "feature_cols": list(data.feature_cols),
+        "stage_cols": list(stage_cols),
+        "bin_edges": [float(edge) for edge in bin_edges],
+        "share": float(share),
+        "stage_unit": stage_unit,
+        "n_permutations": n_permutations,
+        "random_state": random_state,
+        "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
+    }
+    return RedundancyResult(pd.DataFrame(rows), recorded)
 
 
 class _Lags(NamedTuple):
@@ -462,6 +495,7 @@ def _measured(
 __all__ = [
     "CHANCE_LEVEL",
     "EfficiencyResult",
+    "RedundancyResult",
     "dispersed_order",
     "efficiency_summary",
     "order_efficiency",

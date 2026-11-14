@@ -109,7 +109,7 @@ def test_redundancy_distance_is_found_where_neighbours_are_alike():
         feature_cols=["feature_a"],
         stage_cols=STAGE,
         bin_edges=[0, 250, 450, 650, 850, 1100, 2500],
-    )
+    ).table
     row = table.iloc[0]
     assert row["redundancy_distance"] > row["smallest_lag"]
     flat = SCENARIOS["homogeneous"]()
@@ -119,7 +119,7 @@ def test_redundancy_distance_is_found_where_neighbours_are_alike():
         feature_cols=["feature_a"],
         stage_cols=STAGE,
         bin_edges=[0, 150, 300, 600, 1200, 2500],
-    ).iloc[0]
+    ).table.iloc[0]
     assert uniform["redundancy_distance"] == pytest.approx(uniform["smallest_lag"])
 
 
@@ -129,7 +129,7 @@ def test_pairs_closer_counts_every_pair_closer_than_the_distance():
     edges = [0, 250, 450, 650, 850, 1100, 2500]
     row = redundancy_distance(
         objects, fovs, feature_cols=["feature_a"], stage_cols=STAGE, bin_edges=edges
-    ).iloc[0]
+    ).table.iloc[0]
     xy = fovs[list(STAGE)].to_numpy(dtype=float)
     lags = np.hypot(*(xy[:, None, :] - xy[None, :, :]).transpose(2, 0, 1))[np.triu_indices(60, 1)]
     closer = int(np.sum(lags < row["redundancy_distance"]))
@@ -165,13 +165,13 @@ def test_f3_a_group_without_two_fields_gets_a_row_with_a_reason():
     fovs = pd.concat([good[1], bad[1]], ignore_index=True)
     table = redundancy_distance(
         objects, fovs, feature_cols=["f"], stage_cols=("x", "y"), bin_edges=[0, 150, 300, 600]
-    ).set_index("condition")
+    ).table.set_index("condition")
     assert pd.isna(table.loc["A", "reason"]) and table.loc["A", "smallest_lag"] > 0
     assert table.loc["B", "reason"].startswith("only 1 field with observations")
     assert pd.isna(table.loc["B", "redundancy_distance"])
     far = redundancy_distance(
         *good, feature_cols=["f"], stage_cols=("x", "y"), bin_edges=[5000, 6000]
-    )
+    ).table
     assert "no pair of fields is between 5000 and 6000" in far["reason"].iloc[0]
 
 
@@ -277,7 +277,7 @@ def _redundancy(objects, fovs):
         stage_cols=("x", "y"),
         bin_edges=[0, 150, 300, 500],
         fov_col="position_id",
-    ).set_index("biological_repeat")
+    ).table.set_index("biological_repeat")
 
 
 def test_f22_a_constant_readout_has_no_redundancy_distance():

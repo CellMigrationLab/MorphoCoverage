@@ -369,9 +369,9 @@ def main() -> None:
     efficiency.table.to_csv(
         RESULTS / "order_efficiency_idr0028.csv", index=False, float_format="%.1f"
     )
-    redundancy.to_csv(RESULTS / "redundancy_idr0028.csv", index=False, float_format="%.6g")
+    redundancy.table.to_csv(RESULTS / "redundancy_idr0028.csv", index=False, float_format="%.6g")
     print(efficiency.summary(), "\n")
-    print(redundancy.to_string(index=False))
+    print(redundancy.table.to_string(index=False))
 
     unit = _timed("objects or fields", lambda: sampling_unit(dataset))
     for part in unit.values():

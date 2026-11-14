@@ -119,7 +119,11 @@ large field" (audit 10, owner, 2026-10-06).
 
 `microscopist_report` assembles the answers in the order of the questions above, with
 a sampling profile of measured quantities; a question without its analysis says "not
-assessed" and what it needs. The HTML page orders the same answers by what a reader acts
+assessed" and what it needs. Every result records the acquisition it was computed on (the
+digest of its typed FOV keys, `_acquisition`), `redundancy_distance`'s `RedundancyResult`
+included: results of two acquisitions are refused together, and so is a result that records
+none (rebuilt by hand or edited), alone or beside others; it is never assembled with a note
+(owner, 2026-11-14, Q-MC-a). The HTML page orders the same answers by what a reader acts
 on first.
 
 ### The data

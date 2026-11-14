@@ -4,7 +4,8 @@ Results assembled into one report must describe one acquisition (issue 277). The
 the digest of the typed FOV universe, the FOV key of every acquired field (``_identity``), so it
 is stable under row order and under normalisation of values, and tells ``1`` from ``"1"``.
 Only that universe is compared: analysis settings, groups, features and values may differ
-legitimately between the results of one acquisition.
+legitimately between the results of one acquisition. Every result records it, and a result
+that records none is refused (``check_one_acquisition``), never assembled with a note.
 """
 
 from __future__ import annotations
@@ -58,30 +59,27 @@ def result_identity(result: Any) -> str | None:
     return field_value if isinstance(field_value, str) else None
 
 
-def check_one_acquisition(results: Mapping[str, Any]) -> list[str]:
-    """Refuse results that came from different acquisitions; name those that cannot be told.
+def check_one_acquisition(results: Mapping[str, Any]) -> None:
+    """Refuse results that record no acquisition identity, or that came from different ones.
 
-    ``results`` maps each supplied result's name to it. Returns the names of results that
-    record no identity (rebuilt or older) while others do, so the report can say they were not
-    checked; raises when two recorded identities differ."""
+    ``results`` maps each supplied result's name to it (``None`` for one not supplied). Every
+    analysis result records the identity of the tables it was computed on, so a result without
+    one (rebuilt by hand, or edited) cannot be checked against the others and is refused, even
+    alone: it is never assembled with a note. Raises when two recorded identities differ."""
     found = {name: result_identity(r) for name, r in results.items() if r is not None}
-    known = {name: ident for name, ident in found.items() if ident is not None}
-    if len(set(known.values())) > 1:
+    missing = [name for name, ident in found.items() if ident is None]
+    if missing:
+        verb, it = ("records", "it") if len(missing) == 1 else ("record", "they")
+        raise ValueError(
+            f"{', '.join(missing)} {verb} no acquisition identity, so {it} cannot be checked "
+            "against the other results: pass results as the analysis functions return them"
+        )
+    if len(set(found.values())) > 1:
         by_identity: dict[str, list[str]] = {}
-        for name, ident in known.items():
+        for name, ident in found.items():
             by_identity.setdefault(ident, []).append(name)
         groups = " and ".join("/".join(names) for names in by_identity.values())
         raise ValueError(
             f"results from different acquisitions cannot be assembled into one report: "
             f"{groups} were computed on different sets of fields"
         )
-    return [name for name, ident in found.items() if ident is None] if known else []
-
-
-def unchecked_note(names: list[str]) -> str:
-    """The sentence naming the results that could not be checked against the others."""
-    verb = "records" if len(names) == 1 else "record"
-    return (
-        f"{', '.join(names)} {verb} no acquisition identity, so it could not be checked "
-        "against the other results."
-    )

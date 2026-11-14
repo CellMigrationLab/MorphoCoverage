@@ -36,6 +36,7 @@ from morphocoverage.strategies import SupportNoveltyEstimator
 from morphocoverage.strategies.base import Estimator, SamplingStrategy
 from morphocoverage.sufficiency import sufficiency_report
 from morphocoverage.transforms import Standardize
+from tests.one_acquisition import TEST_ACQUISITION
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
@@ -639,7 +640,8 @@ def _pooled(**rates):
         ]
     )
     table = pooled.assign(stratum="all FOVs")
-    return ControlResult(table, pooled, "assessed", ("biological_repeat",), {"fovs_seen": 10})
+    settings = {"fovs_seen": 10, "acquisition": TEST_ACQUISITION}
+    return ControlResult(table, pooled, "assessed", ("biological_repeat",), settings)
 
 
 def _grid_well(rng, well, trend, n=6, pitch=500.0):
@@ -740,7 +742,11 @@ def _two_plates(settings=None, **rates):
     pooled = pooled.reset_index().assign(not_judged=0)
     pooled["rate"] = pooled["judged_new"] / pooled["candidates"]
     return ControlResult(
-        table, pooled, "assessed", ("plate",), {"fovs_seen": 10, **(settings or {})}
+        table,
+        pooled,
+        "assessed",
+        ("plate",),
+        {"fovs_seen": 10, "acquisition": TEST_ACQUISITION, **(settings or {})},
     )
 
 

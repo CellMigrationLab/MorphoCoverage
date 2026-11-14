@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import warnings
 
 import numpy as np
@@ -10,6 +11,11 @@ import pytest
 from _helpers_tables import _one_condition_tables, _variability
 
 from morphocoverage._acquisition import acquisition_identity, check_one_acquisition
+from morphocoverage.retrospective import (
+    RedundancyResult,
+    microscopist_report,
+    redundancy_distance,
+)
 from morphocoverage.schema import validate_input_tables
 from morphocoverage.workflows import Setup, document, html_report, optimise, report
 from morphocoverage.workflows._source import source_identity
@@ -67,7 +73,9 @@ def _variability_settings(data):
     return SimpleNamespace(settings={"acquisition": acquisition_identity(data)})
 
 
-def test_a_result_without_an_identity_is_named_not_assumed_compatible():
+def test_a_result_without_an_identity_is_refused_not_noted():
+    """Q-MC-a: every result records its acquisition, so one that records none (rebuilt by
+    hand, or edited) cannot be checked and is refused, alone or beside others; no note."""
     objects, fovs = _one_condition_tables()
     result = _variability(objects, fovs)
 
@@ -75,8 +83,64 @@ def test_a_result_without_an_identity_is_named_not_assumed_compatible():
         def __init__(self) -> None:
             self.settings: dict = {}
 
-    assert check_one_acquisition({"variability": result, "effort": Bare()}) == ["effort"]
-    assert check_one_acquisition({"effort": Bare()}) == []
+    with pytest.raises(ValueError, match="effort records no acquisition identity"):
+        check_one_acquisition({"variability": result, "effort": Bare()})
+    with pytest.raises(ValueError, match="effort records no acquisition identity"):
+        check_one_acquisition({"effort": Bare()})
+    check_one_acquisition({"variability": result, "effort": None})
+    bare = RedundancyResult(pd.DataFrame(), {})
+    with pytest.raises(ValueError, match="redundancy records no acquisition identity"):
+        microscopist_report(redundancy=bare)
+    stripped = dataclasses.replace(result, settings={})
+    with pytest.raises(ValueError, match="variability records no acquisition identity"):
+        microscopist_report(variability=stripped)
+
+
+def _stage_tables(prefix: str = "f"):
+    """Fields of one condition and repeat on a 4 x 3 stage grid, 100 µm apart, with a
+    gradient along x, so neighbouring fields are alike."""
+    objects, fovs = _one_condition_tables(prefix, n=12)
+    fovs = fovs.assign(stage_x=[100.0 * (i % 4) for i in range(12)])
+    fovs = fovs.assign(stage_y=[100.0 * (i // 4) for i in range(12)])
+    column = objects["position_id"].map(dict(zip(fovs["position_id"], fovs["stage_x"])))
+    return objects.assign(x=objects["x"] + column / 20), fovs
+
+
+def _redundancy(objects, fovs):
+    return redundancy_distance(
+        objects,
+        fovs,
+        feature_cols=["x"],
+        stage_cols=("stage_x", "stage_y"),
+        bin_edges=[0, 150, 300, 500],
+        n_permutations=9,
+    )
+
+
+def test_a_redundancy_result_records_its_acquisition_identity():
+    objects, fovs = _stage_tables()
+    result = _redundancy(objects, fovs)
+    assert isinstance(result, RedundancyResult)
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["x"])
+    assert result.settings["acquisition"] == acquisition_identity(data)
+    assert result.settings["acquisition"] == _variability(objects, fovs).settings["acquisition"]
+    assert list(result.settings["stage_cols"]) == ["stage_x", "stage_y"]
+    assert list(result.table["unit"]) == ["µm"]
+    # Owned, like every frozen result: the caller's table cannot change it.
+    with pytest.raises(TypeError, match="read-only"):
+        result.settings["acquisition"] = "other"
+
+
+def test_redundancy_from_another_acquisition_is_refused():
+    objects, fovs = _stage_tables()
+    other_objects, other_fovs = _stage_tables("g")
+    variability = _variability(objects, fovs)
+    with pytest.raises(ValueError, match="different acquisitions"):
+        microscopist_report(
+            variability=variability, redundancy=_redundancy(other_objects, other_fovs)
+        )
+    report = microscopist_report(variability=variability, redundancy=_redundancy(objects, fovs))
+    assert "redundancy_distance" in set(report.profile["source"])
 
 
 def _tables(seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:

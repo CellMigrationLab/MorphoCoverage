@@ -101,7 +101,7 @@ from .report_status import (
     integrity_status,
     overview_status,
 )
-from .spatial import EfficiencyResult
+from .spatial import EfficiencyResult, RedundancyResult
 
 OVERVIEW_TITLE = "What is in the dataset"
 DECLARATION_TITLE = "What this acquisition was asked to preserve"
@@ -277,7 +277,7 @@ _RESULT_TYPES: dict[str, type] = {
     "inspection": InspectionResult,
     "effort": EffortResult,
     "efficiency": EfficiencyResult,
-    "redundancy": pd.DataFrame,
+    "redundancy": RedundancyResult,
     "variability": FOVVariability,
     "object_rules": ObjectRuleCheck,
     "descriptor_spread": DescriptorSpreadCheck,
@@ -326,7 +326,7 @@ def microscopist_report(
     inspection: InspectionResult | None = None,
     effort: EffortResult | None = None,
     efficiency: EfficiencyResult | None = None,
-    redundancy: pd.DataFrame | None = None,
+    redundancy: RedundancyResult | None = None,
     variability: FOVVariability | None = None,
     object_rules: ObjectRuleCheck | None = None,
     descriptor_spread: DescriptorSpreadCheck | None = None,
@@ -379,9 +379,9 @@ def microscopist_report(
     }
     for name, value in given.items():
         _check(value, _RESULT_TYPES[name], name)
-    unchecked = check_one_acquisition(dict(given))
+    check_one_acquisition(dict(given))
     parts, short, profile = _answer_parts(given, [key for key, _ in QUESTIONS])
-    notes, novel = _first_notes(given, unchecked)
+    notes, novel = _first_notes(given)
     gate = _gate(controls, minimum_detection, novel, parts, short, notes)
     framed = _closing_notes(given, parts, short, notes)
     sections = _sections(given, parts, short, profile, framed)

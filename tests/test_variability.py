@@ -18,7 +18,7 @@ def test_results_of_one_acquisition_with_other_settings_compose():
     objects, fovs = _one_condition_tables()
     first = fov_variability(objects, fovs, feature="x")
     again = fov_variability(objects.assign(x=objects["x"] + 5), fovs, feature="x")
-    assert check_one_acquisition({"a": first, "b": again}) == []
+    check_one_acquisition({"a": first, "b": again})
     assert microscopist_report(variability=first) is not None
 
 
