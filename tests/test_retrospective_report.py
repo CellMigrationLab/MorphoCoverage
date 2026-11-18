@@ -62,9 +62,15 @@ from morphocoverage.retrospective.report_profile import (
     sampling_profile,
 )
 from morphocoverage.retrospective.report_status import controls_status, profile_status
+from morphocoverage.retrospective.spatial import RedundancyResult
 from morphocoverage.sampling_unit import condition_contrast
 from morphocoverage.strategies import SupportNoveltyEstimator
-from tests.unrecorded import unrecorded
+from tests.one_acquisition import TEST_ACQUISITION, stamped
+
+
+def _measured(table: pd.DataFrame) -> RedundancyResult:
+    """A hand-made redundancy table as a result recording the shared test acquisition."""
+    return RedundancyResult(table, {"acquisition": TEST_ACQUISITION})
 
 
 def test_an_empty_report_says_what_each_question_needs():
@@ -186,7 +192,7 @@ def test_the_profile_states_measured_numbers_with_their_source():
     redundancy = pd.DataFrame(
         {"redundancy_distance": [336.0, 520.0], "smallest_lag": [336.0, 336.0], "unit": "µm"}
     )
-    report = microscopist_report(effort=effort, redundancy=redundancy)
+    report = microscopist_report(effort=stamped(effort), redundancy=_measured(redundancy))
     profile = report.profile.set_index("item")
     effect = design_effect(effort, "all")
     assert profile.loc["field-to-field heterogeneity", "value"] == pytest.approx(effect)
@@ -253,7 +259,7 @@ def test_fields_alike_at_every_distance_are_the_strongest_redundancy_not_none():
             "unit": "µm",
         }
     )
-    profile = microscopist_report(redundancy=redundancy).sections["profile"]
+    profile = microscopist_report(redundancy=_measured(redundancy)).sections["profile"]
     assert "in 1 of 2 groups, fields are more alike than random pairs at every distance" in profile
     assert "no group shows" not in profile
 
@@ -306,7 +312,7 @@ def test_g14_a_sampling_frame_caveat_alone_does_not_assess_question_3():
             }
         ]
     )
-    report = microscopist_report(redundancy=redundancy)
+    report = microscopist_report(redundancy=_measured(redundancy))
     assert report.profile.empty
     assert report.inputs["profile"] == "not assessed"
     assert "3. What is limiting my sampling?: not assessed" in report.limits()
@@ -443,7 +449,7 @@ def _controls(settings=None, **rates):
         pooled,
         "assessed",
         ("biological_repeat",),
-        {"fovs_seen": 10, **(settings or {})},
+        {"fovs_seen": 10, "acquisition": TEST_ACQUISITION, **(settings or {})},
     )
 
 
@@ -488,19 +494,23 @@ def test_p8_2_redundancy_distance_is_tested_against_shuffled_positions():
         f, o = _grid_well(rng, well, trend)
         fovs += f
         objects += o
-    table = redundancy_distance(
+    result = redundancy_distance(
         pd.DataFrame(objects),
         pd.DataFrame(fovs),
         feature_cols=["x"],
         stage_cols=("x_um", "y_um"),
         bin_edges=[0, 600, 1200, 1800, 2400, 3000, 4000],
         n_permutations=99,
-    ).set_index("technical_repeat")
+    )
+    table = result.table.set_index("technical_repeat")
     assert bool(table.loc["trend", "beyond_chance"]) and table.loc["trend", "null_share"] < 0.05
     assert not bool(table.loc["flat", "beyond_chance"])
     assert table.loc["flat", "null_share"] > 0.05
+    # The result records what it was measured with, beside the rows that report it.
+    assert result.settings["n_permutations"] == 99 and set(table["permutations"]) == {99}
+    assert list(result.settings["bin_edges"]) == [0, 600, 1200, 1800, 2400, 3000, 4000]
     # The report counts only the group beyond chance and says the other is within it.
-    report = microscopist_report(redundancy=table.reset_index())
+    report = microscopist_report(redundancy=result)
     profile = " ".join(report.sections["profile"].split())
     assert "in 1 of 2 groups, fields closer than about" in profile
     assert "beyond what shuffling the positions within each group gives" in profile
@@ -523,7 +533,7 @@ def test_g9_g10_g14_the_report_marks_questions_by_what_answers_them():
     redundancy = pd.DataFrame(
         {"redundancy_distance": [520.0], "smallest_lag": [336.0], "unit": "µm"}
     )
-    report = microscopist_report(redundancy=redundancy)
+    report = microscopist_report(redundancy=_measured(redundancy))
     assert report.inputs["order"] == "not assessed"
     assert "8. Could I" in report.limits()
     empty = microscopist_report()
@@ -691,7 +701,7 @@ def test_the_report_prints_the_short_forms_and_its_caveats_once():
     objects, fovs = _five_wells()
     contrast = condition_contrast(objects, fovs, feature="x", control=CONTROL_CONDITION, n_draws=5)
     inspection = _inspect(*_acquisition())
-    report = microscopist_report(contrast=unrecorded(contrast), inspection=unrecorded(inspection))
+    report = microscopist_report(contrast=stamped(contrast), inspection=stamped(inspection))
     short = report.summary()
     # The answer across biological repeats first, then the contrasts within each repeat.
     # The reading per condition leads, then the table across repeats.
@@ -776,10 +786,8 @@ def test_question_3_is_a_caution_when_a_state_clusters(states):
 
 def test_the_report_sections_are_short_with_each_caveat_once(foundation_checks, controls, states):
     clustering, unusual = states
-    mixed = {k: unrecorded(v) for k, v in {**foundation_checks, "controls": controls}.items()}
-    report = microscopist_report(
-        **mixed, clustering=unrecorded(clustering), unusual=unrecorded(unusual)
-    )
+    mixed = {k: stamped(v) for k, v in {**foundation_checks, "controls": controls}.items()}
+    report = microscopist_report(**mixed, clustering=stamped(clustering), unusual=stamped(unusual))
     for key in ("unit", "controls", "profile"):
         short = report.short[key]
         assert short != report.sections[key]
@@ -800,10 +808,10 @@ def test_the_report_gives_questions_4_5_and_7_short_with_their_markers():
     reliability = _scenario_reliability()
     protocol = _plate_protocol(_well_values(("P1", "P2"), 0.95, 0.99))
     report = microscopist_report(
-        reliability=unrecorded(reliability),
-        protocol=unrecorded(protocol),
-        adequacy=unrecorded(_adequacy()),
-        effort=unrecorded(_effort()),
+        reliability=stamped(reliability),
+        protocol=stamped(protocol),
+        adequacy=stamped(_adequacy()),
+        effort=stamped(_effort()),
     )
     for key in ("next_time", "bought", "effort"):
         assert key in report.short and report.short[key] != report.sections[key]

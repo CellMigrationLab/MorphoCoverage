@@ -30,6 +30,7 @@ from .replay import ReplayResult, default_orders, replay_acquisitions
 from .report import MicroscopistReport, microscopist_report
 from .spatial import (
     EfficiencyResult,
+    RedundancyResult,
     dispersed_order,
     order_efficiency,
     redundancy_distance,
@@ -49,6 +50,7 @@ __all__ = [
     "OutcomeCriterion",
     "Preservation",
     "ProtocolResult",
+    "RedundancyResult",
     "ReliabilityResult",
     "ReplayResult",
     "RepresentationControl",

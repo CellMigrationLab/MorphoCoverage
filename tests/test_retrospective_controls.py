@@ -38,6 +38,7 @@ from morphocoverage.retrospective.controls_text import NOT_PLANTED, representati
 from morphocoverage.retrospective.report_profile import _detection_adjusted_bounds
 from morphocoverage.strategies import SupportNoveltyEstimator
 from morphocoverage.transforms import Standardize
+from tests.one_acquisition import stamped
 
 
 def test_a_strong_positive_is_detected_and_rates_are_counted():
@@ -478,6 +479,8 @@ def test_a_report_with_no_planting_says_the_gate_was_not_assessed():
     from _helpers_retrospective import _weak_control_report
 
     _, sufficiency = _weak_control_report()
+    # The hand-made controls record the shared test acquisition; so must the sufficiency.
+    sufficiency = stamped(sufficiency)
     plain = microscopist_report(sufficiency=sufficiency)
     # Whole positive fields recognized in only 20% of checks: never the planted answer.
     controls = _two_plates(PLANTED, positive=((2, 10), (2, 10)), reference=((0, 10), (0, 10)))

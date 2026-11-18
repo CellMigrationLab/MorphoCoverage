@@ -14,7 +14,6 @@ from typing import Any
 
 import pandas as pd
 
-from .._acquisition import unchecked_note
 from .._caveats import assumption, caveat_lines, pool_assumptions
 from .._style import PROBLEM, Status, indented, wrap
 from .._wording import listing
@@ -118,7 +117,7 @@ def _answer_parts(
     profile = sampling_profile(
         given["controls"],
         given["effort"],
-        given["redundancy"],
+        None if given["redundancy"] is None else given["redundancy"].table,
         given["inspection"],
         given["variability"],
         clustering,
@@ -133,7 +132,7 @@ def _answer_parts(
     return parts, short, profile
 
 
-def _first_notes(given: Mapping[str, Any], unchecked: Any) -> tuple[list[str], bool]:
+def _first_notes(given: Mapping[str, Any]) -> tuple[list[str], bool]:
     """The notes every answer is read with, and whether a definition of new ran."""
     sufficiency = given["sufficiency"]
     # Only what was stated: no tolerance or definition of new where none ran (C24, B21).
@@ -152,7 +151,6 @@ def _first_notes(given: Mapping[str, Any], unchecked: Any) -> tuple[list[str], b
             "samples it was not chosen on."
         ),
     ]
-    notes += [assumption(unchecked_note(unchecked))] if unchecked else []
     return notes, novel
 
 

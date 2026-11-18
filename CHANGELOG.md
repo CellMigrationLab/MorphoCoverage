@@ -20,6 +20,21 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Changed
 
+- **Q-MC-a.** `microscopist_report` refuses (`ValueError`) a result that records no acquisition
+  identity, alone or beside others. It used to assemble such a result with a note saying it
+  could not be checked against the others; `_acquisition.unchecked_note` is removed and
+  `check_one_acquisition` returns nothing. Results of two acquisitions are still refused.
+- `retrospective.redundancy_distance` returns a `RedundancyResult` (`table`, the former
+  per-group DataFrame, and `settings`, with the acquisition identity, the features, stage
+  columns, bins, share, unit, permutations, seed and observation unit) instead of a bare
+  DataFrame, so it is checked against the other results like the other 18 result types.
+  `microscopist_report(redundancy=...)` takes that result (a DataFrame is refused), and
+  `optimise(..., redundancy_bins=...)` stores it in `Plan.results["redundancy"]`.
+- `representation_control` without a positive control ("not assessed") validates the tables
+  and records their acquisition identity before it returns, so the report accepts that
+  result instead of refusing it. Tables it used to return early on without checking are now
+  validated like every other call.
+
 - **Q-MC-b.** `repeat_plan` refuses (`ValueError`) a contrast table without `mean`,
   `control_mean`, `log_ratio_se` or `difference_se`. It used to plan such a table on Cohen's d
   without saying so. The plan still rests on d when a value or its sampling error is not

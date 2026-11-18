@@ -1224,7 +1224,9 @@ def test_optimise_measures_the_redundancy_distance_with_stage_coordinates():
             dispersed_orders=1,
             redundancy_bins=[0, 150, 400],
         )
-    assert plan.results["redundancy"].to_csv(index=False) == (
+    redundancy = plan.results["redundancy"]
+    assert redundancy.settings["acquisition"] == plan.results["efficiency"].settings["acquisition"]
+    assert redundancy.table.to_csv(index=False) == (
         "condition,biological_repeat,redundancy_distance,pairs_closer,smallest_lag,largest_lag,"
         "fov_mean_variance,null_share,beyond_chance,permutations,share,unit,reason\n"
         "siCTRL,2026_01_01,115.53300858899107,10,115.53300858899107,243.90689358613267,"
