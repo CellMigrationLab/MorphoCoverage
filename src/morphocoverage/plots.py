@@ -31,7 +31,10 @@ each repeat stays its own technical repeat, and the repeats are resampled as
 pooled repeats, which the legend says. An analysis-group column (``group_cols``)
 that the figure does not place raises instead, since the figure would pool
 the groups the caller asked to keep apart: name it as ``condition_col``,
-``repeat_col`` or ``technical_col``, or leave it out of ``group_cols``.
+``repeat_col`` or ``technical_col``, or leave it out of ``group_cols``. A ``repeat_group``
+in ``group_cols`` is the biological-repeat level: the figure places it where it places
+``biological_repeat`` otherwise, labelled by its values (``_repeat_groups.repeat_level``;
+both in ``group_cols`` raise, since a figure has one repeat level).
 
 Limits keep the figures legible and are arguments: at most ``max_conditions``
 conditions per figure (more are split evenly over several figures), at most
@@ -80,12 +83,13 @@ from ._palette import (
 from ._plots_clusters import _cluster_units, _draw_cluster, _mask
 from ._plots_text import legend, title
 from ._repeat_alias import refuse_repeat_alias
-from ._repeat_groups import declared_conditions, named_by_id
+from ._repeat_groups import declared_conditions, named_by_id, repeat_level
 from ._seeds import group_rng
 from ._style import low_to_high
 from ._wording import shortened
 from .data_check import validate_input_tables
 from .metadata import (
+    CONDITION_COLUMN,
     MORPHOBRICKS_GROUP_COLUMNS,
     REPEAT_COLUMN,
     TECHNICAL_REPEAT_COLUMN,
@@ -197,14 +201,18 @@ def _layout(
     in the order of the table's rows.
     """
     columns = set(data.objects.columns) | set(data.fovs.columns)
+    # The biological-repeat level: repeat_group when the analysis groups name it (#642).
+    level = repeat_level(data.group_cols)
+    if repeat_col == REPEAT_COLUMN:
+        repeat_col = level
     # condition_col=None or repeat_col=None asks for that column to be pooled.
     pooled_on_request = [
         default
-        for default, argument in zip(MORPHOBRICKS_GROUP_COLUMNS[:2], (condition_col, repeat_col))
+        for default, argument in zip((CONDITION_COLUMN, level), (condition_col, repeat_col))
         if argument is None
     ]
-    condition_col = _column(columns, condition_col, MORPHOBRICKS_GROUP_COLUMNS[0], "condition_col")
-    repeat_col = _column(columns, repeat_col, MORPHOBRICKS_GROUP_COLUMNS[1], "repeat_col")
+    condition_col = _column(columns, condition_col, CONDITION_COLUMN, "condition_col")
+    repeat_col = _column(columns, repeat_col, level, "repeat_col")
     if technical_col is None:
         technical_col = TECHNICAL_REPEAT_COLUMN if TECHNICAL_REPEAT_COLUMN in columns else None
     else:
@@ -262,7 +270,11 @@ def plots_of_data(
     """One or more figures per feature (see the module); keys are the feature names.
 
     ``features`` must be columns of the tables and at most ``max_features``.
-    ``repeat_col`` holds the biological repeats, drawn side by side.
+    ``repeat_col`` holds the biological repeats, drawn side by side. At
+    ``biological_repeat`` (the default) it is the biological-repeat level of the analysis
+    groups (``_repeat_groups.repeat_level``): ``repeat_group`` when ``group_cols`` name it,
+    the repeats then labelled by their repeat groups, never by folder label; ``group_cols``
+    naming both columns raise.
     ``technical_col`` names the technical-repeat column (a well, a dish;
     never a biological repeat), in the FOV table or the observations; by
     default the MorphoBricks ``technical_repeat`` column, else none (another

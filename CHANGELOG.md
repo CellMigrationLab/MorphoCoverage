@@ -18,6 +18,16 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
   A `next_fov` table without `uninformative` and a `final` table without `warning_list`
   are no longer accepted. The joined `warnings` text is no longer read as a fallback.
 
+### Fixed
+
+- **#642.** `html_report`, `plots` and `plots_of_data` with `group_cols=("condition",
+  "repeat_group")`, the groups of MorphoFeature's notebooks, no longer raise "group_cols ...
+  hold ['repeat_group'], which the figure does not place". The figures place `repeat_group`
+  as their biological-repeat level (`_repeat_groups.repeat_level`), labelled by its values;
+  the pairwise matrix pairs by it and the HTML report's interactive figures read it. Nothing
+  falls back to the folder label `biological_repeat`; `group_cols` naming both columns are
+  refused, since a figure has one repeat level. The `biological_repeat` path is unchanged.
+
 ### Changed
 
 - **Q-MC-a.** `microscopist_report` refuses (`ValueError`) a result that records no acquisition

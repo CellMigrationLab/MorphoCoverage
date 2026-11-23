@@ -43,11 +43,11 @@ from matplotlib.figure import Figure
 from ._checks import as_count, check_seed
 from ._figure_layout import grow_bottom, panel_letter, remove_legend, sentences, set_legend
 from ._palette import MUTED
-from ._repeat_groups import named_by_id
+from ._repeat_groups import named_by_id, repeat_level
 from ._seeds import group_rng
 from ._wording import p_value, shortened
 from .data_check import validate_input_tables
-from .metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
+from .metadata import CONDITION_COLUMN, sorted_labels
 from .sampling_unit.contrast_cells import cell_randomization
 from .sampling_unit.contrast_repeats import MIN_REPEATS
 from .schema import fov_positions
@@ -206,10 +206,12 @@ def pairwise_contrasts(
         return pd.DataFrame(columns=PAIR_COLUMNS)
     values = data.feature_values(feature)
     keep = ~np.isnan(values)
+    # The figure's biological-repeat level: repeat_group when the analysis groups name it.
+    repeat = repeat_level(data.group_cols)
     frame = pd.DataFrame(
         {
             "condition": meta[CONDITION_COLUMN].to_numpy()[keep],
-            "repeat": meta[REPEAT_COLUMN].to_numpy()[keep] if REPEAT_COLUMN in meta else 0,
+            "repeat": meta[repeat].to_numpy()[keep] if repeat in meta else 0,
             "value": values[keep],
         }
     )
