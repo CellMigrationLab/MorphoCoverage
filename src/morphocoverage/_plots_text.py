@@ -10,8 +10,9 @@ from typing import Any
 from matplotlib.axes import Axes
 
 from ._palette import MUTED
+from ._repeat_groups import REPEAT_LEVEL_COLUMNS
 from ._wording import ordinal, rate
-from .metadata import REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
+from .metadata import TECHNICAL_REPEAT_COLUMN
 
 
 def legend(ax: Axes, layout: Any, shapes: Sequence[str], n_technical: int) -> None:
@@ -36,7 +37,7 @@ def legend(ax: Axes, layout: Any, shapes: Sequence[str], n_technical: int) -> No
             frameon=False,
             fontsize=9.5,
             title=(
-                f"{_named('well', layout.technical_col, TECHNICAL_REPEAT_COLUMN)}"
+                f"{_named('well', layout.technical_col, (TECHNICAL_REPEAT_COLUMN,))}"
                 ",\nin order within each\nbiological repeat"
             ),
             title_fontsize=9.5,
@@ -49,7 +50,7 @@ def legend(ax: Axes, layout: Any, shapes: Sequence[str], n_technical: int) -> No
             0.01,
             0.99,
             f"up to {n_technical} "
-            f"{_named('wells', layout.technical_col, TECHNICAL_REPEAT_COLUMN)} per "
+            f"{_named('wells', layout.technical_col, (TECHNICAL_REPEAT_COLUMN,))} per "
             f"biological repeat: the first {len(shapes)} shaped in order, the others small dots",
             transform=ax.transAxes,
             va="top",
@@ -63,10 +64,10 @@ def _span(counts: Sequence[int]) -> str:
     return f"{min(counts)}" if min(counts) == max(counts) else f"{min(counts)} to {max(counts)}"
 
 
-def _named(word: str, column: str | None, standard: str) -> str:
+def _named(word: str, column: str | None, standard: Sequence[str]) -> str:
     """``word``, with its column in brackets when the column has another name than the
-    MorphoBricks one (``technical repeat (well)``)."""
-    if column in (None, standard) or str(column).lower() in (word, word.rstrip("s")):
+    MorphoBricks ones, ``standard`` (``technical repeat (well)``)."""
+    if column is None or column in standard or str(column).lower() in (word, word.rstrip("s")):
         return word
     return f"{word} ({column})"
 
@@ -75,9 +76,9 @@ def _pooled_name(layout: Any) -> str:
     """The pooled top-level units in words: ``biological repeats`` or their columns."""
     if len(layout.pooled_cols) == 1 and layout.pooled_cols[0] in (
         layout.repeat_col,
-        REPEAT_COLUMN,
+        *REPEAT_LEVEL_COLUMNS,
     ):
-        return _named("biological repeats", layout.pooled_cols[0], REPEAT_COLUMN)
+        return _named("biological repeats", layout.pooled_cols[0], REPEAT_LEVEL_COLUMNS)
     return f"units of {'/'.join(layout.pooled_cols)}"
 
 
@@ -101,7 +102,7 @@ def title(
     the time with a well SD above the field SD).
     """
     # A technical repeat is a well, dish or coverslip: "well" in lab words (owner, 2026-10-01).
-    technical_word = _named("well", layout.technical_col, TECHNICAL_REPEAT_COLUMN)
+    technical_word = _named("well", layout.technical_col, (TECHNICAL_REPEAT_COLUMN,))
     # A cluster is the points of one condition, or of one condition in one repeat.
     cluster = "condition" if layout.pooled_repeats or not layout.repeat_col else "repeat"
     repeats = _split_phrase(layout)
@@ -120,7 +121,7 @@ def title(
 def _split_phrase(layout: Any) -> str:
     """How the plot is split: biological repeats pooled or side by side, and the units
     pooled within each cluster."""
-    repeats_word = _named("biological repeat", layout.repeat_col, REPEAT_COLUMN)
+    repeats_word = _named("biological repeat", layout.repeat_col, REPEAT_LEVEL_COLUMNS)
     repeats = ""
     if layout.pooled_repeats:
         repeats = (
@@ -171,8 +172,8 @@ def _technical_resampled(
 ) -> str:
     """Add to ``phrases`` what is resampled within clusters of one top-level unit (whole
     technical repeats, or the fields of a single one); the caveat, updated."""
-    technical_word = _named("well", layout.technical_col, TECHNICAL_REPEAT_COLUMN)
-    technicals = _named("wells", layout.technical_col, TECHNICAL_REPEAT_COLUMN)
+    technical_word = _named("well", layout.technical_col, (TECHNICAL_REPEAT_COLUMN,))
+    technicals = _named("wells", layout.technical_col, (TECHNICAL_REPEAT_COLUMN,))
     several = [n for n in single if n > 1]
     if not single:
         phrases.append(

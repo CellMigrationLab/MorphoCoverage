@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 
 from .._palette import COLOURS
+from .._repeat_groups import repeat_level
 from ..data_check import validate_input_tables
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..plots_pairwise import ALPHA, APART, APART_MARK, D_CAP, format_p, p_shade
@@ -58,7 +59,8 @@ def _observations(
     frame = pd.DataFrame({"value": data.feature_values(feature)})
     for name, column in (
         ("condition", CONDITION_COLUMN),
-        (REPEAT_COLUMN, REPEAT_COLUMN),
+        # The static figure's biological-repeat level, under the clusters' key (#642).
+        (REPEAT_COLUMN, repeat_level(data.group_cols)),
         ("technical", TECHNICAL_REPEAT_COLUMN),
         ("field", data.fov_col),
     ):

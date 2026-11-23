@@ -37,8 +37,12 @@ The IDs are read and the declared names checked in ``_condition_ids`` (re-export
 ``named_by_id`` names the conditions by their IDs, the repeats as given, for the analyses
 that do not pair (#628).
 
+The figures place one column as their biological-repeat level (``repeat_level``, #642): the
+canonical ``repeat_group`` when the analysis groups name it, else ``biological_repeat``. Both
+in the analysis groups are refused rather than one chosen without a word.
+
 Shared-private: called by the paired analyses (``sampling_unit``, ``retrospective``,
-``normalize``) and the workflows.
+``normalize``), the workflows and the figures (``plots``, ``plots_pairwise``, ``_plots_text``).
 """
 
 from __future__ import annotations
@@ -100,6 +104,8 @@ CODES = (
     NOT_FOUND,
 )
 
+# The columns a figure's biological-repeat level can be, the canonical one first (``repeat_level``).
+REPEAT_LEVEL_COLUMNS = (REPEAT_GROUP_COLUMN, REPEAT_COLUMN)
 _BY_GROUP = (
     f"repeats are paired by their confirmed repeat group ({REPEAT_GROUP_COLUMN!r}), never by "
     f"the folder label in {REPEAT_COLUMN!r}"
@@ -195,6 +201,25 @@ def pair_by_repeat_group(
         return paired[0], paired[1], REPEAT_COLUMN, paired[3]
     objects, fovs, pairing = named_by_id(objects, fovs, control, condition_col)
     return objects, fovs, repeat_col, pairing
+
+
+def repeat_level(group_cols: Iterable[str] | None) -> str:
+    """The column a figure places as its biological-repeat level, from the analysis groups.
+
+    ``repeat_group`` when ``group_cols`` name it: the repeats are kept apart, and labelled, by
+    their confirmed repeat groups. Else ``biological_repeat``, as before (absent from the tables,
+    each condition is one cluster). ``group_cols`` naming both are refused (``ValueError``): a
+    figure has one repeat level, and keeping the folder label apart beside the repeat group
+    would split or pair repeats by folder label, so neither is chosen in silence.
+    """
+    named = [c for c in REPEAT_LEVEL_COLUMNS if c in (group_cols or ())]
+    if len(named) > 1:
+        raise ValueError(
+            f"group_cols hold both {REPEAT_GROUP_COLUMN!r} and {REPEAT_COLUMN!r}, and a figure "
+            f"has one biological-repeat level: {_BY_GROUP}. Leave {REPEAT_COLUMN!r} out of "
+            "group_cols"
+        )
+    return named[0] if named else REPEAT_COLUMN
 
 
 def named_by_id(
@@ -497,6 +522,7 @@ __all__ = [
     "NOT_FOUND",
     "NO_SOURCE",
     "REPEAT_GROUP_COLUMN",
+    "REPEAT_LEVEL_COLUMNS",
     "SPLIT",
     "Pairing",
     "PairingRefused",
@@ -510,5 +536,6 @@ __all__ = [
     "refuse_folder_names",
     "refuse_unmatched",
     "repeat_groups",
+    "repeat_level",
     "with_folders",
 ]

@@ -15,8 +15,12 @@ figures = plots(objects, fovs, setup, features=["YAPTAZ_Ratio", "Nuclei_Area"])
 ```
 
 PlotsOfData-style figures (`morphocoverage.plots`), one per feature:
-within each condition the biological repeats (the `biological_repeat` column) sit side
-by side, labelled above their cluster, so that a difference between
+within each condition the biological repeats sit side by side (the `biological_repeat`
+column, or the canonical `repeat_group` when the analysis groups name it, as MorphoFeature's
+`("condition", "repeat_group")` do: the repeats are then labelled by their repeat groups,
+never by folder label, and the pairwise matrix pairs them by repeat group; `group_cols`
+naming both columns are refused, since a figure has one repeat level), labelled above their
+cluster, so that a difference between
 conditions can be read against the spread between repeats; each condition is
 only as wide as the repeats it holds, so repeats imaged for other conditions
 take no room. The figure's title is the feature; what it shows is its legend, at
