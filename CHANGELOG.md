@@ -34,6 +34,10 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
   moved apart from the lowest up and returned in that order, while the names followed the
   loadings' order, so a feature's name could sit at another feature's arrow; the positions
   now come back in the loadings' order (`plots_embedding._spread_labels`).
+- **#555.** `percent` (and `percent_fine`) no longer raises a math domain error for a share
+  just below 100% (1 - 1e-12, or the float just below 1): the gap to 100% was rounded to 0
+  before its log was taken. The gap is now kept to the digits a float holds of it, so such a
+  share reads `99.9999999999%`, never `100%`; ordinary shares read as before.
 - **#642.** `html_report`, `plots` and `plots_of_data` with `group_cols=("condition",
   "repeat_group")`, the groups of MorphoFeature's notebooks, no longer raise "group_cols ...
   hold ['repeat_group'], which the figure does not place". The figures place `repeat_group`

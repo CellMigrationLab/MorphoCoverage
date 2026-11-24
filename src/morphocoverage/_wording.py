@@ -7,6 +7,7 @@ written the same way everywhere.
 from __future__ import annotations
 
 import math
+import sys
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -25,7 +26,8 @@ def percent(value: float) -> str:
 
     Whole percentages round half up (12.5% reads ``13%``). A share that is not
     0 or 1 never reads ``0%`` or ``100%``: below 1% and above 99% it keeps the
-    digits that tell it apart (1 in 5000 is ``0.02%``, 199 in 200 ``99.5%``).
+    digits that tell it apart (1 in 5000 is ``0.02%``, 199 in 200 ``99.5%``),
+    however close to 1 (1 - 1e-12 reads ``99.9999999999%``).
     """
     value = float(value)
     if math.isnan(value):
@@ -35,10 +37,17 @@ def percent(value: float) -> str:
     share = 100 * value
     if 0 < share < 1:
         return f"{share:.1g}%"
-    if 99 < share < 100:
-        missing = round(100 - share, 9)  # 99.9 must not read 99.90 from rounding error
+    if share > 99 and value < 1:
+        # The gap to 1 (exact this close to 1) to the digits a float holds of it, at most 9
+        # (its error is the spacing of floats at 1): 99.9 must not read 99.90, nor
+        # 1 - 1e-12 read 99.99999999990, from rounding error; never rounded to 0 (#555).
+        gap = 1 - value
+        held = min(9, max(1, math.floor(math.log10(gap / sys.float_info.epsilon))))
+        missing = float(f"{100 * gap:.{held}g}")
         digits = max(1, -math.floor(math.log10(missing)))
-        return f"{share:.{digits}f}%"
+        text = f"{share:.{digits}f}"
+        # A share below 1 never reads 100%, should its digits round up (#555).
+        return f"{text}%" if float(text) < 100 else "<100%"
     return f"{math.floor(share + 0.5):.0f}%"
 
 
