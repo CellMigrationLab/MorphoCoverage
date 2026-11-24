@@ -251,7 +251,10 @@ GLOSSARY: tuple[Term, ...] = (
         "repeats. 'Same direction in every repeat, not significant', said from 6 repeats, is a "
         "consistent trend, not evidence of no effect; with fewer, every repeat goes the same "
         "way by chance too often (1 experiment in 4 with 3 repeats), so it reads 'not "
-        "significant across repeats' (owner, 2026-10-06).",
+        "significant across repeats' (owner, 2026-10-06). With 3 or more repeats that all "
+        "give the same change the paired test has no variance to test with and gives no p: "
+        "that reads 'not assessed across repeats', with the reason, never 'not significant' "
+        "(#90).",
         "Do the conditions differ?, the feature ranking",
     ),
     Term(
