@@ -114,8 +114,28 @@ PAIRED_NOTE = (
     "right: adjusted over the pairs of this figure only (Benjamini-Hochberg); the verdict's "
     "q is adjusted over every feature and condition of its sub-experiment, so the two can "
     "fall either side of 0.05. Green at ≤ 0.05, darker the smaller; – : fewer than 3 "
-    "repeats imaged both."
+    "repeats imaged both; =: not assessed, the difference is the same in every repeat imaged "
+    "both, so the paired test has no variance to test with (not a result of no difference)."
 )
+# Panel C's mark for a pair with enough shared repeats but no paired p (#90).
+SAME_MARK = "="
+
+
+def unpaired_words(pair: Any) -> tuple[str, str]:
+    """Panel C's mark and words for a pair with no paired p (#90): ``APART_MARK`` normalised to
+    different controls, ``–`` fewer than ``MIN_REPEATS`` repeats imaged both, ``SAME_MARK``
+    enough, with the same difference in each (NaN is dropped and a log ratio needs every value
+    positive, so nothing else leaves ``paired_t`` without a p): not assessed, never read as
+    not significant."""
+    shared = int(pair.shared_repeats)
+    if pair.status == APART:
+        return APART_MARK, f"normalised to different controls, {APART}"
+    if shared < MIN_REPEATS:
+        return "–", f"not tested ({shared} repeats imaged both, fewer than {MIN_REPEATS})"
+    return SAME_MARK, (
+        f"not assessed (the difference is the same in all {shared} repeats imaged both, so "
+        "the paired test has no variance to test with)"
+    )
 
 
 def verdict_note(verdicts: Mapping[Any, float]) -> str:
@@ -385,7 +405,12 @@ def _matrix(
             if panel == "B":
                 cell = _cells_d(pair, row) if i > j else _cells_p(float(pair.q))
             else:
-                cell = _cells_p(float(pair.p_paired if i > j else pair.q_paired))
+                value = float(pair.p_paired if i > j else pair.q_paired)
+                cell = (
+                    _cells_p(value)
+                    if np.isfinite(value)
+                    else (unpaired_words(pair)[0], p_colour(np.nan), "normal")
+                )
             text, colour, weight = cell
             ax.add_patch(_square(j, i, colour))
             ax.text(
@@ -494,11 +519,13 @@ __all__ = [
     "PAIR_NOTE",
     "PAIR_NOTE_SEVERAL",
     "PANEL_KEYS",
+    "SAME_MARK",
     "add_pairwise",
     "d_colour",
     "format_p",
     "p_colour",
     "p_shade",
     "pairwise_contrasts",
+    "unpaired_words",
     "verdict_note",
 ]

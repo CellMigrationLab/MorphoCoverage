@@ -20,6 +20,29 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#90 (part).** A paired test across repeats that gives no p because 3 or more repeats all
+  give the same change is now "not assessed across repeats" (`reading_text.NOT_ASSESSED`),
+  never "not significant": in the reading, the summary, and the page's table across repeats,
+  where the verdict gives the reason (`contrast_repeats.NO_SPREAD`). Panel C of the figures
+  marks such a pair "=" with its reason, apart from "–" (fewer than 3 repeats imaged both),
+  in the static figure, its legend and the interactive hover, which said "fewer than 3" for
+  both. "Plan the next experiment" keeps a condition whose repeat plan has no estimable
+  answer, as "not assessable" with the plan's status, instead of leaving it out (and then
+  saying every condition was significant). The shared machine-readable status vocabulary of
+  #90 is not part of this change.
+- **#557.** The PCA figure's loading labels are placed beside their own arrows. Labels were
+  moved apart from the lowest up and returned in that order, while the names followed the
+  loadings' order, so a feature's name could sit at another feature's arrow; the positions
+  now come back in the loadings' order (`plots_embedding._spread_labels`).
+- **#555.** `percent` (and `percent_fine`) no longer raises a math domain error for a share
+  just below 100% (1 - 1e-12, or the float just below 1): the gap to 100% was rounded to 0
+  before its log was taken. The gap is now kept to the digits a float holds of it, so such a
+  share reads `99.9999999999%`, never `100%`; ordinary shares read as before.
+- **#628 (item 3).** On exports that name conditions by `condition_id` or pair repeats by
+  `repeat_group`, the acquisition anomalies' rows now name their folders, as the comparison
+  rows and the fields to check do: a `folder` column and the folders in the row's field
+  (`ctrl · repeat rep1 · img0 (folder control/rep1)`), in the report and on its page
+  (`_pairing.with_folder_labels`). A table whose folders are their IDs is unchanged.
 - **#642.** `html_report`, `plots` and `plots_of_data` with `group_cols=("condition",
   "repeat_group")`, the groups of MorphoFeature's notebooks, no longer raise "group_cols ...
   hold ['repeat_group'], which the figure does not place". The figures place `repeat_group`

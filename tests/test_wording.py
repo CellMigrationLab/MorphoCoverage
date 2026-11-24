@@ -6,6 +6,7 @@ from dataclasses import replace
 
 import numpy as np
 import pandas as pd
+import pytest
 from _helpers_retrospective import _plate_curve
 from _helpers_sampling_unit import _signed
 from _helpers_tables import _error_titles
@@ -19,6 +20,7 @@ from morphocoverage._wording import (
     listing,
     number,
     percent,
+    percent_fine,
     rows_of,
 )
 from morphocoverage.retrospective import SamplingHierarchy, protocol_reliability
@@ -133,3 +135,21 @@ def test_the_change_is_written_so_a_tiny_change_never_reads_as_none():
     assert change(1.002) == "×1.002"
     assert change(-3.21, "raw") == "-3.21"
     assert change(np.nan) == "–"
+
+
+@pytest.mark.parametrize("share", [1 - 1e-8, 1 - 1e-10, 1 - 1e-12, float(np.nextafter(1.0, 0.0))])
+def test_a_share_a_hair_below_one_never_raises_nor_reads_100(share):
+    """#555: the difference from 100% rounded to 0 and its log raised a math domain error."""
+    for words in (percent(share), percent_fine(share)):
+        assert words != "100%" and words.endswith("%")
+        assert words.startswith(("99.", "<100"))
+        assert words == "<100%" or float(words[:-1]) < 100
+
+
+def test_shares_near_one_keep_their_digits():
+    assert percent(1 - 1e-8) == "99.999999%"
+    assert percent(1 - 1e-10) == "99.99999999%"
+    assert percent(1 - 1e-12) == "99.9999999999%"  # no trailing 0 from rounding error
+    assert percent(float(np.nextafter(1.0, 0.0))) == "99.99999999999999%"
+    assert percent(0.99901) == "99.90%" and percent(0.9999) == "99.99%"
+    assert percent(199 / 200) == "99.5%" and percent(0.999) == "99.9%"

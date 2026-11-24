@@ -284,6 +284,14 @@
     "workflows._html_map_text = f\"Under each map: of each observation's {K} nearest neighbours among the other o",
     "workflows._label_control = 64"
    ],
+   "NOT_ASSESSABLE": [
+    "workflows._enough_features = 'not assessable'",
+    "workflows._html_plan_repeats = 'not assessable'"
+   ],
+   "NOT_ASSESSED": [
+    "_style = '➖'",
+    "sampling_unit.reading_text = 'not assessed across repeats'"
+   ],
    "NO_CONTROL": [
     "_control = 'no control is declared: comparisons are available only for explicitly requested",
     "retrospective.effect_preservation = 'not evaluable: no control fields in this repeat'",

@@ -45,7 +45,7 @@ from ._html_next import (
     rule_code,
     rule_labels,
 )
-from ._html_plan_repeats import _plan_rows, _plan_table, _repeat_conditions
+from ._html_plan_repeats import NOT_ASSESSABLE, _plan_rows, _plan_table, _repeat_conditions
 from ._html_render import text_html
 from ._html_tabs import NOTHING_LIVE, choose
 from ._populations import rule_words
@@ -257,6 +257,8 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
         f"for {rate(POWER)} power, if the change and the variation seen here recur, each "
         f"repeat with its own control.{known}"
     )
+    if any(row[3].startswith(NOT_ASSESSABLE) for row in rows):  # said, never dropped (#90)
+        sentence += " Not assessable: these data give no plan, for the reason in its row."
     return option, _panel(sentence, extra=_plan_table(rows) + pilot)
 
 

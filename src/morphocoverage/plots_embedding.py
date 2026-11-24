@@ -89,15 +89,20 @@ def _scatter(ax: Axes, points: pd.DataFrame, x: str, y: str, colours: dict[Any, 
 def _spread_labels(
     positions: list[tuple[float, float]], x_span: float, y_span: float
 ) -> list[tuple[float, float]]:
-    """Label positions with labels that fall on one another moved apart vertically: arrows of
-    duplicated or collinear features end at nearly one point (audit A7)."""
+    """Label positions, in the order of ``positions``, with labels that fall on one another
+    moved apart vertically: arrows of duplicated or collinear features end at nearly one point
+    (audit A7). Placed from the lowest up, then returned in the given order, so each label
+    stays its own arrow's (#557)."""
     gap = 0.05 * y_span
     placed: list[tuple[float, float]] = []
-    for x, y in sorted(positions, key=lambda p: p[1]):
+    spots: list[tuple[float, float]] = list(positions)
+    for i in sorted(range(len(positions)), key=lambda i: positions[i][1]):
+        x, y = positions[i]
         while any(abs(y - py) < gap and abs(x - px) < 0.3 * x_span for px, py in placed):
             y += gap
         placed.append((x, y))
-    return placed
+        spots[i] = (x, y)
+    return spots
 
 
 def _arrows(ax: Axes, embedding: Embedding) -> None:

@@ -283,7 +283,9 @@ def test_the_incidence_counts_the_fields_without_observations():
     assert incidence < _incidence(result, objects, fovs, objects["mitotic"])[0]
 
 
-def test_a_condition_without_a_repeat_plan_is_left_out_of_the_table():
+def test_a_condition_without_a_repeat_plan_is_said_not_assessable_in_the_table():
+    # #90: a plan with no estimable answer was dropped silently; it stays, with its reason.
+    from morphocoverage.sampling_unit.repeat_plan import DEGENERATE
     from morphocoverage.workflows._html_plan import _difference_goal
 
     discovery = SimpleNamespace(
@@ -304,6 +306,7 @@ def test_a_condition_without_a_repeat_plan_is_left_out_of_the_table():
             "repeats_needed_twice_fields": [3.0, np.nan, np.inf],
             "planned_on": ["log ratio", "difference", "log ratio"],
             "change": [0.2, np.nan, -0.1],
+            "status": ["ok", DEGENERATE, "ok"],
         }
     )
     contrast = SimpleNamespace(plan=plan, table=pd.DataFrame(), settings={})
@@ -319,9 +322,12 @@ def test_a_condition_without_a_repeat_plan_is_left_out_of_the_table():
         "from the control is planned in biological repeats. For each condition not yet "
         "significant across repeats, the repeats a paired t-test on the repeat means needs for "
         "80% power, if the change and the variation seen here recur, each repeat with its own "
-        "control. Significant across repeats already: area.</p>"
+        "control. Significant across repeats already: area. Not assessable: these data give "
+        "no plan, for the reason in its row.</p>"
         '<div class="table-wrap"><table class="sortable"><thead><tr><th>feature</th>'
         "<th>condition</th><th>change seen</th><th>repeats needed</th>"
         "<th>with twice the fields per repeat</th></tr></thead><tbody><tr><td>area</td>"
+        f"<td>b</td><td>–</td><td>not assessable: {html.escape(DEGENERATE)}</td><td>–</td>"
+        "</tr><tr><td>area</td>"
         "<td>c</td><td>×-0.10</td><td>5</td><td>more than 30</td></tr></tbody></table></div>"
     )

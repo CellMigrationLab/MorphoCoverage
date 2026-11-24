@@ -16,6 +16,8 @@ from .._wording import change
 from ..sampling_unit.repeat_plan import MAX_REPEATS
 from ..sampling_unit.repeat_plan_text import field_words
 
+# A plan with no estimable answer, in the table's "repeats needed" (#90).
+NOT_ASSESSABLE = "not assessable"
 # A row of the table: feature, condition, change seen, repeats needed, with twice the fields,
 # and the fields' word.
 PlanRow = tuple[str, str, str, str, str, str]
@@ -38,7 +40,8 @@ def _plan_rows(
     done: set[tuple[IdentityKey, IdentityKey]],
 ) -> tuple[list[PlanRow], list[str]]:
     """One row per feature and condition with a plan, the pilots and the pairs ``done``
-    (significant across repeats) left out, and the features of those done, in order."""
+    (significant across repeats) left out, and the features of those done, in order. A plan
+    with no estimable answer stays, said not assessable with its reason (#90)."""
     rows: list[PlanRow] = []
     shown: list[str] = []
     for feature, contrast in plans:
@@ -52,19 +55,26 @@ def _plan_rows(
             if (identity_key(feature), identity_key(row["condition"])) in done:
                 shown.append(feature)
                 continue
-            if pd.isna(row["repeats_needed"]):
-                continue
+            unplanned = pd.isna(row["repeats_needed"])
             rows.append(
                 (
                     feature,
                     str(row["condition"]),
                     _moved(row),
-                    _plan_words(row["repeats_needed"]),
-                    _plan_words(row["repeats_needed_twice_fields"]),
+                    _unplanned(row) if unplanned else _plan_words(row["repeats_needed"]),
+                    "–" if unplanned else _plan_words(row["repeats_needed_twice_fields"]),
                     unit,
                 )
             )
     return rows, shown
+
+
+def _unplanned(row: pd.Series) -> str:
+    """``not assessable: <the plan's status>``: why a plan gives no repeats needed (a zero or
+    missing variance, ``repeat_plan.DEGENERATE``, ``MISSING_VALUE``), never left out."""
+    status = row.get("status")
+    reason = status if isinstance(status, str) and status and status != "ok" else ""
+    return f"{NOT_ASSESSABLE}: {reason}" if reason else NOT_ASSESSABLE
 
 
 def _moved(row: pd.Series) -> str:
