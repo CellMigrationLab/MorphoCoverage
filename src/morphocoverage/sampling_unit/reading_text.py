@@ -61,6 +61,9 @@ CONFIRMED = "significant across repeats"
 CONSISTENT = "same direction in every repeat, not significant"
 NOT_SIGNIFICANT = "not significant across repeats"
 NOT_TESTED = "not tested across repeats"
+# Enough repeats, but the paired test gives no p: every repeat's change is the same, so it has
+# no variance to test with (#90). Not assessed, never "not significant".
+NOT_ASSESSED = "not assessed across repeats"
 MIXED = "no consistent direction"
 ONE_REPEAT = "one repeat"
 _VALUES = {
@@ -75,7 +78,7 @@ LIMITED_REPLICATION = (
     "verdict gives the change in each repeat and the 95% t interval of the change, which is "
     "wide; a change that is not significant is not evidence of no change."
 )
-VERDICTS = (CONFIRMED, CONSISTENT, NOT_SIGNIFICANT, NOT_TESTED, MIXED, ONE_REPEAT)
+VERDICTS = (CONFIRMED, CONSISTENT, NOT_SIGNIFICANT, NOT_ASSESSED, NOT_TESTED, MIXED, ONE_REPEAT)
 # The status of a contrast whose repeat holds no control field (``condition_contrast``).
 NO_CONTROL = "no control group in"
 
@@ -290,6 +293,8 @@ def _verdict(
         parts = [f"lower in {lower} and higher in {higher} of {n} {word}s"]
     else:
         trend = CONSISTENT if n >= TREND_REPEATS else NOT_SIGNIFICANT
+        unassessed = pd.isna(row["q_paired_t_normalised"]) and pd.isna(row["q_paired_t"])
+        trend = NOT_ASSESSED if unassessed else trend  # no p: not a negative result (#90)
         verdict = CONFIRMED if confirmed else trend if n >= MIN_REPEATS else NOT_TESTED
         parts = [f"{direction} in {n} of {n} {word}s" + (f" ({effect})" if effect else "")]
     parts.append(paired)
@@ -535,6 +540,7 @@ __all__ = [
     "FEW_CONTROL_FIELDS",
     "LIMITED_REPLICATION",
     "MIXED",
+    "NOT_ASSESSED",
     "NOT_SIGNIFICANT",
     "NOT_TESTED",
     "NO_CONTROL",

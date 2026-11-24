@@ -20,13 +20,14 @@ import pandas as pd
 
 from .._style import low_to_high
 from .._wording import change, contrasts_words, p_value
-from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
+from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS, untested_reason
 from ..sampling_unit.discovery import declared_scales
 from ..sampling_unit.reading_text import (
     CONFIRMED,
     CONSISTENT,
     LIMITED_REPLICATION,
     MIXED,
+    NOT_ASSESSED,
     NOT_SIGNIFICANT,
 )
 from ..statistics import ALPHA
@@ -75,11 +76,15 @@ def _verdict(
     """The verdict in the reading's words (``reading_text.VERDICTS``): a direction that
     changes between repeats first, then significant across repeats (the discovery's
     ``confirmed``, which also needs the cell-level screen, when given; else q <= 0.05); the
-    screen named for the observations, ``one`` (``patch-level``)."""
+    screen named for the observations, ``one`` (``patch-level``). Enough repeats and no q:
+    not assessed, with the reason (``contrast_repeats.untested_reason``), never "not
+    significant" (#90)."""
     if n < MIN_REPEATS:
         return f"not tested (needs {MIN_REPEATS} repeats)"
     if not (lower == n or higher == n):
         return MIXED
+    if pd.isna(q):
+        return f"{NOT_ASSESSED}: {untested_reason(n, np.nan)}"
     significant = pd.notna(q) and q <= ALPHA
     if confirmed if confirmed is not None else significant:
         return CONFIRMED

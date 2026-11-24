@@ -20,6 +20,16 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#90 (part).** A paired test across repeats that gives no p because 3 or more repeats all
+  give the same change is now "not assessed across repeats" (`reading_text.NOT_ASSESSED`),
+  never "not significant": in the reading, the summary, and the page's table across repeats,
+  where the verdict gives the reason (`contrast_repeats.NO_SPREAD`). Panel C of the figures
+  marks such a pair "=" with its reason, apart from "–" (fewer than 3 repeats imaged both),
+  in the static figure, its legend and the interactive hover, which said "fewer than 3" for
+  both. "Plan the next experiment" keeps a condition whose repeat plan has no estimable
+  answer, as "not assessable" with the plan's status, instead of leaving it out (and then
+  saying every condition was significant). The shared machine-readable status vocabulary of
+  #90 is not part of this change.
 - **#642.** `html_report`, `plots` and `plots_of_data` with `group_cols=("condition",
   "repeat_group")`, the groups of MorphoFeature's notebooks, no longer raise "group_cols ...
   hold ['repeat_group'], which the figure does not place". The figures place `repeat_group`

@@ -37,7 +37,9 @@ at 0.05). It treats every observation as an independent draw, so when the
 repeats differ it passes more often than 5% without an effect; the table keeps
 the paired t-test on the repeats' means beside it, drawn as panel C (`p_paired`
 below the diagonal, uncorrected, and `q_paired`, Benjamini-Hochberg over the pairs
-tested, above; with 3 repeats that imaged both). Panel C's q is adjusted over the figure
+tested, above; with 3 repeats that imaged both: "–" with fewer, "=" not assessed when the
+difference is the same in every repeat imaged both, so the test has no variance to test with,
+never read as not significant, #90). Panel C's q is adjusted over the figure
 only, so its key says "adjusted over this figure only", and the legend gives each
 condition's verdict q beside it, the feature family's ("Verdict q (the feature's family):
 KD 0.074"; `figure.pairwise_verdicts`), since the two can fall either side of 0.05 (audit 10,
