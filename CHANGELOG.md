@@ -38,6 +38,11 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
   just below 100% (1 - 1e-12, or the float just below 1): the gap to 100% was rounded to 0
   before its log was taken. The gap is now kept to the digits a float holds of it, so such a
   share reads `99.9999999999%`, never `100%`; ordinary shares read as before.
+- **#628 (item 3).** On exports that name conditions by `condition_id` or pair repeats by
+  `repeat_group`, the acquisition anomalies' rows now name their folders, as the comparison
+  rows and the fields to check do: a `folder` column and the folders in the row's field
+  (`ctrl · repeat rep1 · img0 (folder control/rep1)`), in the report and on its page
+  (`_pairing.with_folder_labels`). A table whose folders are their IDs is unchanged.
 - **#642.** `html_report`, `plots` and `plots_of_data` with `group_cols=("condition",
   "repeat_group")`, the groups of MorphoFeature's notebooks, no longer raise "group_cols ...
   hold ['repeat_group'], which the figure does not place". The figures place `repeat_group`

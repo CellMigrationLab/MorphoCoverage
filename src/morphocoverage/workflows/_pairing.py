@@ -36,7 +36,7 @@ from .._repeat_groups import (
     pairing_note,
     with_folders,
 )
-from ..metadata import CONDITION_COLUMN
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ._contrasts import declared_conditions as contrast_conditions
 from ._described import check_described
 from .setup import Setup
@@ -187,13 +187,17 @@ def pairing_said(
 def with_folder_labels(results: MutableMapping[str, Any], pairing: Pairing) -> None:
     """Name each folder beside its IDs in the report's results, when the pairing renamed any
     (experiment-v1 section 3.4): the per-repeat rows of the condition contrast gain ``folder``
-    and ``control_folder``, and the fields to check name their group's folders
+    and ``control_folder``, the acquisition anomalies' rows ``folder`` and the folders in their
+    ``field`` (#628), and the fields to check name their group's folders
     (``settings["folders"]``, ``inspection_text.field_group``)."""
     if not pairing.folders:
         return
     contrast = results.get("contrast")
     if contrast is not None:
         results["contrast"] = replace(contrast, table=with_folders(contrast.table, pairing))
+    anomalies = results.get("acquisition")
+    if anomalies is not None and anomalies.found:
+        results["acquisition"] = replace(anomalies, fields=_anomaly_folders(anomalies, pairing))
     inspection = results.get("inspection")
     if inspection is not None:
         folders = [
@@ -204,6 +208,27 @@ def with_folder_labels(results: MutableMapping[str, Any], pairing: Pairing) -> N
         results["inspection"] = replace(
             inspection, settings={**inspection.settings, "folders": folders}
         )
+
+
+def _anomaly_folders(anomalies: Any, pairing: Pairing) -> pd.DataFrame:
+    """The acquisition anomalies' rows, each with its condition and repeat's folders where the
+    pairing named them by IDs (``Pairing.folder_of``): ``folder`` and, in ``field``, ``"ctrl ·
+    repeat rep1 · img_003 (folder control/rep1)"``; a field whose folders are its IDs as
+    given."""
+    fields = anomalies.fields.copy()
+    if CONDITION_COLUMN not in fields:
+        return fields
+    repeats = fields[REPEAT_COLUMN] if REPEAT_COLUMN in fields else [None] * len(fields)
+    folders = [
+        pairing.folder_of(condition, repeat)
+        for condition, repeat in zip(fields[CONDITION_COLUMN], repeats, strict=True)
+    ]
+    fields["folder"] = folders
+    fields["field"] = [
+        f"{field} (folder {folder})" if folder else field
+        for field, folder in zip(fields["field"], folders, strict=True)
+    ]
+    return fields
 
 
 def _frames(

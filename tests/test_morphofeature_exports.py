@@ -437,3 +437,57 @@ def test_v33_the_guided_control_questions_read_the_scan_by_condition_id() -> Non
     kept = objects.merge(fovs.loc[one, KEY], on=KEY)
     fewer = scan_design(kept, fovs.loc[one], feature_cols=["x"])
     assert most_imaged(fewer, ["DrugA", "ctrl"]) == "ctrl"
+
+
+def _far_field(
+    name: str, condition: str, repeat: str, as_ids: bool = False
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """The export with ``x`` raised by 100 in the first field of a folder: far from the other
+    fields of its condition and repeat, an acquisition anomaly. ``as_ids``: every folder label
+    made its own ID, so no folder is named under another name."""
+    objects, fovs = with_feature(name)
+    if as_ids:
+        fovs = fovs.assign(condition_id=fovs["condition"], repeat_group=fovs["biological_repeat"])
+    held = (fovs["condition"] == condition) & (fovs["biological_repeat"] == repeat)
+    position = fovs.loc[held, "position_id"].iloc[0]
+    mine = (
+        (objects["condition"] == condition)
+        & (objects["biological_repeat"] == repeat)
+        & (objects["position_id"] == position)
+    )
+    objects.loc[mine, "x"] += 100.0
+    return objects, fovs
+
+
+@pytest.mark.parametrize(
+    ("name", "condition", "repeat", "control", "named"),
+    [
+        ("v33", "control", "rep1", "ctrl", "ctrl · repeat rep1"),  # the condition's ID
+        ("v30", "DrugA", "rep1", "CTRL", "DrugA · repeat Day2"),  # the folder's repeat group
+        ("v03", "DrugA", "rep2_drug", "CTRL", "DrugA · repeat Day2"),
+    ],
+)
+def test_an_acquisition_anomaly_names_its_folder(name, condition, repeat, control, named, tmp_path):
+    # #628 item 3: the anomaly rows named a field by its IDs only ("ctrl · repeat rep1 ...").
+    # (v27 holds 5 fields a folder, fewer than a group needs to be judged.)
+    objects, fovs = _far_field(name, condition, repeat)
+    setup = Setup(readout="x", features=("x",), control={"condition": control})
+    result = report(objects, fovs, setup)
+    rows = result.results["acquisition"].fields
+    folder = f"{condition}/{repeat}"
+    mine = rows[rows["field"].str.startswith(f"{named} · ")]
+    assert len(mine) and set(mine["folder"]) == {folder}
+    assert mine["field"].str.endswith(f"(folder {folder})").all()
+    # Every row names its own folder, and the report says it.
+    assert all(f"(folder {f})" in t for f, t in zip(rows["folder"], rows["field"], strict=True))
+    assert f"(folder {folder})" in result.summary(detail="full")
+    page = html_report(result, objects, fovs, tmp_path / "page").read_text(encoding="utf-8")
+    assert f"{named} · " in page and f"(folder {folder})" in page  # the fields to check
+
+
+def test_an_acquisition_anomaly_of_folders_named_as_given_adds_no_folder():
+    objects, fovs = _far_field("v33", "control", "rep1", as_ids=True)
+    setup = Setup(readout="x", features=("x",), control={"condition": "control"})
+    rows = report(objects, fovs, setup).results["acquisition"].fields
+    assert len(rows) and "folder" not in rows
+    assert not rows["field"].str.contains("(folder", regex=False).any()
