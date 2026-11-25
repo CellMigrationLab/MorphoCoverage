@@ -89,7 +89,19 @@ def u_statistic(delta: np.ndarray) -> dict[str, float]:
     return {"u": u, "z": float(z), "p": float(stats.norm.sf(z))}
 
 
+# The most repeats whose 2**n sign assignments are enumerated (65,536 rows, as
+# ``sampling_unit.contrast_repeats``); beyond, the exact tests are refused, not run in
+# exponential memory and time (#519). The benchmark's designs have 3-6 repeats.
+MAX_EXACT_REPEATS = 16
+
+
 def _signs(n: int) -> np.ndarray:
+    """Every assignment of signs to ``n`` repeats, the observed (all +1) first."""
+    if n > MAX_EXACT_REPEATS:
+        raise ValueError(
+            f"the exact sign-flip enumerates 2**n assignments, so it takes at most "
+            f"{MAX_EXACT_REPEATS} repeats, not {n}"
+        )
     return np.array(list(product((1.0, -1.0), repeat=n)))
 
 
@@ -212,6 +224,7 @@ def permutation_test(
 
 
 __all__ = [
+    "MAX_EXACT_REPEATS",
     "deltas",
     "field_means",
     "min_p",

@@ -20,6 +20,10 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#519.** The benchmark's exact sign-flip tests (`candidates/hd_tests.py`: `sign_flip_u`,
+  `shrinkage_hotelling`) refuse more than 16 repeats (`MAX_EXACT_REPEATS`) instead of
+  building all 2**n sign assignments in memory (n = 25 needed more than 800 MB for the signs
+  alone). Up to 16 repeats, and the benchmark's 3-6, they are enumerated as before.
 - **#524.** The benchmark's `semi_synthetic` (`data/simulations/decisions/embedding.py`)
   refuses a repeat of fewer than 2 fields (it got no treated field), a shift asked of values
   that do not vary (it gave a zero shift), values that are not finite and values and

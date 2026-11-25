@@ -367,3 +367,13 @@ def test_semi_synthetic_refuses_what_it_cannot_split_or_shift_524(inputs, shift,
 
     with pytest.raises(ValueError, match=match):
         semi_synthetic(*inputs, shift, np.random.default_rng(1))
+
+
+def test_the_exact_sign_flip_tests_refuse_more_repeats_than_they_can_enumerate_519():
+    # 2**n assignments as one dense array: n=25 needed >800 MB for the signs alone.
+    deltas = np.random.default_rng(0).normal(size=(17, 3))
+    with pytest.raises(ValueError, match="16"):
+        hd_tests.sign_flip_u(deltas)
+    with pytest.raises(ValueError, match="16"):
+        hd_tests.shrinkage_hotelling(deltas, deltas)
+    assert 0 < hd_tests.sign_flip_u(deltas[:16]) <= 1  # up to 16, enumerated as before
