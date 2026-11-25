@@ -20,6 +20,11 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#532.** The descriptor-spread resample helpers (`strategies._descriptor_resamples`)
+  refuse with a `ValueError` what they cannot resample: no value (a `ZeroDivisionError`
+  before), no FOV, no resample, or positions that are not one FOV of `k` per value. Their
+  caller, `DescriptorSpreadEstimator`, already reports these cases as not yet possible, so
+  no result changes.
 - **#485.** A complex column of another feature table is refused by `attach_feature_tables`
   ("has complex columns"), before any float cast dropped its imaginary part: an infinity in
   the imaginary part went unseen and a varying one was listed as constant. Nullable real

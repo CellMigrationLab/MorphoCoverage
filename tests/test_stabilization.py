@@ -656,3 +656,25 @@ def test_p9_4_object_row_order_within_fields_does_not_change_the_live_stop():
         r.result.evidence.quantities for r in again
     ]
     assert [r.result.rule_decision for r in base] == [r.result.rule_decision for r in again]
+
+
+def test_the_resample_helpers_refuse_inputs_they_cannot_resample_532():
+    # Their callers guard these cases; the helpers now say so themselves instead of a
+    # ZeroDivisionError, draws over no FOV or an index beyond the FOVs.
+    rng = np.random.default_rng(0)
+    values = np.array([1.0, 2.0, 3.0])
+    with pytest.raises(ValueError, match="no value"):
+        _descriptor_resamples._object_resamples(np.array([]), 5, rng, ("mean",))
+    with pytest.raises(ValueError, match="n_resamples"):
+        _descriptor_resamples._object_resamples(values, 0, rng, ("mean",))
+    fov = _descriptor_resamples._fov_resamples
+    for positions, k, n, match in (
+        (np.array([0, 0, 1]), 0, 5, "k"),
+        (np.array([0, 1, 2]), 2, 5, "positions"),
+        (np.array([0, -1, 1]), 2, 5, "positions"),
+        (np.array([0, 1]), 2, 5, "positions"),
+        (np.array([0, 1, 1]), 2, 0, "n_resamples"),
+    ):
+        with pytest.raises(ValueError, match=match):
+            fov(values, positions, k, n, rng, ("mean",))
+    assert fov(np.array([]), np.array([], dtype=int), 3, 4, rng, ("mean",))["mean"].shape == (4,)
