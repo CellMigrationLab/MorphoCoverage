@@ -575,6 +575,7 @@ def test_b4_permuted_orders_are_per_group_and_ignore_row_order():
         [100.0, -100.0, 100.0, 100.0],
         [100.0, 0.0, 100.0, 100.0],
         [100.0, np.inf, 100.0, 100.0],
+        [1e308] * 4,  # each finite, their total overflows (#544)
         ["100"] * 4,
     ],
 )

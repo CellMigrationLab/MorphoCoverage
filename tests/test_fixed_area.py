@@ -1,5 +1,7 @@
 """Tests for the fixed imaged-area baseline."""
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -90,3 +92,21 @@ def test_c4_an_infinite_field_area_is_not_summed():
     result = _run_one([[1.0], [2.0]], FixedAreaStrategy(10.0, "area_um2"), area_um2=[np.inf, 1.0])
     assert result.decision is not Decision.STOP
     assert result.evidence.quantities["imaged_area"].availability is Availability.NOT_APPLICABLE
+
+
+def test_a_total_area_that_overflows_is_not_applicable_never_a_stop_544():
+    # Every area finite and positive, their float64 sum infinite: no measured total, no stop.
+    built = SCENARIOS["homogeneous"]()
+    fovs = built.fovs.copy()
+    fovs["area_um2"] = 1e308
+    data = validate_input_tables(built.objects, fovs=fovs, feature_cols=list(FEATURE_COLS))
+    estimator = ImagedAreaEstimator("area_um2")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # no overflow warning either
+        quantity = estimator.estimate(data, objective=POPULATION).quantities["imaged_area"]
+    assert quantity.availability.value == "not_applicable"
+    assert "overflow" in quantity.reason
+    fovs["area_um2"] = 1e300  # an ordinary finite total is summed as before
+    data = validate_input_tables(built.objects, fovs=fovs, feature_cols=list(FEATURE_COLS))
+    quantity = estimator.estimate(data, objective=POPULATION).quantities["imaged_area"]
+    assert quantity.value == pytest.approx(1e300 * len(fovs))

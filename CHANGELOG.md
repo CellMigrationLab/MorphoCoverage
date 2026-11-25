@@ -20,6 +20,11 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#544.** Imaged areas that are each finite but whose total overflows a float (two fields
+  of `1e308`) are now a problem of `_areas.area_problem`: `ImagedAreaEstimator` reports the
+  area `not_applicable` with that reason, so `FixedAreaStrategy` no longer stops on an
+  infinite total, and a benchmark refuses the dataset instead of recording an infinite
+  `area`/`total_area`.
 - **#418.** `robust_sd(values, "geometry")` of a 1-D sample of one value returns 0 (no
   spread) instead of raising `IndexError`: `constant_columns` sized its zero SD by a second
   axis that a 1-D sample does not have.
