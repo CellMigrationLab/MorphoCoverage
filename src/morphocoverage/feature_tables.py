@@ -301,12 +301,12 @@ def _column_problems(
             f"{other!r} and {name!r} share columns {listing(both, _SHOWN)}; rename them, as "
             "each feature must have one name"
         )
-    numeric = [
-        c
-        for c in columns
-        if pd.api.types.is_numeric_dtype(table[c]) and not pd.api.types.is_bool_dtype(table[c])
-    ]
-    words = [c for c in columns if c not in numeric]
+    complex_, numeric, words = _column_kinds(table, columns)
+    if complex_:
+        problems.append(
+            f"{name!r} has complex columns: {listing(complex_, _SHOWN)} (a feature holds real "
+            "numbers)"
+        )
     if words:
         problems.append(
             f"{name!r} has columns that are not numbers: {listing(words, _SHOWN)} (a feature "
@@ -326,6 +326,24 @@ def _column_problems(
             "them out of the table"
         )
     return problems
+
+
+def _column_kinds(
+    table: pd.DataFrame, columns: list[Any]
+) -> tuple[list[Any], list[Any], list[Any]]:
+    """The ``columns`` of ``table`` that are complex, real numbers, and neither. Complex
+    columns are told apart before any float cast, which would drop their imaginary part (an
+    infinity in it unseen, a varying one read as constant; #485)."""
+    complex_ = [c for c in columns if pd.api.types.is_complex_dtype(table[c])]
+    numeric = [
+        c
+        for c in columns
+        if pd.api.types.is_numeric_dtype(table[c])
+        and not pd.api.types.is_bool_dtype(table[c])
+        and c not in complex_
+    ]
+    words = [c for c in columns if c not in numeric and c not in complex_]
+    return complex_, numeric, words
 
 
 def _constant(block: pd.DataFrame) -> tuple[str, ...]:

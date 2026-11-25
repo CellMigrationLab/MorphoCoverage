@@ -20,6 +20,10 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#485.** A complex column of another feature table is refused by `attach_feature_tables`
+  ("has complex columns"), before any float cast dropped its imaginary part: an infinity in
+  the imaginary part went unseen and a varying one was listed as constant. Nullable real
+  columns are read as before.
 - **#495.** `ColumnWeights` refuses booleans and text as weights (`True` became 1.0 and
   `"2.0"` 2.0 through `float`); `BlockWeights` refuses an `inertia_radius` that is not a
   boolean (the text `"False"` turned the radius correction on while its provenance said
