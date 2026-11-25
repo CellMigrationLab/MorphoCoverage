@@ -310,3 +310,16 @@ def test_the_colab_clone_keeps_the_token_out_of_urls_commands_and_errors_591(mon
     commands, _, error = _colab_clone(monkeypatch, tmp_path, 128)
     assert isinstance(error, RuntimeError) and "git clone failed" in str(error)
     assert not any("pip" in c for c in commands)
+
+
+def test_a_failed_p0_stops_the_run_before_any_other_module_520(tmp_path, monkeypatch):
+    # run discarded P0's exit code and went on to P1-P5 as if the gate had passed.
+    calls = []
+    monkeypatch.setattr(colab, "run_p0", lambda out: 1)
+    monkeypatch.setattr(runner, "run", lambda *args: calls.append(args))
+    with pytest.raises(RuntimeError, match="P0"):
+        colab.run(["P0", "P5"], "smoke", tmp_path)
+    assert calls == []
+    monkeypatch.setattr(colab, "run_p0", lambda out: 0)
+    colab.run(["P0", "P5"], "smoke", tmp_path)
+    assert len(calls) == 1

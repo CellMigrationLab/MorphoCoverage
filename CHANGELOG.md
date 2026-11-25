@@ -20,6 +20,9 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#520.** The benchmark's `colab.run` stops with an error when P0 (the deterministic tests)
+  fails, naming its report, instead of discarding pytest's exit code and running P1-P5 as if
+  the gate had passed.
 - **#569.** `data/crick_idr/jcs_effect_fovs.py` judges two IQR bands as overlapping only when
   they intersect (`bands_overlap`, endpoints included), whichever is higher: a band wholly
   below the other read as overlapping. Inverted or missing quartiles are refused. The
