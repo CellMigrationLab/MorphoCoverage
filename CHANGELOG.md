@@ -20,6 +20,11 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#524.** The benchmark's `semi_synthetic` (`data/simulations/decisions/embedding.py`)
+  refuses a repeat of fewer than 2 fields (it got no treated field), a shift asked of values
+  that do not vary (it gave a zero shift), values that are not finite and values and
+  metadata of different lengths; a draw of two rows that cancel is drawn again instead of
+  giving a zero direction. Draws that do not cancel are unchanged.
 - **#520.** The benchmark's `colab.run` stops with an error when P0 (the deterministic tests)
   fails, naming its report, instead of discarding pytest's exit code and running P1-P5 as if
   the gate had passed.

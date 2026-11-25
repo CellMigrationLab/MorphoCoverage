@@ -323,3 +323,47 @@ def test_a_failed_p0_stops_the_run_before_any_other_module_520(tmp_path, monkeyp
     monkeypatch.setattr(colab, "run_p0", lambda out: 0)
     colab.run(["P0", "P5"], "smoke", tmp_path)
     assert len(calls) == 1
+
+
+def _semi_inputs(fields_per_repeat: int = 4, values: np.ndarray | None = None):
+    meta = pd.DataFrame(
+        {
+            "biological_repeat": np.repeat(["R1", "R2"], fields_per_repeat * 3),
+            "position_id": np.repeat(np.arange(2 * fields_per_repeat), 3).astype(str),
+        }
+    )
+    if values is None:
+        values = np.random.default_rng(0).normal(size=(len(meta), 3))
+    return values, meta
+
+
+def test_semi_synthetic_splits_every_repeat_and_shifts_by_the_requested_amount_524():
+    from decisions.embedding import semi_synthetic
+
+    values, meta = _semi_inputs()
+    _, labelled, vector = semi_synthetic(values, meta, 0.5, np.random.default_rng(1))
+    centred = values - values.mean(axis=0)
+    within = np.sqrt(np.square(centred).sum(axis=1).mean())
+    assert np.linalg.norm(vector) == pytest.approx(0.5 * within)
+    assert (labelled.groupby("biological_repeat")["condition"].nunique() == 2).all()
+    # Two exactly opposite rows: every draw of two different rows cancels, never a zero shift.
+    opposite = np.tile([[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]], (12, 1))
+    _, _, vector = semi_synthetic(opposite, meta, 0.5, np.random.default_rng(1))
+    assert np.linalg.norm(vector) == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize(
+    ("inputs", "shift", "match"),
+    [
+        (_semi_inputs(fields_per_repeat=1), 0.5, "2 fields"),  # no treated field at all
+        (_semi_inputs(values=np.ones((24, 3))), 0.5, "vary"),  # a zero shift asked as 0.5
+        ((np.ones((5, 3)), _semi_inputs()[1]), 0.5, "rows"),
+        ((np.full((24, 3), np.nan), _semi_inputs()[1]), 0.5, "finite"),
+    ],
+)
+def test_semi_synthetic_refuses_what_it_cannot_split_or_shift_524(inputs, shift, match):
+    # One field per repeat gave no treated field; constant values a zero shift for 0.5.
+    from decisions.embedding import semi_synthetic
+
+    with pytest.raises(ValueError, match=match):
+        semi_synthetic(*inputs, shift, np.random.default_rng(1))
