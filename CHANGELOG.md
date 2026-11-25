@@ -20,6 +20,9 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#418.** `robust_sd(values, "geometry")` of a 1-D sample of one value returns 0 (no
+  spread) instead of raising `IndexError`: `constant_columns` sized its zero SD by a second
+  axis that a 1-D sample does not have.
 - **#578.** The glossary's "Sign-flip test" no longer calls it "the exact test on the signs":
   it is a two-sided paired permutation test on the mean of the per-repeat differences, each
   difference keeping its magnitude while its sign is flipped, exact up to 16 repeats and

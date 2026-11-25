@@ -52,7 +52,8 @@ def constant_columns(matrix: np.ndarray) -> np.ndarray:
     (1e-7) of its absolute mean.
     """
     spread = np.ptp(matrix, axis=0)
-    sd = matrix.std(axis=0, ddof=1) if len(matrix) > 1 else np.zeros(matrix.shape[1])
+    # matrix.shape[1:]: one value per column, or one value for a 1-D sample (#418).
+    sd = matrix.std(axis=0, ddof=1) if len(matrix) > 1 else np.zeros(matrix.shape[1:])
     scale = np.abs(matrix.mean(axis=0))
     return (spread == 0) | (sd <= CONSTANT_RELATIVE_SPREAD * scale)
 
