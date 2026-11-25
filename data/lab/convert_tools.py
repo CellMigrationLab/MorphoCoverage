@@ -22,11 +22,13 @@ def sha256(data: bytes) -> str:
 
 
 def fetch_zip_member(url: str, archive_md5: str, member: str) -> bytes:
-    """``member``'s bytes from the zip archive at ``url``, the archive's md5 verified."""
+    """``member``'s bytes from the zip archive at ``url``, the archive's md5 verified, in
+    chunks: the archive (hundreds of MB) is never held in memory whole (#577)."""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "archive.zip"
         urllib.request.urlretrieve(url, path)
-        md5 = hashlib.md5(path.read_bytes()).hexdigest()
+        with open(path, "rb") as handle:
+            md5 = hashlib.file_digest(handle, "md5").hexdigest()
         if md5 != archive_md5:
             raise SystemExit(f"{url}: md5 {md5}, expected {archive_md5}")
         with zipfile.ZipFile(path) as archive:

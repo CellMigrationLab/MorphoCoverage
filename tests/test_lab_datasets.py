@@ -168,3 +168,34 @@ def test_convert_rebuilds_the_stored_tables_from_the_pinned_source(dataset_id):
             io.StringIO(frame.to_csv(index=False)), dtype=str, keep_default_na=False
         )
         pd.testing.assert_frame_equal(stored, rebuilt)
+
+
+def _served_zip(tmp_path, monkeypatch, member: str, data: bytes) -> tuple[str, str]:
+    """A zip archive served in place of the download: its URL and md5."""
+    import hashlib
+    import shutil
+    import urllib.request
+    import zipfile
+
+    archive = tmp_path / "source.zip"
+    with zipfile.ZipFile(archive, "w") as handle:
+        handle.writestr(member, data)
+    monkeypatch.setattr(
+        urllib.request, "urlretrieve", lambda url, path: shutil.copyfile(archive, path)
+    )
+    return "https://example.org/source.zip", hashlib.md5(archive.read_bytes()).hexdigest()
+
+
+def test_the_archive_is_hashed_in_chunks_never_read_whole_577(tmp_path, monkeypatch):
+    # The md5 read the whole archive into memory (381 MB for CCT8 CDM morphology).
+    import convert_tools
+
+    url, md5 = _served_zip(tmp_path, monkeypatch, "data/table.csv", b"a,b\n1,2\n")
+
+    def whole(self):
+        raise AssertionError(f"{self} read whole")
+
+    monkeypatch.setattr(Path, "read_bytes", whole)
+    assert convert_tools.fetch_zip_member(url, md5, "data/table.csv") == b"a,b\n1,2\n"
+    with pytest.raises(SystemExit, match="expected"):
+        convert_tools.fetch_zip_member(url, "0" * 32, "data/table.csv")

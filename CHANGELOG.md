@@ -20,6 +20,9 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#577.** The lab converters hash a downloaded source archive in chunks
+  (`hashlib.file_digest`) instead of reading it whole into memory (381 MB for CCT8 CDM
+  morphology); the md5 and the member's sha256 are checked as before.
 - **#583.** The reference check (`data/reference/reference.py`) refuses a job whose kind is
   not one it runs or whose name is not one plain word (a separator, `.` or `..`), and a job
   listed twice, before anything runs; the owner's job names are checked the same way, and
