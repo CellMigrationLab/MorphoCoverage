@@ -20,6 +20,11 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#574.** The glioma dataset card (`data/lab/cct7_cct8_glioma_cdm_tracks/card.toml`) no
+  longer says that `Unique_ID` and `File_name` are checked by `convert.py`: the converter
+  never reads them, so the card now says they are not checked; `experiment_nb` is checked
+  against `Repeat`, as before. Their format was not reconstructed (the owner's source is not
+  in the repository); the stored tables are unchanged.
 - **#640 (part).** The workflows example notebook pairs the positive control's fields by
   `repeat_group` (`pair_cols=("repeat_group",)`), not by the folder label
   `biological_repeat`, and stops with what to add when the FOV table has no `repeat_group`.

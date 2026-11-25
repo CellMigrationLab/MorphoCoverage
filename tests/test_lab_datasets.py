@@ -245,3 +245,16 @@ def test_whole_numbers_name_the_source_rows_576():
     assert convert_tools.whole_numbers(source.drop(1), "TRACK_ID", 0).tolist() == [0, 3]
     with pytest.raises(SystemExit, match="not numbers"):
         convert_tools.whole_numbers(source.assign(TRACK_ID="1"), "TRACK_ID", 0)
+
+
+def test_the_glioma_card_claims_no_check_convert_does_not_make_574():
+    # The card said Unique_ID and File_name were checked by convert.py, which never reads
+    # them; only experiment_nb is checked (against Repeat).
+    dropped = catalog.read_card("cct7_cct8_glioma_cdm_tracks")["columns"]["dropped"]
+    source = (LAB / "cct7_cct8_glioma_cdm_tracks" / "convert.py").read_text()
+    for column in ("Unique_ID", "File_name"):
+        entry = next(e for e in dropped if e.startswith(column) or f" {column}" in e)
+        assert f'source["{column}"]' not in source
+        assert "not checked" in entry, entry
+    checked = next(e for e in dropped if "experiment_nb" in e)
+    assert 'source["experiment_nb"]' in source and "checked by convert.py" in checked
