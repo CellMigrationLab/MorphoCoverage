@@ -20,6 +20,10 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#551.** `document` compares the parts' Setups field by field with a contrast table
+  compared by its values (`DataFrame.equals`): a Setup declared with `contrasts=` raised
+  "the truth value of a DataFrame is ambiguous" even against itself. Different contrast
+  tables are still refused as different Setups.
 - **#532.** The descriptor-spread resample helpers (`strategies._descriptor_resamples`)
   refuse with a `ValueError` what they cannot resample: no value (a `ZeroDivisionError`
   before), no FOV, no resample, or positions that are not one FOV of `k` per value. Their
