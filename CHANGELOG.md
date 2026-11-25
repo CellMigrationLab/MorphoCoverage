@@ -20,6 +20,11 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#583.** The reference check (`data/reference/reference.py`) refuses a job whose kind is
+  not one it runs or whose name is not one plain word (a separator, `.` or `..`), and a job
+  listed twice, before anything runs; the owner's job names are checked the same way, and
+  `run_job` refuses a target outside `OUT` before removing it. A job list could make it
+  remove a folder outside `OUT` (`../.. victim`).
 - **#591.** The benchmark's Colab notebook (`data/simulations/decisions/benchmark_colab.ipynb`)
   no longer puts the GitHub token in the clone URL, where it was in the command, in the
   clone's `.git/config` and in the error of a failed clone: git reads it through a

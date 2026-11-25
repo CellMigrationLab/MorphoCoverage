@@ -211,6 +211,7 @@
    ],
    "KINDS": [
     "_control = (OWN, MASTER_RAW, ACROSS)",
+    "data.reference.reference = ('idr', 'lab', 'synthetic', 'morphobricks', 'scenario', 'owner')",
     "data.simulations.decisions.runner = ('core', 'stress', 'screening')",
     "sampling_unit.populations = ('main', 'group')"
    ],

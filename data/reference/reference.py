@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -32,6 +33,9 @@ HERE = Path(__file__).resolve().parent
 REPOSITORY = HERE.parents[1]
 JOB_SCRIPT = HERE / "reference_job.py"
 OWNER_JOBS_VARIABLE = "MORPHOCOVERAGE_OWNER_JOBS"
+# The job kinds reference_job.py runs (its BUILT_IN, the owner's jobs and the idr scripts).
+KINDS = ("idr", "lab", "synthetic", "morphobricks", "scenario", "owner")
+_NAME = re.compile(r"[A-Za-z0-9_.-]+")
 sys.path.insert(0, str(HERE))
 from reference_compare import compare
 
@@ -60,15 +64,32 @@ def export_working_tree(tree: Path) -> None:
             shutil.copy2(source, target)
 
 
+def check_job(kind: str, name: str, where: object) -> None:
+    """Refuse a job whose kind is not one of ``KINDS`` or whose name is not one plain path
+    component (letters, digits, ``_``, ``.``, ``-``, not ``.`` or ``..``): its output folder
+    ``OUT/<kind>__<name>`` is removed before the job runs, so it must lie in OUT (#583)."""
+    if kind not in KINDS:
+        raise ValueError(f"{where}: the job kind {kind!r} is not one of {', '.join(KINDS)}")
+    if not _NAME.fullmatch(name) or name in (".", ".."):
+        raise ValueError(
+            f"{where}: the job name {name!r} is not one plain word (letters, digits, _ . -)"
+        )
+
+
 def read_jobs(path: Path) -> list[str]:
-    """The jobs of a job list: ``<kind> <name>`` lines, ``#`` comments and blanks skipped."""
+    """The jobs of a job list: ``<kind> <name>`` lines, ``#`` comments and blanks skipped;
+    each checked (``check_job``) and listed once."""
     jobs = []
     for line in path.read_text().splitlines():
         line = line.split("#", 1)[0].strip()
         if line:
             if len(line.split()) != 2:
                 raise ValueError(f"{path}: {line!r} is not '<kind> <name>'")
-            jobs.append(" ".join(line.split()))
+            check_job(*line.split(), path)
+            job = " ".join(line.split())
+            if job in jobs:
+                raise ValueError(f"{path}: the job {job!r} is listed twice")
+            jobs.append(job)
     return jobs
 
 
@@ -91,8 +112,7 @@ def owner_job_lines(jobs_file: Path, tree: Path) -> list[str]:
         raise RuntimeError(f"the owner's jobs file {jobs_file} cannot be read:\n{done.stderr}")
     names = done.stdout.splitlines()
     for name in names:
-        if name.split() != [name] or "/" in name:
-            raise ValueError(f"{jobs_file}: the job name {name!r} is not one word")
+        check_job("owner", name, jobs_file)
     return [f"owner {name}" for name in names]
 
 
@@ -165,6 +185,8 @@ def run_job(job: str, tree: Path, out: Path, owner_jobs: Path | None) -> tuple[s
     kind, name = job.split()
     folder = f"{kind}__{name}"
     target = out / folder
+    if target.resolve().parent != out.resolve():  # checked again before anything is removed
+        raise ValueError(f"the job {job!r} would write outside {out}; nothing was removed")
     shutil.rmtree(target, ignore_errors=True)  # fallback: a first run has no earlier output
     target.mkdir(parents=True)
     started = time.perf_counter()
