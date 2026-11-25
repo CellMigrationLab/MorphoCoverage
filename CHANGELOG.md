@@ -20,6 +20,11 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#576.** The lab converters read the source's `Repeat`, the glioma `TRACK_ID` and the
+  filopodia count through `convert_tools.whole_numbers`, which stops, naming the source
+  rows, unless every value is a finite whole number of at least 1 (repeats) or 0 (track IDs,
+  counts): `astype(int)` truncated a repeat of 1.8 to 1 and a count of 5.9 to 5. The stored
+  tables hold only such values (repeats 1-3, track IDs from 1, counts from 7).
 - **#577.** The lab converters hash a downloaded source archive in chunks
   (`hashlib.file_digest`) instead of reading it whole into memory (381 MB for CCT8 CDM
   morphology); the md5 and the member's sha256 are checked as before.

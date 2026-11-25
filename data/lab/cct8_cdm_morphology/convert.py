@@ -34,6 +34,7 @@ from convert_tools import (
     fetch_zip_member,
     sirna_target,
     synthetic_positions,
+    whole_numbers,
     write_csv_gz,
 )
 
@@ -83,7 +84,7 @@ def build_tables(source: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     table = source.rename(columns={"Condition": "condition", **RENAMED})
     table["condition"] = table["condition"].astype(str)
-    table["biological_repeat"] = source["Repeat"].astype(int).astype(str)
+    table["biological_repeat"] = whole_numbers(source, "Repeat", 1).astype(str)
     table["technical_repeat"] = SINGLE
     table["image_file"] = UNRECORDED
     table["label_id"] = 1

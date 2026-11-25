@@ -26,7 +26,13 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 # The shared helpers live one folder up.
-from convert_tools import check_columns, check_member, sirna_target, write_csv_gz
+from convert_tools import (
+    check_columns,
+    check_member,
+    sirna_target,
+    whole_numbers,
+    write_csv_gz,
+)
 
 MEMBER = "Tracking_data_CCT8_CCT7_silencing_Glioma.csv"
 MEMBER_SHA256 = "dec991b3fdd52956d01ee64c2348ee4ec64afe4f16b7d0f67c549350b064233e"
@@ -92,12 +98,12 @@ def build_tables(source: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         {
             "experiment": experiment,
             "condition": source["Condition"].where(~control, "siCTRL"),
-            "biological_repeat": experiment + "_" + source["Repeat"].astype(int).astype(str),
+            "biological_repeat": experiment + "_" + whole_numbers(source, "Repeat", 1).astype(str),
             "technical_repeat": names["well"],
             "position_id": names["well"] + "_" + names["position"],
             "image_file": UNRECORDED,
             "target": source["Condition"].where(~control, "siCTRL").map(sirna_target),
-            "label_id": source["TRACK_ID"].astype(int),
+            "label_id": whole_numbers(source, "TRACK_ID", 0),
             **{metric: source[metric] for metric in METRICS},
             "source_condition": source["Condition"],
             "source_file": source["File_name_raw"],

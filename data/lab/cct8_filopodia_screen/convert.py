@@ -35,6 +35,7 @@ from convert_tools import (
     fetch_zip_member,
     sirna_target,
     synthetic_positions,
+    whole_numbers,
     write_csv_gz,
 )
 
@@ -82,11 +83,11 @@ def build_tables(source: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
             "condition": source["Condition"].astype(str),
             "biological_repeat": source["dataset"].astype(str)
             + "_"
-            + source["Repeat"].astype(int).astype(str),
+            + whole_numbers(source, "Repeat", 1).astype(str),
             "technical_repeat": SINGLE,
             "image_file": UNRECORDED,
             "label_id": 1,
-            FEATURE: source[FEATURE].astype(int),
+            FEATURE: whole_numbers(source, FEATURE, 0),
             "source_row": source["source_row"].astype(int),
         }
     )

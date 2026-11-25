@@ -199,3 +199,49 @@ def test_the_archive_is_hashed_in_chunks_never_read_whole_577(tmp_path, monkeypa
     assert convert_tools.fetch_zip_member(url, md5, "data/table.csv") == b"a,b\n1,2\n"
     with pytest.raises(SystemExit, match="expected"):
         convert_tools.fetch_zip_member(url, "0" * 32, "data/table.csv")
+
+
+def _filopodia_source(**changed) -> pd.DataFrame:
+    """A small source of the filopodia screen, as read_source returns it."""
+    source = pd.DataFrame(
+        {
+            "Condition": ["siCTRL", "siCTRL", "siCCT8#5", "siCCT8#5"],
+            "Filopodia number": [3.0, 5.0, 1.0, 0.0],
+            "Repeat": [1.0, 2.0, 1.0, 2.0],
+            "dataset": "CCT8",
+            "source_row": range(2, 6),
+        }
+    )
+    for column, (row, value) in changed.items():
+        source.loc[row, column.replace("_", " ")] = value
+    return source
+
+
+@pytest.mark.parametrize(
+    ("change", "column"),
+    [
+        ({"Repeat": (1, 1.8)}, "Repeat"),  # truncated to repeat 1, merged with it
+        ({"Repeat": (1, 0.0)}, "Repeat"),
+        ({"Filopodia_number": (2, 5.9)}, "Filopodia number"),  # a count truncated to 5
+        ({"Filopodia_number": (2, -1.0)}, "Filopodia number"),
+        ({"Filopodia_number": (2, np.inf)}, "Filopodia number"),
+    ],
+)
+def test_fractional_or_impossible_ids_and_counts_are_refused_not_truncated_576(change, column):
+    module = _convert_module("cct8_filopodia_screen")
+    objects, _ = module.build_tables(_filopodia_source())  # whole numbers: converted
+    assert sorted(objects["Filopodia number"]) == [0, 1, 3, 5]
+    with pytest.raises(SystemExit, match=f"{column}.*row") as error:
+        module.build_tables(_filopodia_source(**change))
+    assert "whole number" in str(error.value)
+
+
+def test_whole_numbers_name_the_source_rows_576():
+    import convert_tools
+
+    source = pd.DataFrame({"TRACK_ID": [0, 10.7, 3], "source_row": [2, 3, 4]})
+    with pytest.raises(SystemExit, match="TRACK_ID.*row 3: 10.7"):
+        convert_tools.whole_numbers(source, "TRACK_ID", minimum=0)
+    assert convert_tools.whole_numbers(source.drop(1), "TRACK_ID", 0).tolist() == [0, 3]
+    with pytest.raises(SystemExit, match="not numbers"):
+        convert_tools.whole_numbers(source.assign(TRACK_ID="1"), "TRACK_ID", 0)
