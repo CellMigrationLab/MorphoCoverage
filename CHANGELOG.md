@@ -20,6 +20,11 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#495.** `ColumnWeights` refuses booleans and text as weights (`True` became 1.0 and
+  `"2.0"` 2.0 through `float`); `BlockWeights` refuses an `inertia_radius` that is not a
+  boolean (the text `"False"` turned the radius correction on while its provenance said
+  `"False"`) and block feature names that are not non-empty text (they were recast with
+  `str`). Valid settings give the same results.
 - **#491.** `whole_table_tests` refuses `permutations` that is not an integer of at least 1
   (0 drew no shuffle and still gave `p_shuffle = 1.0`; negative, fractional, boolean and
   text values were not checked) and a `random_state` that is not a non-negative integer.

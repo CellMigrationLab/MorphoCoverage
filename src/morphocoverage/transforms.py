@@ -39,7 +39,7 @@ from typing import Any
 
 import numpy as np
 
-from ._checks import is_integer
+from ._checks import check_flag, is_integer, is_positive_finite
 from ._frozen import owned
 from ._robust_sd import CONSTANT_RELATIVE_SPREAD, constant_columns
 from ._wording import listing
@@ -368,10 +368,11 @@ class ColumnWeights(FeatureTransform):
     weights: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        values = tuple(float(w) for w in self.weights)
-        if not values or not all(np.isfinite(w) and w > 0 for w in values):
+        # Checked before any float(): True would become 1.0 and "2.0" 2.0 (#495).
+        weights = tuple(self.weights)
+        if not weights or not all(is_positive_finite(w) for w in weights):
             raise ValueError("weights must be one positive finite number per feature")
-        object.__setattr__(self, "weights", values)
+        object.__setattr__(self, "weights", tuple(float(w) for w in weights))
 
     @property
     def name(self) -> str:
@@ -421,10 +422,16 @@ class BlockWeights(FeatureTransform):
     inertia_radius: bool = False
 
     def __post_init__(self) -> None:
-        blocks = tuple(tuple(str(c) for c in block) for block in self.blocks)
+        blocks = tuple(tuple(block) for block in self.blocks)
         if not blocks or any(not block for block in blocks):
             raise ValueError("blocks must be one or more non-empty tuples of feature names")
+        # Names are taken as given, never recast with str() (#495).
+        if not all(isinstance(c, str) and c.strip() for block in blocks for c in block):
+            raise TypeError("blocks must hold feature names (non-empty text)")
         object.__setattr__(self, "blocks", blocks)
+        object.__setattr__(
+            self, "inertia_radius", check_flag(self.inertia_radius, "inertia_radius")
+        )
 
     @property
     def name(self) -> str:
