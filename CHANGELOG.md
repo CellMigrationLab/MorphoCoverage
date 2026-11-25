@@ -20,6 +20,9 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#491.** `whole_table_tests` refuses `permutations` that is not an integer of at least 1
+  (0 drew no shuffle and still gave `p_shuffle = 1.0`; negative, fractional, boolean and
+  text values were not checked) and a `random_state` that is not a non-negative integer.
 - **#528.** `repeat_effect` refuses a `level` outside (0, 1) (1 gave an infinite interval, a
   negative level an invalid quantile) and an infinite per-repeat contrast (it gave NaN bounds
   after runtime warnings). A missing contrast still gives no interval (NaN), as documented.

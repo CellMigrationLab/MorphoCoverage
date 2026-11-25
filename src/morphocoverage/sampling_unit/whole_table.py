@@ -71,6 +71,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .._checks import as_count, check_seed
 from .._frozen import owned
 from .._seeds import group_rng
 from ..embedding import robust_scale
@@ -393,7 +394,11 @@ def whole_table_tests(
 ) -> WholeTable:
     """The whole-table tests of every table (``tables``: each name and its columns) for each
     ``(condition, control)`` of ``pairs`` (see the module); ``families``, each condition's
-    declared experiment (``Setup.experiment``), sets the correction families."""
+    declared experiment (``Setup.experiment``), sets the correction families.
+    ``permutations`` is a count of at least 1 and ``random_state`` a seed: no draws would
+    print a p of 1 that no shuffle computed (#491)."""
+    permutations = as_count(permutations, "permutations")
+    random_state = check_seed(random_state)
     rows: list[dict[str, Any]] = []
     left: dict[str, int] = {}
     for name, columns in tables.items():
