@@ -509,3 +509,17 @@ def test_benjamini_hochberg_keeps_nan_and_matches_the_definition():
     q = benjamini_hochberg(p)
     assert np.isnan(q[1])
     assert np.allclose(q[[0, 2, 3, 4]], [0.04, 0.04 * 4 / 3, 0.04 * 4 / 3, 1.0])
+
+
+def test_repeat_effect_refuses_a_level_outside_0_1_and_infinite_contrasts_528():
+    # level=1 gave an infinite interval and a negative level an invalid quantile; an
+    # infinite contrast gave NaN bounds after runtime warnings.
+    contrasts = np.array([0.1, 0.3, 0.2])
+    for level in (0, 1, -0.5, 1.5, float("nan"), True, "0.95"):
+        with pytest.raises(ValueError, match="level"):
+            repeat_effect("raw", contrasts, level=level)
+    with pytest.raises(ValueError, match="finite"):
+        repeat_effect("raw", np.array([0.1, np.inf, 0.2]))
+    missing = repeat_effect("raw", np.array([0.1, np.nan, 0.2]))  # missing: no interval, kept
+    assert np.isnan(missing["ci_low"]) and np.isnan(missing["ci_high"])
+    assert repeat_effect("raw", contrasts, level=0.9)["ci_low"] < 0.2
