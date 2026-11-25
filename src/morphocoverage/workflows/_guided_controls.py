@@ -125,6 +125,10 @@ def _keys(ask: Ask, say: Say, control: Any, members: list[Any]) -> dict[Any, Any
     say("  Treatment keys: " + "; ".join(f"{k}: {m}" for k, m in zip(keys, members, strict=True)))
     if not yes_no(ask, say, f"Use these keys for {control}?", True):
         keys = [text(ask, f"Treatment key of {m}:", k) for k, m in zip(keys, members, strict=True)]
+        # Keys entered twice would keep only the last condition of the key (#448).
+        while len(set(keys)) < len(keys) or not all(keys):
+            say(f"  Each condition of {control} needs its own treatment key. Please answer again.")
+            keys = [text(ask, f"Treatment key of {m}:") for m in members]
     return dict(zip(keys, members, strict=True))
 
 
@@ -163,7 +167,12 @@ def _unlinked(
             continue
         members = found.setdefault(chosen, {})
         key = treatment_key(chosen, condition)
-        members[str(condition) if key in members else key] = condition
+        key = str(condition) if key in members else key
+        while not key or key in members:  # never overwrite the condition holding it (#448)
+            taken = f"is taken under {chosen} by {members[key]}" if key else "is empty"
+            say(f"  The treatment key {key!r} {taken}. Please answer again.")
+            key = text(ask, f"Treatment key of {condition} under {chosen}:")
+        members[key] = condition
         assigned.update((condition, chosen))
         controls += [] if chosen in controls else [chosen]
     return controls

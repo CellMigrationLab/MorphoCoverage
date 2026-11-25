@@ -20,6 +20,10 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#448.** The guided session asks again, instead of keeping only the last condition, when
+  treatment keys entered for one control repeat or are empty, and when a condition given a
+  control later finds both its proposed key and its own name taken under that control (the
+  condition holding the key was overwritten). Every condition assigned to a control is kept.
 - **#430.** `plan_objects_to_average` refuses `sample_cols` under which one sample holds
   both control and other cells, naming the samples: each was centred on its own mean, so the
   treatment's shift entered the within-sample SD (a plan of 107 cells instead of 1 in the
