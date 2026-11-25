@@ -71,11 +71,18 @@ def run(
     workers: int | None = None,
     chunk: int = 100,
 ) -> None:
-    """Run each of ``modules`` (``"P0"``, ``"P1"`` ... ``"P5"``) at ``size`` into ``out``."""
+    """Run each of ``modules`` (``"P0"``, ``"P1"`` ... ``"P5"``) at ``size`` into ``out``.
+    A failed P0 stops the run: the modules after it are not run on a baseline that failed
+    its gate (#520)."""
     out = Path(out)
     for name in modules:
         if name.upper() == "P0":
-            run_p0(out)
+            code = run_p0(out)
+            if code:
+                raise RuntimeError(
+                    f"P0 failed (pytest exit {code}; {out / 'p0' / 'p0.txt'}): the modules "
+                    "after it were not run, and no result of this run is confirmatory"
+                )
             continue
         runner.run(MODULES[name.upper()], out, size, workers, chunk)
 

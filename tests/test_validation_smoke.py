@@ -261,3 +261,119 @@ def test_the_notebook_is_thin_guards_colab_and_runs_locally_at_smoke_size(tmp_pa
         exec(source, namespace)  # noqa: S102
     assert (tmp_path / "decisions_results" / "p5" / "summary.md").exists()
     assert (tmp_path / "decisions_results.zip").exists()
+
+
+def _colab_clone(monkeypatch, tmp_path, clone_code: int) -> tuple[list, list, RuntimeError | None]:
+    """Run the notebook's first cell as on Colab with a fake token, ``subprocess.run`` only
+    recorded (the clone answering ``clone_code``); the commands, their environments and the
+    error raised, if any."""
+    import subprocess
+    import types
+
+    token = "ghp_FAKE0123456789"
+    userdata = types.SimpleNamespace(get=lambda name: token)
+    colab_module = types.ModuleType("google.colab")
+    colab_module.userdata = userdata
+    monkeypatch.setitem(sys.modules, "google", types.ModuleType("google"))
+    monkeypatch.setitem(sys.modules, "google.colab", colab_module)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    commands, environments = [], []
+
+    def run(command, **kwargs):
+        commands.append(list(map(str, command)))
+        environments.append(kwargs.get("env") or {})
+        if "clone" in command:
+            return subprocess.CompletedProcess(command, clone_code, "", "fatal: no access\n")
+        url = "https://github.com/CellMigrationLab/MorphoCoverage.git\n"
+        return subprocess.CompletedProcess(command, 0, url, "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    error = None
+    try:
+        exec(_cells()[0], {})  # noqa: S102 - the notebook's own code, its commands recorded
+    except RuntimeError as raised:  # fallback: the test inspects the error itself
+        error = raised
+    for text in [*map(" ".join, commands), str(error or "")]:
+        assert token not in text, text
+    return commands, environments, error
+
+
+def test_the_colab_clone_keeps_the_token_out_of_urls_commands_and_errors_591(monkeypatch, tmp_path):
+    # The token was in the clone URL: in the command, the clone's .git/config and the
+    # CalledProcessError of a failed clone.
+    commands, environments, error = _colab_clone(monkeypatch, tmp_path, 0)
+    assert error is None
+    clone = next(c for c in commands if "clone" in c)
+    assert "https://github.com/CellMigrationLab/MorphoCoverage.git" in clone
+    assert environments[commands.index(clone)]["GIT_ASKPASS"]
+    assert any("remote.origin.url" in c for c in commands)  # the clone's remote is checked
+    commands, _, error = _colab_clone(monkeypatch, tmp_path, 128)
+    assert isinstance(error, RuntimeError) and "git clone failed" in str(error)
+    assert not any("pip" in c for c in commands)
+
+
+def test_a_failed_p0_stops_the_run_before_any_other_module_520(tmp_path, monkeypatch):
+    # run discarded P0's exit code and went on to P1-P5 as if the gate had passed.
+    calls = []
+    monkeypatch.setattr(colab, "run_p0", lambda out: 1)
+    monkeypatch.setattr(runner, "run", lambda *args: calls.append(args))
+    with pytest.raises(RuntimeError, match="P0"):
+        colab.run(["P0", "P5"], "smoke", tmp_path)
+    assert calls == []
+    monkeypatch.setattr(colab, "run_p0", lambda out: 0)
+    colab.run(["P0", "P5"], "smoke", tmp_path)
+    assert len(calls) == 1
+
+
+def _semi_inputs(fields_per_repeat: int = 4, values: np.ndarray | None = None):
+    meta = pd.DataFrame(
+        {
+            "biological_repeat": np.repeat(["R1", "R2"], fields_per_repeat * 3),
+            "position_id": np.repeat(np.arange(2 * fields_per_repeat), 3).astype(str),
+        }
+    )
+    if values is None:
+        values = np.random.default_rng(0).normal(size=(len(meta), 3))
+    return values, meta
+
+
+def test_semi_synthetic_splits_every_repeat_and_shifts_by_the_requested_amount_524():
+    from decisions.embedding import semi_synthetic
+
+    values, meta = _semi_inputs()
+    _, labelled, vector = semi_synthetic(values, meta, 0.5, np.random.default_rng(1))
+    centred = values - values.mean(axis=0)
+    within = np.sqrt(np.square(centred).sum(axis=1).mean())
+    assert np.linalg.norm(vector) == pytest.approx(0.5 * within)
+    assert (labelled.groupby("biological_repeat")["condition"].nunique() == 2).all()
+    # Two exactly opposite rows: every draw of two different rows cancels, never a zero shift.
+    opposite = np.tile([[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]], (12, 1))
+    _, _, vector = semi_synthetic(opposite, meta, 0.5, np.random.default_rng(1))
+    assert np.linalg.norm(vector) == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize(
+    ("inputs", "shift", "match"),
+    [
+        (_semi_inputs(fields_per_repeat=1), 0.5, "2 fields"),  # no treated field at all
+        (_semi_inputs(values=np.ones((24, 3))), 0.5, "vary"),  # a zero shift asked as 0.5
+        ((np.ones((5, 3)), _semi_inputs()[1]), 0.5, "rows"),
+        ((np.full((24, 3), np.nan), _semi_inputs()[1]), 0.5, "finite"),
+    ],
+)
+def test_semi_synthetic_refuses_what_it_cannot_split_or_shift_524(inputs, shift, match):
+    # One field per repeat gave no treated field; constant values a zero shift for 0.5.
+    from decisions.embedding import semi_synthetic
+
+    with pytest.raises(ValueError, match=match):
+        semi_synthetic(*inputs, shift, np.random.default_rng(1))
+
+
+def test_the_exact_sign_flip_tests_refuse_more_repeats_than_they_can_enumerate_519():
+    # 2**n assignments as one dense array: n=25 needed >800 MB for the signs alone.
+    deltas = np.random.default_rng(0).normal(size=(17, 3))
+    with pytest.raises(ValueError, match="16"):
+        hd_tests.sign_flip_u(deltas)
+    with pytest.raises(ValueError, match="16"):
+        hd_tests.shrinkage_hotelling(deltas, deltas)
+    assert 0 < hd_tests.sign_flip_u(deltas[:16]) <= 1  # up to 16, enumerated as before

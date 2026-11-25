@@ -828,3 +828,19 @@ def test_the_report_gives_questions_4_5_and_7_short_with_their_markers():
     assert section.count("conservative by construction") == 1
     assert section.count("the field count is a guide") == 1
     assert OK not in report.short["next_time"] and PROBLEM not in report.short["next_time"]
+
+
+def test_detection_adjusted_lines_name_groups_whose_column_is_not_an_identifier_449():
+    # itertuples renames "plate id" to _0, so getattr(row, "plate id") raised.
+    from morphocoverage.retrospective.report_profile import _adjusted_lines
+
+    frame = pd.DataFrame(
+        {
+            "plate id": ["A", "B"],
+            "class": [1, 2],
+            "unseen_state_max_frequency": [0.2, np.nan],
+        }
+    )
+    lines = _adjusted_lines(frame, ["plate id", "class"], 0.5)
+    assert len(lines) == 1 and lines[0].startswith("  plate id=A, class=1: up to 40")
+    assert _adjusted_lines(frame, [], 0.5)[0].startswith("  all FOVs (pooled): up to 40")

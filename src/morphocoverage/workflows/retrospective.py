@@ -417,10 +417,22 @@ def _protocol(
 def _same_setup(first: Setup, other: Setup) -> bool:
     """Whether two setups declare the same analysis (``n_jobs`` changes no result)."""
     return all(
-        getattr(first, f.name) == getattr(other, f.name)
+        _same_value(getattr(first, f.name), getattr(other, f.name))
         for f in fields(Setup)
         if f.name != "n_jobs"
     )
+
+
+def _same_value(first: Any, other: Any) -> bool:
+    """Whether two values of a Setup field are the same: a contrast table by its values
+    (``DataFrame.equals``), since a DataFrame's ``==`` has no truth value (#551)."""
+    if isinstance(first, pd.DataFrame) or isinstance(other, pd.DataFrame):
+        return (
+            isinstance(first, pd.DataFrame)
+            and isinstance(other, pd.DataFrame)
+            and first.equals(other)
+        )
+    return bool(first == other)
 
 
 def _check_parts(parts: tuple[Report | Plan, ...]) -> None:

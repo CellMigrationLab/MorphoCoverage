@@ -339,3 +339,17 @@ EXPECTED_WHOLE_TABLE_EDGES = [
 
 def test_whole_table_edges():
     assert _whole_table_edges() == EXPECTED_WHOLE_TABLE_EDGES
+
+
+@pytest.mark.parametrize("permutations", [0, -1, 2.5, True, "999"])
+def test_the_permutations_are_a_positive_count_never_a_p_of_no_draws_491(permutations):
+    # permutations=0 drew no null labelling and still printed p_shuffle = 1.0.
+    objects, fovs, names = _images()
+    with pytest.raises(ValueError, match="permutations"):
+        _tests(objects, fovs, names, permutations=permutations)
+
+
+def test_the_seed_is_a_non_negative_integer_491():
+    objects, fovs, names = _images()
+    with pytest.raises(ValueError, match="random_state"):
+        _tests(objects, fovs, names, random_state=-1)

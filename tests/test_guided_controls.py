@@ -224,3 +224,31 @@ def test_b3_the_guided_controls_question_has_no_all_default_and_asks_again():
     assert NOTHING_UNDER in text
     assert control == {"condition": {"cA": {"a1": "a1"}, "cB": {"b1": "b1"}}}
     assert parents is None and master == "cA"
+
+
+def test_treatment_keys_entered_twice_are_asked_again_not_overwritten_448():
+    # Two conditions given the key KD made {"KD": "drugB"}: drugA vanished silently.
+    from morphocoverage.workflows._guided_controls import _keys
+
+    script = Script(["n", "KD", "KD", "KDa", "KDb"])
+    keys = _keys(script.ask, script.say, "ctrl", ["drugA", "drugB"])
+    assert keys == {"KDa": "drugA", "KDb": "drugB"}
+    assert "its own treatment key" in script.text
+    script = Script(["n", "", "KDb"])  # Enter keeps the proposed key
+    assert _keys(script.ask, script.say, "ctrl", ["drugA", "drugB"]) == {
+        "drugA": "drugA",
+        "KDb": "drugB",
+    }
+
+
+def test_a_taken_key_and_a_taken_condition_name_ask_for_a_key_448():
+    # The fallback to the condition's name overwrote the condition already holding it.
+    from morphocoverage.workflows._guided_controls import _unlinked
+
+    found = {"ctrl": {"drugA": "drugB"}}
+    script = Script(["ctrl", "drugA2"])
+    controls = _unlinked(
+        script.ask, script.say, ["ctrl", "drugA", "drugB"], [], found, {"ctrl", "drugB"}
+    )
+    assert controls == ["ctrl"]
+    assert found == {"ctrl": {"drugA": "drugB", "drugA2": "drugA"}}

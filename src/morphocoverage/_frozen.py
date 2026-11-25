@@ -32,7 +32,11 @@ def _refuse(*_: Any, **__: Any) -> NoReturn:
 
 
 class FrozenDict(dict[Any, Any]):
-    """A dict that cannot be changed after construction (equal to, and serialised as, a dict)."""
+    """A dict that cannot be changed after construction (equal to, and serialised as, a dict).
+    Built directly, it freezes what it is given, so ``freeze`` may trust any one (#581)."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        dict.__init__(self, {k: freeze(v) for k, v in dict(*args, **kwargs).items()})
 
     __setitem__ = __delitem__ = __ior__ = _refuse
     clear = pop = popitem = setdefault = update = _refuse
@@ -48,7 +52,11 @@ class FrozenDict(dict[Any, Any]):
 
 
 class FrozenList(list[Any]):
-    """A list that cannot be changed after construction (equal to, and serialised as, a list)."""
+    """A list that cannot be changed after construction (equal to, and serialised as, a list).
+    Built directly, it freezes what it is given, so ``freeze`` may trust any one (#581)."""
+
+    def __init__(self, items: Iterable[Any] = ()) -> None:
+        list.__init__(self, (freeze(v) for v in items))
 
     __setitem__ = __delitem__ = __iadd__ = __imul__ = _refuse
     append = extend = insert = remove = pop = clear = sort = reverse = _refuse
@@ -68,9 +76,9 @@ def freeze(value: Any) -> Any:
     if isinstance(value, FrozenDict | FrozenList):
         return value
     if isinstance(value, Mapping):
-        return FrozenDict({k: freeze(v) for k, v in value.items()})
+        return FrozenDict(value.items())
     if isinstance(value, list):
-        return FrozenList(freeze(v) for v in value)
+        return FrozenList(value)
     if isinstance(value, tuple):
         return (
             type(value)(*map(freeze, value))

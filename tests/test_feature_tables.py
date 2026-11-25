@@ -641,3 +641,27 @@ def test_attach_feature_tables_refusals():
     assert str(error.value) == (
         "the other feature tables cannot be used: the table 't' must be a pandas DataFrame"
     )
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        lambda n: 1 + 1j * np.arange(n),  # a varying imaginary part read as constant 1
+        lambda n: np.full(n, 2 + 1j * np.inf),  # an infinity in the imaginary part unseen
+        lambda n: np.arange(n) + 0j,  # complex, even with no imaginary part
+    ],
+    ids=["varying imaginary", "infinite imaginary", "zero imaginary"],
+)
+def test_a_complex_column_is_refused_before_any_float_cast_485(values):
+    objects, fovs, embedding = _tables()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # no ComplexWarning from a discarded imaginary part
+        message = _message(objects, fovs, {"DINO": embedding.assign(e1=values(len(embedding)))})
+    assert "complex" in message and "e1" in message and "'DINO'" in message
+
+
+def test_nullable_real_columns_are_still_read_485():
+    objects, fovs, embedding = _tables()
+    column = pd.array([1, None] + list(range(len(embedding) - 2)), dtype="Int64")
+    result = attach_feature_tables(objects, fovs, {"DINO": embedding.assign(e1=column)})
+    assert result.missing == {"DINO": 1}

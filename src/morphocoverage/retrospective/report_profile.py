@@ -92,14 +92,16 @@ def _detection_words(controls: ControlResult, kind: str, detection: float) -> tu
 
 
 def _adjusted_lines(frame: pd.DataFrame, keys: list[str], low: float) -> list[str]:
-    """Each group's unseen-state bound divided by the low end of the detection rate."""
+    """Each group's unseen-state bound divided by the low end of the detection rate. Rows are
+    read by column name, so a group column that is not a Python identifier (``"plate id"``,
+    which ``itertuples`` renames) names its group too (#449)."""
     lines = []
-    for row in frame.itertuples(index=False):
-        bound = row.unseen_state_max_frequency
+    for row in frame.to_dict("records"):
+        bound = row["unseen_state_max_frequency"]
         if bound is None or pd.isna(bound):
             continue
         adjusted = min(1.0, float(bound) / low)
-        label = ", ".join(f"{k}={getattr(row, k)}" for k in keys) or "all FOVs (pooled)"
+        label = ", ".join(f"{k}={row[k]}" for k in keys) or "all FOVs (pooled)"
         lines.append(
             f"  {label}: up to {percent(adjusted)} of FOVs (the {percent(float(bound))} "
             f"bound above divided by {percent(low)}), if detection is independent "

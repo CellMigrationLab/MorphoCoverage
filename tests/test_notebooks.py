@@ -74,3 +74,20 @@ def test_notebooks_run_in_both_colab_and_jupyterlab(path):
             stripped = line.lstrip()
             if "/content" in line or "from google.colab" in line or stripped.startswith(("!", "%")):
                 assert guarded, line
+
+
+def test_the_workflows_example_pairs_the_positive_control_by_repeat_group_640():
+    # The folder label (biological_repeat) is never a pairing (#617): the example taught it.
+    path = next(p for p in NOTEBOOKS if p.stem == "MorphoCoverage_Workflows_Example")
+    declaration = next(s for s in _code_cells(path) if "PositiveControl(" in s and "Setup(" in s)
+    calls = [
+        node
+        for node in ast.walk(ast.parse(_python(declaration)))
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "PositiveControl"
+    ]
+    assert calls
+    for call in calls:
+        pair_cols = next(k.value for k in call.keywords if k.arg == "pair_cols")
+        assert ast.literal_eval(pair_cols) == ("repeat_group",)
+    # Without the column the declaration stops, never falling back to the folder label.
+    assert '"repeat_group" not in fovs.columns' in declaration and "raise ValueError" in declaration

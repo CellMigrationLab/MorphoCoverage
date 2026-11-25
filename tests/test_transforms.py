@@ -21,7 +21,14 @@ from morphocoverage.strategies import (
     SupportNoveltyEstimator,
     SupportNoveltyStrategy,
 )
-from morphocoverage.transforms import PCA, BlockWeights, Chain, RobustStandardize, Standardize
+from morphocoverage.transforms import (
+    PCA,
+    BlockWeights,
+    Chain,
+    ColumnWeights,
+    RobustStandardize,
+    Standardize,
+)
 from morphocoverage.workflows import default_novelty
 
 
@@ -309,3 +316,18 @@ def test_d2_pca_refuses_components_beyond_the_data_rank():
     reason = PCA(2).fit_matrix(np.c_[a, 2 * a, -a], ("x", "y", "z"))
     assert isinstance(reason, str) and "fewer than 2 dimensions" in reason
     assert not isinstance(PCA(1).fit_matrix(np.c_[a, 2 * a, -a], ("x", "y", "z")), str)
+
+
+def test_weight_settings_are_refused_not_coerced_495():
+    # float(True) is 1.0 and float("2.0") is 2.0; bool("False") is True.
+    for bad in ((True,), ("2.0",), (np.bool_(True),), (1.0, "1")):
+        with pytest.raises(ValueError, match="weights"):
+            ColumnWeights(bad)
+    assert ColumnWeights((1, np.float32(0.5), np.int64(2))).weights == (1.0, 0.5, 2.0)
+    for flag in ("False", 1, None):
+        with pytest.raises(TypeError, match="inertia_radius"):
+            BlockWeights((("a", "b"),), inertia_radius=flag)
+    assert BlockWeights((("a",),), inertia_radius=np.bool_(True)).inertia_radius is True
+    for blocks in (((1, "b"),), (("",),), ((" ",),)):
+        with pytest.raises(TypeError, match="feature names"):
+            BlockWeights(blocks)

@@ -76,3 +76,12 @@ def test_stands_out_falls_back_to_the_sd_where_the_mad_is_zero():
 def test_an_unknown_rule_is_refused():
     with pytest.raises(ValueError, match="rule must be 'detector' or 'geometry'"):
         robust_sd(np.ones(3), "floor")
+
+
+def test_one_value_has_no_spread_under_either_rule_418():
+    # A 1-D sample of one value: the geometry rule indexed a second axis that is not there.
+    for rule in ("detector", "geometry"):
+        assert robust_sd(np.array([3.0]), rule) == 0.0
+    assert robust_sd(np.array([[3.0]]), "geometry").tolist() == [0.0]
+    assert robust_sd(np.array([[3.0, 4.0]]), "geometry").tolist() == [0.0, 0.0]
+    assert robust_sd(np.array([2.0, 2.0, 2.0]), "geometry") == 0.0

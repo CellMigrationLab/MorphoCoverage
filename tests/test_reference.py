@@ -141,3 +141,40 @@ def test_two_runs_of_the_same_code_give_the_same_files(tmp_path, capsys):
 def test_the_idr_job_never_writes_into_a_checkout(tmp_path):
     with pytest.raises(ValueError, match="export only"):
         reference.run_idr(ROOT, tmp_path / "idr", tmp_path / "idr.log")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "../.. victim",
+        "scenario ../../victim",
+        "scenario /tmp/victim",
+        "scenario a/b",
+        "scenario a\\b",
+        "scenario ..",
+        "nosuchkind e01",
+        "owner ..",
+    ],
+)
+def test_a_job_that_could_name_a_folder_outside_the_output_is_refused_583(tmp_path, line):
+    # read_jobs took any two words and run_job removed OUT/<kind>__<name> first: "../.."
+    # reached a folder outside OUT.
+    jobs = tmp_path / "jobs.txt"
+    jobs.write_text(line + "\n")
+    with pytest.raises(ValueError, match="kind|name"):
+        reference.read_jobs(jobs)
+
+
+def test_run_job_never_removes_a_folder_outside_the_output_583(tmp_path):
+    out, victim = tmp_path / "out", tmp_path / "victim__x"
+    (victim / "keep").mkdir(parents=True)
+    with pytest.raises(ValueError, match="outside"):
+        reference.run_job("../victim x", tmp_path, out, None)  # OUT/../victim__x
+    assert (victim / "keep").is_dir()
+
+
+def test_a_job_listed_twice_is_refused_583(tmp_path):
+    jobs = tmp_path / "jobs.txt"
+    jobs.write_text("scenario e01\nscenario e01\n")
+    with pytest.raises(ValueError, match="twice"):
+        reference.read_jobs(jobs)

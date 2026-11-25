@@ -297,7 +297,9 @@ class BenchmarkRecord:
     stop_on: str = "decision"
 
     def as_row(self) -> dict[str, Any]:
-        """A flat dict: group columns as ``group.<col>``, outcomes as ``outcome.<name>``."""
+        """A flat dict: group columns as ``group.<col>``, outcomes as ``outcome.<name>``,
+        each beside its metric's config id as ``outcome_id.<name>``, so two metrics given one
+        label stay apart once exported (#547)."""
         row: dict[str, Any] = {
             "dataset": self.dataset,
             "role": self.role.value,
@@ -335,6 +337,7 @@ class BenchmarkRecord:
             row[f"reservoir.{key}"] = value
         row.update({f"group.{column}": value for column, value in self.group.items()})
         row.update({f"outcome.{name}": value for name, value in self.outcomes.items()})
+        row.update({f"outcome_id.{name}": value for name, value in self.outcome_ids.items()})
         return row
 
 

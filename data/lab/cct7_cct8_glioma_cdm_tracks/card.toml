@@ -89,7 +89,7 @@ duplicated_tracks = 28
 
 [columns]
 renamed = { Condition = "condition (siCTRL_CCT7 and siCTRL_CCT8 written siCTRL) and source_condition (verbatim)", Repeat = "biological_repeat (as '<set>_<Repeat>')", TRACK_ID = "label_id", File_name_raw = "source_file, and technical_repeat + position_id parsed from it" }
-dropped = ["Unique_ID, File_name and experiment_nb: each is a concatenation of kept columns (checked by convert.py)"]
+dropped = ["Unique_ID and File_name: source identifiers, not checked by convert.py, which does not read them, so a disagreement with Condition, Repeat, TRACK_ID or File_name_raw would not be found", "experiment_nb: 'R' followed by Repeat (checked by convert.py)"]
 added = ["target (the gene the siRNA silences; non-targeting for siCTRL)", "experiment (from the siRNA label)", "image_file (unrecorded)", "source_row (file line, 1 = header)"]
 features = { "Mean Speed" = "mean instantaneous speed along the track (px per 10 min)", "Directionality" = "net displacement / path length (1 = straight)", "Tortuosity" = "path length / net displacement", "Total Distance Traveled" = "path length (px)", "Spatial Coverage" = "area explored by the track (px^2)", "Total Turning Angle" = "sum of turning angles (degrees)", "Rolling" = "the same metric on a rolling window along the track (CellTracksColab)" }
 

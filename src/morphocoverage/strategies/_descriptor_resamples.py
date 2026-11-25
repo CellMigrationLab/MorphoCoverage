@@ -92,6 +92,12 @@ def _chunk_sizes(total: int, chunk: int) -> list[int]:
     return [min(chunk, total - start) for start in range(0, total, chunk)]
 
 
+def _check_resamples(n_resamples: int) -> None:
+    """At least one resample: none would describe nothing."""
+    if n_resamples < 1:
+        raise ValueError(f"n_resamples must be at least 1, not {n_resamples}")
+
+
 def _object_resamples(
     values: np.ndarray, n_resamples: int, rng: np.random.Generator, descriptors: Sequence[str]
 ) -> dict[str, np.ndarray]:
@@ -100,8 +106,11 @@ def _object_resamples(
     ``values`` come in the caller's canonical order (sorted), which the draws
     index. Memory is bounded as for whole FOVs: each chunk holds its
     resamples' values at once, and drawing chunk by chunk from one generator
-    gives the same draws as all at once.
+    gives the same draws as all at once. No value, or no resample, is refused (#532).
     """
+    if not len(values):
+        raise ValueError("object resamples need at least one value; there is no value")
+    _check_resamples(n_resamples)
     chunk = max(1, int(_MAX_RESAMPLED_VALUES // len(values)))
     parts = [
         _describe_many(values[rng.integers(0, len(values), size=(size, len(values)))], descriptors)
@@ -123,8 +132,17 @@ def _fov_resamples(
     ``positions`` gives each value's FOV in the caller's canonical FOV order,
     which the draws index; within a FOV the values are ordered by value, so
     the table's row order cannot change a resample. Memory is bounded: each
-    chunk materializes its resamples' values at once.
+    chunk materializes its resamples' values at once. FOVs without values are kept
+    (a resample of them only has NaN descriptors); no FOV, no resample, or a position that
+    is not one of the ``k`` FOVs or one per value, is refused (#532).
     """
+    if k < 1:
+        raise ValueError(f"FOV resamples need at least one FOV, not k={k}")
+    _check_resamples(n_resamples)
+    if len(positions) != len(values) or (
+        len(positions) and (positions.min() < 0 or positions.max() >= k)
+    ):
+        raise ValueError(f"positions must give each value's FOV, one of 0 to {k - 1}")
     by_fov = np.lexsort((values, positions))  # values grouped by FOV, each FOV by value
     counts = np.bincount(positions, minlength=k)
     draws = rng.integers(0, k, size=(n_resamples, k))

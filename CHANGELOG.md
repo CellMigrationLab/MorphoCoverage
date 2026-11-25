@@ -20,6 +20,120 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#514.** The benchmark's fixed-block contrast engine (`candidates/fixed_block.py`) refuses
+  weights that are not a contrast (`check_weights`: finite real numbers, at least two not 0,
+  summing to 0) in `regime`, `graph_estimable`, `Layout.contrast`, `fit_model` and
+  `contrast`: `{"A": 1.0}` was tested as A's mean by the direct test and as A minus the
+  baseline by the model. Zero-sum weights, rescaled or not, are unchanged.
+- **#519.** The benchmark's exact sign-flip tests (`candidates/hd_tests.py`: `sign_flip_u`,
+  `shrinkage_hotelling`) refuse more than 16 repeats (`MAX_EXACT_REPEATS`) instead of
+  building all 2**n sign assignments in memory (n = 25 needed more than 800 MB for the signs
+  alone). Up to 16 repeats, and the benchmark's 3-6, they are enumerated as before.
+- **#524.** The benchmark's `semi_synthetic` (`data/simulations/decisions/embedding.py`)
+  refuses a repeat of fewer than 2 fields (it got no treated field), a shift asked of values
+  that do not vary (it gave a zero shift), values that are not finite and values and
+  metadata of different lengths; a draw of two rows that cancel is drawn again instead of
+  giving a zero direction. Draws that do not cancel are unchanged.
+- **#520.** The benchmark's `colab.run` stops with an error when P0 (the deterministic tests)
+  fails, naming its report, instead of discarding pytest's exit code and running P1-P5 as if
+  the gate had passed.
+- **#569.** `data/crick_idr/jcs_effect_fovs.py` judges two IQR bands as overlapping only when
+  they intersect (`bands_overlap`, endpoints included), whichever is higher: a band wholly
+  below the other read as overlapping. Inverted or missing quartiles are refused. The
+  committed `results/jcs_effect_fovs_pairs.csv` is unchanged (all 400 rows agree).
+- **#574.** The glioma dataset card (`data/lab/cct7_cct8_glioma_cdm_tracks/card.toml`) no
+  longer says that `Unique_ID` and `File_name` are checked by `convert.py`: the converter
+  never reads them, so the card now says they are not checked; `experiment_nb` is checked
+  against `Repeat`, as before. Their format was not reconstructed (the owner's source is not
+  in the repository); the stored tables are unchanged.
+- **#640 (part).** The workflows example notebook pairs the positive control's fields by
+  `repeat_group` (`pair_cols=("repeat_group",)`), not by the folder label
+  `biological_repeat`, and stops with what to add when the FOV table has no `repeat_group`.
+  Run on the bundled idr0028 example, the report assesses the positive control. The
+  notebook's analysis groups are unchanged (the workflows already read each folder label as
+  its repeat group).
+- **#576.** The lab converters read the source's `Repeat`, the glioma `TRACK_ID` and the
+  filopodia count through `convert_tools.whole_numbers`, which stops, naming the source
+  rows, unless every value is a finite whole number of at least 1 (repeats) or 0 (track IDs,
+  counts): `astype(int)` truncated a repeat of 1.8 to 1 and a count of 5.9 to 5. The stored
+  tables hold only such values (repeats 1-3, track IDs from 1, counts from 7).
+- **#577.** The lab converters hash a downloaded source archive in chunks
+  (`hashlib.file_digest`) instead of reading it whole into memory (381 MB for CCT8 CDM
+  morphology); the md5 and the member's sha256 are checked as before.
+- **#583.** The reference check (`data/reference/reference.py`) refuses a job whose kind is
+  not one it runs or whose name is not one plain word (a separator, `.` or `..`), and a job
+  listed twice, before anything runs; the owner's job names are checked the same way, and
+  `run_job` refuses a target outside `OUT` before removing it. A job list could make it
+  remove a folder outside `OUT` (`../.. victim`).
+- **#591.** The benchmark's Colab notebook (`data/simulations/decisions/benchmark_colab.ipynb`)
+  no longer puts the GitHub token in the clone URL, where it was in the command, in the
+  clone's `.git/config` and in the error of a failed clone: git reads it through a
+  `GIT_ASKPASS` helper from the clone's environment, the remote is checked to be the
+  token-free URL, and a failed clone raises with git's message (token masked), not the
+  command. A clone made by the earlier cell keeps the token in
+  `/content/MorphoCoverage/.git/config` until that Colab session ends.
+- **#547.** `BenchmarkRecord.as_row` (and so `records_to_frame`) exports each outcome
+  metric's config id as `outcome_id.<name>` beside `outcome.<name>`: two metrics given the
+  same label (`RelativeMeanError("feature_a", label="readout_error")` and the same for
+  `feature_b`) could not be told apart once exported. The existing columns are unchanged.
+- **#449.** The detection-adjusted unseen-state bound names each group by reading its rows by
+  column name: a group column that is not a Python identifier (`"plate id"`, `"class"`)
+  raised `AttributeError`, since `itertuples` renames it, whenever an adjusted bound was
+  available. The bound and its wording are unchanged.
+- **#448.** The guided session asks again, instead of keeping only the last condition, when
+  treatment keys entered for one control repeat or are empty, and when a condition given a
+  control later finds both its proposed key and its own name taken under that control (the
+  condition holding the key was overwritten). Every condition assigned to a control is kept.
+- **#430.** `plan_objects_to_average` refuses `sample_cols` under which one sample holds
+  both control and other cells, naming the samples: each was centred on its own mean, so the
+  treatment's shift entered the within-sample SD (a plan of 107 cells instead of 1 in the
+  issue's example). Add the column that tells them apart, such as the condition.
+- **#581.** A `FrozenDict` or `FrozenList` built by its constructor now freezes what it is
+  given, so `freeze`, which returns such a container unchanged, no longer keeps a caller's
+  inner list or dict that could still change a snapshot. Pickling, copying and `freeze` of
+  plain containers behave as before.
+- **#551.** `document` compares the parts' Setups field by field with a contrast table
+  compared by its values (`DataFrame.equals`): a Setup declared with `contrasts=` raised
+  "the truth value of a DataFrame is ambiguous" even against itself. Different contrast
+  tables are still refused as different Setups.
+- **#532.** The descriptor-spread resample helpers (`strategies._descriptor_resamples`)
+  refuse with a `ValueError` what they cannot resample: no value (a `ZeroDivisionError`
+  before), no FOV, no resample, or positions that are not one FOV of `k` per value. Their
+  caller, `DescriptorSpreadEstimator`, already reports these cases as not yet possible, so
+  no result changes.
+- **#485.** A complex column of another feature table is refused by `attach_feature_tables`
+  ("has complex columns"), before any float cast dropped its imaginary part: an infinity in
+  the imaginary part went unseen and a varying one was listed as constant. Nullable real
+  columns are read as before.
+- **#495.** `ColumnWeights` refuses booleans and text as weights (`True` became 1.0 and
+  `"2.0"` 2.0 through `float`); `BlockWeights` refuses an `inertia_radius` that is not a
+  boolean (the text `"False"` turned the radius correction on while its provenance said
+  `"False"`) and block feature names that are not non-empty text (they were recast with
+  `str`). Valid settings give the same results.
+- **#491.** `whole_table_tests` refuses `permutations` that is not an integer of at least 1
+  (0 drew no shuffle and still gave `p_shuffle = 1.0`; negative, fractional, boolean and
+  text values were not checked) and a `random_state` that is not a non-negative integer.
+- **#528.** `repeat_effect` refuses a `level` outside (0, 1) (1 gave an infinite interval, a
+  negative level an invalid quantile) and an infinite per-repeat contrast (it gave NaN bounds
+  after runtime warnings). A missing contrast still gives no interval (NaN), as documented.
+- **#538.** Stage coordinates a float cannot hold are refused with the contract's
+  `ValueError`: a Python integer too large for a float (it raised a bare `OverflowError`) as
+  not finite, and an integer beyond 2**53 that a float would round (`2**53` and `2**53 + 1`
+  became one position) as not held exactly, in `stage_matrix` and `check_xy` alike. Nothing
+  is rounded or rescaled.
+- **#544.** Imaged areas that are each finite but whose total overflows a float (two fields
+  of `1e308`) are now a problem of `_areas.area_problem`: `ImagedAreaEstimator` reports the
+  area `not_applicable` with that reason, so `FixedAreaStrategy` no longer stops on an
+  infinite total, and a benchmark refuses the dataset instead of recording an infinite
+  `area`/`total_area`.
+- **#418.** `robust_sd(values, "geometry")` of a 1-D sample of one value returns 0 (no
+  spread) instead of raising `IndexError`: `constant_columns` sized its zero SD by a second
+  axis that a 1-D sample does not have.
+- **#578.** The glossary's "Sign-flip test" no longer calls it "the exact test on the signs":
+  it is a two-sided paired permutation test on the mean of the per-repeat differences, each
+  difference keeping its magnitude while its sign is flipped, exact up to 16 repeats and
+  Monte Carlo (20,000 assignments) above, as `sign_flip_test` computes it. The source is
+  `glossary.py`; `docs/common/glossary.md` is re-rendered from it. The test is unchanged.
 - **#90 (part).** A paired test across repeats that gives no p because 3 or more repeats all
   give the same change is now "not assessed across repeats" (`reading_text.NOT_ASSESSED`),
   never "not significant": in the reading, the summary, and the page's table across repeats,

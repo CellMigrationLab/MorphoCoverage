@@ -17,6 +17,8 @@ from __future__ import annotations
 import numpy as np
 from scipy import stats
 
+from ._checks import is_share
+
 
 def paired_t(differences: np.ndarray) -> float:
     """The two-sided paired t-test of ``differences`` (one per biological repeat); NaN when a
@@ -79,8 +81,13 @@ def repeat_effect(values: str, compared: np.ndarray, level: float = 0.95) -> dic
     log ratios, else differences) and the t-based ``level`` interval of their mean effect
     (``n - 1`` degrees of freedom, back-transformed for fold changes): ``ci_low`` and
     ``ci_high``, NaN below 2 repeats or with a missing value (plan v2, owner, 2026-10-06: with
-    3 repeats each verdict shows them)."""
+    3 repeats each verdict shows them). ``level`` must be in (0, 1), and an infinite
+    contrast is refused: it has no mean to give an interval of (#528)."""
+    if not is_share(level):
+        raise ValueError(f"level must be a number in (0, 1), not {level!r}")
     compared = np.asarray(compared, dtype=float)
+    if np.isinf(compared).any():
+        raise ValueError("the per-repeat contrasts must be finite or missing, not infinite")
     shown = np.exp(compared) if values == "normalised" else compared
     low = high = float("nan")
     if len(compared) >= 2 and not np.isnan(compared).any():

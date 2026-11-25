@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from numbers import Real
 from typing import Any
 
 import numpy as np
@@ -71,7 +72,9 @@ class Layout:
 
     def contrast(self, weights: Mapping[Any, float]) -> np.ndarray:
         """The coefficient vector of ``sum_c w_c alpha_c`` (a condition not held anywhere
-        cannot be part of an estimable contrast: ``KeyError``)."""
+        cannot be part of an estimable contrast: ``KeyError``); weights that are not a
+        contrast are refused (``check_weights``)."""
+        check_weights(weights)
         unknown = set(weights) - set(self.conditions)
         if unknown:
             raise KeyError(f"conditions held in no repeat: {sorted(map(str, unknown))}")
@@ -80,6 +83,23 @@ class Layout:
             if i > 0:
                 vector[i] = weights.get(c, 0.0)
         return vector
+
+
+def check_weights(weights: Mapping[Any, float]) -> None:
+    """Refuse weights that are not a contrast (#514): each a finite real number (not a
+    boolean), at least two of them not 0, and their sum 0 within ``TOLERANCE`` of their
+    total size. ``{"A": 1.0}`` is A's mean, not a comparison; the direct test and the model
+    would answer different questions about it. Never rescaled or completed."""
+    if not isinstance(weights, Mapping) or not weights:
+        raise ValueError("contrast weights must map conditions to numbers")
+    for value in weights.values():
+        if isinstance(value, bool) or not isinstance(value, Real) or not np.isfinite(value):
+            raise ValueError(f"contrast weights must be finite numbers, not {value!r}")
+    if sum(1 for w in weights.values() if w != 0) < 2:
+        raise ValueError(f"contrast weights must compare at least two conditions: {weights}")
+    size = sum(abs(float(w)) for w in weights.values())
+    if abs(sum(float(w) for w in weights.values())) > TOLERANCE * size:
+        raise ValueError(f"contrast weights must sum to 0: {dict(weights)}")
 
 
 def estimable(x: np.ndarray, contrast: np.ndarray, tolerance: float = TOLERANCE) -> bool:
@@ -102,6 +122,7 @@ def components(presence: Mapping[Any, Sequence[Any]]) -> dict[Any, int]:
 
 def graph_estimable(presence: Mapping[Any, Sequence[Any]], weights: Mapping[Any, float]) -> bool:
     """Whether the weights sum to 0 within every connected component (see the module)."""
+    check_weights(weights)
     found = components(presence)
     if any(c not in found and w != 0 for c, w in weights.items()):
         return False
@@ -118,6 +139,7 @@ def regime(
     min_repeats: int = MIN_REPEATS,
 ) -> str:
     """``direct``, ``model`` or ``not estimable`` for one contrast (see the module)."""
+    check_weights(weights)
     involved = [c for c, w in weights.items() if w != 0]
     shared = [r for r, held in presence.items() if set(involved) <= set(held)]
     if len(shared) >= min_repeats:
@@ -230,6 +252,7 @@ __all__ = [
     "MIN_REPEATS",
     "NOT_ESTIMABLE",
     "Layout",
+    "check_weights",
     "components",
     "contrast",
     "estimable",

@@ -88,7 +88,7 @@ Every test, rule and term the report uses, in plain words, with where it appears
 *Where:* Do the conditions differ?: the test behind 'significant across repeats', the result to report.
 *See:* [Lord SJ, Velle KB, Mullins RD, Fritz-Laylin LK. SuperPlots: communicating reproducibility and variability in cell biology. J Cell Biol. 2020;219(6):e202001064.](https://doi.org/10.1083/jcb.202001064)
 
-**Sign-flip test.** The exact test on the signs of the per-repeat differences; given only from 6 repeats, where its smallest p can reach 0.05 after the correction.
+**Sign-flip test.** A two-sided paired permutation test on the mean of the per-repeat differences: each difference keeps its magnitude while its sign is flipped under the null. The p is exact up to 16 repeats (every sign assignment enumerated) and Monte Carlo above (20,000 random assignments). Given only where its smallest p can reach 0.05 after the correction (from 6 repeats for one condition).
 
 *Where:* Do the conditions differ?, full detail.
 

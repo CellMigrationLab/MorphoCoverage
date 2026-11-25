@@ -272,6 +272,7 @@ def _samples(
         if column not in table.columns:
             table[column] = data.objects[column]
     is_control = np.logical_and.reduce([table[c].eq(v).to_numpy() for c, v in control.items()])
+    _refuse_mixed_samples(table, is_control, sample_cols, control)
     # observed=True: with categorical sample columns, only the samples present in the
     # pilot, never unobserved combinations of categories (pandas 2 defaults to all).
     by_sample = table.groupby(list(sample_cols), sort=True, observed=True)["_value"]
@@ -290,6 +291,29 @@ def _samples(
     if not control_mean > 0:
         raise ValueError("the control mean must be positive to express SD as a CV")
     return by_sample, control_means, control_mean
+
+
+def _refuse_mixed_samples(
+    table: pd.DataFrame,
+    is_control: np.ndarray,
+    sample_cols: tuple[str, ...],
+    control: Mapping[str, Any],
+) -> None:
+    """Refuse a sample that holds both control and other cells: centring it on its own mean
+    would put the treatment's shift into the within-sample SD (#430)."""
+    kinds = (
+        pd.Series(is_control, index=table.index)
+        .groupby([table[c] for c in sample_cols], observed=True)
+        .nunique()
+    )
+    mixed = [key if isinstance(key, tuple) else (key,) for key in kinds.index[kinds > 1]]
+    if mixed:
+        named = listing([repr(key[0]) if len(key) == 1 else repr(key) for key in mixed], limit=5)
+        raise ValueError(
+            f"samples by {list(sample_cols)} hold both control and other cells: {named}; a "
+            "sample must be one kind, so add the column telling them apart (for example the "
+            f"condition, {list(control)}) to sample_cols"
+        )
 
 
 def _within_sample_cv(

@@ -227,6 +227,36 @@ def generate(design: Design, spec: EmbeddingSpec, rng: np.random.Generator) -> E
     return EmbeddingData(objects, fovs, columns, truth, lay)
 
 
+# The draws of a direction before a data set whose rows all cancel in pairs is refused.
+_DRAWS = 100
+
+
+def _check_semi_synthetic(values: np.ndarray, meta: pd.DataFrame, field_col: str) -> None:
+    """What ``semi_synthetic`` needs: one finite row of values per row of ``meta``, and at
+    least 2 fields in every biological repeat, so both conditions are in every repeat."""
+    if values.ndim != 2 or len(values) != len(meta) or not len(values):
+        raise ValueError(f"values must hold one row per row of meta ({len(meta)} rows)")
+    if not np.isfinite(values).all():
+        raise ValueError("the values must be finite")
+    fields = meta.groupby(REPEAT_COLUMN)[field_col].nunique()
+    if (fields < 2).any():
+        few = ", ".join(map(str, fields.index[fields < 2]))
+        raise ValueError(f"every repeat needs at least 2 fields to relabel half; not {few}")
+
+
+def _direction_of(centred: np.ndarray, within: float, rng: np.random.Generator) -> np.ndarray:
+    """A unit direction of the data's own span: the sum of two random centred rows, drawn
+    again while they cancel (the same draws as before whenever the first pair does not)."""
+    for _ in range(_DRAWS):
+        direction = centred[rng.integers(len(centred))] + centred[rng.integers(len(centred))]
+        norm = float(np.linalg.norm(direction))
+        if norm > 1e-9 * within:
+            return direction / norm
+        if not within > 0:  # no shift asked of values that do not vary: drawn once, as before
+            return np.zeros(centred.shape[1])
+    raise ValueError(f"{_DRAWS} draws of two rows all cancelled: no direction to shift along")
+
+
 def semi_synthetic(
     values: np.ndarray,
     meta: pd.DataFrame,
@@ -237,12 +267,18 @@ def semi_synthetic(
     """Real control observations made into a two-condition experiment: within each
     biological repeat, half the fields (at random) relabelled ``treated`` and shifted by
     ``shift`` within-group SDs along a random direction of the data's own span. Returns the
-    values, the metadata with the new ``condition`` and the shift vector."""
+    values, the metadata with the new ``condition`` and the shift vector. Refused (#524):
+    values and metadata of different lengths, values that are not finite, a repeat of fewer
+    than 2 fields (no field to relabel), and a shift asked of values that do not vary; a draw
+    of two rows that cancel is drawn again (at most ``_DRAWS`` times), never a zero shift."""
+    values = np.asarray(values, dtype=float)
     meta = meta.reset_index(drop=True).copy()
+    _check_semi_synthetic(values, meta, field_col)
     centred = values - values.mean(axis=0)
     within = float(np.sqrt(np.square(centred).sum(axis=1).mean()))
-    direction = centred[rng.integers(len(centred))] + centred[rng.integers(len(centred))]
-    direction = direction / max(np.linalg.norm(direction), 1e-12)
+    if shift and not within > 0:
+        raise ValueError("the values do not vary, so no shift in within-group SDs exists")
+    direction = _direction_of(centred, within, rng)
     vector = shift * within * direction
     condition = np.full(len(meta), "control", dtype=object)
     for rows in meta.groupby(REPEAT_COLUMN).groups.values():

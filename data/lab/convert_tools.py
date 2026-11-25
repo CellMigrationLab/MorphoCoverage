@@ -14,6 +14,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 
@@ -22,11 +23,13 @@ def sha256(data: bytes) -> str:
 
 
 def fetch_zip_member(url: str, archive_md5: str, member: str) -> bytes:
-    """``member``'s bytes from the zip archive at ``url``, the archive's md5 verified."""
+    """``member``'s bytes from the zip archive at ``url``, the archive's md5 verified, in
+    chunks: the archive (hundreds of MB) is never held in memory whole (#577)."""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "archive.zip"
         urllib.request.urlretrieve(url, path)
-        md5 = hashlib.md5(path.read_bytes()).hexdigest()
+        with open(path, "rb") as handle:
+            md5 = hashlib.file_digest(handle, "md5").hexdigest()
         if md5 != archive_md5:
             raise SystemExit(f"{url}: md5 {md5}, expected {archive_md5}")
         with zipfile.ZipFile(path) as archive:
@@ -46,6 +49,25 @@ def check_columns(source: pd.DataFrame, expected: list[str]) -> None:
         raise SystemExit(f"unexpected columns {list(source.columns)}, expected {expected}")
     if source.isna().any().any():
         raise SystemExit("the source has missing values")
+
+
+def whole_numbers(source: pd.DataFrame, column: str, minimum: int) -> pd.Series:
+    """``source[column]`` as integers; stops unless every value is a finite whole number of at
+    least ``minimum``, naming the source rows: ``astype(int)`` would truncate a repeat of
+    1.8 to 1 or a count of 5.9 to 5 (#576)."""
+    values = source[column]
+    if pd.api.types.is_bool_dtype(values) or not pd.api.types.is_numeric_dtype(values):
+        raise SystemExit(f"{column}: {values.dtype} values, not numbers")
+    numbers = values.to_numpy(dtype=float)
+    bad = ~np.isfinite(numbers) | (numbers != np.round(numbers)) | (numbers < minimum)
+    if bad.any():
+        rows = source["source_row"] if "source_row" in source else pd.Series(source.index)
+        shown = "; ".join(
+            f"row {row}: {value}"
+            for row, value in zip(rows.to_numpy()[bad][:3], values.to_numpy()[bad][:3])
+        )
+        raise SystemExit(f"{column}: not a whole number of at least {minimum} in {shown}")
+    return values.astype(int)
 
 
 def synthetic_positions(table: pd.DataFrame, group: list[str], order: str) -> pd.Series:

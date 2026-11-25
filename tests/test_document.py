@@ -206,3 +206,18 @@ def test_a_text_added_to_a_short_section_goes_before_its_caveats_each_once():
         "  ⚠️ Second caveat.",
         "  ⚠️ Third caveat.",
     ]
+
+
+def test_setups_with_contrast_tables_are_compared_by_their_values_551():
+    # A DataFrame's == is a DataFrame, whose truth value raised: one Setup was not itself.
+    from morphocoverage.workflows.retrospective import _same_setup
+
+    declared = {"condition": {"ctrl": ["drug"], "ctrl2": ["drug2"]}}
+    table = Setup(readout="x", control=declared).contrast_table
+    setup = Setup(readout="x", contrasts=table)
+    assert _same_setup(setup, setup)
+    assert _same_setup(setup, Setup(readout="x", contrasts=table.copy()))
+    changed = table.copy()
+    changed.loc[1, "label"] = "drug2 against ctrl2"
+    assert not _same_setup(setup, Setup(readout="x", contrasts=changed))
+    assert not _same_setup(setup, Setup(readout="x", control=declared))
