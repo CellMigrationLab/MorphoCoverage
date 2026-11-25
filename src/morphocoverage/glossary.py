@@ -220,8 +220,11 @@ GLOSSARY: tuple[Term, ...] = (
     Term(
         "Do the conditions differ?",
         "Sign-flip test",
-        "The exact test on the signs of the per-repeat differences; given only from 6 repeats, "
-        "where its smallest p can reach 0.05 after the correction.",
+        "A two-sided paired permutation test on the mean of the per-repeat differences: each "
+        "difference keeps its magnitude while its sign is flipped under the null. The p is "
+        "exact up to 16 repeats (every sign assignment enumerated) and Monte Carlo above "
+        "(20,000 random assignments). Given only where its smallest p can reach 0.05 after "
+        "the correction (from 6 repeats for one condition).",
         "Do the conditions differ?, full detail",
     ),
     Term(

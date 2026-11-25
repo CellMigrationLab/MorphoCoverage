@@ -20,6 +20,11 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#578.** The glossary's "Sign-flip test" no longer calls it "the exact test on the signs":
+  it is a two-sided paired permutation test on the mean of the per-repeat differences, each
+  difference keeping its magnitude while its sign is flipped, exact up to 16 repeats and
+  Monte Carlo (20,000 assignments) above, as `sign_flip_test` computes it. The source is
+  `glossary.py`; `docs/common/glossary.md` is re-rendered from it. The test is unchanged.
 - **#90 (part).** A paired test across repeats that gives no p because 3 or more repeats all
   give the same change is now "not assessed across repeats" (`reading_text.NOT_ASSESSED`),
   never "not significant": in the reading, the summary, and the page's table across repeats,
