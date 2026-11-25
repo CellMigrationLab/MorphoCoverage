@@ -20,6 +20,11 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#514.** The benchmark's fixed-block contrast engine (`candidates/fixed_block.py`) refuses
+  weights that are not a contrast (`check_weights`: finite real numbers, at least two not 0,
+  summing to 0) in `regime`, `graph_estimable`, `Layout.contrast`, `fit_model` and
+  `contrast`: `{"A": 1.0}` was tested as A's mean by the direct test and as A minus the
+  baseline by the model. Zero-sum weights, rescaled or not, are unchanged.
 - **#519.** The benchmark's exact sign-flip tests (`candidates/hd_tests.py`: `sign_flip_u`,
   `shrinkage_hotelling`) refuse more than 16 repeats (`MAX_EXACT_REPEATS`) instead of
   building all 2**n sign assignments in memory (n = 25 needed more than 800 MB for the signs

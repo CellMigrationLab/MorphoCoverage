@@ -344,3 +344,38 @@ def test_the_package_never_imports_the_validation_extra():
                 if n.split(".")[0] in {"statsmodels", "harmonypy"}
             ]
     assert not found
+
+
+@pytest.mark.parametrize(
+    "weights",
+    [
+        {"A": 1.0},  # A against nothing: direct tested A's mean, the model A minus baseline
+        {"A": 1.0, "control": -0.5},
+        {"A": 0.0, "control": 0.0},
+        {},
+        {"A": np.nan, "control": -1.0},
+        {"A": np.inf, "control": -np.inf},
+        {"A": True, "control": -1.0},
+    ],
+)
+def test_a_contrast_whose_weights_do_not_sum_to_zero_is_refused_514(weights):
+    presence = {f"R{r}": ("control", "A", "B") for r in range(4)}
+    values = pd.DataFrame(
+        [
+            {"repeat": r, "condition": c, "value": float(i + j)}
+            for i, r in enumerate(presence)
+            for j, c in enumerate(presence[r])
+        ]
+    )
+    layout = fixed_block.Layout.from_presence(presence)
+    for call in (
+        lambda: fixed_block.regime(presence, weights),
+        lambda: fixed_block.graph_estimable(presence, weights),
+        lambda: layout.contrast(weights),
+        lambda: fixed_block.fit_model(values, weights),
+        lambda: fixed_block.contrast(values, weights),
+    ):
+        with pytest.raises(ValueError, match="weights"):
+            call()
+    # A zero-sum contrast, rescaled, is the same question in every regime.
+    assert fixed_block.regime(presence, {"A": 2.0, "control": -2.0}) == "direct"
