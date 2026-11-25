@@ -261,3 +261,52 @@ def test_the_notebook_is_thin_guards_colab_and_runs_locally_at_smoke_size(tmp_pa
         exec(source, namespace)  # noqa: S102
     assert (tmp_path / "decisions_results" / "p5" / "summary.md").exists()
     assert (tmp_path / "decisions_results.zip").exists()
+
+
+def _colab_clone(monkeypatch, tmp_path, clone_code: int) -> tuple[list, list, RuntimeError | None]:
+    """Run the notebook's first cell as on Colab with a fake token, ``subprocess.run`` only
+    recorded (the clone answering ``clone_code``); the commands, their environments and the
+    error raised, if any."""
+    import subprocess
+    import types
+
+    token = "ghp_FAKE0123456789"
+    userdata = types.SimpleNamespace(get=lambda name: token)
+    colab_module = types.ModuleType("google.colab")
+    colab_module.userdata = userdata
+    monkeypatch.setitem(sys.modules, "google", types.ModuleType("google"))
+    monkeypatch.setitem(sys.modules, "google.colab", colab_module)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    commands, environments = [], []
+
+    def run(command, **kwargs):
+        commands.append(list(map(str, command)))
+        environments.append(kwargs.get("env") or {})
+        if "clone" in command:
+            return subprocess.CompletedProcess(command, clone_code, "", "fatal: no access\n")
+        url = "https://github.com/CellMigrationLab/MorphoCoverage.git\n"
+        return subprocess.CompletedProcess(command, 0, url, "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    error = None
+    try:
+        exec(_cells()[0], {})  # noqa: S102 - the notebook's own code, its commands recorded
+    except RuntimeError as raised:  # fallback: the test inspects the error itself
+        error = raised
+    for text in [*map(" ".join, commands), str(error or "")]:
+        assert token not in text, text
+    return commands, environments, error
+
+
+def test_the_colab_clone_keeps_the_token_out_of_urls_commands_and_errors_591(monkeypatch, tmp_path):
+    # The token was in the clone URL: in the command, the clone's .git/config and the
+    # CalledProcessError of a failed clone.
+    commands, environments, error = _colab_clone(monkeypatch, tmp_path, 0)
+    assert error is None
+    clone = next(c for c in commands if "clone" in c)
+    assert "https://github.com/CellMigrationLab/MorphoCoverage.git" in clone
+    assert environments[commands.index(clone)]["GIT_ASKPASS"]
+    assert any("remote.origin.url" in c for c in commands)  # the clone's remote is checked
+    commands, _, error = _colab_clone(monkeypatch, tmp_path, 128)
+    assert isinstance(error, RuntimeError) and "git clone failed" in str(error)
+    assert not any("pip" in c for c in commands)

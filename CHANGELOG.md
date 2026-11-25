@@ -20,6 +20,13 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#591.** The benchmark's Colab notebook (`data/simulations/decisions/benchmark_colab.ipynb`)
+  no longer puts the GitHub token in the clone URL, where it was in the command, in the
+  clone's `.git/config` and in the error of a failed clone: git reads it through a
+  `GIT_ASKPASS` helper from the clone's environment, the remote is checked to be the
+  token-free URL, and a failed clone raises with git's message (token masked), not the
+  command. A clone made by the earlier cell keeps the token in
+  `/content/MorphoCoverage/.git/config` until that Colab session ends.
 - **#547.** `BenchmarkRecord.as_row` (and so `records_to_frame`) exports each outcome
   metric's config id as `outcome_id.<name>` beside `outcome.<name>`: two metrics given the
   same label (`RelativeMeanError("feature_a", label="readout_error")` and the same for
