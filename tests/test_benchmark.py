@@ -816,3 +816,21 @@ def test_the_order_comparison_is_one_table_per_order_kind_and_every_median_in_fu
     assert "min" in full  # the timing was given
     with pytest.raises(ValueError, match="short"):
         result.summary(detail="brief")
+
+
+def test_the_flat_rows_keep_each_outcome_metrics_config_id_547(tmp_path):
+    # Two metrics of different features under one label: after records_to_frame and a CSV,
+    # only the config id tells what each outcome.readout_error measured.
+    runs = {
+        feature: _run(_registry(), metrics=[RelativeMeanError(feature, label="readout_error")])
+        for feature in ("feature_a", "feature_b")
+    }
+    frames = []
+    for feature, records in runs.items():
+        path = tmp_path / f"{feature}.csv"
+        records_to_frame(records).to_csv(path, index=False)
+        frames.append(pd.read_csv(path))
+    ids = [set(frame["outcome_id.readout_error"]) for frame in frames]
+    expected = [{RelativeMeanError(f, label="readout_error").config_id} for f in runs]
+    assert ids == expected and ids[0] != ids[1]
+    assert "outcome.readout_error" in frames[0].columns

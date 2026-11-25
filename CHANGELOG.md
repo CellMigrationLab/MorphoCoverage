@@ -20,6 +20,10 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#547.** `BenchmarkRecord.as_row` (and so `records_to_frame`) exports each outcome
+  metric's config id as `outcome_id.<name>` beside `outcome.<name>`: two metrics given the
+  same label (`RelativeMeanError("feature_a", label="readout_error")` and the same for
+  `feature_b`) could not be told apart once exported. The existing columns are unchanged.
 - **#449.** The detection-adjusted unseen-state bound names each group by reading its rows by
   column name: a group column that is not a Python identifier (`"plate id"`, `"class"`)
   raised `AttributeError`, since `itertuples` renames it, whenever an adjusted bound was
