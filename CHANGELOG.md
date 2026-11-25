@@ -20,6 +20,10 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#430.** `plan_objects_to_average` refuses `sample_cols` under which one sample holds
+  both control and other cells, naming the samples: each was centred on its own mean, so the
+  treatment's shift entered the within-sample SD (a plan of 107 cells instead of 1 in the
+  issue's example). Add the column that tells them apart, such as the condition.
 - **#581.** A `FrozenDict` or `FrozenList` built by its constructor now freezes what it is
   given, so `freeze`, which returns such a container unchanged, no longer keeps a caller's
   inner list or dict that could still change a snapshot. Pickling, copying and `freeze` of

@@ -614,3 +614,22 @@ def test_c2_planning_refuses_a_pilot_of_one_object_per_sample():
             sample_cols=("condition", "biological_repeat"),
             control={"condition": "control"},
         )
+
+
+def test_a_sample_key_holding_control_and_treated_cells_is_refused_430():
+    # Keyed by repeat alone, each sample mixed control (10) and treated (20) cells, so the
+    # treatment shift entered the within-sample SD: a plan of 107 cells instead of 1.
+    values = {"control": [9.8, 9.9, 10.1, 10.2], "treated": [19.8, 19.9, 20.1, 20.2]}
+    rows = [
+        {"condition": c, "biological_repeat": r, "image_file": f"{c}_{r}.tif", "area": v}
+        for r in ("r1", "r2")
+        for c, vs in values.items()
+        for v in vs
+    ]
+    objects = pd.DataFrame(rows)
+    fovs = objects.drop_duplicates("image_file").drop(columns="area").reset_index(drop=True)
+    with pytest.raises(ValueError, match="both control and other") as error:
+        _plan(objects, fovs, target_cv=0.05, sample_cols=("biological_repeat",))
+    assert "'r1'" in str(error.value) and "'r2'" in str(error.value)
+    right = _plan(objects, fovs, target_cv=0.05)  # condition and repeat: one kind each
+    assert right.required_objects == 1
