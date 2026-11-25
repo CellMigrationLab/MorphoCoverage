@@ -20,6 +20,10 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#449.** The detection-adjusted unseen-state bound names each group by reading its rows by
+  column name: a group column that is not a Python identifier (`"plate id"`, `"class"`)
+  raised `AttributeError`, since `itertuples` renames it, whenever an adjusted bound was
+  available. The bound and its wording are unchanged.
 - **#448.** The guided session asks again, instead of keeping only the last condition, when
   treatment keys entered for one control repeat or are empty, and when a condition given a
   control later finds both its proposed key and its own name taken under that control (the
