@@ -20,6 +20,10 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#581.** A `FrozenDict` or `FrozenList` built by its constructor now freezes what it is
+  given, so `freeze`, which returns such a container unchanged, no longer keeps a caller's
+  inner list or dict that could still change a snapshot. Pickling, copying and `freeze` of
+  plain containers behave as before.
 - **#551.** `document` compares the parts' Setups field by field with a contrast table
   compared by its values (`DataFrame.equals`): a Setup declared with `contrasts=` raised
   "the truth value of a DataFrame is ambiguous" even against itself. Different contrast

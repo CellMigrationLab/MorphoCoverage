@@ -35,3 +35,24 @@ def test_frozen_containers_serialise_pickle_and_copy_like_plain_ones():
     plain = thaw(frozen)
     plain["a"].append(3)  # a thawed copy is editable and independent
     assert frozen["a"] == [1, 2] and type(plain) is dict
+
+
+def test_a_frozen_container_built_directly_freezes_what_it_holds_581():
+    # freeze trusts a FrozenDict/FrozenList as already frozen; built by its constructor
+    # it kept the caller's inner list and dict, which could still change the snapshot.
+    inner = [1]
+    snapshot = freeze({"science": FrozenDict({"nested": inner})})
+    inner.append(2)
+    assert snapshot["science"]["nested"] == [1]
+    with pytest.raises(TypeError):
+        snapshot["science"]["nested"].append(3)
+    threshold = {"threshold": 1}
+    listed = freeze([FrozenList([threshold])])
+    threshold["threshold"] = 2
+    assert listed[0][0] == {"threshold": 1}
+    with pytest.raises(TypeError):
+        listed[0][0]["threshold"] = 3
+    keyword = FrozenDict(values=[1, 2])
+    assert isinstance(keyword["values"], FrozenList)
+    restored = pickle.loads(pickle.dumps(FrozenDict({"a": [1, {"b": [2]}]})))
+    assert restored == {"a": [1, {"b": [2]}]} and isinstance(restored["a"][1]["b"], FrozenList)
