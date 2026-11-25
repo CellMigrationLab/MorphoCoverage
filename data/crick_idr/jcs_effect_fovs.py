@@ -134,6 +134,16 @@ def full_wells(name: str) -> dict[str, float]:
     return {c: jcs_effect_size(np.concatenate(f), ctrl) for c, f in treated.items()}
 
 
+def bands_overlap(a: tuple[float, float], b: tuple[float, float]) -> bool:
+    """Whether two IQR bands ``(q25, q75)`` share a point, endpoints included, whichever is
+    higher: a band wholly below the other does not overlap it (#569). A band with a missing
+    or inverted quartile is refused."""
+    for band in (a, b):
+        if not band[0] <= band[1]:
+            raise ValueError(f"an IQR band needs q25 <= q75, not {band}")
+    return bool(max(a[0], b[0]) <= min(a[1], b[1]))
+
+
 def compare(table: pd.DataFrame, name: str) -> pd.DataFrame:
     """For each compared pair: band overlap, and how often a sample ranks them as the wells do."""
     _, _, _, pairs, _ = PAPER[name]
@@ -150,7 +160,7 @@ def compare(table: pd.DataFrame, name: str) -> pd.DataFrame:
                     "n_objects": n,
                     "pair": f"{high} > {low}",
                     "full_well_difference": reference[high] - reference[low],
-                    "bands_overlap": bool(a.q25 <= b.q75),
+                    "bands_overlap": bands_overlap((a.q25, a.q75), (b.q25, b.q75)),
                     # draws are independent, so compare every pair of draws
                     "share_ranked_as_full_wells": float(
                         np.mean(a["values"][:, None] > b["values"][None, :])

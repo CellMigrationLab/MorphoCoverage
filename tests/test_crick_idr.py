@@ -339,3 +339,20 @@ def test_the_held_out_tables_carry_their_ceilings_and_denominators():
     # stream would have preserved it) or not preserved by the stream at all (F-8).
     failed = calibration["premature"] + calibration["not_preserved_by_stream"]
     assert failed.max() == 1.0 and (calibration["premature"] <= failed).all()
+
+
+def test_jcs_iqr_bands_overlap_only_when_they_intersect_either_way_569():
+    # Only a.q25 <= b.q75 was tested: a band wholly below the other read as overlapping.
+    import sys
+
+    sys.path.insert(0, str(DATA))
+    from jcs_effect_fovs import bands_overlap
+
+    assert not bands_overlap((-3.0, -2.0), (1.0, 2.0))  # high's band wholly below
+    assert not bands_overlap((1.0, 2.0), (-3.0, -2.0))  # wholly above
+    assert bands_overlap((0.0, 2.0), (1.0, 3.0)) and bands_overlap((1.0, 3.0), (0.0, 2.0))
+    assert bands_overlap((0.0, 1.0), (1.0, 2.0))  # touching counts as overlapping
+    assert bands_overlap((1.0, 1.0), (1.0, 1.0))
+    for bad in (((2.0, 1.0), (0.0, 3.0)), ((float("nan"), 1.0), (0.0, 3.0))):
+        with pytest.raises(ValueError, match="band"):
+            bands_overlap(*bad)

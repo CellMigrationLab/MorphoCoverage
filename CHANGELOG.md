@@ -20,6 +20,10 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#569.** `data/crick_idr/jcs_effect_fovs.py` judges two IQR bands as overlapping only when
+  they intersect (`bands_overlap`, endpoints included), whichever is higher: a band wholly
+  below the other read as overlapping. Inverted or missing quartiles are refused. The
+  committed `results/jcs_effect_fovs_pairs.csv` is unchanged (all 400 rows agree).
 - **#574.** The glioma dataset card (`data/lab/cct7_cct8_glioma_cdm_tracks/card.toml`) no
   longer says that `Unique_ID` and `File_name` are checked by `convert.py`: the converter
   never reads them, so the card now says they are not checked; `experiment_nb` is checked
