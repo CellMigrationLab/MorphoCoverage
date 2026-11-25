@@ -20,6 +20,11 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#538.** Stage coordinates a float cannot hold are refused with the contract's
+  `ValueError`: a Python integer too large for a float (it raised a bare `OverflowError`) as
+  not finite, and an integer beyond 2**53 that a float would round (`2**53` and `2**53 + 1`
+  became one position) as not held exactly, in `stage_matrix` and `check_xy` alike. Nothing
+  is rounded or rescaled.
 - **#544.** Imaged areas that are each finite but whose total overflows a float (two fields
   of `1e308`) are now a problem of `_areas.area_problem`: `ImagedAreaEstimator` reports the
   area `not_applicable` with that reason, so `FixedAreaStrategy` no longer stops on an

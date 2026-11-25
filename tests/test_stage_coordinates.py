@@ -163,3 +163,27 @@ def test_f10_infinite_stage_coordinates_are_refused():
             orders=[AcquisitionOrder.dispersed(0)],
             stage_cols=("x", "y"),
         )
+
+
+@pytest.mark.parametrize("path", ["inspect_fovs", "fov_semivariogram", "spatial_blocks"])
+def test_coordinates_a_float_cannot_hold_are_refused_538(path):
+    # A Python integer beyond float range overflowed with a bare OverflowError; 2**53 and
+    # 2**53 + 1 became one float, two positions silently at the same place.
+    huge = pd.Series([10**400] + list(range(1, 12)), dtype=object)
+    objects, fovs = _tables(sx=huge)
+    with pytest.raises(ValueError, match="finite"):
+        _quiet(lambda: PATHS[path](fovs, objects))
+    objects, fovs = _tables(sx=np.arange(12, dtype=np.int64) + 2**53)
+    with pytest.raises(ValueError, match="exactly"):
+        _quiet(lambda: PATHS[path](fovs, objects))
+
+
+def test_check_xy_refuses_integers_a_float_cannot_hold_538():
+    for bad in (
+        np.array([[2**53, 0], [2**53 + 1, 0]], dtype=np.int64),
+        np.array([[2**63 + 1, 0]], dtype=np.uint64),
+    ):
+        with pytest.raises(ValueError, match="exactly"):
+            stage_travel(bad)
+    exact = np.array([[2**53, 0], [-(2**53), 1]], dtype=np.int64)  # held exactly: kept
+    assert stage_travel(exact)[-1] == pytest.approx(np.hypot(2.0**54, 1))
