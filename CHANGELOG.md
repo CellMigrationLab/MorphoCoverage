@@ -20,6 +20,12 @@ inventory's, not the Stage 2 MC-1/MC-2 of the experiment description.
 
 ### Fixed
 
+- **#640 (part).** The workflows example notebook pairs the positive control's fields by
+  `repeat_group` (`pair_cols=("repeat_group",)`), not by the folder label
+  `biological_repeat`, and stops with what to add when the FOV table has no `repeat_group`.
+  Run on the bundled idr0028 example, the report assesses the positive control. The
+  notebook's analysis groups are unchanged (the workflows already read each folder label as
+  its repeat group).
 - **#576.** The lab converters read the source's `Repeat`, the glioma `TRACK_ID` and the
   filopodia count through `convert_tools.whole_numbers`, which stops, naming the source
   rows, unless every value is a finite whole number of at least 1 (repeats) or 0 (track IDs,
