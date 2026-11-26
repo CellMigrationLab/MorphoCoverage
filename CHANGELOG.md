@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Changed
+
+- **#644. UMAP coordinates change.** `embedding._umap` now passes `compatibility_layout=False`
+  to `umap.UMAP` explicitly, for the embeddings of the report and the PCA and UMAP maps and for
+  the UMAP the populations (question 10) are clustered on. umap-learn 0.6 warns that the
+  default of this argument will change, and a default would make the layout depend on the
+  installed version. `False` is not the 0.5 layout: **the same data, settings and seed now give
+  different UMAP coordinates than runs made before this change** (and than umap-learn 0.6 with
+  its current default `True`). The pictures, and the populations found on them, can differ
+  from earlier runs; PCA is unchanged. The value is recorded as `compatibility_layout` in the
+  settings of `embed` and of `find_populations`. The floor is now `umap-learn>=0.6`. No cache
+  or run identity includes the UMAP settings, and no embedding is cached, so nothing earlier
+  can be reused for the new setting.
+
 ### Removed (compatibility sweep, 2026-11-13)
 
 The code is not in production yet, so compatibility paths for earlier outputs are removed.

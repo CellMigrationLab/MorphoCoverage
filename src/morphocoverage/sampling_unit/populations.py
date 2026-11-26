@@ -60,7 +60,7 @@ import pandas as pd
 from .._checks import as_count, check_seed
 from .._frozen import owned
 from .._identity import canonical_row_codes, row_keys
-from ..embedding import _sample, _standardised, _umap, combined
+from ..embedding import COMPATIBILITY_LAYOUT, _sample, _standardised, _umap, combined
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, column_names
 from ..schema import ValidatedInput, fov_positions, validate_input_tables
 from ..statistics import cohen_d
@@ -449,6 +449,7 @@ def _settings(
         "components": clusters.components,
         "variance": VARIANCE,
         "map_components": min(MAP_COMPONENTS, max(2, len(kept))),
+        "compatibility_layout": COMPATIBILITY_LAYOUT,
         "min_cells": int(clusters.size),
         "purity": PURITY,
         "neighbours": NEIGHBOURS,

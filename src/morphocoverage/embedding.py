@@ -55,6 +55,11 @@ MIN_FEATURES = 3
 MAX_POINTS = 5000
 N_NEIGHBORS = 15
 MIN_DIST = 0.1
+# umap-learn 0.6's ``compatibility_layout`` (owner, 2026-11-26, #644): False is the layout it
+# plans to make the default and is passed explicitly, so no installed version decides it. It
+# gives different coordinates from ``True`` (umap-learn 0.5 and the 0.6 default), so
+# embeddings differ from runs made before this setting was recorded.
+COMPATIBILITY_LAYOUT = False
 # The MorphoBricks column naming an object within its image (CellPatcher's patches).
 LABEL_COLUMN = "label_id"
 
@@ -239,6 +244,7 @@ def embed(
         "umap_points": sampled,
         "n_neighbors": n_neighbors,
         "min_dist": float(min_dist),
+        "compatibility_layout": COMPATIBILITY_LAYOUT,
         "random_state": random_state,
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
@@ -325,6 +331,7 @@ def _umap(
         n_components=n_components,
         random_state=random_state,
         n_jobs=1,
+        compatibility_layout=COMPATIBILITY_LAYOUT,
     )
     with warnings.catch_warnings():
         # fallback: umap-learn warns that a seed disables its parallelism: the point here
