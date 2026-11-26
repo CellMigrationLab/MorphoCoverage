@@ -55,11 +55,12 @@ MIN_FEATURES = 3
 MAX_POINTS = 5000
 N_NEIGHBORS = 15
 MIN_DIST = 0.1
-# umap-learn 0.6's ``compatibility_layout`` (owner, 2026-11-26, #644): False is the layout it
-# plans to make the default and is passed explicitly, so no installed version decides it. It
-# gives different coordinates from ``True`` (umap-learn 0.5 and the 0.6 default), so
-# embeddings differ from runs made before this setting was recorded.
-COMPATIBILITY_LAYOUT = False
+# umap-learn 0.6's ``compatibility_layout`` (owner, 2026-11-26, #644): True is the 0.5 layout
+# and today's default; it is passed explicitly so no installed version decides it, and the
+# embeddings and populations are as before. ``False`` (the layout umap-learn plans as its
+# default) split one Gaussian cloud into 41 HDBSCAN clusters and named no main population, so
+# it waits for the populations to be retuned with it.
+COMPATIBILITY_LAYOUT = True
 # The MorphoBricks column naming an object within its image (CellPatcher's patches).
 LABEL_COLUMN = "label_id"
 

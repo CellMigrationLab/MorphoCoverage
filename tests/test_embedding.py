@@ -89,9 +89,10 @@ class _RecordingUMAP:
         return np.zeros((len(z), type(self).calls[-1]["n_components"]))
 
 
-def test_umap_is_built_with_compatibility_layout_false_explicitly(monkeypatch):
+def test_umap_is_built_with_compatibility_layout_explicitly(monkeypatch):
     """umap-learn 0.6 plans to change the default of ``compatibility_layout``; the layout must
-    not depend on the installed version, so the argument is always passed, as False."""
+    not depend on the installed version, so the argument is always passed, as True (today's
+    layout)."""
     import umap
 
     from morphocoverage.sampling_unit.populations import _embedding
@@ -104,13 +105,13 @@ def test_umap_is_built_with_compatibility_layout_false_explicitly(monkeypatch):
     assert len(_RecordingUMAP.calls) == 2  # the maps' UMAP and the populations' UMAP
     for kwargs in _RecordingUMAP.calls:
         assert "compatibility_layout" in kwargs
-        assert kwargs["compatibility_layout"] is False
+        assert kwargs["compatibility_layout"] is True
 
 
 def test_the_settings_record_the_umap_layout():
     """The layout changes the coordinates, so the run's settings say which one made them."""
     objects, fovs = _shared_axis_tables()
     embedding = embed(objects, fovs, features=["a", "b", "e", "g"], max_points=100)
-    assert embedding.settings["compatibility_layout"] is False
+    assert embedding.settings["compatibility_layout"] is True
     without_umap = embed(objects, fovs, features=["a", "b", "e", "g"], umap=False)
-    assert without_umap.settings["compatibility_layout"] is False
+    assert without_umap.settings["compatibility_layout"] is True

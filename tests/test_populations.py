@@ -174,7 +174,7 @@ def test_no_group_found_is_said_neutrally():
 def test_the_settings_record_the_umap_layout_the_populations_were_found_on():
     objects, fovs = _screen()
     found = find_populations(objects, fovs, features=FEATURES, observation_unit="cell")
-    assert found.settings["compatibility_layout"] is False
+    assert found.settings["compatibility_layout"] is True
 
 
 def test_above_the_sample_size_every_cell_still_gets_a_population():

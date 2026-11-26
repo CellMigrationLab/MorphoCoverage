@@ -4,17 +4,17 @@
 
 ### Changed
 
-- **#644. UMAP coordinates change.** `embedding._umap` now passes `compatibility_layout=False`
-  to `umap.UMAP` explicitly, for the embeddings of the report and the PCA and UMAP maps and for
-  the UMAP the populations (question 10) are clustered on. umap-learn 0.6 warns that the
-  default of this argument will change, and a default would make the layout depend on the
-  installed version. `False` is not the 0.5 layout: **the same data, settings and seed now give
-  different UMAP coordinates than runs made before this change** (and than umap-learn 0.6 with
-  its current default `True`). The pictures, and the populations found on them, can differ
-  from earlier runs; PCA is unchanged. The value is recorded as `compatibility_layout` in the
-  settings of `embed` and of `find_populations`. The floor is now `umap-learn>=0.6`. No cache
-  or run identity includes the UMAP settings, and no embedding is cached, so nothing earlier
-  can be reused for the new setting.
+- **#644. UMAP layout is explicit; embeddings do not change.** `embedding._umap` now passes
+  `compatibility_layout=True` to `umap.UMAP`, for the maps' UMAP and the UMAP the populations
+  (question 10) are clustered on. `True` is the umap-learn 0.5 layout and the 0.6 default,
+  so the same data, settings and seed give the same embeddings and populations as before;
+  the value is now explicit, so a later umap-learn default cannot change them silently. It is
+  recorded as `compatibility_layout` in the settings of `embed` and `find_populations`. The
+  floor is now `umap-learn>=0.6`. `False` (the layout umap-learn plans as its default) is
+  deferred: in a test with 2160 Gaussian cells and a 240-cell blob, HDBSCAN found 2 clusters
+  (2161 and 239 cells) with `True` and 41 with `False` (largest 358 cells, 300 unassigned),
+  so no main population was named. It is to be revisited with a retuning of the populations.
+  No cache or run identity includes the UMAP settings and no embedding is cached.
 
 ### Removed (compatibility sweep, 2026-11-13)
 
