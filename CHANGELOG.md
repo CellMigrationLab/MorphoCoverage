@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Changed
+
+- **#644. UMAP layout is explicit; embeddings do not change.** `embedding._umap` now passes
+  `compatibility_layout=True` to `umap.UMAP`, for the maps' UMAP and the UMAP the populations
+  (question 10) are clustered on. `True` is the umap-learn 0.5 layout and the 0.6 default,
+  so the same data, settings and seed give the same embeddings and populations as before;
+  the value is now explicit, so a later umap-learn default cannot change them silently. It is
+  recorded as `compatibility_layout` in the settings of `embed` and `find_populations`. The
+  floor is now `umap-learn>=0.6`. `False` (the layout umap-learn plans as its default) is
+  deferred: in a test with 2160 Gaussian cells and a 240-cell blob, HDBSCAN found 2 clusters
+  (2161 and 239 cells) with `True` and 41 with `False` (largest 358 cells, 300 unassigned),
+  so no main population was named. It is to be revisited with a retuning of the populations.
+  No cache or run identity includes the UMAP settings and no embedding is cached.
+
 ### Removed (compatibility sweep, 2026-11-13)
 
 The code is not in production yet, so compatibility paths for earlier outputs are removed.

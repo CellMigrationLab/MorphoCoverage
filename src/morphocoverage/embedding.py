@@ -55,6 +55,12 @@ MIN_FEATURES = 3
 MAX_POINTS = 5000
 N_NEIGHBORS = 15
 MIN_DIST = 0.1
+# umap-learn 0.6's ``compatibility_layout`` (owner, 2026-11-26, #644): True is the 0.5 layout
+# and today's default; it is passed explicitly so no installed version decides it, and the
+# embeddings and populations are as before. ``False`` (the layout umap-learn plans as its
+# default) split one Gaussian cloud into 41 HDBSCAN clusters and named no main population, so
+# it waits for the populations to be retuned with it.
+COMPATIBILITY_LAYOUT = True
 # The MorphoBricks column naming an object within its image (CellPatcher's patches).
 LABEL_COLUMN = "label_id"
 
@@ -239,6 +245,7 @@ def embed(
         "umap_points": sampled,
         "n_neighbors": n_neighbors,
         "min_dist": float(min_dist),
+        "compatibility_layout": COMPATIBILITY_LAYOUT,
         "random_state": random_state,
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
@@ -325,6 +332,7 @@ def _umap(
         n_components=n_components,
         random_state=random_state,
         n_jobs=1,
+        compatibility_layout=COMPATIBILITY_LAYOUT,
     )
     with warnings.catch_warnings():
         # fallback: umap-learn warns that a seed disables its parallelism: the point here

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import numpy as np
 import pandas as pd
 
@@ -73,3 +75,43 @@ def test_75_the_condition_labels_do_not_change_the_loadings():
     caption, _ = _pca_caption(*_shared_axis_tables())
     relabelled, _ = _pca_caption(*_shared_axis_tables(("drug", "ctrl")))
     assert caption == relabelled
+
+
+class _RecordingUMAP:
+    """Stands in for ``umap.UMAP``: keeps the keyword arguments it was built with."""
+
+    calls: ClassVar[list[dict]] = []
+
+    def __init__(self, **kwargs):
+        type(self).calls.append(kwargs)
+
+    def fit_transform(self, z):
+        return np.zeros((len(z), type(self).calls[-1]["n_components"]))
+
+
+def test_umap_is_built_with_compatibility_layout_explicitly(monkeypatch):
+    """umap-learn 0.6 plans to change the default of ``compatibility_layout``; the layout must
+    not depend on the installed version, so the argument is always passed, as True (today's
+    layout)."""
+    import umap
+
+    from morphocoverage.sampling_unit.populations import _embedding
+
+    _RecordingUMAP.calls = []
+    monkeypatch.setattr(umap, "UMAP", _RecordingUMAP)
+    objects, fovs = _shared_axis_tables()
+    embed(objects, fovs, features=["a", "b", "e", "g"], max_points=100)
+    _embedding(np.random.default_rng(0).normal(size=(60, 4)), 0)
+    assert len(_RecordingUMAP.calls) == 2  # the maps' UMAP and the populations' UMAP
+    for kwargs in _RecordingUMAP.calls:
+        assert "compatibility_layout" in kwargs
+        assert kwargs["compatibility_layout"] is True
+
+
+def test_the_settings_record_the_umap_layout():
+    """The layout changes the coordinates, so the run's settings say which one made them."""
+    objects, fovs = _shared_axis_tables()
+    embedding = embed(objects, fovs, features=["a", "b", "e", "g"], max_points=100)
+    assert embedding.settings["compatibility_layout"] is True
+    without_umap = embed(objects, fovs, features=["a", "b", "e", "g"], umap=False)
+    assert without_umap.settings["compatibility_layout"] is True
