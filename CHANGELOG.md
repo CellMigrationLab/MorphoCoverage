@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Fixed
+
+- **#649. Embedding-only reports find their populations.** A Setup without a readout or an
+  explainable feature (the other feature tables alone) was refused in the populations
+  (`feature_cols must contain at least one explicitly selected feature`) whenever a group was
+  found. The populations now validate the observations on the tables' columns, all of them, as
+  the report's data check does; a report with explainable features is unchanged.
+- **#650. A described Setup runs with `n_jobs` other than 1.** The experiment block and the
+  target suggestions hold read-only `mappingproxy` mappings, which cannot be pickled to worker
+  processes. They are now pickled as plain dicts and made read only again on load; the
+  results are those of `n_jobs=1`.
+
 ### Changed
 
 - **#644. UMAP layout is explicit; embeddings do not change.** `embedding._umap` now passes
