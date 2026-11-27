@@ -582,3 +582,31 @@ def test_the_declared_labels_group_is_tested_once_as_the_label(labelled):
     result = Result()
     result.results = {"populations": found}
     assert chip_words(result)["populations"] == "The declared label"
+
+
+def test_an_embedding_only_report_finds_and_tests_the_populations_of_its_table():
+    """With no readout and no explainable feature (the tables alone), the populations are
+    found on the table, every cell is marked and tested (#649: no refusal for want of a
+    feature column), the same tests as on the marks computed directly."""
+    objects, fovs = _screen()
+    key = ["condition", "biological_repeat", "technical_repeat", "image_file", "label_id"]
+    table = objects[[*key, *FEATURES]]
+    observations = objects.drop(columns=list(FEATURES))
+    setup = Setup(control={"condition": "siCTRL"}, observation_unit="cell", random_state=0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(observations, fovs, setup, feature_tables={"emb": table})
+    found = result.results["populations"]
+    assert setup.embedding_only and found.control == "siCTRL"
+    groups = found.populations.of_kind("group")
+    assert groups, found.populations.table
+    # The planted mitoses are a group of their own, in every condition.
+    marks = pd.DataFrame({g: found.populations.membership(g) for g in groups})
+    mitoses = max(groups, key=lambda g: objects.loc[marks[g].eq(1), "mitotic"].mean())
+    assert objects.loc[marks[mitoses].eq(1), "mitotic"].mean() > 0.9
+    # Every cell is marked (none lost), and the tests are those of the marks themselves.
+    assert marks.notna().all(axis=1).reindex(objects.index).all()
+    expected = enrichment_tests(objects.assign(**marks), groups, "siCTRL")
+    pd.testing.assert_frame_equal(found.enrichment, expected)
+    arrest = found.enrichment.set_index(["feature", "condition"]).loc[(mitoses, "arrest")]
+    assert arrest["share"] > arrest["control_share"]

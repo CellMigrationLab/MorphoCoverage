@@ -34,6 +34,7 @@ from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.populations import Populations, defined_by, traits
 from ..schema import observation_words, validate_input_tables
 from ..statistics import ALPHA
+from ._feature_space import table_columns
 from ._population_context import (
     AGAINST_WORDS,
     NOT_NORMALISED,
@@ -108,7 +109,9 @@ def populations_in_report(
     if not populations.names:
         return PopulationsResult(populations, None, None, None, **found)
     # The validated observations: group columns only in the FOV table are attached to them.
-    data = validate_input_tables(objects, fovs=fovs, feature_cols=setup.columns, **setup.common)
+    # Embedding-only (no explainable feature, #649): the other tables' columns, all of them.
+    columns = list(setup.columns) or table_columns(setup)
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=columns, **setup.common)
     # Each group known where its space assessed the cell: 1 in it, 0 not, missing unknown.
     shares = {name: populations.membership(name) for name in populations.names}
     marks = pd.DataFrame(shares).reindex(data.objects.index)

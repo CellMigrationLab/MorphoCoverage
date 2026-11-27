@@ -13,6 +13,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import pickle
 import tomllib
 from pathlib import Path
 
@@ -563,3 +564,45 @@ def test_v33_scan_suggests_the_descriptions_control_and_its_setup_defaults_it() 
     assert setup.control == {"condition": "ctrl"} and setup.described.chosen is None
     result = report(scan.objects, scan.fovs, setup)
     assert set(result.results["contrast"].table["control_condition"]) == {"ctrl"}
+
+
+# --- The described Setup in worker processes (#650) ---------------------------------------------
+
+
+def test_a_described_setup_pickles_with_its_description_unchanged_and_read_only() -> None:
+    _, _, experiment = _experiment("v10")
+    setup = described_setup(experiment, **FAST)
+    copied = pickle.loads(pickle.dumps(setup))
+    block, again = experiment.block, copied.described.experiment.block
+    assert again == block and copied.described == setup.described
+    assert dict(again.repeat_groups) == dict(block.repeat_groups)
+    assert {k: dict(v) for k, v in again.repeat_groups.items()} == {
+        k: dict(v) for k, v in block.repeat_groups.items()
+    }
+    # Still read only, at every level, after the round trip.
+    with pytest.raises(TypeError):
+        again.conditions["new"] = "folder"  # type: ignore[index]
+    with pytest.raises(TypeError):
+        next(iter(again.repeat_groups.values()))["new"] = "R9"  # type: ignore[index]
+    suggestions = pickle.loads(pickle.dumps(experiment.target_suggestions))
+    assert dict(suggestions.suggested) == dict(experiment.target_suggestions.suggested)
+    with pytest.raises(TypeError):
+        suggestions.suggested["new"] = "T"  # type: ignore[index]
+
+
+def test_a_described_report_in_worker_processes_is_the_serial_report() -> None:
+    """``n_jobs=2`` sends the described Setup to worker processes (#650: refused as
+    unpicklable); the report is the serial one, number for number."""
+    objects, fovs, experiment = _experiment("v03")
+    fast = {**FAST, "features": ("x", "Cells__area")}
+    serial, workers = (
+        report(objects, fovs, described_setup(experiment, **fast, n_jobs=n)) for n in (1, 2)
+    )
+    assert workers.summary(detail="full") == serial.summary(detail="full")
+    pd.testing.assert_frame_equal(
+        workers.results["contrast"].table, serial.results["contrast"].table
+    )
+    for part in ("tests", "ranking"):
+        pd.testing.assert_frame_equal(
+            getattr(workers.discovery, part), getattr(serial.discovery, part)
+        )

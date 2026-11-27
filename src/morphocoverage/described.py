@@ -105,6 +105,20 @@ class ExperimentBlock:
     repeat_groups: Mapping[str, Mapping[str, str]]
     suggestions: Mapping[str, tuple[str | None, str | None]]
 
+    def __reduce__(self) -> tuple[Any, tuple[dict[str, Any]]]:
+        """Pickled as plain dicts, since a ``mappingproxy`` cannot be, and frozen again on
+        load, so a described Setup reaches worker processes unchanged (``n_jobs``, #650)."""
+        fields = {
+            "description_sha256": self.description_sha256,
+            "description_schema_version": self.description_schema_version,
+            "section_digests": dict(self.section_digests),
+            "conditions": dict(self.conditions),
+            "references": dict(self.references),
+            "repeat_groups": {rid: dict(m) for rid, m in self.repeat_groups.items()},
+            "suggestions": dict(self.suggestions),
+        }
+        return (_frozen_block, (fields,))
+
     def check_fovs(self, fovs: pd.DataFrame, source: str = COVERAGE_FILE) -> None:
         """Refuse (``DISAGREES``) a FOV table that disagrees with the block (module, 4)."""
         missing = [c for c in CHECKED_COLUMNS if c not in fovs.columns]
@@ -233,6 +247,10 @@ class TargetSuggestions:
     def __init__(self, targets: Mapping[str, str], treatment_keys: Mapping[str, str]) -> None:
         self.suggested = MappingProxyType(dict(targets))
         self.treatment_keys = MappingProxyType(dict(treatment_keys))
+
+    def __reduce__(self) -> tuple[Any, tuple[dict[str, str], dict[str, str]]]:
+        """Pickled as plain dicts (a ``mappingproxy`` cannot be), read only again on load."""
+        return (TargetSuggestions, (dict(self.suggested), dict(self.treatment_keys)))
 
     def __repr__(self) -> str:
         return f"TargetSuggestions({dict(self.suggested)!r}, unconfirmed)"
